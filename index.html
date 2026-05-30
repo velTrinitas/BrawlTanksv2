@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ekstra Tanks: WebGL Edition</title>
+    
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; }
+        /* Skopiuj resztę swoich stylów dla #uiLayer, przycisków itd. */
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+</head>
+<body>
+
+    <script>
+        // ==========================================
+        // ETAP 1: INICJALIZACJA SILNIKA PIXI.JS
+        // ==========================================
+
+        // 1. Tworzymy aplikację Pixi (Zastępuje to nasz stary <canvas> i ctx)
+        const app = new PIXI.Application({
+            resizeTo: window,          // Automatycznie dopasowuje się do okna! (Nie musisz pisać resize())
+            backgroundColor: 0x1a1a2e, // Kolor tła (zapisywany jako 0x zamiast #)
+            antialias: true            // Wygładzanie krawędzi
+        });
+
+        // 2. Wrzucamy wygenerowany przez Pixi canvas do HTML (zamiast pisać <canvas> ręcznie)
+        document.body.appendChild(app.view);
+        // Upewniamy się, że canvas Pixi jest pod naszym UI
+        app.view.style.position = 'absolute';
+        app.view.style.zIndex = '1';
+
+        // 3. Kontener Świata (Camera)
+        // W Pixi, zamiast używać ctx.translate(-camera.x, -camera.y), 
+        // po prostu wkładamy wszystko do jednego "pudła" (Kontenera) i przesuwamy to pudło!
+        const worldContainer = new PIXI.Container();
+        // Włączamy sortowanie głębi (Z-index), by móc łatwo układać dachy nad czołgami
+        worldContainer.sortableChildren = true; 
+        app.stage.addChild(worldContainer);
+// ==========================================
+        // ETAP 2: ARCHITEKTURA GRACZA W PIXI.JS
+        // ==========================================
+
+        class Player {
+            constructor() {
+                this.x = window.innerWidth / 2;
+                this.y = window.innerHeight / 2;
+                this.speed = 6;
+                
+                // 1. GŁÓWNY KONTENER CZOŁGU (Pudło trzymające wszystko)
+                this.container = new PIXI.Container();
+                this.container.x = this.x;
+                this.container.y = this.y;
+                
+                // 2. KADŁUB I GĄSIENICE
+                this.hull = new PIXI.Graphics();
+                this.hull.beginFill(0x111111); // Gąsienice (Czerń)
+                this.hull.drawRect(-23, -23, 46, 10);
+                this.hull.drawRect(-23, 13, 46, 10);
+                this.hull.beginFill(0x27ae60); // Pancerz (Zieleń)
+                this.hull.drawRoundedRect(-23, -19, 46, 38, 8);
+                this.hull.endFill();
+                
+                // 3. WIEŻA I LUFA
+                this.turret = new PIXI.Graphics();
+                this.turret.beginFill(0x555555); // Lufa (Szary)
+                this.turret.drawRect(10, -6, 25, 12);
+                this.turret.beginFill(0x27ae60); // Baza wieży
+                this.turret.drawCircle(0, 0, 16);
+                this.turret.endFill();
+                
+                // 4. SKŁADANIE DRZEWA
+                this.container.addChild(this.hull);
+                this.container.addChild(this.turret);
+                
+                // Dodajemy czołg do świata gry
+                worldContainer.addChild(this.container);
+            }
+
+            // W Pixi robimy tylko czystą matematykę, żadnego renderowania w update!
+            update(keys, mouseWorldX, mouseWorldY) {
+                let dx = 0; let dy = 0;
+                if (keys.w) dy -= 1;
+                if (keys.s) dy += 1;
+                if (keys.a) dx -= 1;
+                if (keys.d) dx += 1;
+
+                if (dx !== 0 || dy !== 0) {
+                    // Normalizacja wektora (żeby na skos nie jechał szybciej)
+                    let len = Math.sqrt(dx * dx + dy * dy);
+                    this.x += (dx / len) * this.speed;
+                    this.y += (dy / len) * this.speed;
+                    
+                    // Obrót kadłuba w stronę jazdy
+                    this.hull.rotation = Math.atan2(dy, dx);
+                }
+
+                // Aktualizacja fizycznej pozycji na ekranie
+                this.container.x = this.x;
+                this.container.y = this.y;
+
+                // Obrót wieżyczki w stronę myszki
+                this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+            }
+        }
+
+        // ==========================================
+        // TŁO TESTOWE (Żebyśmy widzieli ruch kamery)
+        // ==========================================
+        const grid = new PIXI.Graphics();
+        grid.lineStyle(2, 0x333344, 0.5); // Grubość, Kolor, Przezroczystość
+        for(let i = -2000; i <= 4000; i += 100) {
+            grid.moveTo(i, -2000); grid.lineTo(i, 4000);
+            grid.moveTo(-2000, i); grid.lineTo(4000, i);
+        }
+        worldContainer.addChild(grid);
+
+        // Tworzymy naszego gracza
+        const player = new Player();
+
+        // ==========================================
+        // ETAP 3: STEROWANIE I PĘTLA GRY
+        // ==========================================
+
+        const keys = { w: false, a: false, s: false, d: false };
+        const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
+
+        // Nasłuchiwanie klawiatury
+        window.addEventListener('keydown', e => { 
+            let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; 
+        });
+        window.addEventListener('keyup', e => { 
+            let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; 
+        });
+
+        // W Pixi.js używamy 'pointermove' zamiast 'mousemove' (obsługuje też dotyk!)
+        app.view.addEventListener('pointermove', e => {
+            mouse.screenX = e.clientX;
+            mouse.screenY = e.clientY;
+        });
+
+        // GŁÓWNA PĘTLA
+        app.ticker.add((delta) => {
+            // 1. Obliczamy ruch Kamery (Ustawiamy pozycję świata w kontrze do gracza)
+            // Używamy ~~ (Math.floor) z naszych wcześniejszych lekcji optymalizacji!
+            worldContainer.x = ~~(window.innerWidth / 2 - player.x);
+            worldContainer.y = ~~(window.innerHeight / 2 - player.y);
+
+            // 2. Przeliczamy pozycję myszki z ekranu na świat gry
+            let mouseWorldX = mouse.screenX - worldContainer.x;
+            let mouseWorldY = mouse.screenY - worldContainer.y;
+
+            // 3. Aktualizujemy gracza
+            player.update(keys, mouseWorldX, mouseWorldY);
+        });
+        
+        app.ticker.add((delta) => {
+            // Tutaj będzie nasza stara logika gry (ruch, kolizje, AI)
+            
+            // TEST: Obracamy naszą kostkę używając GPU!
+            testCube.rotation += 0.05 * delta;
+        });
+
+    </script>
+</body>
+</html>

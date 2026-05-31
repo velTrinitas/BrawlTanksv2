@@ -5,503 +5,301 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Brawl Tanks: WebGL Edition</title>
     
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; }
+        body { 
+            margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; 
+            font-family: 'Lilita One', cursive, sans-serif;
+            user-select: none;
+        }
+
+        /* --- BRAWL STARS UI STYLE --- */
+        #uiLayer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; pointer-events: none; /* Przepuszcza kliknięcia do gry, gdy menu zniknie */
+        }
+
+        .screen {
+            display: none; flex-direction: column; align-items: center;
+            background: #fff; padding: 20px 40px 40px 40px;
+            border-radius: 32px; border: 8px solid #2c3e50; color: #2c3e50;
+            pointer-events: auto; /* Menu przechwytuje kliknięcia */
+            box-shadow: 0 20px 0 rgba(0,0,0,0.2), 0 25px 50px rgba(0,0,0,0.5);
+            max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto;
+        }
+        .active-screen { display: flex; }
+
+        h1 { font-size: 4rem; margin: 0 0 10px 0; color: #f1c40f; text-transform: uppercase; text-shadow: 4px 4px 0 #000; -webkit-text-stroke: 2px #000; letter-spacing: 2px; }
+        h2 { font-size: 1.5rem; color: #fff; background: #3498db; padding: 8px 30px; border-radius: 20px; border: 4px solid #2c3e50; box-shadow: 4px 4px 0 #2c3e50; margin: 20px 0 15px 0; }
+
+        .grid-container { display: grid; gap: 15px; width: 100%; }
+        .char-grid { grid-template-columns: repeat(4, 1fr); }
+
+        .select-card {
+            background: #ecf0f1; border: 4px solid #2c3e50; border-radius: 16px;
+            padding: 12px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
+            text-align: center; box-shadow: 0 6px 0 #2c3e50; position: relative;
+        }
+        .select-card:hover { transform: translateY(-5px); }
+        .select-card.selected {
+            background: #f1c40f; border-color: #000;
+            box-shadow: 0 8px 0 #d35400, 0 0 16px rgba(241,196,15,0.55);
+            transform: translateY(-5px) scale(1.05); z-index: 10;
+        }
+        .select-card .name {
+            font-size: 1.3rem; margin-bottom: 5px; color: #fff;
+            -webkit-text-stroke: 1px #000; text-shadow: 2px 2px 0 #000;
+            text-transform: uppercase; position: relative; z-index: 2;
+        }
+        .card-stats-row { display: flex; align-items: center; background: rgba(0,0,0,0.18); border-radius: 8px; padding: 4px 0; margin: 4px 0; }
+        .card-stat { flex: 1; text-align: center; font-size: 0.75rem; color: #fff; }
+
+        button.brawl-btn {
+            padding: 15px 60px; font-size: 3rem; color: #fff; background: #f1c40f;
+            border: 6px solid #2c3e50; border-radius: 50px; cursor: pointer;
+            text-transform: uppercase; font-family: 'Lilita One', cursive;
+            -webkit-text-stroke: 2px #000; text-shadow: 3px 3px 0 #000;
+            box-shadow: 0 10px 0 #d35400, 0 15px 20px rgba(0,0,0,0.4);
+            transition: all 0.1s; margin-top: 30px;
+        }
+        button.brawl-btn:hover { background: #f39c12; transform: scale(1.05); }
+        button.brawl-btn:active { transform: translateY(10px) scale(1.0); box-shadow: 0 0px 0 #d35400; }
+
+        /* HUD w grze */
+        #hud { position: absolute; top: 15px; left: 15px; font-size: 2rem; color: white; -webkit-text-stroke: 1px black; display: none; }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
 </head>
 <body>
 
+    <div id="hud">WYNIK: <span id="scoreVal">0</span></div>
+
+    <div id="uiLayer">
+        <div id="welcomeScreen" class="screen active-screen">
+            <h1>Brawl Tanks</h1>
+            <h2>Wybierz swój czołg</h2>
+            <div class="grid-container char-grid" id="charGrid"></div>
+            <button class="brawl-btn" id="startBtn">GRAJ!</button>
+        </div>
+    </div>
+
     <script>
         // ==========================================
-        // ETAP 1: INICJALIZACJA SILNIKA
+        // DANE CZOŁGÓW (Poprawione rozszerzenia na .jpg)
+        // ==========================================
+        const BRAWLERS = [
+            { id: 'twardy', emoji: '🪖', icon: 'twardy.jpg', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400 },
+            { id: 'heavy', emoji: '🛡️', icon: 'pancerny.jpg', name: 'Pancerny', colorMain: '#8e44ad', hp: 7, speed: 3.5, dmg: 1.5, reload: 700 },
+            { id: 'scout', emoji: '🔍', icon: 'zwiadowca.jpg', name: 'Zwiad', colorMain: '#f1c40f', hp: 2, speed: 7.5, dmg: 0.8, reload: 250 },
+            { id: 'sniper', emoji: '🎯', icon: 'snajper.jpg', name: 'Snajper', colorMain: '#3498db', hp: 3, speed: 4.5, dmg: 3, reload: 1000 },
+            { id: 'plasma', emoji: '💻', icon: 'tech.jpg', name: 'Tech', colorMain: '#00cec9', hp: 4, speed: 5, dmg: 1.2, reload: 500 },
+            { id: 'pyro', emoji: '🔥', icon: 'ogniarz.jpg', name: 'Ogniarz', colorMain: '#e74c3c', hp: 5, speed: 4.8, dmg: 0.5, reload: 210 },
+            { id: 'shadow', emoji: '🌑', icon: 'shadow.jpg', name: 'Shadow', colorMain: '#2c3e50', hp: 3, speed: 6.5, dmg: 1.5, reload: 600 },
+            { id: 'king', emoji: '👑', icon: 'krol.jpg', name: 'King', colorMain: '#d35400', hp: 5, speed: 5.5, dmg: 2, reload: 500 }
+        ];
+
+        let selectedBrawler = BRAWLERS[0];
+        let gameState = 'MENU'; // 'MENU' lub 'PLAYING'
+        let score = 0;
+
+        // ==========================================
+        // GENEROWANIE MENU
+        // ==========================================
+        const charGrid = document.getElementById('charGrid');
+        BRAWLERS.forEach(b => {
+            let div = document.createElement('div');
+            div.className = `select-card ${b.id === selectedBrawler.id ? 'selected' : ''}`;
+            
+            // Renderujemy kartę z Twoim plikiem JPG
+            div.innerHTML = `
+                <div style="width:100%;padding-top:100%;position:relative;margin-top:5px;border-radius:10px;overflow:hidden;border:2px solid ${b.colorMain};">
+                    <img src="${b.icon}" alt="${b.name}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
+                </div>
+                <div class="name" style="background:${b.colorMain};border-radius:8px;padding:4px 2px;margin-top:8px;">${b.emoji} ${b.name}</div>
+                <div class="card-stats-row">
+                    <span class="card-stat">❤️ ${b.hp}</span>
+                    <span class="card-stat">⚡ ${b.speed}</span>
+                    <span class="card-stat">💥 ${b.dmg}</span>
+                </div>
+            `;
+            
+            div.onclick = () => {
+                document.querySelectorAll('.char-grid .select-card').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+                selectedBrawler = b;
+            };
+            charGrid.appendChild(div);
+        });
+
+        // ==========================================
+        // INICJALIZACJA SILNIKA PIXI.JS
         // ==========================================
         const app = new PIXI.Application({
-            resizeTo: window,          
-            backgroundColor: 0x1a1a2e, 
-            antialias: true            
+            resizeTo: window, backgroundColor: 0x1a1a2e, antialias: true            
         });
         document.body.appendChild(app.view);
-        app.view.style.position = 'absolute';
-        app.view.style.zIndex = '1';
+        app.view.style.position = 'absolute'; app.view.style.zIndex = '1';
 
         const worldContainer = new PIXI.Container();
         worldContainer.sortableChildren = true; 
         app.stage.addChild(worldContainer);
 
-        const uiContainer = new PIXI.Container();
-        uiContainer.zIndex = 1000; 
-        app.stage.addChild(uiContainer);
-
-        let score = 0;
-        const scoreText = new PIXI.Text('Wynik: 0', {
-            fontFamily: 'Arial', fontSize: 24, fill: 0xffffff, fontWeight: 'bold'
-        });
-        scoreText.x = 20; scoreText.y = 20;
-        uiContainer.addChild(scoreText);
-
-        // Zmienna wymagana do oryginalnego kodu
-        const stats = { kills: 0 }; 
-
         // ==========================================
-        // TWOJE ORYGINALNE DANE I FUNKCJE RYSUJĄCE
+        // FUNKCJE POMOCNICZE WIZUALNE (Baking)
         // ==========================================
-        const BRAWLERS = [
-            { id: 'twardy', emoji: '🪖', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400, type: 'standard' },
-            { id: 'heavy', emoji: '🛡️', name: 'Pancerny', colorMain: '#8e44ad', hp: 7, speed: 3.5, dmg: 1.5, reload: 700, type: 'standard' },
-            { id: 'scout', emoji: '🔍', name: 'Zwiad', colorMain: '#f1c40f', hp: 2, speed: 7.5, dmg: 0.8, reload: 250, type: 'standard' },
-            { id: 'sniper', emoji: '🎯', name: 'Snajper', colorMain: '#3498db', hp: 3, speed: 4.5, dmg: 3, reload: 1000, type: 'fast' },
-            { id: 'plasma', emoji: '💻', name: 'Tech', colorMain: '#00cec9', hp: 4, speed: 5, dmg: 1.2, reload: 500, type: 'plasma' },
-            { id: 'pyro', emoji: '🔥', name: 'Ogniarz', colorMain: '#e74c3c', hp: 5, speed: 4.8, dmg: 0.5, reload: 210, type: 'spread' },
-            { id: 'shadow', emoji: '🌑', name: 'Shadow', colorMain: '#2c3e50', hp: 3, speed: 6.5, dmg: 1.5, reload: 600, type: 'standard' },
-            { id: 'king', emoji: '👑', name: 'King', colorMain: '#d35400', hp: 5, speed: 5.5, dmg: 2, reload: 500, type: 'standard' }
-        ];
-
         function lerpHex(hex, amt) {
             let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
             const c=v=>Math.max(0,Math.min(255,Math.round(v+amt)));
             return '#'+[c(r),c(g),c(b)].map(v=>v.toString(16).padStart(2,'0')).join('');
         }
 
-        function _pyroLerp(hex1, hex2, ratio) {
-            const p = c => parseInt(c.replace('#',''), 16);
-            const a = p(hex1), b2 = p(hex2);
-            const r = Math.round(((a>>16)*(1-ratio) + (b2>>16)*ratio));
-            const g = Math.round((((a>>8)&0xff)*(1-ratio) + ((b2>>8)&0xff)*ratio));
-            const bl = Math.round(((a&0xff)*(1-ratio) + (b2&0xff)*ratio));
-            return '#'+((1<<24|r<<16|g<<8|bl).toString(16).slice(1));
-        }
-
-        // --- TWOJA ORYGINALNA FUNKCJA KADŁUBA ---
-        function drawTankHull(c, brawler, trackOff, age) {
+        // Twoje oryginalne funkcje rysujące
+        function drawTankHull(c, brawler) {
             const id=brawler.id, col=brawler.colorMain;
             const cL=lerpHex(col,45), cD=lerpHex(col,-35);
-            const HL=52, HW=26, TRK=5;
-            const hhl=HL/2, hhw=HW/2;
-            const serials={twardy:'T-07',heavy:'H-01',scout:'S-12',sniper:'SN3',plasma:'TX99',pyro:'PY6',shadow:'00',king:'KG1'};
-
-            c.fillStyle='rgba(0,0,0,0.22)';
-            c.beginPath(); c.ellipse(2, 10, 28, 11, 0, 0, Math.PI*2); c.fill();
-
-            function drawTrack(sy) {
-                c.fillStyle='#1c1c1c'; c.strokeStyle='#2e2e2e'; c.lineWidth=1;
-                c.beginPath(); c.roundRect(-hhl,sy-TRK/2,HL,TRK,2); c.fill(); c.stroke();
-                c.strokeStyle='#363636'; c.lineWidth=0.7;
-                const step=7, tOff=((trackOff*0.4)%step+step)%step;
-                for(let i=0;i<=Math.ceil(HL/step)+1;i++){
-                    const lx=-hhl+i*step-tOff;
-                    if(lx>-hhl+0.5&&lx<hhl-0.5){c.beginPath();c.moveTo(lx,sy-TRK/2+1);c.lineTo(lx,sy+TRK/2-1);c.stroke();}
-                }
-                c.fillStyle='#252525'; c.strokeStyle='#3a3a3a'; c.lineWidth=0.7;
-                [-hhl+3.5,-hhl/2,0,hhl/2,hhl-3.5].forEach(wx=>{
-                    c.beginPath(); c.arc(wx,sy,3.2,0,Math.PI*2); c.fill(); c.stroke();
-                    c.fillStyle='#383838'; c.beginPath(); c.arc(wx,sy,1.3,0,Math.PI*2); c.fill(); c.fillStyle='#252525';
-                });
-            }
-            drawTrack(-(hhw+TRK/2+0.5));
-            drawTrack(hhw+TRK/2+0.5);
-
+            const HL=52, HW=26, TRK=5, hhl=HL/2, hhw=HW/2;
+            c.fillStyle='#1c1c1c'; c.beginPath(); c.roundRect(-hhl,-(hhw+TRK/2+0.5)-TRK/2,HL,TRK,2); c.fill();
+            c.beginPath(); c.roundRect(-hhl,(hhw+TRK/2+0.5)-TRK/2,HL,TRK,2); c.fill();
             c.lineWidth=1.5; c.strokeStyle='#000';
             c.fillStyle=col; c.beginPath(); c.roundRect(-hhl,-hhw,HL,HW,3); c.fill(); c.stroke();
             c.fillStyle=cL; c.globalAlpha=0.28; c.beginPath(); c.roundRect(-hhl,-hhw,HL*0.2,HW,3); c.fill(); c.globalAlpha=1;
             c.fillStyle=cD; c.globalAlpha=0.38; c.beginPath(); c.roundRect(hhl-HL*0.28,-hhw,HL*0.28,HW,3); c.fill(); c.globalAlpha=1;
-            
-            c.globalAlpha=0.22;
-            const rl=c.createLinearGradient(0,-hhw,0,0);
-            rl.addColorStop(0,'rgba(255,255,255,0.9)'); rl.addColorStop(1,'rgba(255,255,255,0)');
-            c.fillStyle=rl; c.beginPath(); c.roundRect(-hhl,-hhw,HL,HW/2,3); c.fill();
-            c.globalAlpha=1;
-
-            c.fillStyle=cD; c.strokeStyle='rgba(0,0,0,0.55)'; c.lineWidth=0.8;
-            for(let i=0;i<3;i++){
-                c.beginPath(); c.roundRect(hhl-HL*0.22+1,-hhw+4+i*((HW-8)/3),HL*0.18,(HW-8)/3-1.5,1); c.fill(); c.stroke();
-            }
-            c.fillStyle=cL; c.strokeStyle='#000'; c.lineWidth=1;
-            c.beginPath(); c.ellipse(-hhl+HL*0.19,-hhw*0.42,4.5,3.5,0,0,Math.PI*2); c.fill(); c.stroke();
-            c.strokeStyle=cD; c.lineWidth=0.7;
-            c.beginPath(); c.moveTo(-hhl+HL*0.13,-hhw*0.42); c.lineTo(-hhl+HL*0.25,-hhw*0.42); c.stroke();
-            c.beginPath(); c.moveTo(-hhl+HL*0.19,-hhw*0.68); c.lineTo(-hhl+HL*0.19,-hhw*0.16); c.stroke();
-            
-            c.font='bold 5.5px monospace'; c.textAlign='center'; c.textBaseline='middle';
-            c.fillStyle='rgba(0,0,0,0.38)'; c.fillText(serials[id]||'--',-HL*0.04,0);
-            c.strokeStyle=cD; c.lineWidth=1.2;
-            c.beginPath(); c.arc(-hhl+3,-hhw+2.5,2.5,Math.PI,0); c.stroke();
-            c.beginPath(); c.arc(-hhl+3,hhw-2.5,2.5,0,Math.PI); c.stroke();
-
-            // WYJĄTKI DLA CZOŁGÓW
-            if(id==='twardy'){
-                c.fillStyle='#1d6b39'; c.strokeStyle='#0d3d1f'; c.lineWidth=0.8;
-                [[-hhl+8,-hhw],[-hhl+18,-hhw],[-hhl+28,-hhw],[-hhl+38,-hhw]].forEach(([bx,by])=>{
-                    c.beginPath(); c.roundRect(bx,by,8,4,0.5); c.fill(); c.stroke();
-                    c.beginPath(); c.roundRect(bx,by+HW-4,8,4,0.5); c.fill(); c.stroke();
-                });
-                c.strokeStyle='#5d4e37'; c.lineWidth=2.5; c.lineCap='round';
-                c.beginPath(); c.moveTo(-hhl+2,hhw*0.6); c.bezierCurveTo(-hhl-4,hhw*0.9,-hhl-4,hhw+3,-hhl+6,hhw+TRK+1); c.stroke();
-                c.lineCap='butt';
-            } else if(id==='heavy'){
-                c.fillStyle='#5b2d8a'; c.strokeStyle='#000'; c.lineWidth=0.8;
-                c.beginPath(); c.roundRect(-hhl+8,-(hhw+TRK+4),HL-16,4,1); c.fill(); c.stroke();
-                c.beginPath(); c.roundRect(-hhl+8,hhw+TRK,HL-16,4,1); c.fill(); c.stroke();
-            } else if(id==='sniper'){
-                c.fillStyle=cL; c.globalAlpha=0.28;
-                c.beginPath(); c.moveTo(-hhl,-hhw); c.lineTo(-hhl+14,-hhw); c.lineTo(-hhl,hhw*0.3); c.closePath(); c.fill();
-                c.beginPath(); c.moveTo(-hhl,hhw); c.lineTo(-hhl+14,hhw); c.lineTo(-hhl,hhw*0.7); c.closePath(); c.fill();
-                c.globalAlpha=1;
-            } else if(id==='plasma'){
-                c.strokeStyle='rgba(0,206,201,0.65)'; c.lineWidth=1.5;
-                c.beginPath(); c.moveTo(-hhl+HL*0.14,-hhw+3); c.lineTo(-hhl+HL*0.14,hhw-3); c.stroke();
-                c.beginPath(); c.moveTo(hhl*0.3,-hhw+3); c.lineTo(hhl*0.3,hhw-3); c.stroke();
-            } else if(id==='pyro'){
-                [-(hhw+TRK+2),hhw+TRK+2].forEach((ty)=>{
-                    c.fillStyle='#7b241c'; c.strokeStyle='#c0392b'; c.lineWidth=1;
-                    c.beginPath(); c.roundRect(-hhl+HL*0.08,ty-3.5,HL*0.55,7,3.5); c.fill(); c.stroke();
-                });
-            } else if(id==='king'){
-                c.strokeStyle='#f1c40f'; c.lineWidth=1.5;
-                c.beginPath(); c.roundRect(-hhl+1,-hhw+1,HL-2,HW-2,2); c.stroke();
-            }
         }
 
-        // --- TWOJA ORYGINALNA FUNKCJA WIEŻY ---
-        function drawTankTurret(c, brawler, colorMain, lastShot, shootCooldown, recoilOff=0) {
-            const id=brawler.id, col=colorMain;
-            const cL=lerpHex(col,45), cD=lerpHex(col,-40);
-            const tr={heavy:14,king:14,plasma:12,scout:10}[id]||12;
-
+        function drawTankTurret(c, brawler) {
+            const col=brawler.colorMain;
+            const tr=12, bl=20, bw=5, bstart=tr*0.6;
             c.fillStyle=lerpHex(col,-18); c.strokeStyle='#000'; c.lineWidth=1.5;
             c.beginPath(); c.arc(0,0,tr+2,0,Math.PI*2); c.fill(); c.stroke();
-
-            c.fillStyle=cD; c.strokeStyle='#000'; c.lineWidth=1.5;
-            if(id==='plasma'){
-                c.beginPath();
-                for(let i=0;i<6;i++){const a=i*Math.PI/3-Math.PI/6;c.lineTo(Math.cos(a)*tr,Math.sin(a)*tr);}
-                c.closePath(); c.fill(); c.stroke();
-            } else if(id==='shadow'){
-                c.beginPath();
-                c.moveTo(tr,0); c.lineTo(0,tr*0.65); c.lineTo(-tr,0); c.lineTo(0,-tr*0.65);
-                c.closePath(); c.fill(); c.stroke();
-            } else if(id==='king'){
-                c.beginPath(); c.roundRect(-tr*0.72,-tr,tr*1.44,tr*2,3); c.fill(); c.stroke();
-            } else if(id==='sniper'){
-                c.beginPath(); c.ellipse(2,0,tr*1.1,tr*0.72,0,0,Math.PI*2); c.fill(); c.stroke();
-            } else if(id==='pyro') {
-                const _tg=c.createRadialGradient(-3,-3,0,0,0,tr);
-                _tg.addColorStop(0, _pyroLerp('#e74c3c','#ffffff',0.45));
-                _tg.addColorStop(1, _pyroLerp('#e74c3c','#000000',0.35));
-                c.fillStyle=_tg;
-                c.beginPath(); c.arc(0,0,tr,0,Math.PI*2); c.fill(); c.stroke();
-            } else {
-                c.beginPath(); c.arc(0,0,tr,0,Math.PI*2); c.fill(); c.stroke();
-            }
-
-            if(!['plasma','shadow'].includes(id)){
-                c.fillStyle=cL; c.strokeStyle='rgba(0,0,0,0.55)'; c.lineWidth=0.8;
-                c.beginPath(); c.ellipse(-2,-1.5,tr*0.34,tr*0.27,0,0,Math.PI*2); c.fill(); c.stroke();
-            }
-
-            c.fillStyle='rgba(255,255,255,0.12)';
-            c.beginPath(); c.ellipse(-tr*0.28,-tr*0.28,tr*0.38,tr*0.22,-0.4,0,Math.PI*2); c.fill();
-
-            const specs={twardy:{bl:22,bw:5},heavy:{bl:18,bw:7.5},scout:{bl:28,bw:3.5},sniper:{bl:36,bw:4},
-                         plasma:{bl:14,bw:2.5},pyro:{bl:14,bw:8.5},shadow:{bl:25,bw:4},king:{bl:20,bw:4.5}};
-            const {bl,bw}=specs[id]||specs.twardy;
-            const bstart = id==='heavy'?tr*0.6:id==='king'?tr*0.5:tr*0.65;
-            
-            c.fillStyle='#484848'; c.strokeStyle='#111'; c.lineWidth=1.5;
-            if(id==='pyro'){
-                c.beginPath(); c.roundRect(bstart,-bw/2,bl,bw,bw*0.25); c.fill(); c.stroke();
-            } else if(id==='plasma'){
-                [-4,0,4].forEach(oy=>{
-                    c.beginPath(); c.roundRect(tr-1,oy-1.5,14,3,1); c.fill(); c.stroke();
-                });
-            } else if(id==='king'){
-                [-3.5,3.5].forEach(oy=>{
-                    c.beginPath(); c.roundRect(bstart,oy-bw/2.5,bl,bw/1.5,bw/4); c.fill(); c.stroke();
-                });
-            } else {
-                c.beginPath(); c.roundRect(bstart,-bw/2,bl,bw,bw*0.25); c.fill(); c.stroke();
-            }
+            c.fillStyle=lerpHex(col,-40);
+            c.beginPath(); c.arc(0,0,tr,0,Math.PI*2); c.fill(); c.stroke();
+            c.fillStyle='#484848';
+            c.beginPath(); c.roundRect(bstart,-bw/2,bl,bw,bw*0.25); c.fill(); c.stroke();
         }
 
-        // ==========================================
-        // GENERATOR TEKSTUR WEBGL (BAKING)
-        // ==========================================
         function createBrawlerTextures(brawler) {
-            // Funkcja pomocnicza zamieniająca wywołania rysujące z Canvas na teksturę PIXI
             const createTex = (drawFn) => {
                 const canvas = document.createElement('canvas');
-                // Canvas musi być wystarczająco duży, żeby pomieścić powiększony czołg
                 canvas.width = 160; canvas.height = 160;
                 const ctx = canvas.getContext('2d');
-                ctx.translate(80, 80); // Ustawiamy środek
-                ctx.scale(1.75, 1.75); // Dokładnie takie samo skalowanie jak w starej grze!
-                drawFn(ctx);
-                return PIXI.Texture.from(canvas);
+                ctx.translate(80, 80); ctx.scale(1.75, 1.75);
+                drawFn(ctx); return PIXI.Texture.from(canvas);
             };
-
             return {
-                hull: createTex((ctx) => drawTankHull(ctx, brawler, 0, 0)),
-                turret: createTex((ctx) => drawTankTurret(ctx, brawler, brawler.colorMain, 0, brawler.reload, 0))
+                hull: createTex((ctx) => drawTankHull(ctx, brawler)),
+                turret: createTex((ctx) => drawTankTurret(ctx, brawler))
             };
         }
 
-        // Generujemy teksturę dla czerwonego wroga!
-        const ENEMY_BRAWLER = { id: 'heavy', colorMain: '#c0392b', reload: 1000 };
+        const ENEMY_BRAWLER = BRAWLERS[1]; // Wrogowie to Pancerne czołgi (Heavy)
         const ENEMY_TEXTURES = createBrawlerTextures(ENEMY_BRAWLER);
 
         // ==========================================
-        // KLASA GRACZA (Z TWOIMI TEKSTURAMI!)
+        // KLASA GRACZA I WROGA
         // ==========================================
         class Player {
-            constructor(className) {
-                this.brawler = BRAWLERS.find(b => b.id === className) || BRAWLERS[0];
+            constructor(brawlerData) {
+                this.brawler = brawlerData;
+                this.x = window.innerWidth / 2; this.y = window.innerHeight / 2;
+                this.speed = this.brawler.speed; this.maxHp = this.brawler.hp; this.hp = this.maxHp;
                 
-                this.x = window.innerWidth / 2;
-                this.y = window.innerHeight / 2;
-                this.speed = this.brawler.speed;
-                this.maxHp = this.brawler.hp;
-                this.hp = this.maxHp;
-                
-                this.container = new PIXI.Container();
-                this.container.x = this.x;
-                this.container.y = this.y;
-                
-                // Magia WebGL! Tworzymy zdjęcia Twojego kodu.
+                this.container = new PIXI.Container(); this.container.x = this.x; this.container.y = this.y;
                 const textures = createBrawlerTextures(this.brawler);
-                
-                this.hull = new PIXI.Sprite(textures.hull);
-                this.hull.anchor.set(0.5); // Ustawia punkt obrotu na środek
-                
-                this.turret = new PIXI.Sprite(textures.turret);
-                this.turret.anchor.set(0.5); 
+                this.hull = new PIXI.Sprite(textures.hull); this.hull.anchor.set(0.5);
+                this.turret = new PIXI.Sprite(textures.turret); this.turret.anchor.set(0.5);
 
-                this.hpBar = new PIXI.Graphics();
-                this.hpBar.y = -55; // Pasek wyżej, bo czołgi są teraz większe
-                this.drawHp();
+                this.hpBar = new PIXI.Graphics(); this.hpBar.y = -55; this.drawHp();
                 
-                this.container.addChild(this.hull);
-                this.container.addChild(this.turret);
-                this.container.addChild(this.hpBar);
+                this.container.addChild(this.hull); this.container.addChild(this.turret); this.container.addChild(this.hpBar);
                 worldContainer.addChild(this.container);
             }
-
             drawHp() {
-                this.hpBar.clear();
-                this.hpBar.beginFill(0xff0000);
-                this.hpBar.drawRect(-25, 0, 50, 6);
-                this.hpBar.beginFill(0x00ff00);
-                let width = (this.hp / this.maxHp) * 50;
-                this.hpBar.drawRect(-25, 0, Math.max(0, width), 6);
-                this.hpBar.endFill();
+                this.hpBar.clear(); this.hpBar.beginFill(0xff0000); this.hpBar.drawRect(-25, 0, 50, 6);
+                this.hpBar.beginFill(0x00ff00); this.hpBar.drawRect(-25, 0, Math.max(0, (this.hp/this.maxHp)*50), 6); this.hpBar.endFill();
             }
-
             takeDamage(amount) {
-                this.hp -= amount;
-                this.drawHp();
-                createExplosion(this.x, this.y, 0xff0000, 20); 
+                this.hp -= amount; this.drawHp();
                 if(this.hp <= 0) {
-                    alert("GAME OVER! Twój wynik: " + score + " punktów.");
-                    window.location.reload(); 
+                    gameState = 'MENU';
+                    alert("GAME OVER! Twój wynik: " + score);
+                    document.getElementById('welcomeScreen').classList.add('active-screen');
+                    document.getElementById('hud').style.display = 'none';
+                    worldContainer.removeChildren(); // Czyścimy planszę
                 }
             }
-
             update(keys, mouseWorldX, mouseWorldY) {
                 let dx = 0; let dy = 0;
-                if (keys.w) dy -= 1;
-                if (keys.s) dy += 1;
-                if (keys.a) dx -= 1;
-                if (keys.d) dx += 1;
-
+                if (keys.w) dy -= 1; if (keys.s) dy += 1; if (keys.a) dx -= 1; if (keys.d) dx += 1;
                 if (dx !== 0 || dy !== 0) {
                     let len = Math.sqrt(dx * dx + dy * dy);
-                    this.x += (dx / len) * this.speed;
-                    this.y += (dy / len) * this.speed;
+                    this.x += (dx / len) * this.speed; this.y += (dy / len) * this.speed;
                     this.hull.rotation = Math.atan2(dy, dx);
                 }
-
-                this.container.x = this.x;
-                this.container.y = this.y;
+                this.container.x = this.x; this.container.y = this.y;
                 this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
                 this.container.zIndex = this.y + 19; 
             }
         }
 
-        // ==========================================
-        // TŁO I BUDYNKI 
-        // ==========================================
-        const grid = new PIXI.Graphics();
-        grid.lineStyle(2, 0x333344, 0.5); 
-        for(let i = -2000; i <= 4000; i += 100) {
-            grid.moveTo(i, -2000); grid.lineTo(i, 4000);
-            grid.moveTo(-2000, i); grid.lineTo(4000, i);
-        }
-        worldContainer.addChild(grid);
-        
-        class CyberWall {
-            constructor(x, y, width, height) {
-                this.container = new PIXI.Container();
-                this.container.x = x; this.container.y = y;
-                this.container.zIndex = y + height;
-
-                this.gfx = new PIXI.Graphics();
-                this.gfx.beginFill(0x2c3e50);
-                this.gfx.drawRect(0, 0, width, height);
-                this.gfx.lineStyle(4, 0x34495e);
-                this.gfx.drawRect(2, 2, width-4, height-4);
-                this.gfx.endFill();
-
-                this.container.addChild(this.gfx);
-                worldContainer.addChild(this.container);
-            }
-        }
-
-        const walls = [
-            new CyberWall(300, 200, 200, 150),
-            new CyberWall(600, 500, 100, 300),
-            new CyberWall(200, 700, 300, 100)
-        ];
-
-        // ==========================================
-        // POCISKI I CZĄSTECZKI
-        // ==========================================
-        class Bullet {
-            constructor(x, y, angle) {
-                this.x = x; this.y = y;
-                this.vx = Math.cos(angle) * 15; 
-                this.vy = Math.sin(angle) * 15;
-                this.active = true; this.distance = 0; 
-                this.gfx = new PIXI.Graphics();
-                this.gfx.beginFill(0xffcc00); this.gfx.drawCircle(0, 0, 6); this.gfx.endFill();
-                this.gfx.x = this.x; this.gfx.y = this.y;
-                this.gfx.zIndex = this.y + 10; 
-                worldContainer.addChild(this.gfx);
-            }
-            update(delta) {
-                if (!this.active) return;
-                this.x += this.vx * delta; this.y += this.vy * delta;
-                this.gfx.x = this.x; this.gfx.y = this.y;
-                this.gfx.zIndex = this.y + 10;
-                this.distance += 15 * delta;
-                if (this.distance > 1000) this.destroy();
-            }
-            destroy() {
-                this.active = false;
-                worldContainer.removeChild(this.gfx);
-                this.gfx.destroy(); 
-            }
-        }
-
-        class Particle {
-            constructor(x, y, color, speed) {
-                this.x = x; this.y = y;
-                let angle = Math.random() * Math.PI * 2;
-                let vel = Math.random() * speed;
-                this.vx = Math.cos(angle) * vel; this.vy = Math.sin(angle) * vel;
-                this.life = 1.0; this.active = true;
-                this.gfx = new PIXI.Graphics();
-                this.gfx.beginFill(color); this.gfx.drawRect(-4, -4, 8, 8); this.gfx.endFill();
-                this.gfx.x = this.x; this.gfx.y = this.y;
-                this.gfx.zIndex = this.y + 20; 
-                worldContainer.addChild(this.gfx);
-            }
-            update(delta) {
-                if(!this.active) return;
-                this.x += this.vx * delta; this.y += this.vy * delta;
-                this.life -= 0.05 * delta; 
-                this.gfx.x = this.x; this.gfx.y = this.y;
-                this.gfx.alpha = Math.max(0, this.life);
-                this.gfx.scale.set(Math.max(0, this.life));
-                if(this.life <= 0) this.destroy();
-            }
-            destroy() {
-                this.active = false;
-                worldContainer.removeChild(this.gfx);
-                this.gfx.destroy();
-            }
-        }
-
-        const particles = [];
-        function createExplosion(x, y, color, amount) {
-            for(let i = 0; i < amount; i++) particles.push(new Particle(x, y, color, 8));
-        }
-
-        // ==========================================
-        // KLASA WROGA (TEŻ DOSTAŁA TEKSTURY!)
-        // ==========================================
         class Enemy {
             constructor(x, y) {
-                this.x = x; this.y = y;
-                this.speed = 2 + Math.random() * 2; 
-                this.maxHp = 3; this.hp = this.maxHp; 
-                this.active = true;
+                this.x = x; this.y = y; this.speed = 2.5; this.maxHp = 3; this.hp = this.maxHp; this.active = true;
+                this.container = new PIXI.Container(); this.container.x = this.x; this.container.y = this.y;
+                
+                this.hull = new PIXI.Sprite(ENEMY_TEXTURES.hull); this.hull.anchor.set(0.5);
+                this.turret = new PIXI.Sprite(ENEMY_TEXTURES.turret); this.turret.anchor.set(0.5);
+                this.hull.tint = 0xff4444; this.turret.tint = 0xff4444; // Kolorujemy na czerwono!
 
-                this.container = new PIXI.Container();
-                this.container.x = this.x; this.container.y = this.y;
-
-                // Używamy globalnie wygenerowanej tekstury (Czerwony Heavy/Pancerny)
-                this.hull = new PIXI.Sprite(ENEMY_TEXTURES.hull);
-                this.hull.anchor.set(0.5);
-                this.turret = new PIXI.Sprite(ENEMY_TEXTURES.turret);
-                this.turret.anchor.set(0.5);
-
-                this.hpBar = new PIXI.Graphics();
-                this.hpBar.y = -55; 
-                this.drawHp();
-
-                this.container.addChild(this.hull);
-                this.container.addChild(this.turret);
-                this.container.addChild(this.hpBar);
+                this.hpBar = new PIXI.Graphics(); this.hpBar.y = -55; this.drawHp();
+                this.container.addChild(this.hull); this.container.addChild(this.turret); this.container.addChild(this.hpBar);
                 worldContainer.addChild(this.container);
             }
-
             drawHp() {
-                this.hpBar.clear();
-                this.hpBar.beginFill(0x000000, 0.5); 
-                this.hpBar.drawRect(-20, 0, 40, 5);
-                this.hpBar.beginFill(0xff3300); 
-                let width = (this.hp / this.maxHp) * 40;
-                this.hpBar.drawRect(-20, 0, Math.max(0, width), 5);
-                this.hpBar.endFill();
+                this.hpBar.clear(); this.hpBar.beginFill(0x000000, 0.5); this.hpBar.drawRect(-20, 0, 40, 5);
+                this.hpBar.beginFill(0xff3300); this.hpBar.drawRect(-20, 0, Math.max(0, (this.hp/this.maxHp)*40), 5); this.hpBar.endFill();
             }
-
             update(delta, targetX, targetY) {
                 if (!this.active) return;
-                let dx = targetX - this.x; let dy = targetY - this.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist > 60) { 
-                    this.x += (dx / dist) * this.speed * delta;
-                    this.y += (dy / dist) * this.speed * delta;
-                }
-
-                this.hull.rotation = Math.atan2(dy, dx);
-                this.turret.rotation = Math.atan2(dy, dx); 
-                this.container.x = this.x; this.container.y = this.y;
-                this.container.zIndex = this.y + 19; 
+                let dx = targetX - this.x; let dy = targetY - this.y; let dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 60) { this.x += (dx / dist) * this.speed * delta; this.y += (dy / dist) * this.speed * delta; }
+                this.hull.rotation = Math.atan2(dy, dx); this.turret.rotation = Math.atan2(dy, dx); 
+                this.container.x = this.x; this.container.y = this.y; this.container.zIndex = this.y + 19; 
             }
-
             takeDamage() {
                 this.hp -= 1; this.drawHp();
                 if (this.hp <= 0) {
-                    this.active = false;
-                    createExplosion(this.x, this.y, 0xff3300, 30); 
-                    worldContainer.removeChild(this.container);
-                    this.container.destroy({ children: true }); 
-                    score += 100; scoreText.text = 'Wynik: ' + score;
+                    this.active = false; worldContainer.removeChild(this.container); this.container.destroy({ children: true }); 
+                    score += 10; document.getElementById('scoreVal').innerText = score;
                 }
             }
         }
 
-        // ==========================================
-        // INICJALIZACJA I STEROWANIE
-        // ==========================================
-        // Wybierz klasę dla siebie! Wpisz tu 'twardy', 'sniper', 'pyro', 'plasma' itd.
-        const player = new Player('heavy'); 
+        class Bullet {
+            constructor(x, y, angle) {
+                this.x = x; this.y = y; this.vx = Math.cos(angle) * 15; this.vy = Math.sin(angle) * 15;
+                this.active = true; this.distance = 0; 
+                this.gfx = new PIXI.Graphics(); this.gfx.beginFill(0xffcc00); this.gfx.drawCircle(0, 0, 6); this.gfx.endFill();
+                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10; 
+                worldContainer.addChild(this.gfx);
+            }
+            update(delta) {
+                if (!this.active) return;
+                this.x += this.vx * delta; this.y += this.vy * delta;
+                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10;
+                this.distance += 15 * delta; if (this.distance > 1000) this.destroy();
+            }
+            destroy() { this.active = false; worldContainer.removeChild(this.gfx); this.gfx.destroy(); }
+        }
 
-        const enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(-300, 300)];
-        const bullets = [];
-        
+        // ==========================================
+        // ZARZĄDZANIE GRĄ
+        // ==========================================
+        let player = null;
+        let enemies = [];
+        let bullets = [];
         const keys = { w: false, a: false, s: false, d: false };
         const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
         let lastShotTime = 0; 
@@ -511,27 +309,48 @@
         app.view.addEventListener('pointermove', e => { mouse.screenX = e.clientX; mouse.screenY = e.clientY; });
 
         app.view.addEventListener('pointerdown', (e) => {
+            if (gameState !== 'PLAYING' || !player) return;
             const now = Date.now();
             if (now - lastShotTime > player.brawler.reload) {
                 let angle = player.turret.rotation;
-                let startX = player.x + Math.cos(angle) * 35;
-                let startY = player.y + Math.sin(angle) * 35;
-                
+                let startX = player.x + Math.cos(angle) * 35; let startY = player.y + Math.sin(angle) * 35;
                 bullets.push(new Bullet(startX, startY, angle));
-                createExplosion(startX, startY, 0xff9900, 15);
                 lastShotTime = now;
             }
         });
 
-        // ==========================================
-        // GŁÓWNA PĘTLA GRY
-        // ==========================================
+        // PRZYCISK START
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('welcomeScreen').classList.remove('active-screen');
+            document.getElementById('hud').style.display = 'block';
+            
+            // Czyścimy mapę na start
+            worldContainer.removeChildren();
+            
+            // Generujemy siatkę
+            const grid = new PIXI.Graphics();
+            grid.lineStyle(2, 0x333344, 0.5); 
+            for(let i = -2000; i <= 4000; i += 100) {
+                grid.moveTo(i, -2000); grid.lineTo(i, 4000);
+                grid.moveTo(-2000, i); grid.lineTo(4000, i);
+            }
+            worldContainer.addChild(grid);
+
+            // Inicjalizacja gracza
+            score = 0; document.getElementById('scoreVal').innerText = score;
+            player = new Player(selectedBrawler);
+            enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(-300, 300)];
+            bullets = [];
+            gameState = 'PLAYING';
+        });
+
+        // GŁÓWNA PĘTLA
         app.ticker.add((delta) => {
+            if (gameState !== 'PLAYING' || !player) return;
+
             worldContainer.x = ~~(window.innerWidth / 2 - player.x);
             worldContainer.y = ~~(window.innerHeight / 2 - player.y);
-
-            let mouseWorldX = mouse.screenX - worldContainer.x;
-            let mouseWorldY = mouse.screenY - worldContainer.y;
+            let mouseWorldX = mouse.screenX - worldContainer.x; let mouseWorldY = mouse.screenY - worldContainer.y;
 
             player.update(keys, mouseWorldX, mouseWorldY);
             
@@ -540,33 +359,25 @@
                 if (!b.active) bullets.splice(i, 1);
             }
             
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i]; p.update(delta);
-                if (!p.active) particles.splice(i, 1);
-            }
-            
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let enemy = enemies[i];
                 enemy.update(delta, player.x, player.y);
-
+                
+                // Kolizja Czołg-Gracz (Kamikaze)
                 let distToPlayer = (player.x - enemy.x) * (player.x - enemy.x) + (player.y - enemy.y) * (player.y - enemy.y);
                 if (distToPlayer < 45 * 45) { 
-                    player.takeDamage(2); 
-                    enemy.hp = 0; enemy.takeDamage(); 
+                    player.takeDamage(2); enemy.hp = 0; enemy.takeDamage(); 
                 }
 
+                // Kolizja Pocisk-Wróg
                 for (let j = bullets.length - 1; j >= 0; j--) {
-                    let b = bullets[j];
-                    if (!b.active) continue;
+                    let b = bullets[j]; if (!b.active) continue;
                     let dx = b.x - enemy.x; let dy = b.y - enemy.y;
                     if (dx * dx + dy * dy < 30 * 30) {
                         b.destroy(); bullets.splice(j, 1); 
-                        enemy.takeDamage(); 
-                        createExplosion(b.x, b.y, 0xffcc00, 5); 
-                        break; 
+                        enemy.takeDamage(); break; 
                     }
                 }
-
                 if (!enemy.active) enemies.splice(i, 1);
             }
         });

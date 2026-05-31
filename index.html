@@ -97,11 +97,8 @@
 
                 // Obrót wieżyczki w stronę myszki
                 this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
-<<<<<<< HEAD
                 // Aktualizacja z-indexu czołgu w czasie rzeczywistym
                 this.container.zIndex = this.y + 19; // 19 to połowa wysokości kadłuba
-=======
->>>>>>> 99f42c8380a2ca59275c4b0d6ea52a38e9cc2c3f
             }
         }
 
@@ -115,8 +112,7 @@
             grid.moveTo(-2000, i); grid.lineTo(4000, i);
         }
         worldContainer.addChild(grid);
-<<<<<<< HEAD
-// ==========================================
+        // ==========================================
         // ETAP 4: ŚRODOWISKO I SORTOWANIE Z-INDEX
         // ==========================================
         
@@ -150,9 +146,6 @@
             new CyberWall(600, 500, 100, 300),
             new CyberWall(200, 700, 300, 100)
         ];
-=======
-
->>>>>>> 99f42c8380a2ca59275c4b0d6ea52a38e9cc2c3f
         // Tworzymy naszego gracza
         const player = new Player();
 

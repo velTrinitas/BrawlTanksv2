@@ -143,6 +143,71 @@
         // ETAP 5: KLASA POCISKU (BULLET)
         // ==========================================
         class Bullet {
+            // ==========================================
+        // ETAP 6: SYSTEM CZĄSTECZEK (PARTICLES)
+        // ==========================================
+        class Particle {
+            constructor(x, y, color, speed) {
+                this.x = x;
+                this.y = y;
+                
+                // Losowy kierunek i prędkość
+                let angle = Math.random() * Math.PI * 2;
+                let vel = Math.random() * speed;
+                this.vx = Math.cos(angle) * vel;
+                this.vy = Math.sin(angle) * vel;
+                
+                this.life = 1.0; // Od 1.0 (pełnia życia) do 0.0 (śmierć)
+                this.active = true;
+                
+                // Rysujemy cząsteczkę (używamy kwadratów, bo rysują się na GPU najszybciej)
+                this.gfx = new PIXI.Graphics();
+                this.gfx.beginFill(color);
+                this.gfx.drawRect(-4, -4, 8, 8); 
+                this.gfx.endFill();
+                
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                this.gfx.zIndex = this.y + 20; // Rysujemy nad lufą i budynkami
+                
+                worldContainer.addChild(this.gfx);
+            }
+            
+            update(delta) {
+                if(!this.active) return;
+                
+                // Ruch
+                this.x += this.vx * delta;
+                this.y += this.vy * delta;
+                this.life -= 0.05 * delta; // Powolne zanikanie
+                
+                // Aktualizacja grafiki (pozycja, przezroczystość i kurczenie się)
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                this.gfx.alpha = Math.max(0, this.life);
+                this.gfx.scale.set(Math.max(0, this.life));
+                
+                if(this.life <= 0) {
+                    this.destroy();
+                }
+            }
+            
+            destroy() {
+                this.active = false;
+                worldContainer.removeChild(this.gfx);
+                this.gfx.destroy();
+            }
+        }
+
+        // Tablica przechowująca cząsteczki
+        const particles = [];
+
+        // Funkcja pomocnicza do generowania wybuchu
+        function createExplosion(x, y, color, amount) {
+            for(let i = 0; i < amount; i++) {
+                particles.push(new Particle(x, y, color, 8));
+            }
+        }
             constructor(x, y, angle) {
                 this.x = x;
                 this.y = y;
@@ -223,6 +288,8 @@
                 let startY = player.y + Math.sin(angle) * 35;
                 
                 bullets.push(new Bullet(startX, startY, angle));
+                // Magia WebGL: Generujemy 15 cząsteczek ognia przy każdym strzale!
+                createExplosion(startX, startY, 0xff9900, 15);
                 lastShotTime = now;
             }
         });
@@ -252,6 +319,14 @@
             player.update(keys, mouseWorldX, mouseWorldY);
             // 4. Aktualizujemy wszystkie wystrzelone pociski
             for (let i = bullets.length - 1; i >= 0; i--) {
+                // 5. Aktualizujemy cząsteczki (dym/ogień)
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update(delta);
+                if (!p.active) {
+                    particles.splice(i, 1);
+                }
+            }
                 let b = bullets[i];
                 b.update(delta);
                 

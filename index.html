@@ -66,7 +66,6 @@
         button.brawl-btn:hover { background: #f39c12; transform: scale(1.05); }
         button.brawl-btn:active { transform: translateY(10px) scale(1.0); box-shadow: 0 0px 0 #d35400; }
 
-        /* HUD w grze - Ma Z-INDEX 1000 i zablokowane klikanie, by nie przeszkadzał w strzelaniu */
         #hud { 
             position: absolute; top: 15px; left: 15px; font-size: 2.5rem; color: #f1c40f; 
             -webkit-text-stroke: 2px black; text-shadow: 3px 3px 0 #000; 
@@ -91,17 +90,18 @@
 
     <script>
         // ==========================================
-        // DANE CZOŁGÓW (Ścieżki prowadzą do folderu Tanks)
+        // DANE CZOŁGÓW Z TWOJEGO ORYGINAŁU
+        // Dodano atrybut "type", by obsługiwać nowe bronie!
         // ==========================================
         const BRAWLERS = [
-            { id: 'twardy', emoji: '🪖', icon: 'Tanks/twardy.jpg', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400 },
-            { id: 'heavy', emoji: '🛡️', icon: 'Tanks/pancerny.jpg', name: 'Pancerny', colorMain: '#8e44ad', hp: 7, speed: 3.5, dmg: 1.5, reload: 700 },
-            { id: 'scout', emoji: '🔍', icon: 'Tanks/zwiadowca.jpg', name: 'Zwiad', colorMain: '#f1c40f', hp: 2, speed: 7.5, dmg: 0.8, reload: 250 },
-            { id: 'sniper', emoji: '🎯', icon: 'Tanks/snajper.jpg', name: 'Snajper', colorMain: '#3498db', hp: 3, speed: 4.5, dmg: 3, reload: 1000 },
-            { id: 'plasma', emoji: '💻', icon: 'Tanks/tech.jpg', name: 'Tech', colorMain: '#00cec9', hp: 4, speed: 5, dmg: 1.2, reload: 500 },
-            { id: 'pyro', emoji: '🔥', icon: 'Tanks/ogniarz.jpg', name: 'Ogniarz', colorMain: '#e74c3c', hp: 5, speed: 4.8, dmg: 0.5, reload: 210 },
-            { id: 'shadow', emoji: '🌑', icon: 'Tanks/shadow.jpg', name: 'Shadow', colorMain: '#2c3e50', hp: 3, speed: 6.5, dmg: 1.5, reload: 600 },
-            { id: 'king', emoji: '👑', icon: 'Tanks/krol.jpg', name: 'King', colorMain: '#d35400', hp: 5, speed: 5.5, dmg: 2, reload: 500 }
+            { id: 'twardy', emoji: '🪖', icon: 'Tanks/twardy.jpg', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400, type: 'standard' },
+            { id: 'heavy', emoji: '🛡️', icon: 'Tanks/pancerny.jpg', name: 'Pancerny', colorMain: '#8e44ad', hp: 7, speed: 3.5, dmg: 1.5, reload: 700, type: 'standard' },
+            { id: 'scout', emoji: '🔍', icon: 'Tanks/zwiadowca.jpg', name: 'Zwiad', colorMain: '#f1c40f', hp: 2, speed: 7.5, dmg: 0.8, reload: 250, type: 'standard' },
+            { id: 'sniper', emoji: '🎯', icon: 'Tanks/snajper.jpg', name: 'Snajper', colorMain: '#3498db', hp: 3, speed: 4.5, dmg: 3, reload: 1000, type: 'fast' },
+            { id: 'plasma', emoji: '💻', icon: 'Tanks/tech.jpg', name: 'Tech', colorMain: '#00cec9', hp: 4, speed: 5, dmg: 1.2, reload: 500, type: 'plasma' },
+            { id: 'pyro', emoji: '🔥', icon: 'Tanks/ogniarz.jpg', name: 'Ogniarz', colorMain: '#e74c3c', hp: 5, speed: 4.8, dmg: 0.5, reload: 210, type: 'spread' },
+            { id: 'shadow', emoji: '🌑', icon: 'Tanks/shadow.jpg', name: 'Shadow', colorMain: '#2c3e50', hp: 3, speed: 6.5, dmg: 1.5, reload: 600, type: 'standard' },
+            { id: 'king', emoji: '👑', icon: 'Tanks/krol.jpg', name: 'King', colorMain: '#d35400', hp: 5, speed: 5.5, dmg: 2, reload: 500, type: 'standard' }
         ];
 
         let selectedBrawler = BRAWLERS[0];
@@ -114,9 +114,10 @@
             let div = document.createElement('div');
             div.className = `select-card ${b.id === selectedBrawler.id ? 'selected' : ''}`;
             
+            // Oczyszczony obrazek - brak gradientów nad nim, brak zabezpieczenia "onerror". Czysty widok!
             div.innerHTML = `
-                <div style="width:100%;padding-top:100%;position:relative;margin-top:5px;border-radius:10px;overflow:hidden;border:2px solid ${b.colorMain}; background: #2c3e50;">
-                    <img src="${b.icon}" alt="${b.name}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">
+                <div style="width:100%; height:130px; position:relative; border-radius:10px; overflow:hidden; border:2px solid ${b.colorMain}; background: #1a1a2e;">
+                    <img src="${b.icon}" alt="${b.name}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1;">
                 </div>
                 <div class="name" style="background:${b.colorMain};border-radius:8px;padding:4px 2px;margin-top:8px;">${b.emoji} ${b.name}</div>
                 <div class="card-stats-row">
@@ -134,7 +135,6 @@
             charGrid.appendChild(div);
         });
 
-        // INICJALIZACJA SILNIKA
         const app = new PIXI.Application({
             resizeTo: window, backgroundColor: 0x1a1a2e, antialias: true            
         });
@@ -192,7 +192,6 @@
         const ENEMY_BRAWLER = BRAWLERS[1]; 
         const ENEMY_TEXTURES = createBrawlerTextures(ENEMY_BRAWLER);
 
-        // KLASY GRACZA I WROGA
         class Player {
             constructor(brawlerData) {
                 this.brawler = brawlerData;
@@ -239,7 +238,7 @@
 
         class Enemy {
             constructor(x, y) {
-                this.x = x; this.y = y; this.speed = 2.5; this.maxHp = 3; this.hp = this.maxHp; this.active = true;
+                this.x = x; this.y = y; this.speed = 2.5; this.maxHp = 6; this.hp = this.maxHp; this.active = true;
                 this.container = new PIXI.Container(); this.container.x = this.x; this.container.y = this.y;
                 
                 this.hull = new PIXI.Sprite(ENEMY_TEXTURES.hull); this.hull.anchor.set(0.5);
@@ -261,8 +260,8 @@
                 this.hull.rotation = Math.atan2(dy, dx); this.turret.rotation = Math.atan2(dy, dx); 
                 this.container.x = this.x; this.container.y = this.y; this.container.zIndex = this.y + 19; 
             }
-            takeDamage() {
-                this.hp -= 1; this.drawHp();
+            takeDamage(amount) {
+                this.hp -= amount; this.drawHp();
                 if (this.hp <= 0) {
                     this.active = false; worldContainer.removeChild(this.container); this.container.destroy({ children: true }); 
                     score += 10; document.getElementById('scoreVal').innerText = score;
@@ -270,21 +269,78 @@
             }
         }
 
+        // ==========================================
+        // ZAAWANSOWANY SYSTEM POCISKÓW (Z TWOJEGO ORYGINAŁU)
+        // ==========================================
         class Bullet {
-            constructor(x, y, angle) {
-                this.x = x; this.y = y; this.vx = Math.cos(angle) * 15; this.vy = Math.sin(angle) * 15;
+            constructor(x, y, angle, brawlerInfo) {
+                this.x = x; this.y = y; 
                 this.active = true; this.distance = 0; 
-                this.gfx = new PIXI.Graphics(); this.gfx.beginFill(0xffcc00); this.gfx.drawCircle(0, 0, 6); this.gfx.endFill();
-                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10; 
+                this.dmg = brawlerInfo.dmg;
+                
+                // Odwzorowanie Twoich prędkości i promieni kolizji!
+                const speedMap = {twardy:17, heavy:13, scout:27, sniper:29, plasma:17, pyro:14, shadow:19, king:14};
+                const radMap  = {twardy:6, heavy:11, scout:4, sniper:4, plasma:9, pyro:10, shadow:8, king:10};
+                
+                this.speed = speedMap[brawlerInfo.id] || 15;
+                this.radius = radMap[brawlerInfo.id] || 6;
+                
+                this.vx = Math.cos(angle) * this.speed; 
+                this.vy = Math.sin(angle) * this.speed;
+
+                // Odpowiedni kolor i wygląd dla różnych czołgów!
+                let color = 0x2ecc71; // Twardy (zielony)
+                if(brawlerInfo.id === 'pyro') color = 0xe74c3c;
+                else if(brawlerInfo.id === 'plasma') color = 0x00cec9;
+                else if(brawlerInfo.id === 'shadow') color = 0x6c3483;
+                else if(brawlerInfo.id === 'sniper') color = 0xffffff;
+                else if(brawlerInfo.id === 'heavy') color = 0x1a1a1a;
+                else if(brawlerInfo.id === 'scout') color = 0xf1c40f;
+
+                this.gfx = new PIXI.Graphics();
+                this.gfx.beginFill(color);
+                
+                if (brawlerInfo.id === 'sniper') {
+                    // Snajper ma długi pocisk
+                    this.gfx.drawRect(-15, -4, 30, 8);
+                    this.gfx.rotation = angle;
+                } else {
+                    this.gfx.drawCircle(0, 0, this.radius); 
+                }
+                
+                this.gfx.endFill();
+                this.gfx.x = this.x; this.gfx.y = this.y;
+                this.gfx.zIndex = this.y + 10; 
                 worldContainer.addChild(this.gfx);
             }
             update(delta) {
                 if (!this.active) return;
                 this.x += this.vx * delta; this.y += this.vy * delta;
-                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10;
-                this.distance += 15 * delta; if (this.distance > 1000) this.destroy();
+                this.gfx.x = this.x; this.gfx.y = this.y;
+                this.gfx.zIndex = this.y + 10;
+                this.distance += this.speed * delta; if (this.distance > 1000) this.destroy();
             }
             destroy() { this.active = false; worldContainer.removeChild(this.gfx); this.gfx.destroy(); }
+        }
+
+        function createExplosion(x, y, color, amount) {
+            // Tymczasowy zastępczy efekt eksplozji - nie psuje optymalizacji!
+            for(let i=0; i<amount; i++) {
+                let p = new PIXI.Graphics();
+                p.beginFill(color); p.drawRect(-4, -4, 8, 8); p.endFill();
+                p.x = x; p.y = y; p.zIndex = y + 20;
+                worldContainer.addChild(p);
+                // Prosta fizyka
+                let a = Math.random() * Math.PI * 2; let s = Math.random() * 8;
+                let vx = Math.cos(a)*s; let vy = Math.sin(a)*s;
+                let life = 1;
+                const ticker = () => {
+                    p.x += vx; p.y += vy; life -= 0.05;
+                    p.alpha = life; p.scale.set(life);
+                    if(life <= 0) { worldContainer.removeChild(p); p.destroy(); app.ticker.remove(ticker); }
+                };
+                app.ticker.add(ticker);
+            }
         }
 
         let player = null;
@@ -293,21 +349,18 @@
         const keys = { w: false, a: false, s: false, d: false };
         const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
         let lastShotTime = 0; 
+        
+        // Zmienna trzymająca wciśnięty klawisz myszy - do AUTOFIRE
+        let isMouseDown = false;
 
         window.addEventListener('keydown', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; });
         window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; });
         app.view.addEventListener('pointermove', e => { mouse.screenX = e.clientX; mouse.screenY = e.clientY; });
-
-        app.view.addEventListener('pointerdown', (e) => {
-            if (gameState !== 'PLAYING' || !player) return;
-            const now = Date.now();
-            if (now - lastShotTime > player.brawler.reload) {
-                let angle = player.turret.rotation;
-                let startX = player.x + Math.cos(angle) * 35; let startY = player.y + Math.sin(angle) * 35;
-                bullets.push(new Bullet(startX, startY, angle));
-                lastShotTime = now;
-            }
-        });
+        
+        // Obsługa wciśnięcia i puszczenia myszy (Autofire)
+        app.view.addEventListener('pointerdown', (e) => { isMouseDown = true; });
+        app.view.addEventListener('pointerup', (e) => { isMouseDown = false; });
+        app.view.addEventListener('pointerupoutside', (e) => { isMouseDown = false; });
 
         // PRZYCISK START
         document.getElementById('startBtn').addEventListener('click', () => {
@@ -328,6 +381,7 @@
             player = new Player(selectedBrawler);
             enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(-300, 300)];
             bullets = [];
+            isMouseDown = false;
             gameState = 'PLAYING';
         });
 
@@ -340,6 +394,33 @@
             let mouseWorldX = mouse.screenX - worldContainer.x; let mouseWorldY = mouse.screenY - worldContainer.y;
 
             player.update(keys, mouseWorldX, mouseWorldY);
+
+            // ==========================================
+            // SYSTEM AUTOFIRE I RÓŻNYCH BRONI
+            // ==========================================
+            const now = Date.now();
+            if (isMouseDown && now - lastShotTime > player.brawler.reload) {
+                let angle = player.turret.rotation;
+                let startX = player.x + Math.cos(angle) * 45; 
+                let startY = player.y + Math.sin(angle) * 45;
+                
+                let explColor = 0xff9900;
+                if(player.brawler.id === 'pyro') explColor = 0xe74c3c;
+                if(player.brawler.id === 'plasma') explColor = 0x00cec9;
+
+                // Sprawdzamy czy broń jest typu "spread" (np. Ogniarz strzelający potrójnie)
+                if (player.brawler.type === 'spread') {
+                    bullets.push(new Bullet(startX, startY, angle - 0.2, player.brawler));
+                    bullets.push(new Bullet(startX, startY, angle, player.brawler));
+                    bullets.push(new Bullet(startX, startY, angle + 0.2, player.brawler));
+                } else {
+                    // Standardowy pojedynczy pocisk
+                    bullets.push(new Bullet(startX, startY, angle, player.brawler));
+                }
+                
+                createExplosion(startX, startY, explColor, 15);
+                lastShotTime = now;
+            }
             
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i]; b.update(delta);
@@ -352,15 +433,22 @@
                 
                 let distToPlayer = (player.x - enemy.x) * (player.x - enemy.x) + (player.y - enemy.y) * (player.y - enemy.y);
                 if (distToPlayer < 45 * 45) { 
-                    player.takeDamage(2); enemy.hp = 0; enemy.takeDamage(); 
+                    player.takeDamage(2); enemy.hp = 0; enemy.takeDamage(100); 
                 }
 
+                // Kolizje pocisków
                 for (let j = bullets.length - 1; j >= 0; j--) {
                     let b = bullets[j]; if (!b.active) continue;
                     let dx = b.x - enemy.x; let dy = b.y - enemy.y;
-                    if (dx * dx + dy * dy < 30 * 30) {
+                    
+                    // Kolizja uwzględnia teraz różny RADIUS każdego pocisku!
+                    if (dx * dx + dy * dy < (30 + b.radius) * (30 + b.radius)) {
                         b.destroy(); bullets.splice(j, 1); 
-                        enemy.takeDamage(); break; 
+                        
+                        // Obrażenia zgodne ze statystykami konkretnej klasy (DMG)
+                        enemy.takeDamage(b.dmg); 
+                        createExplosion(b.x, b.y, 0xffcc00, 5); 
+                        break; 
                     }
                 }
                 if (!enemy.active) enemies.splice(i, 1);

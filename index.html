@@ -10,8 +10,7 @@
     <style>
         body { 
             margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; 
-            font-family: 'Lilita One', cursive, sans-serif;
-            user-select: none;
+            font-family: 'Lilita One', cursive, sans-serif; user-select: none;
         }
 
         #uiLayer {
@@ -84,14 +83,16 @@
             <h1>Brawl Tanks</h1>
             <h2>Wybierz swój czołg</h2>
             <div class="grid-container char-grid" id="charGrid"></div>
-            <button class="brawl-btn" id="startBtn">GRAJ!</button>
+            <button class="brawl-btn" id="startBtn">GRAJ W MIEŚCIE!</button>
         </div>
     </div>
 
     <script>
+        const WORLD_W = 3000;
+        const WORLD_H = 3000;
+
         // ==========================================
-        // DANE CZOŁGÓW Z TWOJEGO ORYGINAŁU
-        // Dodano atrybut "type", by obsługiwać nowe bronie!
+        // DANE CZOŁGÓW Z FOLDERU TANKS
         // ==========================================
         const BRAWLERS = [
             { id: 'twardy', emoji: '🪖', icon: 'Tanks/twardy.jpg', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400, type: 'standard' },
@@ -114,7 +115,6 @@
             let div = document.createElement('div');
             div.className = `select-card ${b.id === selectedBrawler.id ? 'selected' : ''}`;
             
-            // Oczyszczony obrazek - brak gradientów nad nim, brak zabezpieczenia "onerror". Czysty widok!
             div.innerHTML = `
                 <div style="width:100%; height:130px; position:relative; border-radius:10px; overflow:hidden; border:2px solid ${b.colorMain}; background: #1a1a2e;">
                     <img src="${b.icon}" alt="${b.name}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1;">
@@ -135,8 +135,9 @@
             charGrid.appendChild(div);
         });
 
+        // INICJALIZACJA SILNIKA
         const app = new PIXI.Application({
-            resizeTo: window, backgroundColor: 0x1a1a2e, antialias: true            
+            resizeTo: window, backgroundColor: 0x14141e, antialias: true            
         });
         document.body.appendChild(app.view);
         app.view.style.position = 'absolute'; app.view.style.zIndex = '1';
@@ -145,7 +146,150 @@
         worldContainer.sortableChildren = true; 
         app.stage.addChild(worldContainer);
 
-        // FUNKCJE POMOCNICZE WIZUALNE
+        let screenW = window.innerWidth;
+        let screenH = window.innerHeight;
+        window.addEventListener('resize', () => {
+            screenW = window.innerWidth; screenH = window.innerHeight;
+        });
+
+        // ==========================================
+        // GENERATOR MIASTA (TWOJA AUTORSKA FUNKCJA!)
+        // ==========================================
+        function buildCityOffscreenTexture() {
+            const cv = document.createElement('canvas');
+            cv.width = WORLD_W; cv.height = WORLD_H;
+            const c = cv.getContext('2d');
+            
+            // Base asphalt
+            c.fillStyle='#14141e';c.fillRect(0,0,WORLD_W,WORLD_H);
+            // Streets
+            c.fillStyle='#09090f';
+            c.fillRect(0,617,WORLD_W,100);c.fillRect(0,1283,WORLD_W,100);
+            c.fillRect(617,0,100,WORLD_H);c.fillRect(1283,0,100,WORLD_H);
+            // Sidewalks
+            c.fillStyle='#1c1c2a';
+            [617,1283].forEach(y=>{c.fillRect(0,y-18,WORLD_W,18);c.fillRect(0,y+100,WORLD_W,18);});
+            [617,1283].forEach(x=>{c.fillRect(x-18,0,18,WORLD_H);c.fillRect(x+100,0,18,WORLD_H);});
+            // Curbs
+            c.strokeStyle='#282840';c.lineWidth=2;
+            [617,717,1283,1383].forEach(y=>{c.beginPath();c.moveTo(0,y);c.lineTo(WORLD_W,y);c.stroke();});
+            [617,717,1283,1383].forEach(x=>{c.beginPath();c.moveTo(x,0);c.lineTo(x,WORLD_H);c.stroke();});
+            // Yellow center dashes
+            c.strokeStyle='#f1c40f';c.lineWidth=3;c.setLineDash([35,22]);
+            [[0,667,WORLD_W,667],[0,1333,WORLD_W,1333],[667,0,667,WORLD_H],[1333,0,1333,WORLD_H]].forEach(([x1,y1,x2,y2])=>{c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();});
+            c.setLineDash([]);
+            // Crossings at 4 intersections
+            c.fillStyle='rgba(255,255,255,0.20)';
+            [[617,617],[617,1283],[1283,617],[1283,1283]].forEach(([ix,iy])=>{for(let t=iy;t<iy+100;t+=14)c.fillRect(ix,t,100,8);});
+            
+            // Puddles
+            [{x:200,y:660,r:70,col:[0,255,255]},{x:800,y:667,r:55,col:[255,0,255]},{x:1500,y:660,r:65,col:[0,255,255]},{x:350,y:1330,r:60,col:[255,102,0]},{x:1000,y:1333,r:50,col:[255,0,255]},{x:1700,y:1330,r:65,col:[0,255,255]},{x:667,y:250,r:55,col:[241,196,15]},{x:667,y:1800,r:60,col:[255,0,85]},{x:1333,y:400,r:50,col:[0,255,255]},{x:1333,y:1700,r:65,col:[255,0,255]}].forEach(p=>{
+                const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y+25,p.r);
+                g.addColorStop(0,`rgba(${p.col[0]},${p.col[1]},${p.col[2]},0.16)`);
+                g.addColorStop(0.6,`rgba(${p.col[0]},${p.col[1]},${p.col[2]},0.05)`);
+                g.addColorStop(1,`rgba(${p.col[0]},${p.col[1]},${p.col[2]},0)`);
+                c.fillStyle=g;c.save();c.translate(p.x,p.y);c.scale(1.9,0.45);c.translate(-p.x,-p.y);c.fillRect(p.x-p.r*2,p.y-p.r,p.r*4,p.r*4);c.restore();
+            });
+            // Railway
+            const[r1x,r1y,r2x,r2y]=[200,50,1800,1950],rlen=Math.hypot(r2x-r1x,r2y-r1y);
+            const rnx=(r2x-r1x)/rlen,rny=(r2y-r1y)/rlen,rpx=-rny,rpy=rnx;
+            c.strokeStyle='#1e1e32';c.lineWidth=7;
+            for(let t=0;t<=rlen;t+=44){const bx=r1x+rnx*t,by=r1y+rny*t;c.beginPath();c.moveTo(bx+rpx*13,by+rpy*13);c.lineTo(bx-rpx*13,by-rpy*13);c.stroke();}
+            c.strokeStyle='#3a3a58';c.lineWidth=3;
+            [-1,1].forEach(s=>{c.beginPath();c.moveTo(r1x+rpx*8*s,r1y+rpy*8*s);c.lineTo(r2x+rpx*8*s,r2y+rpy*8*s);c.stroke();});
+            
+            // Lampy uliczne
+            const lampPositions = [
+                ...[200,380,560,740,920,1100,1450,1650,1850].map(x=>({x,y:610})),
+                ...[200,380,560,740,920,1100,1450,1650,1850].map(x=>({x,y:724})),
+                ...[200,380,560,740,920,1100,1450,1650].map(y=>({x:610,y})),
+                ...[200,380,560,740,920,1100,1450,1650].map(y=>({x:724,y})),
+            ];
+            lampPositions.forEach(({x,y})=>{
+                c.fillStyle='#4a4a60'; c.fillRect(x-1,y-6,2,8); c.fillRect(x-3,y-8,6,3);
+                c.globalCompositeOperation='screen';
+                const gl=c.createRadialGradient(x,y,0,x,y,35);
+                gl.addColorStop(0,'rgba(255,215,100,0.50)');
+                gl.addColorStop(0.4,'rgba(255,190,60,0.20)');
+                gl.addColorStop(1,'rgba(0,0,0,0)');
+                c.fillStyle=gl; c.fillRect(x-35,y-35,70,70);
+                c.globalCompositeOperation='source-over';
+            });
+
+            return PIXI.Texture.from(cv);
+        }
+
+        // ==========================================
+        // KLASA BUDYNKU 3D W PIXI.JS
+        // ==========================================
+        class CyberBuilding {
+            constructor(x, y, w, d, hF, type) {
+                this.x = x; this.y = y; this.w = w; this.h = d; this.hF = hF;
+                
+                this.gfx = new PIXI.Graphics();
+                this.gfx.zIndex = y + d; // Y-Sorting, budynki poprawnie zasłaniają czołg!
+                worldContainer.addChild(this.gfx);
+                
+                // Kolory budynków (Zgodne z Twoim oryginałem)
+                const P = [null,
+                    {rf:0x1a1a2d, wD:0x101018, wL:0x181826, n1:0x00ffff}, // 1 Apartament
+                    {rf:0x1e2230, wD:0x141820, wL:0x1c2028, n1:0xaaddff}, // 2 Biuro
+                    {rf:0x222635, wD:0x181c24, wL:0x1e2030, n1:0xf1c40f}, // 3 Helipad
+                    {rf:0x1a1a1e, wD:0x111114, wL:0x181818, n1:0xff3300}, // 4 Przemysłowy
+                    {rf:0x12121a, wD:0x0e0e14, wL:0x141420, n1:0xcc00ff}, // 5 Antena
+                    {rf:0x2c2422, wD:0x1a1412, wL:0x241b18, n1:0xff6600}, // 6 Fabryka
+                    {rf:0x1f2421, wD:0x111412, wL:0x181c19, n1:0x00ff44}, // 7 Chemiczny
+                    {rf:0x1d222b, wD:0x13161c, wL:0x1a1e26, n1:0x00ccff}, // 8 Podstacja
+                ];
+                this.C = P[type] || P[1];
+            }
+
+            // Aktualizacja 3D paralaksy co klatkę!
+            update(camX, camY) {
+                const pcx = camX + screenW/2;
+                const pcy = camY + screenH/2;
+                const ox = (this.x + this.w/2 - pcx) * this.hF;
+                const oy = (this.y + this.h/2 - pcy) * this.hF;
+
+                const g = this.gfx;
+                g.clear();
+
+                const drawWall = (x1, y1, x2, y2, rx1, ry1, rx2, ry2, color) => {
+                    g.beginFill(color);
+                    g.lineStyle(1, 0x000000, 1);
+                    g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(rx2, ry2); g.lineTo(rx1, ry1);
+                    g.endFill();
+                };
+
+                // Ściany 3D
+                if(oy > 0) drawWall(this.x, this.y, this.x+this.w, this.y, this.x+ox, this.y+oy, this.x+this.w+ox, this.y+oy, this.C.wD);
+                else if(oy < 0) drawWall(this.x, this.y+this.h, this.x+this.w, this.y+this.h, this.x+ox, this.y+this.h+oy, this.x+this.w+ox, this.y+this.h+oy, this.C.wL);
+                
+                if(ox > 0) drawWall(this.x, this.y, this.x, this.y+this.h, this.x+ox, this.y+oy, this.x+ox, this.y+this.h+oy, this.C.wL);
+                else if(ox < 0) drawWall(this.x+this.w, this.y, this.x+this.w, this.y+this.h, this.x+this.w+ox, this.y+oy, this.x+this.w+ox, this.y+this.h+oy, this.C.wD);
+
+                // Dach
+                const rX = this.x + ox;
+                const rY = this.y + oy;
+                g.beginFill(this.C.rf);
+                g.lineStyle(2, 0x000000, 1);
+                g.drawRect(rX, rY, this.w, this.h);
+                g.endFill();
+
+                // Detale dachu (Neony)
+                g.lineStyle(3, this.C.n1, 0.8);
+                g.drawRect(rX + 8, rY + 8, this.w - 16, this.h - 16);
+                
+                g.beginFill(0x0a0a12);
+                g.lineStyle(0, 0, 0);
+                g.drawRect(rX + 15, rY + 15, this.w*0.3, this.h*0.3);
+                g.endFill();
+            }
+        }
+
+        // ==========================================
+        // FUNKCJE POMOCNICZE WIZUALNE DLA CZOŁGÓW
+        // ==========================================
         function lerpHex(hex, amt) {
             let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
             const c=v=>Math.max(0,Math.min(255,Math.round(v+amt)));
@@ -189,13 +333,13 @@
             };
         }
 
-        const ENEMY_BRAWLER = BRAWLERS[1]; 
-        const ENEMY_TEXTURES = createBrawlerTextures(ENEMY_BRAWLER);
-
+        // ==========================================
+        // KLASY GRY
+        // ==========================================
         class Player {
             constructor(brawlerData) {
                 this.brawler = brawlerData;
-                this.x = window.innerWidth / 2; this.y = window.innerHeight / 2;
+                this.x = 800; this.y = 800; // Bezpieczny spawn w mieście
                 this.speed = this.brawler.speed; this.maxHp = this.brawler.hp; this.hp = this.maxHp;
                 
                 this.container = new PIXI.Container(); this.container.x = this.x; this.container.y = this.y;
@@ -227,7 +371,18 @@
                 if (keys.w) dy -= 1; if (keys.s) dy += 1; if (keys.a) dx -= 1; if (keys.d) dx += 1;
                 if (dx !== 0 || dy !== 0) {
                     let len = Math.sqrt(dx * dx + dy * dy);
-                    this.x += (dx / len) * this.speed; this.y += (dy / len) * this.speed;
+                    let nx = this.x + (dx / len) * this.speed; 
+                    let ny = this.y + (dy / len) * this.speed;
+                    
+                    // KOLIZJE ZE ŚCIANAMI (BUDYNKAMI)
+                    let canMoveX = true; let canMoveY = true;
+                    for(let b of buildings) {
+                        if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;
+                        if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 20)) canMoveY = false;
+                    }
+                    if(canMoveX) this.x = nx;
+                    if(canMoveY) this.y = ny;
+                    
                     this.hull.rotation = Math.atan2(dy, dx);
                 }
                 this.container.x = this.x; this.container.y = this.y;
@@ -235,6 +390,9 @@
                 this.container.zIndex = this.y + 19; 
             }
         }
+
+        const ENEMY_BRAWLER = BRAWLERS[1]; 
+        const ENEMY_TEXTURES = createBrawlerTextures(ENEMY_BRAWLER);
 
         class Enemy {
             constructor(x, y) {
@@ -256,7 +414,18 @@
             update(delta, targetX, targetY) {
                 if (!this.active) return;
                 let dx = targetX - this.x; let dy = targetY - this.y; let dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 60) { this.x += (dx / dist) * this.speed * delta; this.y += (dy / dist) * this.speed * delta; }
+                if (dist > 60) { 
+                    let nx = this.x + (dx / dist) * this.speed * delta; 
+                    let ny = this.y + (dy / dist) * this.speed * delta; 
+                    
+                    let canMoveX = true; let canMoveY = true;
+                    for(let b of buildings) {
+                        if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;
+                        if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 20)) canMoveY = false;
+                    }
+                    if(canMoveX) this.x = nx;
+                    if(canMoveY) this.y = ny;
+                }
                 this.hull.rotation = Math.atan2(dy, dx); this.turret.rotation = Math.atan2(dy, dx); 
                 this.container.x = this.x; this.container.y = this.y; this.container.zIndex = this.y + 19; 
             }
@@ -269,98 +438,78 @@
             }
         }
 
-        // ==========================================
-        // ZAAWANSOWANY SYSTEM POCISKÓW (Z TWOJEGO ORYGINAŁU)
-        // ==========================================
         class Bullet {
             constructor(x, y, angle, brawlerInfo) {
-                this.x = x; this.y = y; 
-                this.active = true; this.distance = 0; 
+                this.x = x; this.y = y; this.active = true; this.distance = 0; 
                 this.dmg = brawlerInfo.dmg;
                 
-                // Odwzorowanie Twoich prędkości i promieni kolizji!
                 const speedMap = {twardy:17, heavy:13, scout:27, sniper:29, plasma:17, pyro:14, shadow:19, king:14};
                 const radMap  = {twardy:6, heavy:11, scout:4, sniper:4, plasma:9, pyro:10, shadow:8, king:10};
-                
                 this.speed = speedMap[brawlerInfo.id] || 15;
                 this.radius = radMap[brawlerInfo.id] || 6;
-                
-                this.vx = Math.cos(angle) * this.speed; 
-                this.vy = Math.sin(angle) * this.speed;
+                this.vx = Math.cos(angle) * this.speed; this.vy = Math.sin(angle) * this.speed;
 
-                // Odpowiedni kolor i wygląd dla różnych czołgów!
-                let color = 0x2ecc71; // Twardy (zielony)
+                let color = 0x2ecc71; 
                 if(brawlerInfo.id === 'pyro') color = 0xe74c3c;
                 else if(brawlerInfo.id === 'plasma') color = 0x00cec9;
                 else if(brawlerInfo.id === 'shadow') color = 0x6c3483;
                 else if(brawlerInfo.id === 'sniper') color = 0xffffff;
-                else if(brawlerInfo.id === 'heavy') color = 0x1a1a1a;
-                else if(brawlerInfo.id === 'scout') color = 0xf1c40f;
 
                 this.gfx = new PIXI.Graphics();
                 this.gfx.beginFill(color);
-                
                 if (brawlerInfo.id === 'sniper') {
-                    // Snajper ma długi pocisk
-                    this.gfx.drawRect(-15, -4, 30, 8);
-                    this.gfx.rotation = angle;
+                    this.gfx.drawRect(-15, -4, 30, 8); this.gfx.rotation = angle;
                 } else {
                     this.gfx.drawCircle(0, 0, this.radius); 
                 }
-                
                 this.gfx.endFill();
-                this.gfx.x = this.x; this.gfx.y = this.y;
-                this.gfx.zIndex = this.y + 10; 
+                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10; 
                 worldContainer.addChild(this.gfx);
             }
             update(delta) {
                 if (!this.active) return;
                 this.x += this.vx * delta; this.y += this.vy * delta;
-                this.gfx.x = this.x; this.gfx.y = this.y;
-                this.gfx.zIndex = this.y + 10;
+                
+                // KOLIZJA POCISKU ZE ŚCIANĄ
+                for(let b of buildings) {
+                    if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
+                        this.destroy(); return;
+                    }
+                }
+
+                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10;
                 this.distance += this.speed * delta; if (this.distance > 1000) this.destroy();
             }
             destroy() { this.active = false; worldContainer.removeChild(this.gfx); this.gfx.destroy(); }
         }
 
-        function createExplosion(x, y, color, amount) {
-            // Tymczasowy zastępczy efekt eksplozji - nie psuje optymalizacji!
-            for(let i=0; i<amount; i++) {
-                let p = new PIXI.Graphics();
-                p.beginFill(color); p.drawRect(-4, -4, 8, 8); p.endFill();
-                p.x = x; p.y = y; p.zIndex = y + 20;
-                worldContainer.addChild(p);
-                // Prosta fizyka
-                let a = Math.random() * Math.PI * 2; let s = Math.random() * 8;
-                let vx = Math.cos(a)*s; let vy = Math.sin(a)*s;
-                let life = 1;
-                const ticker = () => {
-                    p.x += vx; p.y += vy; life -= 0.05;
-                    p.alpha = life; p.scale.set(life);
-                    if(life <= 0) { worldContainer.removeChild(p); p.destroy(); app.ticker.remove(ticker); }
-                };
-                app.ticker.add(ticker);
-            }
-        }
-
+        // ==========================================
+        // ZARZĄDZANIE GRĄ
+        // ==========================================
         let player = null;
         let enemies = [];
         let bullets = [];
+        let buildings = [];
+        
+        let camera = {x: 0, y: 0};
         const keys = { w: false, a: false, s: false, d: false };
         const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
         let lastShotTime = 0; 
-        
-        // Zmienna trzymająca wciśnięty klawisz myszy - do AUTOFIRE
         let isMouseDown = false;
+
+        function checkRectCollision(rx, ry, rw, rh, cx, cy, cr) {
+            let testX = cx; let testY = cy;
+            if (cx < rx) testX = rx; else if (cx > rx + rw) testX = rx + rw;
+            if (cy < ry) testY = ry; else if (cy > ry + rh) testY = ry + rh;
+            let distX = cx - testX; let distY = cy - testY;
+            return (distX*distX + distY*distY) <= (cr*cr);
+        }
 
         window.addEventListener('keydown', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; });
         window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; });
         app.view.addEventListener('pointermove', e => { mouse.screenX = e.clientX; mouse.screenY = e.clientY; });
-        
-        // Obsługa wciśnięcia i puszczenia myszy (Autofire)
-        app.view.addEventListener('pointerdown', (e) => { isMouseDown = true; });
-        app.view.addEventListener('pointerup', (e) => { isMouseDown = false; });
-        app.view.addEventListener('pointerupoutside', (e) => { isMouseDown = false; });
+        app.view.addEventListener('pointerdown', () => { isMouseDown = true; });
+        app.view.addEventListener('pointerup', () => { isMouseDown = false; });
 
         // PRZYCISK START
         document.getElementById('startBtn').addEventListener('click', () => {
@@ -369,17 +518,36 @@
             
             worldContainer.removeChildren();
             
-            const grid = new PIXI.Graphics();
-            grid.lineStyle(2, 0x333344, 0.5); 
-            for(let i = -2000; i <= 4000; i += 100) {
-                grid.moveTo(i, -2000); grid.lineTo(i, 4000);
-                grid.moveTo(-2000, i); grid.lineTo(4000, i);
-            }
-            worldContainer.addChild(grid);
+            // 1. ZBUDUJ PODŁOGĘ MIASTA!
+            const cityTex = buildCityOffscreenTexture();
+            const citySprite = new PIXI.Sprite(cityTex);
+            citySprite.zIndex = -100; // Tło na samym dole
+            worldContainer.addChild(citySprite);
+
+            // 2. ZBUDUJ BUDYNKI
+            buildings = [];
+            const layout = [
+                [80,80,180,120,0.18,2],[310,60,100,180,0.22,1],[80,290,240,95,0.12,4],
+                [825,55,58,58,0.36,5],[930,100,155,115,0.20,2],[755,225,115,140,0.16,1],
+                [1455,80,200,160,0.25,3],[1705,60,85,180,0.20,1],[1455,300,145,100,0.10,4],
+                [55,785,115,160,0.20,1],[225,805,195,120,0.18,2],[485,910,58,58,0.30,5],
+                [1445,800,195,140,0.22,2],[1705,785,98,160,0.18,1],[1445,1005,180,100,0.15,3],
+                [80,1440,125,178,0.20,1],[265,1445,58,58,0.28,5],[80,1688,195,118,0.18,2],
+                [748,1440,195,78,0.10,4],[925,1565,175,130,0.22,3],[758,1762,108,148,0.18,1],
+                [1445,1445,220,148,0.20,2],[1722,1452,158,78,0.12,4],[1882,1602,58,58,0.32,5],
+                // Przedmieścia Przemysłowe
+                [2150,250,180,140,0.20,6],[2380,600,200,160,0.22,6],[2500,1100,190,150,0.19,6],
+                [150,2250,200,160,0.20,6],[600,2450,180,140,0.18,6],
+                [2200,950,140,100,0.15,7],[2620,1450,150,110,0.16,7],
+                [350,2520,130,100,0.14,7],[1100,2350,140,110,0.15,7],
+                [2150,1500,160,120,0.18,8],[2450,220,150,110,0.17,8],
+                [950,2520,130,100,0.15,8],[1550,2250,150,120,0.16,8]
+            ];
+            layout.forEach(b => buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5])));
 
             score = 0; document.getElementById('scoreVal').innerText = score;
             player = new Player(selectedBrawler);
-            enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(-300, 300)];
+            enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(1500, 1500)];
             bullets = [];
             isMouseDown = false;
             gameState = 'PLAYING';
@@ -389,36 +557,34 @@
         app.ticker.add((delta) => {
             if (gameState !== 'PLAYING' || !player) return;
 
-            worldContainer.x = ~~(window.innerWidth / 2 - player.x);
-            worldContainer.y = ~~(window.innerHeight / 2 - player.y);
-            let mouseWorldX = mouse.screenX - worldContainer.x; let mouseWorldY = mouse.screenY - worldContainer.y;
+            // Kamera
+            camera.x = Math.max(0, Math.min(WORLD_W - screenW, ~~(player.x - screenW / 2)));
+            camera.y = Math.max(0, Math.min(WORLD_H - screenH, ~~(player.y - screenH / 2)));
+            
+            worldContainer.x = -camera.x;
+            worldContainer.y = -camera.y;
+
+            let mouseWorldX = mouse.screenX + camera.x; 
+            let mouseWorldY = mouse.screenY + camera.y;
+
+            // Aktualizacja budynków (3D paralaksa)
+            buildings.forEach(b => b.update(camera.x, camera.y));
 
             player.update(keys, mouseWorldX, mouseWorldY);
 
-            // ==========================================
-            // SYSTEM AUTOFIRE I RÓŻNYCH BRONI
-            // ==========================================
             const now = Date.now();
             if (isMouseDown && now - lastShotTime > player.brawler.reload) {
                 let angle = player.turret.rotation;
                 let startX = player.x + Math.cos(angle) * 45; 
                 let startY = player.y + Math.sin(angle) * 45;
-                
-                let explColor = 0xff9900;
-                if(player.brawler.id === 'pyro') explColor = 0xe74c3c;
-                if(player.brawler.id === 'plasma') explColor = 0x00cec9;
 
-                // Sprawdzamy czy broń jest typu "spread" (np. Ogniarz strzelający potrójnie)
                 if (player.brawler.type === 'spread') {
                     bullets.push(new Bullet(startX, startY, angle - 0.2, player.brawler));
                     bullets.push(new Bullet(startX, startY, angle, player.brawler));
                     bullets.push(new Bullet(startX, startY, angle + 0.2, player.brawler));
                 } else {
-                    // Standardowy pojedynczy pocisk
                     bullets.push(new Bullet(startX, startY, angle, player.brawler));
                 }
-                
-                createExplosion(startX, startY, explColor, 15);
                 lastShotTime = now;
             }
             
@@ -436,18 +602,13 @@
                     player.takeDamage(2); enemy.hp = 0; enemy.takeDamage(100); 
                 }
 
-                // Kolizje pocisków
                 for (let j = bullets.length - 1; j >= 0; j--) {
                     let b = bullets[j]; if (!b.active) continue;
                     let dx = b.x - enemy.x; let dy = b.y - enemy.y;
                     
-                    // Kolizja uwzględnia teraz różny RADIUS każdego pocisku!
                     if (dx * dx + dy * dy < (30 + b.radius) * (30 + b.radius)) {
                         b.destroy(); bullets.splice(j, 1); 
-                        
-                        // Obrażenia zgodne ze statystykami konkretnej klasy (DMG)
                         enemy.takeDamage(b.dmg); 
-                        createExplosion(b.x, b.y, 0xffcc00, 5); 
                         break; 
                     }
                 }

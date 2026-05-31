@@ -15,7 +15,7 @@
 
     <script>
         // ==========================================
-        // INICJALIZACJA SILNIKA
+        // ETAP 1: INICJALIZACJA SILNIKA
         // ==========================================
         const app = new PIXI.Application({
             resizeTo: window,          
@@ -26,74 +26,270 @@
         app.view.style.position = 'absolute';
         app.view.style.zIndex = '1';
 
-        app.stage.sortableChildren = true;
-
-        // Kontener świata (Kamera) - porusza się
         const worldContainer = new PIXI.Container();
         worldContainer.sortableChildren = true; 
         app.stage.addChild(worldContainer);
 
-        // Kontener interfejsu (UI) - zawsze w tym samym miejscu na ekranie!
         const uiContainer = new PIXI.Container();
         uiContainer.zIndex = 1000; 
         app.stage.addChild(uiContainer);
 
-        // Zmienne UI
         let score = 0;
         const scoreText = new PIXI.Text('Wynik: 0', {
             fontFamily: 'Arial', fontSize: 24, fill: 0xffffff, fontWeight: 'bold'
         });
-        scoreText.x = 20;
-        scoreText.y = 20;
+        scoreText.x = 20; scoreText.y = 20;
         uiContainer.addChild(scoreText);
 
+        // Zmienna wymagana do oryginalnego kodu
+        const stats = { kills: 0 }; 
+
         // ==========================================
-        // KLASA GRACZA
+        // TWOJE ORYGINALNE DANE I FUNKCJE RYSUJĄCE
+        // ==========================================
+        const BRAWLERS = [
+            { id: 'twardy', emoji: '🪖', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400, type: 'standard' },
+            { id: 'heavy', emoji: '🛡️', name: 'Pancerny', colorMain: '#8e44ad', hp: 7, speed: 3.5, dmg: 1.5, reload: 700, type: 'standard' },
+            { id: 'scout', emoji: '🔍', name: 'Zwiad', colorMain: '#f1c40f', hp: 2, speed: 7.5, dmg: 0.8, reload: 250, type: 'standard' },
+            { id: 'sniper', emoji: '🎯', name: 'Snajper', colorMain: '#3498db', hp: 3, speed: 4.5, dmg: 3, reload: 1000, type: 'fast' },
+            { id: 'plasma', emoji: '💻', name: 'Tech', colorMain: '#00cec9', hp: 4, speed: 5, dmg: 1.2, reload: 500, type: 'plasma' },
+            { id: 'pyro', emoji: '🔥', name: 'Ogniarz', colorMain: '#e74c3c', hp: 5, speed: 4.8, dmg: 0.5, reload: 210, type: 'spread' },
+            { id: 'shadow', emoji: '🌑', name: 'Shadow', colorMain: '#2c3e50', hp: 3, speed: 6.5, dmg: 1.5, reload: 600, type: 'standard' },
+            { id: 'king', emoji: '👑', name: 'King', colorMain: '#d35400', hp: 5, speed: 5.5, dmg: 2, reload: 500, type: 'standard' }
+        ];
+
+        function lerpHex(hex, amt) {
+            let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+            const c=v=>Math.max(0,Math.min(255,Math.round(v+amt)));
+            return '#'+[c(r),c(g),c(b)].map(v=>v.toString(16).padStart(2,'0')).join('');
+        }
+
+        function _pyroLerp(hex1, hex2, ratio) {
+            const p = c => parseInt(c.replace('#',''), 16);
+            const a = p(hex1), b2 = p(hex2);
+            const r = Math.round(((a>>16)*(1-ratio) + (b2>>16)*ratio));
+            const g = Math.round((((a>>8)&0xff)*(1-ratio) + ((b2>>8)&0xff)*ratio));
+            const bl = Math.round(((a&0xff)*(1-ratio) + (b2&0xff)*ratio));
+            return '#'+((1<<24|r<<16|g<<8|bl).toString(16).slice(1));
+        }
+
+        // --- TWOJA ORYGINALNA FUNKCJA KADŁUBA ---
+        function drawTankHull(c, brawler, trackOff, age) {
+            const id=brawler.id, col=brawler.colorMain;
+            const cL=lerpHex(col,45), cD=lerpHex(col,-35);
+            const HL=52, HW=26, TRK=5;
+            const hhl=HL/2, hhw=HW/2;
+            const serials={twardy:'T-07',heavy:'H-01',scout:'S-12',sniper:'SN3',plasma:'TX99',pyro:'PY6',shadow:'00',king:'KG1'};
+
+            c.fillStyle='rgba(0,0,0,0.22)';
+            c.beginPath(); c.ellipse(2, 10, 28, 11, 0, 0, Math.PI*2); c.fill();
+
+            function drawTrack(sy) {
+                c.fillStyle='#1c1c1c'; c.strokeStyle='#2e2e2e'; c.lineWidth=1;
+                c.beginPath(); c.roundRect(-hhl,sy-TRK/2,HL,TRK,2); c.fill(); c.stroke();
+                c.strokeStyle='#363636'; c.lineWidth=0.7;
+                const step=7, tOff=((trackOff*0.4)%step+step)%step;
+                for(let i=0;i<=Math.ceil(HL/step)+1;i++){
+                    const lx=-hhl+i*step-tOff;
+                    if(lx>-hhl+0.5&&lx<hhl-0.5){c.beginPath();c.moveTo(lx,sy-TRK/2+1);c.lineTo(lx,sy+TRK/2-1);c.stroke();}
+                }
+                c.fillStyle='#252525'; c.strokeStyle='#3a3a3a'; c.lineWidth=0.7;
+                [-hhl+3.5,-hhl/2,0,hhl/2,hhl-3.5].forEach(wx=>{
+                    c.beginPath(); c.arc(wx,sy,3.2,0,Math.PI*2); c.fill(); c.stroke();
+                    c.fillStyle='#383838'; c.beginPath(); c.arc(wx,sy,1.3,0,Math.PI*2); c.fill(); c.fillStyle='#252525';
+                });
+            }
+            drawTrack(-(hhw+TRK/2+0.5));
+            drawTrack(hhw+TRK/2+0.5);
+
+            c.lineWidth=1.5; c.strokeStyle='#000';
+            c.fillStyle=col; c.beginPath(); c.roundRect(-hhl,-hhw,HL,HW,3); c.fill(); c.stroke();
+            c.fillStyle=cL; c.globalAlpha=0.28; c.beginPath(); c.roundRect(-hhl,-hhw,HL*0.2,HW,3); c.fill(); c.globalAlpha=1;
+            c.fillStyle=cD; c.globalAlpha=0.38; c.beginPath(); c.roundRect(hhl-HL*0.28,-hhw,HL*0.28,HW,3); c.fill(); c.globalAlpha=1;
+            
+            c.globalAlpha=0.22;
+            const rl=c.createLinearGradient(0,-hhw,0,0);
+            rl.addColorStop(0,'rgba(255,255,255,0.9)'); rl.addColorStop(1,'rgba(255,255,255,0)');
+            c.fillStyle=rl; c.beginPath(); c.roundRect(-hhl,-hhw,HL,HW/2,3); c.fill();
+            c.globalAlpha=1;
+
+            c.fillStyle=cD; c.strokeStyle='rgba(0,0,0,0.55)'; c.lineWidth=0.8;
+            for(let i=0;i<3;i++){
+                c.beginPath(); c.roundRect(hhl-HL*0.22+1,-hhw+4+i*((HW-8)/3),HL*0.18,(HW-8)/3-1.5,1); c.fill(); c.stroke();
+            }
+            c.fillStyle=cL; c.strokeStyle='#000'; c.lineWidth=1;
+            c.beginPath(); c.ellipse(-hhl+HL*0.19,-hhw*0.42,4.5,3.5,0,0,Math.PI*2); c.fill(); c.stroke();
+            c.strokeStyle=cD; c.lineWidth=0.7;
+            c.beginPath(); c.moveTo(-hhl+HL*0.13,-hhw*0.42); c.lineTo(-hhl+HL*0.25,-hhw*0.42); c.stroke();
+            c.beginPath(); c.moveTo(-hhl+HL*0.19,-hhw*0.68); c.lineTo(-hhl+HL*0.19,-hhw*0.16); c.stroke();
+            
+            c.font='bold 5.5px monospace'; c.textAlign='center'; c.textBaseline='middle';
+            c.fillStyle='rgba(0,0,0,0.38)'; c.fillText(serials[id]||'--',-HL*0.04,0);
+            c.strokeStyle=cD; c.lineWidth=1.2;
+            c.beginPath(); c.arc(-hhl+3,-hhw+2.5,2.5,Math.PI,0); c.stroke();
+            c.beginPath(); c.arc(-hhl+3,hhw-2.5,2.5,0,Math.PI); c.stroke();
+
+            // WYJĄTKI DLA CZOŁGÓW
+            if(id==='twardy'){
+                c.fillStyle='#1d6b39'; c.strokeStyle='#0d3d1f'; c.lineWidth=0.8;
+                [[-hhl+8,-hhw],[-hhl+18,-hhw],[-hhl+28,-hhw],[-hhl+38,-hhw]].forEach(([bx,by])=>{
+                    c.beginPath(); c.roundRect(bx,by,8,4,0.5); c.fill(); c.stroke();
+                    c.beginPath(); c.roundRect(bx,by+HW-4,8,4,0.5); c.fill(); c.stroke();
+                });
+                c.strokeStyle='#5d4e37'; c.lineWidth=2.5; c.lineCap='round';
+                c.beginPath(); c.moveTo(-hhl+2,hhw*0.6); c.bezierCurveTo(-hhl-4,hhw*0.9,-hhl-4,hhw+3,-hhl+6,hhw+TRK+1); c.stroke();
+                c.lineCap='butt';
+            } else if(id==='heavy'){
+                c.fillStyle='#5b2d8a'; c.strokeStyle='#000'; c.lineWidth=0.8;
+                c.beginPath(); c.roundRect(-hhl+8,-(hhw+TRK+4),HL-16,4,1); c.fill(); c.stroke();
+                c.beginPath(); c.roundRect(-hhl+8,hhw+TRK,HL-16,4,1); c.fill(); c.stroke();
+            } else if(id==='sniper'){
+                c.fillStyle=cL; c.globalAlpha=0.28;
+                c.beginPath(); c.moveTo(-hhl,-hhw); c.lineTo(-hhl+14,-hhw); c.lineTo(-hhl,hhw*0.3); c.closePath(); c.fill();
+                c.beginPath(); c.moveTo(-hhl,hhw); c.lineTo(-hhl+14,hhw); c.lineTo(-hhl,hhw*0.7); c.closePath(); c.fill();
+                c.globalAlpha=1;
+            } else if(id==='plasma'){
+                c.strokeStyle='rgba(0,206,201,0.65)'; c.lineWidth=1.5;
+                c.beginPath(); c.moveTo(-hhl+HL*0.14,-hhw+3); c.lineTo(-hhl+HL*0.14,hhw-3); c.stroke();
+                c.beginPath(); c.moveTo(hhl*0.3,-hhw+3); c.lineTo(hhl*0.3,hhw-3); c.stroke();
+            } else if(id==='pyro'){
+                [-(hhw+TRK+2),hhw+TRK+2].forEach((ty)=>{
+                    c.fillStyle='#7b241c'; c.strokeStyle='#c0392b'; c.lineWidth=1;
+                    c.beginPath(); c.roundRect(-hhl+HL*0.08,ty-3.5,HL*0.55,7,3.5); c.fill(); c.stroke();
+                });
+            } else if(id==='king'){
+                c.strokeStyle='#f1c40f'; c.lineWidth=1.5;
+                c.beginPath(); c.roundRect(-hhl+1,-hhw+1,HL-2,HW-2,2); c.stroke();
+            }
+        }
+
+        // --- TWOJA ORYGINALNA FUNKCJA WIEŻY ---
+        function drawTankTurret(c, brawler, colorMain, lastShot, shootCooldown, recoilOff=0) {
+            const id=brawler.id, col=colorMain;
+            const cL=lerpHex(col,45), cD=lerpHex(col,-40);
+            const tr={heavy:14,king:14,plasma:12,scout:10}[id]||12;
+
+            c.fillStyle=lerpHex(col,-18); c.strokeStyle='#000'; c.lineWidth=1.5;
+            c.beginPath(); c.arc(0,0,tr+2,0,Math.PI*2); c.fill(); c.stroke();
+
+            c.fillStyle=cD; c.strokeStyle='#000'; c.lineWidth=1.5;
+            if(id==='plasma'){
+                c.beginPath();
+                for(let i=0;i<6;i++){const a=i*Math.PI/3-Math.PI/6;c.lineTo(Math.cos(a)*tr,Math.sin(a)*tr);}
+                c.closePath(); c.fill(); c.stroke();
+            } else if(id==='shadow'){
+                c.beginPath();
+                c.moveTo(tr,0); c.lineTo(0,tr*0.65); c.lineTo(-tr,0); c.lineTo(0,-tr*0.65);
+                c.closePath(); c.fill(); c.stroke();
+            } else if(id==='king'){
+                c.beginPath(); c.roundRect(-tr*0.72,-tr,tr*1.44,tr*2,3); c.fill(); c.stroke();
+            } else if(id==='sniper'){
+                c.beginPath(); c.ellipse(2,0,tr*1.1,tr*0.72,0,0,Math.PI*2); c.fill(); c.stroke();
+            } else if(id==='pyro') {
+                const _tg=c.createRadialGradient(-3,-3,0,0,0,tr);
+                _tg.addColorStop(0, _pyroLerp('#e74c3c','#ffffff',0.45));
+                _tg.addColorStop(1, _pyroLerp('#e74c3c','#000000',0.35));
+                c.fillStyle=_tg;
+                c.beginPath(); c.arc(0,0,tr,0,Math.PI*2); c.fill(); c.stroke();
+            } else {
+                c.beginPath(); c.arc(0,0,tr,0,Math.PI*2); c.fill(); c.stroke();
+            }
+
+            if(!['plasma','shadow'].includes(id)){
+                c.fillStyle=cL; c.strokeStyle='rgba(0,0,0,0.55)'; c.lineWidth=0.8;
+                c.beginPath(); c.ellipse(-2,-1.5,tr*0.34,tr*0.27,0,0,Math.PI*2); c.fill(); c.stroke();
+            }
+
+            c.fillStyle='rgba(255,255,255,0.12)';
+            c.beginPath(); c.ellipse(-tr*0.28,-tr*0.28,tr*0.38,tr*0.22,-0.4,0,Math.PI*2); c.fill();
+
+            const specs={twardy:{bl:22,bw:5},heavy:{bl:18,bw:7.5},scout:{bl:28,bw:3.5},sniper:{bl:36,bw:4},
+                         plasma:{bl:14,bw:2.5},pyro:{bl:14,bw:8.5},shadow:{bl:25,bw:4},king:{bl:20,bw:4.5}};
+            const {bl,bw}=specs[id]||specs.twardy;
+            const bstart = id==='heavy'?tr*0.6:id==='king'?tr*0.5:tr*0.65;
+            
+            c.fillStyle='#484848'; c.strokeStyle='#111'; c.lineWidth=1.5;
+            if(id==='pyro'){
+                c.beginPath(); c.roundRect(bstart,-bw/2,bl,bw,bw*0.25); c.fill(); c.stroke();
+            } else if(id==='plasma'){
+                [-4,0,4].forEach(oy=>{
+                    c.beginPath(); c.roundRect(tr-1,oy-1.5,14,3,1); c.fill(); c.stroke();
+                });
+            } else if(id==='king'){
+                [-3.5,3.5].forEach(oy=>{
+                    c.beginPath(); c.roundRect(bstart,oy-bw/2.5,bl,bw/1.5,bw/4); c.fill(); c.stroke();
+                });
+            } else {
+                c.beginPath(); c.roundRect(bstart,-bw/2,bl,bw,bw*0.25); c.fill(); c.stroke();
+            }
+        }
+
+        // ==========================================
+        // GENERATOR TEKSTUR WEBGL (BAKING)
+        // ==========================================
+        function createBrawlerTextures(brawler) {
+            // Funkcja pomocnicza zamieniająca wywołania rysujące z Canvas na teksturę PIXI
+            const createTex = (drawFn) => {
+                const canvas = document.createElement('canvas');
+                // Canvas musi być wystarczająco duży, żeby pomieścić powiększony czołg
+                canvas.width = 160; canvas.height = 160;
+                const ctx = canvas.getContext('2d');
+                ctx.translate(80, 80); // Ustawiamy środek
+                ctx.scale(1.75, 1.75); // Dokładnie takie samo skalowanie jak w starej grze!
+                drawFn(ctx);
+                return PIXI.Texture.from(canvas);
+            };
+
+            return {
+                hull: createTex((ctx) => drawTankHull(ctx, brawler, 0, 0)),
+                turret: createTex((ctx) => drawTankTurret(ctx, brawler, brawler.colorMain, 0, brawler.reload, 0))
+            };
+        }
+
+        // Generujemy teksturę dla czerwonego wroga!
+        const ENEMY_BRAWLER = { id: 'heavy', colorMain: '#c0392b', reload: 1000 };
+        const ENEMY_TEXTURES = createBrawlerTextures(ENEMY_BRAWLER);
+
+        // ==========================================
+        // KLASA GRACZA (Z TWOIMI TEKSTURAMI!)
         // ==========================================
         class Player {
-            constructor() {
+            constructor(className) {
+                this.brawler = BRAWLERS.find(b => b.id === className) || BRAWLERS[0];
+                
                 this.x = window.innerWidth / 2;
                 this.y = window.innerHeight / 2;
-                this.speed = 6;
-                this.maxHp = 10;
+                this.speed = this.brawler.speed;
+                this.maxHp = this.brawler.hp;
                 this.hp = this.maxHp;
                 
                 this.container = new PIXI.Container();
                 this.container.x = this.x;
                 this.container.y = this.y;
                 
-                this.hull = new PIXI.Graphics();
-                this.hull.beginFill(0x111111);
-                this.hull.drawRect(-23, -23, 46, 10);
-                this.hull.drawRect(-23, 13, 46, 10);
-                this.hull.beginFill(0x27ae60);
-                this.hull.drawRoundedRect(-23, -19, 46, 38, 8);
-                this.hull.endFill();
+                // Magia WebGL! Tworzymy zdjęcia Twojego kodu.
+                const textures = createBrawlerTextures(this.brawler);
                 
-                this.turret = new PIXI.Graphics();
-                this.turret.beginFill(0x555555);
-                this.turret.drawRect(10, -6, 25, 12);
-                this.turret.beginFill(0x27ae60);
-                this.turret.drawCircle(0, 0, 16);
-                this.turret.endFill();
+                this.hull = new PIXI.Sprite(textures.hull);
+                this.hull.anchor.set(0.5); // Ustawia punkt obrotu na środek
+                
+                this.turret = new PIXI.Sprite(textures.turret);
+                this.turret.anchor.set(0.5); 
 
-                // Pasek życia nad graczem
                 this.hpBar = new PIXI.Graphics();
-                this.hpBar.y = -35; 
+                this.hpBar.y = -55; // Pasek wyżej, bo czołgi są teraz większe
                 this.drawHp();
                 
                 this.container.addChild(this.hull);
                 this.container.addChild(this.turret);
-                this.container.addChild(this.hpBar); // Dodajemy pasek do czołgu
+                this.container.addChild(this.hpBar);
                 worldContainer.addChild(this.container);
             }
 
             drawHp() {
                 this.hpBar.clear();
-                // Tło paska (Czerwone)
                 this.hpBar.beginFill(0xff0000);
                 this.hpBar.drawRect(-25, 0, 50, 6);
-                // Wypełnienie paska (Zielone)
                 this.hpBar.beginFill(0x00ff00);
                 let width = (this.hp / this.maxHp) * 50;
                 this.hpBar.drawRect(-25, 0, Math.max(0, width), 6);
@@ -103,11 +299,10 @@
             takeDamage(amount) {
                 this.hp -= amount;
                 this.drawHp();
-                createExplosion(this.x, this.y, 0xff0000, 20); // Krwisty wybuch przy trafieniu
-
+                createExplosion(this.x, this.y, 0xff0000, 20); 
                 if(this.hp <= 0) {
                     alert("GAME OVER! Twój wynik: " + score + " punktów.");
-                    window.location.reload(); // Prosty restart gry
+                    window.location.reload(); 
                 }
             }
 
@@ -133,7 +328,7 @@
         }
 
         // ==========================================
-        // TŁO I BUDYNKI (ŚRODOWISKO)
+        // TŁO I BUDYNKI 
         // ==========================================
         const grid = new PIXI.Graphics();
         grid.lineStyle(2, 0x333344, 0.5); 
@@ -146,8 +341,7 @@
         class CyberWall {
             constructor(x, y, width, height) {
                 this.container = new PIXI.Container();
-                this.container.x = x;
-                this.container.y = y;
+                this.container.x = x; this.container.y = y;
                 this.container.zIndex = y + height;
 
                 this.gfx = new PIXI.Graphics();
@@ -176,29 +370,21 @@
                 this.x = x; this.y = y;
                 this.vx = Math.cos(angle) * 15; 
                 this.vy = Math.sin(angle) * 15;
-                this.active = true;
-                this.distance = 0; 
-
+                this.active = true; this.distance = 0; 
                 this.gfx = new PIXI.Graphics();
-                this.gfx.beginFill(0xffcc00); 
-                this.gfx.drawCircle(0, 0, 6);
-                this.gfx.endFill();
-                
+                this.gfx.beginFill(0xffcc00); this.gfx.drawCircle(0, 0, 6); this.gfx.endFill();
                 this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.zIndex = this.y + 10; 
                 worldContainer.addChild(this.gfx);
             }
-
             update(delta) {
                 if (!this.active) return;
                 this.x += this.vx * delta; this.y += this.vy * delta;
                 this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.zIndex = this.y + 10;
-
                 this.distance += 15 * delta;
                 if (this.distance > 1000) this.destroy();
             }
-            
             destroy() {
                 this.active = false;
                 worldContainer.removeChild(this.gfx);
@@ -211,21 +397,14 @@
                 this.x = x; this.y = y;
                 let angle = Math.random() * Math.PI * 2;
                 let vel = Math.random() * speed;
-                this.vx = Math.cos(angle) * vel;
-                this.vy = Math.sin(angle) * vel;
-                this.life = 1.0; 
-                this.active = true;
-                
+                this.vx = Math.cos(angle) * vel; this.vy = Math.sin(angle) * vel;
+                this.life = 1.0; this.active = true;
                 this.gfx = new PIXI.Graphics();
-                this.gfx.beginFill(color);
-                this.gfx.drawRect(-4, -4, 8, 8); 
-                this.gfx.endFill();
-                
+                this.gfx.beginFill(color); this.gfx.drawRect(-4, -4, 8, 8); this.gfx.endFill();
                 this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.zIndex = this.y + 20; 
                 worldContainer.addChild(this.gfx);
             }
-            
             update(delta) {
                 if(!this.active) return;
                 this.x += this.vx * delta; this.y += this.vy * delta;
@@ -235,7 +414,6 @@
                 this.gfx.scale.set(Math.max(0, this.life));
                 if(this.life <= 0) this.destroy();
             }
-            
             destroy() {
                 this.active = false;
                 worldContainer.removeChild(this.gfx);
@@ -245,43 +423,30 @@
 
         const particles = [];
         function createExplosion(x, y, color, amount) {
-            for(let i = 0; i < amount; i++) {
-                particles.push(new Particle(x, y, color, 8));
-            }
+            for(let i = 0; i < amount; i++) particles.push(new Particle(x, y, color, 8));
         }
 
         // ==========================================
-        // KLASA WROGA
+        // KLASA WROGA (TEŻ DOSTAŁA TEKSTURY!)
         // ==========================================
         class Enemy {
             constructor(x, y) {
                 this.x = x; this.y = y;
                 this.speed = 2 + Math.random() * 2; 
-                this.maxHp = 3;
-                this.hp = this.maxHp; 
+                this.maxHp = 3; this.hp = this.maxHp; 
                 this.active = true;
 
                 this.container = new PIXI.Container();
                 this.container.x = this.x; this.container.y = this.y;
 
-                this.hull = new PIXI.Graphics();
-                this.hull.beginFill(0x111111);
-                this.hull.drawRect(-23, -23, 46, 10);
-                this.hull.drawRect(-23, 13, 46, 10);
-                this.hull.beginFill(0xc0392b); 
-                this.hull.drawRoundedRect(-23, -19, 46, 38, 8);
-                this.hull.endFill();
+                // Używamy globalnie wygenerowanej tekstury (Czerwony Heavy/Pancerny)
+                this.hull = new PIXI.Sprite(ENEMY_TEXTURES.hull);
+                this.hull.anchor.set(0.5);
+                this.turret = new PIXI.Sprite(ENEMY_TEXTURES.turret);
+                this.turret.anchor.set(0.5);
 
-                this.turret = new PIXI.Graphics();
-                this.turret.beginFill(0x555555);
-                this.turret.drawRect(10, -6, 25, 12);
-                this.turret.beginFill(0xc0392b);
-                this.turret.drawCircle(0, 0, 16);
-                this.turret.endFill();
-
-                // Pasek życia nad wrogiem
                 this.hpBar = new PIXI.Graphics();
-                this.hpBar.y = -35; 
+                this.hpBar.y = -55; 
                 this.drawHp();
 
                 this.container.addChild(this.hull);
@@ -292,9 +457,9 @@
 
             drawHp() {
                 this.hpBar.clear();
-                this.hpBar.beginFill(0x000000, 0.5); // Ciemne tło
+                this.hpBar.beginFill(0x000000, 0.5); 
                 this.hpBar.drawRect(-20, 0, 40, 5);
-                this.hpBar.beginFill(0xff3300); // Czerwone wypełnienie (wróg)
+                this.hpBar.beginFill(0xff3300); 
                 let width = (this.hp / this.maxHp) * 40;
                 this.hpBar.drawRect(-20, 0, Math.max(0, width), 5);
                 this.hpBar.endFill();
@@ -302,9 +467,7 @@
 
             update(delta, targetX, targetY) {
                 if (!this.active) return;
-
-                let dx = targetX - this.x;
-                let dy = targetY - this.y;
+                let dx = targetX - this.x; let dy = targetY - this.y;
                 let dist = Math.sqrt(dx * dx + dy * dy);
 
                 if (dist > 60) { 
@@ -314,57 +477,42 @@
 
                 this.hull.rotation = Math.atan2(dy, dx);
                 this.turret.rotation = Math.atan2(dy, dx); 
-                this.container.x = this.x;
-                this.container.y = this.y;
+                this.container.x = this.x; this.container.y = this.y;
                 this.container.zIndex = this.y + 19; 
             }
 
             takeDamage() {
-                this.hp -= 1;
-                this.drawHp();
+                this.hp -= 1; this.drawHp();
                 if (this.hp <= 0) {
                     this.active = false;
                     createExplosion(this.x, this.y, 0xff3300, 30); 
                     worldContainer.removeChild(this.container);
                     this.container.destroy({ children: true }); 
-                    
-                    // Magia UI: Dodajemy punkty po zniszczeniu wroga!
-                    score += 100;
-                    scoreText.text = 'Wynik: ' + score;
+                    score += 100; scoreText.text = 'Wynik: ' + score;
                 }
             }
         }
 
-        // Inicjalizacja obiektów gry
-        const player = new Player();
-        const enemies = [
-            new Enemy(1000, 500),
-            new Enemy(200, 900),
-            new Enemy(-300, 300)
-        ];
+        // ==========================================
+        // INICJALIZACJA I STEROWANIE
+        // ==========================================
+        // Wybierz klasę dla siebie! Wpisz tu 'twardy', 'sniper', 'pyro', 'plasma' itd.
+        const player = new Player('heavy'); 
+
+        const enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(-300, 300)];
         const bullets = [];
         
-        // ==========================================
-        // STEROWANIE
-        // ==========================================
         const keys = { w: false, a: false, s: false, d: false };
         const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
         let lastShotTime = 0; 
 
-        window.addEventListener('keydown', e => { 
-            let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; 
-        });
-        window.addEventListener('keyup', e => { 
-            let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; 
-        });
-        app.view.addEventListener('pointermove', e => {
-            mouse.screenX = e.clientX;
-            mouse.screenY = e.clientY;
-        });
+        window.addEventListener('keydown', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; });
+        window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; });
+        app.view.addEventListener('pointermove', e => { mouse.screenX = e.clientX; mouse.screenY = e.clientY; });
 
         app.view.addEventListener('pointerdown', (e) => {
             const now = Date.now();
-            if (now - lastShotTime > 250) {
+            if (now - lastShotTime > player.brawler.reload) {
                 let angle = player.turret.rotation;
                 let startX = player.x + Math.cos(angle) * 35;
                 let startY = player.y + Math.sin(angle) * 35;
@@ -379,64 +527,47 @@
         // GŁÓWNA PĘTLA GRY
         // ==========================================
         app.ticker.add((delta) => {
-            // 1. Kamera
             worldContainer.x = ~~(window.innerWidth / 2 - player.x);
             worldContainer.y = ~~(window.innerHeight / 2 - player.y);
 
             let mouseWorldX = mouse.screenX - worldContainer.x;
             let mouseWorldY = mouse.screenY - worldContainer.y;
 
-            // 2. Aktualizacja gracza
             player.update(keys, mouseWorldX, mouseWorldY);
             
-            // 3. Aktualizacja pocisków
             for (let i = bullets.length - 1; i >= 0; i--) {
-                let b = bullets[i];
-                b.update(delta);
+                let b = bullets[i]; b.update(delta);
                 if (!b.active) bullets.splice(i, 1);
             }
             
-            // 4. Aktualizacja cząsteczek
             for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.update(delta);
+                let p = particles[i]; p.update(delta);
                 if (!p.active) particles.splice(i, 1);
             }
             
-            // 5. Aktualizacja wrogów i kolizje
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let enemy = enemies[i];
                 enemy.update(delta, player.x, player.y);
 
-                // Sprawdzanie zderzenia Wroga z Graczem (Kamikaze!)
                 let distToPlayer = (player.x - enemy.x) * (player.x - enemy.x) + (player.y - enemy.y) * (player.y - enemy.y);
-                if (distToPlayer < 45 * 45) { // 45 pikseli to promień zderzenia
-                    player.takeDamage(2); // Gracz traci 2 HP
-                    enemy.hp = 0;         // Wróg ginie od zderzenia
-                    enemy.takeDamage(); 
+                if (distToPlayer < 45 * 45) { 
+                    player.takeDamage(2); 
+                    enemy.hp = 0; enemy.takeDamage(); 
                 }
 
-                // Kolizje pocisków z wrogiem
                 for (let j = bullets.length - 1; j >= 0; j--) {
                     let b = bullets[j];
                     if (!b.active) continue;
-
-                    let dx = b.x - enemy.x;
-                    let dy = b.y - enemy.y;
-                    
+                    let dx = b.x - enemy.x; let dy = b.y - enemy.y;
                     if (dx * dx + dy * dy < 30 * 30) {
-                        b.destroy(); 
-                        bullets.splice(j, 1); 
-                        
+                        b.destroy(); bullets.splice(j, 1); 
                         enemy.takeDamage(); 
                         createExplosion(b.x, b.y, 0xffcc00, 5); 
                         break; 
                     }
                 }
 
-                if (!enemy.active) {
-                    enemies.splice(i, 1);
-                }
+                if (!enemy.active) enemies.splice(i, 1);
             }
         });
     </script>

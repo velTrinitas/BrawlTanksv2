@@ -139,7 +139,59 @@
                 worldContainer.addChild(this.container);
             }
         }
+// ==========================================
+        // ETAP 5: KLASA POCISKU (BULLET)
+        // ==========================================
+        class Bullet {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                // Obliczamy wektor prędkości na podstawie kąta wieżyczki
+                this.vx = Math.cos(angle) * 15; 
+                this.vy = Math.sin(angle) * 15;
+                this.active = true;
+                this.distance = 0; // Ile już przeleciał
 
+                // Rysujemy pocisk
+                this.gfx = new PIXI.Graphics();
+                this.gfx.beginFill(0xffcc00); // Żółto-złoty
+                this.gfx.drawCircle(0, 0, 6);
+                this.gfx.endFill();
+                
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                
+                // Pocisk lata na wysokości lufy (z-index)
+                this.gfx.zIndex = this.y + 10; 
+
+                worldContainer.addChild(this.gfx);
+            }
+
+            update(delta) {
+                if (!this.active) return;
+                
+                // Ruch pocisku
+                this.x += this.vx * delta;
+                this.y += this.vy * delta;
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                
+                // Pocisk dynamicznie zmienia z-index, żeby też mógł chować się za murami!
+                this.gfx.zIndex = this.y + 10;
+
+                // Niszczymy pocisk, gdy poleci za daleko (np. 1000 pikseli)
+                this.distance += 15 * delta;
+                if (this.distance > 1000) {
+                    this.destroy();
+                }
+            }
+            
+            destroy() {
+                this.active = false;
+                worldContainer.removeChild(this.gfx);
+                this.gfx.destroy(); // Bardzo ważne! Zwalnia pamięć karty graficznej
+            }
+        }
         // Generujemy testowe ściany/budynki na mapie
         const walls = [
             new CyberWall(300, 200, 200, 150),
@@ -155,7 +207,25 @@
 
         const keys = { w: false, a: false, s: false, d: false };
         const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
+// Tablica przechowująca wszystkie aktywne pociski
+        const bullets = [];
+        let lastShotTime = 0; 
 
+        // Kliknięcie lewym przyciskiem myszy (Strzał)
+        app.view.addEventListener('pointerdown', (e) => {
+            const now = Date.now();
+            // Zabezpieczenie: Czołg strzela co 250ms (żeby nie był laserem)
+            if (now - lastShotTime > 250) {
+                let angle = player.turret.rotation;
+                
+                // Start pocisku z końca lufy (ok. 35 pikseli od środka czołgu)
+                let startX = player.x + Math.cos(angle) * 35;
+                let startY = player.y + Math.sin(angle) * 35;
+                
+                bullets.push(new Bullet(startX, startY, angle));
+                lastShotTime = now;
+            }
+        });
         window.addEventListener('keydown', e => { 
             let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; 
         });
@@ -180,6 +250,16 @@
 
             // 3. Aktualizujemy gracza
             player.update(keys, mouseWorldX, mouseWorldY);
+            // 4. Aktualizujemy wszystkie wystrzelone pociski
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                b.update(delta);
+                
+                // Jeśli pocisk uderzył w limit dystansu i się zniszczył, usuwamy go z tablicy
+                if (!b.active) {
+                    bullets.splice(i, 1);
+                }
+            }
         });
     </script>
 </body>

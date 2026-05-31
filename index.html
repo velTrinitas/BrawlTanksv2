@@ -7,7 +7,6 @@
     
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; }
-        /* Skopiuj resztę swoich stylów dla #uiLayer, przycisków itd. */
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
@@ -16,9 +15,8 @@
 
     <script>
         // ==========================================
-        // ETAP 1: INICJALIZACJA SILNIKA PIXI.JS
+        // ETAP 1: INICJALIZACJA SILNIKA
         // ==========================================
-
         const app = new PIXI.Application({
             resizeTo: window,          
             backgroundColor: 0x1a1a2e, 
@@ -34,46 +32,38 @@
         app.stage.addChild(worldContainer);
 
         // ==========================================
-        // ETAP 2: ARCHITEKTURA GRACZA W PIXI.JS
+        // ETAP 2: GRACZ
         // ==========================================
-
         class Player {
             constructor() {
                 this.x = window.innerWidth / 2;
                 this.y = window.innerHeight / 2;
                 this.speed = 6;
                 
-                // 1. GŁÓWNY KONTENER CZOŁGU (Pudło trzymające wszystko)
                 this.container = new PIXI.Container();
                 this.container.x = this.x;
                 this.container.y = this.y;
                 
-                // 2. KADŁUB I GĄSIENICE
                 this.hull = new PIXI.Graphics();
-                this.hull.beginFill(0x111111); // Gąsienice (Czerń)
+                this.hull.beginFill(0x111111);
                 this.hull.drawRect(-23, -23, 46, 10);
                 this.hull.drawRect(-23, 13, 46, 10);
-                this.hull.beginFill(0x27ae60); // Pancerz (Zieleń)
+                this.hull.beginFill(0x27ae60);
                 this.hull.drawRoundedRect(-23, -19, 46, 38, 8);
                 this.hull.endFill();
                 
-                // 3. WIEŻA I LUFA
                 this.turret = new PIXI.Graphics();
-                this.turret.beginFill(0x555555); // Lufa (Szary)
+                this.turret.beginFill(0x555555);
                 this.turret.drawRect(10, -6, 25, 12);
-                this.turret.beginFill(0x27ae60); // Baza wieży
+                this.turret.beginFill(0x27ae60);
                 this.turret.drawCircle(0, 0, 16);
                 this.turret.endFill();
                 
-                // 4. SKŁADANIE DRZEWA
                 this.container.addChild(this.hull);
                 this.container.addChild(this.turret);
-                
-                // Dodajemy czołg do świata gry
                 worldContainer.addChild(this.container);
             }
 
-            // W Pixi robimy tylko czystą matematykę, żadnego renderowania w update!
             update(keys, mouseWorldX, mouseWorldY) {
                 let dx = 0; let dy = 0;
                 if (keys.w) dy -= 1;
@@ -82,28 +72,21 @@
                 if (keys.d) dx += 1;
 
                 if (dx !== 0 || dy !== 0) {
-                    // Normalizacja wektora (żeby na skos nie jechał szybciej)
                     let len = Math.sqrt(dx * dx + dy * dy);
                     this.x += (dx / len) * this.speed;
                     this.y += (dy / len) * this.speed;
-                    
-                    // Obrót kadłuba w stronę jazdy
                     this.hull.rotation = Math.atan2(dy, dx);
                 }
 
-                // Aktualizacja fizycznej pozycji na ekranie
                 this.container.x = this.x;
                 this.container.y = this.y;
-
-                // Obrót wieżyczki w stronę myszki
                 this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
-                // Aktualizacja z-indexu czołgu w czasie rzeczywistym
-                this.container.zIndex = this.y + 19; // 19 to połowa wysokości kadłuba
+                this.container.zIndex = this.y + 19; 
             }
         }
 
         // ==========================================
-        // TŁO TESTOWE (Żebyśmy widzieli ruch kamery)
+        // TŁO I BUDYNKI (ŚRODOWISKO)
         // ==========================================
         const grid = new PIXI.Graphics();
         grid.lineStyle(2, 0x333344, 0.5); 
@@ -112,25 +95,17 @@
             grid.moveTo(-2000, i); grid.lineTo(4000, i);
         }
         worldContainer.addChild(grid);
-        // ==========================================
-        // ETAP 4: ŚRODOWISKO I SORTOWANIE Z-INDEX
-        // ==========================================
         
         class CyberWall {
             constructor(x, y, width, height) {
                 this.container = new PIXI.Container();
                 this.container.x = x;
                 this.container.y = y;
-                
-                // MAGIA PIXI: zIndex ustalamy na podstawie dolnej krawędzi budynku (y + height).
-                // Dzięki temu, jeśli czołg ma niższy Y, zniknie ZA budynkiem!
                 this.container.zIndex = y + height;
 
                 this.gfx = new PIXI.Graphics();
-                // Rysujemy bazę (ścianę)
-                this.gfx.beginFill(0x2c3e50); // Ciemny granat
+                this.gfx.beginFill(0x2c3e50);
                 this.gfx.drawRect(0, 0, width, height);
-                // Rysujemy "dach" (jasniejszy obrys)
                 this.gfx.lineStyle(4, 0x34495e);
                 this.gfx.drawRect(2, 2, width-4, height-4);
                 this.gfx.endFill();
@@ -139,23 +114,94 @@
                 worldContainer.addChild(this.container);
             }
         }
-// ==========================================
-        // ETAP 5: KLASA POCISKU (BULLET)
+
+        const walls = [
+            new CyberWall(300, 200, 200, 150),
+            new CyberWall(600, 500, 100, 300),
+            new CyberWall(200, 700, 300, 100)
+        ];
+
+        // ==========================================
+        // ETAP 5: POCISKI
         // ==========================================
         class Bullet {
-            // ==========================================
-        // ETAP 6: SYSTEM CZĄSTECZEK (PARTICLES)
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * 15; 
+                this.vy = Math.sin(angle) * 15;
+                this.active = true;
+                this.distance = 0; 
+
+                this.gfx = new PIXI.Graphics();
+                this.gfx.beginFill(0xffcc00); 
+                this.gfx.drawCircle(0, 0, 6);
+                this.gfx.endFill();
+                
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                this.gfx.zIndex = this.y + 10; 
+
+                worldContainer.addChild(this.gfx);
+            }
+
+            update(delta) {
+                if (!this.active) return;
+                
+                this.x += this.vx * delta;
+                this.y += this.vy * delta;
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                this.gfx.zIndex = this.y + 10;
+
+                this.distance += 15 * delta;
+                if (this.distance > 1000) {
+                    this.destroy();
+                }
+            }
+            
+            destroy() {
+                this.active = false;
+                worldContainer.removeChild(this.gfx);
+                this.gfx.destroy(); 
+            }
+        }
+
         // ==========================================
+        // ETAP 6: CZĄSTECZKI
+        // ==========================================
+        class Particle {
+            constructor(x, y, color, speed) {
+                this.x = x;
+                this.y = y;
+                
+                let angle = Math.random() * Math.PI * 2;
+                let vel = Math.random() * speed;
+                this.vx = Math.cos(angle) * vel;
+                this.vy = Math.sin(angle) * vel;
+                
+                this.life = 1.0; 
+                this.active = true;
+                
+                this.gfx = new PIXI.Graphics();
+                this.gfx.beginFill(color);
+                this.gfx.drawRect(-4, -4, 8, 8); 
+                this.gfx.endFill();
+                
+                this.gfx.x = this.x;
+                this.gfx.y = this.y;
+                this.gfx.zIndex = this.y + 20; 
+                
+                worldContainer.addChild(this.gfx);
+            }
             
             update(delta) {
                 if(!this.active) return;
                 
-                // Ruch
                 this.x += this.vx * delta;
                 this.y += this.vy * delta;
-                this.life -= 0.05 * delta; // Powolne zanikanie
+                this.life -= 0.05 * delta; 
                 
-                // Aktualizacja grafiki (pozycja, przezroczystość i kurczenie się)
                 this.gfx.x = this.x;
                 this.gfx.y = this.y;
                 this.gfx.alpha = Math.max(0, this.life);
@@ -172,31 +218,37 @@
                 this.gfx.destroy();
             }
         }
+
+        const particles = [];
+        function createExplosion(x, y, color, amount) {
+            for(let i = 0; i < amount; i++) {
+                particles.push(new Particle(x, y, color, 8));
+            }
+        }
+
         // ==========================================
-        // ETAP 7: WROGOWIE I SZTUCZNA INTELIGENCJA
+        // ETAP 7: WROGOWIE
         // ==========================================
         class Enemy {
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.speed = 2 + Math.random() * 2; // Losowa prędkość
-                this.hp = 3; // Wróg ginie po 3 strzałach
+                this.speed = 2 + Math.random() * 2; 
+                this.hp = 3; 
                 this.active = true;
 
                 this.container = new PIXI.Container();
                 this.container.x = this.x;
                 this.container.y = this.y;
 
-                // Kadłub i Gąsienice (Czerwony wariant)
                 this.hull = new PIXI.Graphics();
                 this.hull.beginFill(0x111111);
                 this.hull.drawRect(-23, -23, 46, 10);
                 this.hull.drawRect(-23, 13, 46, 10);
-                this.hull.beginFill(0xc0392b); // Agresywna Czerwień
+                this.hull.beginFill(0xc0392b); 
                 this.hull.drawRoundedRect(-23, -19, 46, 38, 8);
                 this.hull.endFill();
 
-                // Wieża
                 this.turret = new PIXI.Graphics();
                 this.turret.beginFill(0x555555);
                 this.turret.drawRect(10, -6, 25, 12);
@@ -212,180 +264,126 @@
             update(delta, targetX, targetY) {
                 if (!this.active) return;
 
-                // Proste AI: Podążaj za graczem
                 let dx = targetX - this.x;
                 let dy = targetY - this.y;
                 let dist = Math.sqrt(dx * dx + dy * dy);
 
-                // Zatrzymuje się tuż przed graczem, żeby na niego nie wjeżdżać
                 if (dist > 60) { 
                     this.x += (dx / dist) * this.speed * delta;
                     this.y += (dy / dist) * this.speed * delta;
                 }
 
-                // Obrót w stronę gracza
                 this.hull.rotation = Math.atan2(dy, dx);
                 this.turret.rotation = Math.atan2(dy, dx); 
 
                 this.container.x = this.x;
                 this.container.y = this.y;
-                this.container.zIndex = this.y + 19; // Poprawne chowanie się za murami
+                this.container.zIndex = this.y + 19; 
             }
 
             takeDamage() {
                 this.hp -= 1;
                 if (this.hp <= 0) {
                     this.active = false;
-                    // Duży krwisty wybuch przy śmierci!
                     createExplosion(this.x, this.y, 0xff3300, 30); 
                     worldContainer.removeChild(this.container);
-                    this.container.destroy({ children: true }); // Uwalniamy pamięć GPU
+                    this.container.destroy({ children: true }); 
                 }
             }
         }
 
-        // Tablica przechowująca wszystkich wrogów na mapie
-        const enemies = [];
-        
-        // Na start dorzucamy 3 testowych wrogów w różnych miejscach
-        enemies.push(new Enemy(1000, 500));
-        enemies.push(new Enemy(200, 900));
-        enemies.push(new Enemy(-300, 300));
-
-        // Tablica przechowująca cząsteczki
-        const particles = [];
-
-        // Funkcja pomocnicza do generowania wybuchu
-        function createExplosion(x, y, color, amount) {
-            for(let i = 0; i < amount; i++) {
-                particles.push(new Particle(x, y, color, 8));
-            }
-        }
-            constructor(x, y, angle) ;{
-                this.x = x;
-                this.y = y;
-                // Obliczamy wektor prędkości na podstawie kąta wieżyczki
-                this.vx = Math.cos(angle) * 15; 
-                this.vy = Math.sin(angle) * 15;
-                this.active = true;
-                this.distance = 0; // Ile już przeleciał
-
-                // Rysujemy pocisk
-                this.gfx = new PIXI.Graphics();
-                this.gfx.beginFill(0xffcc00); // Żółto-złoty
-                this.gfx.drawCircle(0, 0, 6);
-                this.gfx.endFill();
-                
-                this.gfx.x = this.x;
-                this.gfx.y = this.y;
-                
-                // Pocisk lata na wysokości lufy (z-index)
-                this.gfx.zIndex = this.y + 10; 
-
-                worldContainer.addChild(this.gfx);
-            }
-
-            update(delta) ;{
-                if (!this.active) return;
-                
-                // Ruch pocisku
-                this.x += this.vx * delta;
-                this.y += this.vy * delta;
-                this.gfx.x = this.x;
-                this.gfx.y = this.y;
-                
-                // Pocisk dynamicznie zmienia z-index, żeby też mógł chować się za murami!
-                this.gfx.zIndex = this.y + 10;
-
-                // Niszczymy pocisk, gdy poleci za daleko (np. 1000 pikseli)
-                this.distance += 15 * delta;
-                if (this.distance > 1000) {
-                    this.destroy();
-                }
-            }
-            
-            destroy() ;{
-                this.active = false;
-                worldContainer.removeChild(this.gfx);
-                this.gfx.destroy(); // Bardzo ważne! Zwalnia pamięć karty graficznej
-            }
-        
-        // Generujemy testowe ściany/budynki na mapie
-        const walls = [
-            new CyberWall(300, 200, 200, 150),
-            new CyberWall(600, 500, 100, 300),
-            new CyberWall(200, 700, 300, 100)
-        ];
-        // Tworzymy naszego gracza
+        // Inicjalizacja obiektów gry
         const player = new Player();
-
+        const enemies = [
+            new Enemy(1000, 500),
+            new Enemy(200, 900),
+            new Enemy(-300, 300)
+        ];
+        const bullets = [];
+        
         // ==========================================
-        // ETAP 3: STEROWANIE I PĘTLA GRY
+        // STEROWANIE
         // ==========================================
-
         const keys = { w: false, a: false, s: false, d: false };
         const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
-// Tablica przechowująca wszystkie aktywne pociski
-        const bullets = [];
         let lastShotTime = 0; 
 
-        // Kliknięcie lewym przyciskiem myszy (Strzał)
-        app.view.addEventListener('pointerdown', (e) => {
-            const now = Date.now();
-            // Zabezpieczenie: Czołg strzela co 250ms (żeby nie był laserem)
-            if (now - lastShotTime > 250) {
-                let angle = player.turret.rotation;
-                
-                // Start pocisku z końca lufy (ok. 35 pikseli od środka czołgu)
-                let startX = player.x + Math.cos(angle) * 35;
-                let startY = player.y + Math.sin(angle) * 35;
-                
-                bullets.push(new Bullet(startX, startY, angle));
-                // Magia WebGL: Generujemy 15 cząsteczek ognia przy każdym strzale!
-                createExplosion(startX, startY, 0xff9900, 15);
-                lastShotTime = now;
-            }
-        });
         window.addEventListener('keydown', e => { 
             let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; 
         });
         window.addEventListener('keyup', e => { 
             let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; 
         });
-
         app.view.addEventListener('pointermove', e => {
             mouse.screenX = e.clientX;
             mouse.screenY = e.clientY;
         });
 
-        // GŁÓWNA PĘTLA
+        app.view.addEventListener('pointerdown', (e) => {
+            const now = Date.now();
+            if (now - lastShotTime > 250) {
+                let angle = player.turret.rotation;
+                let startX = player.x + Math.cos(angle) * 35;
+                let startY = player.y + Math.sin(angle) * 35;
+                
+                bullets.push(new Bullet(startX, startY, angle));
+                createExplosion(startX, startY, 0xff9900, 15);
+                lastShotTime = now;
+            }
+        });
+
+        // ==========================================
+        // GŁÓWNA PĘTLA GRY
+        // ==========================================
         app.ticker.add((delta) => {
-            // 1. Obliczamy ruch Kamery
+            // 1. Kamera
             worldContainer.x = ~~(window.innerWidth / 2 - player.x);
             worldContainer.y = ~~(window.innerHeight / 2 - player.y);
 
-            // 2. Przeliczamy pozycję myszki z ekranu na świat gry
             let mouseWorldX = mouse.screenX - worldContainer.x;
             let mouseWorldY = mouse.screenY - worldContainer.y;
 
-            // 3. Aktualizujemy gracza
+            // 2. Aktualizacja gracza
             player.update(keys, mouseWorldX, mouseWorldY);
-            // 4. Aktualizujemy wszystkie wystrzelone pociski
+            
+            // 3. Aktualizacja pocisków
             for (let i = bullets.length - 1; i >= 0; i--) {
-                // 5. Aktualizujemy cząsteczki (dym/ogień)
+                let b = bullets[i];
+                b.update(delta);
+                if (!b.active) bullets.splice(i, 1);
+            }
+            
+            // 4. Aktualizacja cząsteczek
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.update(delta);
-                if (!p.active) {
-                    particles.splice(i, 1);
-                }
+                if (!p.active) particles.splice(i, 1);
             }
-                let b = bullets[i];
-                b.update(delta);
-                
-                // Jeśli pocisk uderzył w limit dystansu i się zniszczył, usuwamy go z tablicy
-                if (!b.active) {
-                    bullets.splice(i, 1);
+            
+            // 5. Aktualizacja wrogów i kolizje
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let enemy = enemies[i];
+                enemy.update(delta, player.x, player.y);
+
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    let b = bullets[j];
+                    if (!b.active) continue;
+
+                    let dx = b.x - enemy.x;
+                    let dy = b.y - enemy.y;
+                    
+                    if (dx * dx + dy * dy < 30 * 30) {
+                        b.destroy(); 
+                        bullets.splice(j, 1); 
+                        
+                        enemy.takeDamage(); 
+                        createExplosion(b.x, b.y, 0xffcc00, 5); 
+                        break; 
+                    }
+                }
+
+                if (!enemy.active) {
+                    enemies.splice(i, 1);
                 }
             }
         });

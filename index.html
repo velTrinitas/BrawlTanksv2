@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ekstra Tanks: WebGL Edition</title>
+    <title>Brawl Tanks: WebGL Edition</title>
     
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; }
@@ -15,30 +15,48 @@
 
     <script>
         // ==========================================
-        // ETAP 1: INICJALIZACJA SILNIKA
+        // INICJALIZACJA SILNIKA
         // ==========================================
         const app = new PIXI.Application({
             resizeTo: window,          
             backgroundColor: 0x1a1a2e, 
             antialias: true            
         });
-
         document.body.appendChild(app.view);
         app.view.style.position = 'absolute';
         app.view.style.zIndex = '1';
 
+        app.stage.sortableChildren = true;
+
+        // Kontener świata (Kamera) - porusza się
         const worldContainer = new PIXI.Container();
         worldContainer.sortableChildren = true; 
         app.stage.addChild(worldContainer);
 
+        // Kontener interfejsu (UI) - zawsze w tym samym miejscu na ekranie!
+        const uiContainer = new PIXI.Container();
+        uiContainer.zIndex = 1000; 
+        app.stage.addChild(uiContainer);
+
+        // Zmienne UI
+        let score = 0;
+        const scoreText = new PIXI.Text('Wynik: 0', {
+            fontFamily: 'Arial', fontSize: 24, fill: 0xffffff, fontWeight: 'bold'
+        });
+        scoreText.x = 20;
+        scoreText.y = 20;
+        uiContainer.addChild(scoreText);
+
         // ==========================================
-        // ETAP 2: GRACZ
+        // KLASA GRACZA
         // ==========================================
         class Player {
             constructor() {
                 this.x = window.innerWidth / 2;
                 this.y = window.innerHeight / 2;
                 this.speed = 6;
+                this.maxHp = 10;
+                this.hp = this.maxHp;
                 
                 this.container = new PIXI.Container();
                 this.container.x = this.x;
@@ -58,10 +76,39 @@
                 this.turret.beginFill(0x27ae60);
                 this.turret.drawCircle(0, 0, 16);
                 this.turret.endFill();
+
+                // Pasek życia nad graczem
+                this.hpBar = new PIXI.Graphics();
+                this.hpBar.y = -35; 
+                this.drawHp();
                 
                 this.container.addChild(this.hull);
                 this.container.addChild(this.turret);
+                this.container.addChild(this.hpBar); // Dodajemy pasek do czołgu
                 worldContainer.addChild(this.container);
+            }
+
+            drawHp() {
+                this.hpBar.clear();
+                // Tło paska (Czerwone)
+                this.hpBar.beginFill(0xff0000);
+                this.hpBar.drawRect(-25, 0, 50, 6);
+                // Wypełnienie paska (Zielone)
+                this.hpBar.beginFill(0x00ff00);
+                let width = (this.hp / this.maxHp) * 50;
+                this.hpBar.drawRect(-25, 0, Math.max(0, width), 6);
+                this.hpBar.endFill();
+            }
+
+            takeDamage(amount) {
+                this.hp -= amount;
+                this.drawHp();
+                createExplosion(this.x, this.y, 0xff0000, 20); // Krwisty wybuch przy trafieniu
+
+                if(this.hp <= 0) {
+                    alert("GAME OVER! Twój wynik: " + score + " punktów.");
+                    window.location.reload(); // Prosty restart gry
+                }
             }
 
             update(keys, mouseWorldX, mouseWorldY) {
@@ -122,12 +169,11 @@
         ];
 
         // ==========================================
-        // ETAP 5: POCISKI
+        // POCISKI I CZĄSTECZKI
         // ==========================================
         class Bullet {
             constructor(x, y, angle) {
-                this.x = x;
-                this.y = y;
+                this.x = x; this.y = y;
                 this.vx = Math.cos(angle) * 15; 
                 this.vy = Math.sin(angle) * 15;
                 this.active = true;
@@ -138,26 +184,19 @@
                 this.gfx.drawCircle(0, 0, 6);
                 this.gfx.endFill();
                 
-                this.gfx.x = this.x;
-                this.gfx.y = this.y;
+                this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.zIndex = this.y + 10; 
-
                 worldContainer.addChild(this.gfx);
             }
 
             update(delta) {
                 if (!this.active) return;
-                
-                this.x += this.vx * delta;
-                this.y += this.vy * delta;
-                this.gfx.x = this.x;
-                this.gfx.y = this.y;
+                this.x += this.vx * delta; this.y += this.vy * delta;
+                this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.zIndex = this.y + 10;
 
                 this.distance += 15 * delta;
-                if (this.distance > 1000) {
-                    this.destroy();
-                }
+                if (this.distance > 1000) this.destroy();
             }
             
             destroy() {
@@ -167,19 +206,13 @@
             }
         }
 
-        // ==========================================
-        // ETAP 6: CZĄSTECZKI
-        // ==========================================
         class Particle {
             constructor(x, y, color, speed) {
-                this.x = x;
-                this.y = y;
-                
+                this.x = x; this.y = y;
                 let angle = Math.random() * Math.PI * 2;
                 let vel = Math.random() * speed;
                 this.vx = Math.cos(angle) * vel;
                 this.vy = Math.sin(angle) * vel;
-                
                 this.life = 1.0; 
                 this.active = true;
                 
@@ -188,28 +221,19 @@
                 this.gfx.drawRect(-4, -4, 8, 8); 
                 this.gfx.endFill();
                 
-                this.gfx.x = this.x;
-                this.gfx.y = this.y;
+                this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.zIndex = this.y + 20; 
-                
                 worldContainer.addChild(this.gfx);
             }
             
             update(delta) {
                 if(!this.active) return;
-                
-                this.x += this.vx * delta;
-                this.y += this.vy * delta;
+                this.x += this.vx * delta; this.y += this.vy * delta;
                 this.life -= 0.05 * delta; 
-                
-                this.gfx.x = this.x;
-                this.gfx.y = this.y;
+                this.gfx.x = this.x; this.gfx.y = this.y;
                 this.gfx.alpha = Math.max(0, this.life);
                 this.gfx.scale.set(Math.max(0, this.life));
-                
-                if(this.life <= 0) {
-                    this.destroy();
-                }
+                if(this.life <= 0) this.destroy();
             }
             
             destroy() {
@@ -227,166 +251,21 @@
         }
 
         // ==========================================
-        // ETAP 7: WROGOWIE
+        // KLASA WROGA
         // ==========================================
         class Enemy {
             constructor(x, y) {
-                this.x = x;
-                this.y = y;
+                this.x = x; this.y = y;
                 this.speed = 2 + Math.random() * 2; 
-                this.hp = 3; 
+                this.maxHp = 3;
+                this.hp = this.maxHp; 
                 this.active = true;
 
                 this.container = new PIXI.Container();
-                this.container.x = this.x;
-                this.container.y = this.y;
+                this.container.x = this.x; this.container.y = this.y;
 
                 this.hull = new PIXI.Graphics();
                 this.hull.beginFill(0x111111);
                 this.hull.drawRect(-23, -23, 46, 10);
                 this.hull.drawRect(-23, 13, 46, 10);
-                this.hull.beginFill(0xc0392b); 
-                this.hull.drawRoundedRect(-23, -19, 46, 38, 8);
-                this.hull.endFill();
-
-                this.turret = new PIXI.Graphics();
-                this.turret.beginFill(0x555555);
-                this.turret.drawRect(10, -6, 25, 12);
-                this.turret.beginFill(0xc0392b);
-                this.turret.drawCircle(0, 0, 16);
-                this.turret.endFill();
-
-                this.container.addChild(this.hull);
-                this.container.addChild(this.turret);
-                worldContainer.addChild(this.container);
-            }
-
-            update(delta, targetX, targetY) {
-                if (!this.active) return;
-
-                let dx = targetX - this.x;
-                let dy = targetY - this.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist > 60) { 
-                    this.x += (dx / dist) * this.speed * delta;
-                    this.y += (dy / dist) * this.speed * delta;
-                }
-
-                this.hull.rotation = Math.atan2(dy, dx);
-                this.turret.rotation = Math.atan2(dy, dx); 
-
-                this.container.x = this.x;
-                this.container.y = this.y;
-                this.container.zIndex = this.y + 19; 
-            }
-
-            takeDamage() {
-                this.hp -= 1;
-                if (this.hp <= 0) {
-                    this.active = false;
-                    createExplosion(this.x, this.y, 0xff3300, 30); 
-                    worldContainer.removeChild(this.container);
-                    this.container.destroy({ children: true }); 
-                }
-            }
-        }
-
-        // Inicjalizacja obiektów gry
-        const player = new Player();
-        const enemies = [
-            new Enemy(1000, 500),
-            new Enemy(200, 900),
-            new Enemy(-300, 300)
-        ];
-        const bullets = [];
-        
-        // ==========================================
-        // STEROWANIE
-        // ==========================================
-        const keys = { w: false, a: false, s: false, d: false };
-        const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
-        let lastShotTime = 0; 
-
-        window.addEventListener('keydown', e => { 
-            let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; 
-        });
-        window.addEventListener('keyup', e => { 
-            let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; 
-        });
-        app.view.addEventListener('pointermove', e => {
-            mouse.screenX = e.clientX;
-            mouse.screenY = e.clientY;
-        });
-
-        app.view.addEventListener('pointerdown', (e) => {
-            const now = Date.now();
-            if (now - lastShotTime > 250) {
-                let angle = player.turret.rotation;
-                let startX = player.x + Math.cos(angle) * 35;
-                let startY = player.y + Math.sin(angle) * 35;
-                
-                bullets.push(new Bullet(startX, startY, angle));
-                createExplosion(startX, startY, 0xff9900, 15);
-                lastShotTime = now;
-            }
-        });
-
-        // ==========================================
-        // GŁÓWNA PĘTLA GRY
-        // ==========================================
-        app.ticker.add((delta) => {
-            // 1. Kamera
-            worldContainer.x = ~~(window.innerWidth / 2 - player.x);
-            worldContainer.y = ~~(window.innerHeight / 2 - player.y);
-
-            let mouseWorldX = mouse.screenX - worldContainer.x;
-            let mouseWorldY = mouse.screenY - worldContainer.y;
-
-            // 2. Aktualizacja gracza
-            player.update(keys, mouseWorldX, mouseWorldY);
-            
-            // 3. Aktualizacja pocisków
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                let b = bullets[i];
-                b.update(delta);
-                if (!b.active) bullets.splice(i, 1);
-            }
-            
-            // 4. Aktualizacja cząsteczek
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.update(delta);
-                if (!p.active) particles.splice(i, 1);
-            }
-            
-            // 5. Aktualizacja wrogów i kolizje
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                let enemy = enemies[i];
-                enemy.update(delta, player.x, player.y);
-
-                for (let j = bullets.length - 1; j >= 0; j--) {
-                    let b = bullets[j];
-                    if (!b.active) continue;
-
-                    let dx = b.x - enemy.x;
-                    let dy = b.y - enemy.y;
-                    
-                    if (dx * dx + dy * dy < 30 * 30) {
-                        b.destroy(); 
-                        bullets.splice(j, 1); 
-                        
-                        enemy.takeDamage(); 
-                        createExplosion(b.x, b.y, 0xffcc00, 5); 
-                        break; 
-                    }
-                }
-
-                if (!enemy.active) {
-                    enemies.splice(i, 1);
-                }
-            }
-        });
-    </script>
-</body>
-</html>
+                this.hull.beginFill

@@ -97,6 +97,8 @@
 
                 // Obrót wieżyczki w stronę myszki
                 this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+                // Aktualizacja z-indexu czołgu w czasie rzeczywistym
+                this.container.zIndex = this.y + 19; // 19 to połowa wysokości kadłuba
             }
         }
 
@@ -110,7 +112,40 @@
             grid.moveTo(-2000, i); grid.lineTo(4000, i);
         }
         worldContainer.addChild(grid);
+// ==========================================
+        // ETAP 4: ŚRODOWISKO I SORTOWANIE Z-INDEX
+        // ==========================================
+        
+        class CyberWall {
+            constructor(x, y, width, height) {
+                this.container = new PIXI.Container();
+                this.container.x = x;
+                this.container.y = y;
+                
+                // MAGIA PIXI: zIndex ustalamy na podstawie dolnej krawędzi budynku (y + height).
+                // Dzięki temu, jeśli czołg ma niższy Y, zniknie ZA budynkiem!
+                this.container.zIndex = y + height;
 
+                this.gfx = new PIXI.Graphics();
+                // Rysujemy bazę (ścianę)
+                this.gfx.beginFill(0x2c3e50); // Ciemny granat
+                this.gfx.drawRect(0, 0, width, height);
+                // Rysujemy "dach" (jasniejszy obrys)
+                this.gfx.lineStyle(4, 0x34495e);
+                this.gfx.drawRect(2, 2, width-4, height-4);
+                this.gfx.endFill();
+
+                this.container.addChild(this.gfx);
+                worldContainer.addChild(this.container);
+            }
+        }
+
+        // Generujemy testowe ściany/budynki na mapie
+        const walls = [
+            new CyberWall(300, 200, 200, 150),
+            new CyberWall(600, 500, 100, 300),
+            new CyberWall(200, 700, 300, 100)
+        ];
         // Tworzymy naszego gracza
         const player = new Player();
 

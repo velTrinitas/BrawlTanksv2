@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brawl Tanks: Ostateczna Hybryda</title>
+    <title>Brawl Tanks — Season 2</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 
@@ -12,7 +12,6 @@
             margin: 0; padding: 0; overflow: hidden; background-color: #1a1a2e; 
             font-family: 'Lilita One', cursive, sans-serif; user-select: none;
         }
-        
         body.game-cursor-hidden { cursor: none !important; }
 
         #uiLayer {
@@ -31,8 +30,15 @@
         }
         .active-screen { display: flex; }
 
-        h1 { font-size: 4rem; margin: 0 0 10px 0; color: #f1c40f; text-transform: uppercase; text-shadow: 4px 4px 0 #000; -webkit-text-stroke: 2px #000; letter-spacing: 2px; }
-        h2 { font-size: 1.5rem; color: #fff; background: #3498db; padding: 8px 30px; border-radius: 20px; border: 4px solid #2c3e50; box-shadow: 4px 4px 0 #2c3e50; margin: 20px 0 15px 0; }
+        h1 { 
+            font-size: 4rem; margin: 0 0 10px 0; color: #f1c40f; text-transform: uppercase; 
+            text-shadow: 4px 4px 0 #000; -webkit-text-stroke: 2px #000; letter-spacing: 2px; 
+        }
+        h2 { 
+            font-size: 1.5rem; color: #fff; background: #3498db; padding: 8px 30px; 
+            border-radius: 20px; border: 4px solid #2c3e50; box-shadow: 4px 4px 0 #2c3e50; 
+            margin: 20px 0 15px 0; 
+        }
 
         .grid-container { display: grid; gap: 15px; width: 100%; }
         .char-grid { grid-template-columns: repeat(4, 1fr); }
@@ -53,7 +59,10 @@
             -webkit-text-stroke: 1px #000; text-shadow: 2px 2px 0 #000;
             text-transform: uppercase; position: relative; z-index: 2;
         }
-        .card-stats-row { display: flex; align-items: center; background: rgba(0,0,0,0.18); border-radius: 8px; padding: 4px 0; margin: 4px 0; }
+        .card-stats-row { 
+            display: flex; align-items: center; background: rgba(0,0,0,0.18); 
+            border-radius: 8px; padding: 4px 0; margin: 4px 0; 
+        }
         .card-stat { flex: 1; text-align: center; font-size: 0.75rem; color: #fff; }
 
         button.brawl-btn {
@@ -65,17 +74,16 @@
             transition: all 0.1s; margin-top: 30px;
         }
         button.brawl-btn:hover { background: #f39c12; transform: scale(1.05); }
-        button.brawl-btn:active { transform: translateY(10px) scale(1.0); box-shadow: 0 0px 0 #d35400; }
+        button.brawl-btn:active { 
+            transform: translateY(10px) scale(1.0); box-shadow: 0 0px 0 #d35400; 
+        }
 
-        /* HUD CANVAS */
         #hudCanvas { 
             position: absolute; top: 0; left: 0; 
             z-index: 50; pointer-events: none; 
             width: 100vw; height: 100vh;
         }
     </style>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
 </head>
 <body>
 
@@ -90,440 +98,6 @@
         </div>
     </div>
 
-    <script>
-        const WORLD_W = 3000;
-        const WORLD_H = 3000;
-
-        // DANE CZOŁGÓW
-        const BRAWLERS = [
-            { id: 'twardy', emoji: '🪖', icon: 'Tanks/twardy.jpg', name: 'Twardy', colorMain: '#27ae60', hp: 4, speed: 5, dmg: 1, reload: 400, type: 'standard' },
-            { id: 'heavy', emoji: '🛡️', icon: 'Tanks/pancerny.jpg', name: 'Pancerny', colorMain: '#8e44ad', hp: 7, speed: 3.5, dmg: 1.5, reload: 700, type: 'standard' },
-            { id: 'scout', emoji: '🔍', icon: 'Tanks/zwiadowca.jpg', name: 'Zwiad', colorMain: '#f1c40f', hp: 2, speed: 7.5, dmg: 0.8, reload: 250, type: 'standard' },
-            { id: 'sniper', emoji: '🎯', icon: 'Tanks/snajper.jpg', name: 'Snajper', colorMain: '#3498db', hp: 3, speed: 4.5, dmg: 3, reload: 1000, type: 'fast' },
-            { id: 'plasma', emoji: '💻', icon: 'Tanks/tech.jpg', name: 'Tech', colorMain: '#00cec9', hp: 4, speed: 5, dmg: 1.2, reload: 500, type: 'plasma' },
-            { id: 'pyro', emoji: '🔥', icon: 'Tanks/ogniarz.jpg', name: 'Ogniarz', colorMain: '#e74c3c', hp: 5, speed: 4.8, dmg: 0.5, reload: 210, type: 'spread' },
-            { id: 'shadow', emoji: '🌑', icon: 'Tanks/shadow.jpg', name: 'Shadow', colorMain: '#2c3e50', hp: 3, speed: 6.5, dmg: 1.5, reload: 600, type: 'standard' },
-            { id: 'king', emoji: '👑', icon: 'Tanks/krol.jpg', name: 'King', colorMain: '#d35400', hp: 5, speed: 5.5, dmg: 2, reload: 500, type: 'standard' }
-        ];
-
-        let selectedBrawler = BRAWLERS[0];
-        let gameState = 'MENU'; 
-
-        // STAN GRY DLA HUD (Naprawione brakujące zmienne!)
-        let stats = { kills: 0, score: 0 };
-        let hudNotifs = [];
-        let superCharges = 0, gemsSinceLastSuper = 0;
-        let superActive = false, superEndTime = 0;
-        let comboText = '', comboTextTimer = 0, comboCount = 0, comboEndTime = 0;
-        let regularKills = 0, megaBossSpawned = false, megaBossKilled = false;
-        let magnetActive = false, magnetEndTime = 0;
-        let frames = 0;
-
-        const SUPER_POWERS = [
-            {id:'aura',  name:'AURA',      col:'#f1c40f', COOLDOWN:30000, DURATION:5000},
-            {id:'bomb',  name:'MEGA BOMB', col:'#ff7c47', COOLDOWN:20000},
-            {id:'freeze',name:'FREEZE',    col:'#70ccff', COOLDOWN:25000, DURATION:5000},
-        ];
-        let selectedPower = 0;
-        let powerCooldowns = [0, 0, 0];
-        let auraActive = false, auraEndTime = 0;
-
-        // GENEROWANIE MENU
-        const charGrid = document.getElementById('charGrid');
-        BRAWLERS.forEach(b => {
-            let div = document.createElement('div');
-            div.className = `select-card ${b.id === selectedBrawler.id ? 'selected' : ''}`;
-            
-            div.innerHTML = `
-                <div style="width:100%; height:130px; position:relative; border-radius:10px; overflow:hidden; border:2px solid ${b.colorMain}; background: #1a1a2e;">
-                    <img src="${b.icon}" alt="${b.name}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1;">
-                </div>
-                <div class="name" style="background:${b.colorMain};border-radius:8px;padding:4px 2px;margin-top:8px;">${b.emoji} ${b.name}</div>
-                <div class="card-stats-row">
-                    <span class="card-stat">❤️ ${b.hp}</span>
-                    <span class="card-stat">⚡ ${b.speed}</span>
-                    <span class="card-stat">💥 ${b.dmg}</span>
-                </div>
-            `;
-            
-            div.onclick = () => {
-                document.querySelectorAll('.char-grid .select-card').forEach(el => el.classList.remove('selected'));
-                div.classList.add('selected');
-                selectedBrawler = b;
-            };
-            charGrid.appendChild(div);
-        });
-
-        // INICJALIZACJA PIXI (WEBGL)
-        const app = new PIXI.Application({ resizeTo: window, backgroundColor: 0x14141e, antialias: true });
-        document.body.appendChild(app.view);
-        app.view.style.position = 'absolute'; app.view.style.zIndex = '1';
-
-        const worldContainer = new PIXI.Container();
-        worldContainer.sortableChildren = true; 
-        app.stage.addChild(worldContainer);
-
-        // INICJALIZACJA CANVAS HUD
-        const hudCanvas = document.getElementById('hudCanvas');
-        const hudCtx = hudCanvas.getContext('2d');
-        let screenW = window.innerWidth, screenH = window.innerHeight;
-
-        window.addEventListener('resize', () => {
-            screenW = window.innerWidth; screenH = window.innerHeight;
-            hudCanvas.width = screenW; hudCanvas.height = screenH;
-        });
-        hudCanvas.width = screenW; hudCanvas.height = screenH;
-
-        // ==========================================
-        // NARZĘDZIA HUD
-        // ==========================================
-        function addHudNotif(text, color) {
-            if(hudNotifs.length >= 3) hudNotifs.shift();
-            hudNotifs.push({text, color, timer:200, maxTimer:200});
-        }
-        function drawHudNotifs(c) {
-            if(hudNotifs.length === 0) return;
-            c.font=`bold 15px "Lilita One",cursive`;
-            hudNotifs.forEach((n, i) => {
-                if(n.timer <= 0) return;
-                n.timer--;
-                const alpha = Math.min(1, n.timer/30) * Math.min(1, (n.maxTimer-n.timer+20)/20);
-                const pw=c.measureText(n.text).width+16, ph=24, pr=12, px=222, py=8 + i*28;
-                c.save(); c.globalAlpha=alpha;
-                c.fillStyle='rgba(0,0,0,0.55)'; c.beginPath(); c.roundRect(px,py,pw,ph,pr); c.fill();
-                c.fillStyle=n.color; c.beginPath(); c.roundRect(px,py,4,ph,[pr,0,0,pr]); c.fill();
-                c.textAlign='left'; c.textBaseline='middle';
-                c.strokeStyle='rgba(0,0,0,0.7)'; c.lineWidth=3; c.strokeText(n.text, px+10, py+ph/2);
-                c.fillStyle=n.color; c.fillText(n.text, px+10, py+ph/2);
-                c.restore();
-            });
-            hudNotifs = hudNotifs.filter(n => n.timer > 0);
-        }
-        function drawHPPill(c, px, py, PW, PH, r) {
-            if(!player) return;
-            const curHP = player.hp || 0, maxHP = player.maxHp || 5;
-            const t = maxHP > 0 ? Math.max(0, Math.min(1, curHP/maxHP)) : 0;
-            const rv = t>=0.5 ? Math.round(46+(1-t)*2*(255-46)) : Math.round(255+(0.5-t)*2*(231-255));
-            const gv = t>=0.5 ? Math.round(204+(1-t)*2*(165-204)) : Math.round(165+(0.5-t)*2*(76-165));
-            const bv = t>=0.5 ? Math.round(113+(1-t)*2*(0-113)) : Math.round((0.5-t)*2*60);
-            const col = `rgb(${rv},${gv},${bv})`;
-
-            c.fillStyle='rgba(8,8,18,0.75)'; c.beginPath(); c.roundRect(px,py,PW,PH,r); c.fill();
-            c.strokeStyle=`rgba(${rv},${gv},${bv},0.38)`; c.lineWidth=0.8; c.stroke();
-
-            const PAD=14, GAP=10, cy=py+PH/2;
-            c.fillStyle='rgba(255,255,255,0.5)'; c.font=`bold 14px "Lilita One",cursive`;
-            c.textAlign='left'; c.textBaseline='middle'; c.fillText('HP', px+PAD, cy);
-            
-            const lblW = c.measureText('HP').width, numStr = `${Math.ceil(curHP)}/${Math.ceil(maxHP)}`;
-            c.font=`32px "Lilita One",cursive`;
-            const numW = c.measureText(numStr).width, numX = px+PW-PAD-numW;
-            c.strokeStyle='rgba(0,0,0,0.75)'; c.lineWidth=4; c.strokeText(numStr, numX, cy+1);
-            c.fillStyle=col; c.fillText(numStr, numX, cy+1);
-
-            const BH=12, barX=px+PAD+lblW+GAP, barW=numX-barX-GAP, barY=cy-BH/2;
-            c.fillStyle='rgba(255,255,255,0.07)'; c.beginPath(); c.roundRect(barX,barY,barW,BH,BH/2); c.fill();
-            if(t > 0) {
-                c.fillStyle=`rgba(${rv},${gv},${bv},0.85)`;
-                c.beginPath(); c.roundRect(barX,barY,barW*t,BH,BH/2); c.fill();
-            }
-        }
-
-        // ==========================================
-        // NARZĘDZIA MIASTA I GRAFIK
-        // ==========================================
-        function buildCityOffscreenTexture() {
-            const cv = document.createElement('canvas'); cv.width = WORLD_W; cv.height = WORLD_H;
-            const c = cv.getContext('2d');
-            c.fillStyle='#14141e';c.fillRect(0,0,WORLD_W,WORLD_H);
-            c.fillStyle='#09090f'; c.fillRect(0,617,WORLD_W,100);c.fillRect(0,1283,WORLD_W,100); c.fillRect(617,0,100,WORLD_H);c.fillRect(1283,0,100,WORLD_H);
-            c.fillStyle='#1c1c2a'; [617,1283].forEach(y=>{c.fillRect(0,y-18,WORLD_W,18);c.fillRect(0,y+100,WORLD_W,18);}); [617,1283].forEach(x=>{c.fillRect(x-18,0,18,WORLD_H);c.fillRect(x+100,0,18,WORLD_H);});
-            c.strokeStyle='#282840';c.lineWidth=2; [617,717,1283,1383].forEach(y=>{c.beginPath();c.moveTo(0,y);c.lineTo(WORLD_W,y);c.stroke();}); [617,717,1283,1383].forEach(x=>{c.beginPath();c.moveTo(x,0);c.lineTo(x,WORLD_H);c.stroke();});
-            c.strokeStyle='#f1c40f';c.lineWidth=3;c.setLineDash([35,22]);
-            [[0,667,WORLD_W,667],[0,1333,WORLD_W,1333],[667,0,667,WORLD_H],[1333,0,1333,WORLD_H]].forEach(([x1,y1,x2,y2])=>{c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();});
-            c.setLineDash([]);
-            c.fillStyle='rgba(255,255,255,0.20)'; [[617,617],[617,1283],[1283,617],[1283,1283]].forEach(([ix,iy])=>{for(let t=iy;t<iy+100;t+=14)c.fillRect(ix,t,100,8);});
-            return PIXI.Texture.from(cv);
-        }
-
-        class CyberBuilding {
-            constructor(x, y, w, d, hF, type) {
-                this.x = x; this.y = y; this.w = w; this.h = d; this.hF = hF;
-                this.gfx = new PIXI.Graphics(); this.gfx.zIndex = y + d;
-                worldContainer.addChild(this.gfx);
-                const P = [null, {rf:0x1a1a2d, wD:0x101018, wL:0x181826, n1:0x00ffff}, {rf:0x1e2230, wD:0x141820, wL:0x1c2028, n1:0xaaddff}, {rf:0x222635, wD:0x181c24, wL:0x1e2030, n1:0xf1c40f}, {rf:0x1a1a1e, wD:0x111114, wL:0x181818, n1:0xff3300}, {rf:0x12121a, wD:0x0e0e14, wL:0x141420, n1:0xcc00ff}, {rf:0x2c2422, wD:0x1a1412, wL:0x241b18, n1:0xff6600}, {rf:0x1f2421, wD:0x111412, wL:0x181c19, n1:0x00ff44}, {rf:0x1d222b, wD:0x13161c, wL:0x1a1e26, n1:0x00ccff}];
-                this.C = P[type] || P[1];
-            }
-            update(camX, camY) {
-                const ox = (this.x + this.w/2 - (camX + screenW/2)) * this.hF;
-                const oy = (this.y + this.h/2 - (camY + screenH/2)) * this.hF;
-                const g = this.gfx; g.clear();
-                const drawW = (x1,y1,x2,y2,rx1,ry1,rx2,ry2,col) => { g.beginFill(col); g.lineStyle(1,0,1); g.moveTo(x1,y1); g.lineTo(x2,y2); g.lineTo(rx2,ry2); g.lineTo(rx1,ry1); g.endFill(); };
-                if(oy > 0) drawW(this.x, this.y, this.x+this.w, this.y, this.x+ox, this.y+oy, this.x+this.w+ox, this.y+oy, this.C.wD);
-                else if(oy < 0) drawW(this.x, this.y+this.h, this.x+this.w, this.y+this.h, this.x+ox, this.y+this.h+oy, this.x+this.w+ox, this.y+this.h+oy, this.C.wL);
-                if(ox > 0) drawW(this.x, this.y, this.x, this.y+this.h, this.x+ox, this.y+oy, this.x+ox, this.y+this.h+oy, this.C.wL);
-                else if(ox < 0) drawW(this.x+this.w, this.y, this.x+this.w, this.y+this.h, this.x+this.w+ox, this.y+oy, this.x+this.w+ox, this.y+this.h+oy, this.C.wD);
-                g.beginFill(this.C.rf); g.lineStyle(2,0,1); g.drawRect(this.x+ox, this.y+oy, this.w, this.h); g.endFill();
-                g.lineStyle(3, this.C.n1, 0.8); g.drawRect(this.x+ox+8, this.y+oy+8, this.w-16, this.h-16);
-            }
-        }
-
-        function checkRectCollision(rx, ry, rw, rh, cx, cy, cr) {
-            let tX = cx, tY = cy;
-            if(cx < rx) tX = rx; else if(cx > rx + rw) tX = rx + rw;
-            if(cy < ry) tY = ry; else if(cy > ry + rh) tY = ry + rh;
-            return ((cx - tX)**2 + (cy - tY)**2) <= (cr*cr);
-        }
-
-        function lerpHex(hex, amt) {
-            let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
-            const c=v=>Math.max(0,Math.min(255,Math.round(v+amt)));
-            return '#'+[c(r),c(g),c(b)].map(v=>v.toString(16).padStart(2,'0')).join('');
-        }
-        function drawTankHull(c, brawler) {
-            const col=brawler.colorMain, cL=lerpHex(col,45), cD=lerpHex(col,-35);
-            const HL=52, HW=26, TRK=5, hhl=HL/2, hhw=HW/2;
-            c.fillStyle='#1c1c1c'; c.beginPath(); c.roundRect(-hhl,-(hhw+TRK/2+0.5)-TRK/2,HL,TRK,2); c.fill(); c.beginPath(); c.roundRect(-hhl,(hhw+TRK/2+0.5)-TRK/2,HL,TRK,2); c.fill();
-            c.lineWidth=1.5; c.strokeStyle='#000'; c.fillStyle=col; c.beginPath(); c.roundRect(-hhl,-hhw,HL,HW,3); c.fill(); c.stroke();
-            c.fillStyle=cL; c.globalAlpha=0.28; c.beginPath(); c.roundRect(-hhl,-hhw,HL*0.2,HW,3); c.fill(); c.globalAlpha=1;
-        }
-        function drawTankTurret(c, brawler) {
-            const col=brawler.colorMain, tr=12, bl=20, bw=5, bstart=tr*0.6;
-            c.fillStyle=lerpHex(col,-18); c.strokeStyle='#000'; c.lineWidth=1.5; c.beginPath(); c.arc(0,0,tr+2,0,Math.PI*2); c.fill(); c.stroke();
-            c.fillStyle='#484848'; c.beginPath(); c.roundRect(bstart,-bw/2,bl,bw,bw*0.25); c.fill(); c.stroke();
-        }
-        function createBrawlerTextures(brawler) {
-            const createTex = (drawFn) => {
-                const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 160;
-                const ctx = canvas.getContext('2d'); ctx.translate(80, 80); ctx.scale(1.75, 1.75);
-                drawFn(ctx); return PIXI.Texture.from(canvas);
-            };
-            return { hull: createTex(c => drawTankHull(c, brawler)), turret: createTex(c => drawTankTurret(c, brawler)) };
-        }
-
-        const ENEMY_TEX = createBrawlerTextures(BRAWLERS[1]);
-
-        // ==========================================
-        // KLASY OBIEKTÓW GRY
-        // ==========================================
-        class Player {
-            constructor(brawlerData) {
-                this.brawler = brawlerData;
-                this.x = 800; this.y = 800;
-                this.speed = this.brawler.speed; this.maxHp = this.brawler.hp; this.hp = this.maxHp;
-                this.container = new PIXI.Container(); this.container.x = this.x; this.container.y = this.y;
-                const tex = createBrawlerTextures(this.brawler);
-                this.hull = new PIXI.Sprite(tex.hull); this.hull.anchor.set(0.5);
-                this.turret = new PIXI.Sprite(tex.turret); this.turret.anchor.set(0.5);
-                this.container.addChild(this.hull); this.container.addChild(this.turret);
-                worldContainer.addChild(this.container);
-            }
-            takeDamage(amount) {
-                if(auraActive && Date.now() < auraEndTime) return; 
-                this.hp -= amount;
-                if(this.hp <= 0) {
-                    gameState = 'MENU';
-                    document.getElementById('welcomeScreen').classList.add('active-screen');
-                    document.body.classList.remove('game-cursor-hidden');
-                    hudCtx.clearRect(0,0,screenW,screenH);
-                }
-            }
-            update(keys, mouseWorldX, mouseWorldY) {
-                let dx = 0; let dy = 0;
-                if (keys.w) dy -= 1; if (keys.s) dy += 1; if (keys.a) dx -= 1; if (keys.d) dx += 1;
-                if (dx !== 0 || dy !== 0) {
-                    let len = Math.sqrt(dx*dx + dy*dy);
-                    let nx = this.x + (dx/len) * this.speed; 
-                    let ny = this.y + (dy/len) * this.speed;
-                    
-                    let canMoveX = true; let canMoveY = true;
-                    for(let b of buildings) {
-                        if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;
-                        if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 20)) canMoveY = false;
-                    }
-                    if(canMoveX) this.x = nx;
-                    if(canMoveY) this.y = ny;
-                    this.hull.rotation = Math.atan2(dy, dx);
-                }
-                this.container.x = this.x; this.container.y = this.y;
-                this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
-                this.container.zIndex = this.y + 19; 
-            }
-        }
-
-        class Enemy {
-            constructor(x, y) {
-                this.x = x; this.y = y; this.speed = 2.5; this.maxHp = 6; this.hp = this.maxHp; this.active = true;
-                this.container = new PIXI.Container(); this.container.x = this.x; this.container.y = this.y;
-                this.hull = new PIXI.Sprite(ENEMY_TEX.hull); this.hull.anchor.set(0.5); this.hull.tint = 0xff4444;
-                this.turret = new PIXI.Sprite(ENEMY_TEX.turret); this.turret.anchor.set(0.5); this.turret.tint = 0xff4444;
-                this.hpBar = new PIXI.Graphics(); this.hpBar.y = -55; this.drawHp();
-                this.container.addChild(this.hull); this.container.addChild(this.turret); this.container.addChild(this.hpBar);
-                worldContainer.addChild(this.container);
-            }
-            drawHp() {
-                this.hpBar.clear(); this.hpBar.beginFill(0x000000, 0.5); this.hpBar.drawRect(-20, 0, 40, 5);
-                this.hpBar.beginFill(0xff3300); this.hpBar.drawRect(-20, 0, Math.max(0, (this.hp/this.maxHp)*40), 5); this.hpBar.endFill();
-            }
-            update(delta, targetX, targetY) {
-                if (!this.active) return;
-                let dx = targetX - this.x; let dy = targetY - this.y; let dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist > 60) { 
-                    let nx = this.x + (dx/dist) * this.speed * delta; 
-                    let ny = this.y + (dy/dist) * this.speed * delta; 
-                    let canMoveX = true; let canMoveY = true;
-                    for(let b of buildings) {
-                        if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;
-                        if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 20)) canMoveY = false;
-                    }
-                    if(canMoveX) this.x = nx;
-                    if(canMoveY) this.y = ny;
-                }
-                this.hull.rotation = Math.atan2(dy, dx); this.turret.rotation = Math.atan2(dy, dx); 
-                this.container.x = this.x; this.container.y = this.y; this.container.zIndex = this.y + 19; 
-            }
-            takeDamage(amount) {
-                this.hp -= amount; this.drawHp();
-                if (this.hp <= 0) {
-                    this.active = false; worldContainer.removeChild(this.container); this.container.destroy({ children: true }); 
-                    stats.kills++; stats.score += 2; gemsSinceLastSuper += 2;
-                    if(gemsSinceLastSuper >= 10) { superCharges++; gemsSinceLastSuper=0; }
-                    
-                    const now = Date.now();
-                    if(now < comboEndTime) comboCount++; else comboCount = 1;
-                    comboEndTime = now + 2000;
-                    if(comboCount === 2){ comboText='DOUBLE!'; comboTextTimer=90; }
-                    else if(comboCount === 3){ comboText='TRIPLE!'; comboTextTimer=100; }
-                    else if(comboCount >= 4){ comboText='MEGA KILL! 💥'; comboTextTimer=110; }
-                }
-            }
-        }
-
-        class Bullet {
-            constructor(x, y, angle, brawlerInfo) {
-                this.x = x; this.y = y; this.active = true; this.distance = 0; this.dmg = brawlerInfo.dmg;
-                this.speed = 15; this.radius = 6;
-                this.vx = Math.cos(angle) * this.speed; this.vy = Math.sin(angle) * this.speed;
-                let color = 0x2ecc71; 
-                if(brawlerInfo.id === 'pyro') color = 0xe74c3c; else if(brawlerInfo.id === 'plasma') color = 0x00cec9;
-                else if(brawlerInfo.id === 'shadow') color = 0x6c3483; else if(brawlerInfo.id === 'sniper') color = 0xffffff;
-                this.gfx = new PIXI.Graphics(); this.gfx.beginFill(color); this.gfx.drawCircle(0, 0, this.radius); this.gfx.endFill();
-                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10; 
-                worldContainer.addChild(this.gfx);
-            }
-            update(delta) {
-                if (!this.active) return;
-                this.x += this.vx * delta; this.y += this.vy * delta;
-                for(let b of buildings) {
-                    if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) { this.destroy(); return; }
-                }
-                this.gfx.x = this.x; this.gfx.y = this.y; this.gfx.zIndex = this.y + 10;
-                this.distance += this.speed * delta; if (this.distance > 1000) this.destroy();
-            }
-            destroy() { this.active = false; worldContainer.removeChild(this.gfx); this.gfx.destroy(); }
-        }
-
-        let player = null; let enemies = []; let bullets = []; let buildings = [];
-        let camera = {x: 0, y: 0};
-        const keys = { w: false, a: false, s: false, d: false };
-        const mouse = { screenX: window.innerWidth/2, screenY: window.innerHeight/2 };
-        let lastShotTime = 0, isMouseDown = false;
-
-        window.addEventListener('keydown', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true; });
-        window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; });
-        app.view.addEventListener('pointermove', e => { mouse.screenX = e.clientX; mouse.screenY = e.clientY; });
-        app.view.addEventListener('pointerdown', () => { isMouseDown = true; });
-        app.view.addEventListener('pointerup', () => { isMouseDown = false; });
-        app.view.addEventListener('pointerupoutside', () => { isMouseDown = false; });
-
-        document.getElementById('startBtn').addEventListener('click', () => {
-            document.getElementById('welcomeScreen').classList.remove('active-screen');
-            document.body.classList.add('game-cursor-hidden');
-            
-            worldContainer.removeChildren();
-            
-            const cityTex = buildCityOffscreenTexture();
-            const citySprite = new PIXI.Sprite(cityTex);
-            citySprite.zIndex = -100; 
-            worldContainer.addChild(citySprite);
-
-            buildings = [];
-            const layout = [[80,80,180,120,0.18,2],[310,60,100,180,0.22,1],[80,290,240,95,0.12,4],[825,55,58,58,0.36,5],[930,100,155,115,0.20,2],[755,225,115,140,0.16,1],[1455,80,200,160,0.25,3],[1705,60,85,180,0.20,1],[1455,300,145,100,0.10,4],[55,785,115,160,0.20,1],[225,805,195,120,0.18,2],[485,910,58,58,0.30,5],[1445,800,195,140,0.22,2],[1705,785,98,160,0.18,1],[1445,1005,180,100,0.15,3],[80,1440,125,178,0.20,1],[265,1445,58,58,0.28,5],[80,1688,195,118,0.18,2],[748,1440,195,78,0.10,4],[925,1565,175,130,0.22,3],[758,1762,108,148,0.18,1],[1445,1445,220,148,0.20,2],[1722,1452,158,78,0.12,4],[1882,1602,58,58,0.32,5]];
-            layout.forEach(b => buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5])));
-
-            stats.score = 0; stats.kills = 0; superCharges = 0; gemsSinceLastSuper = 0;
-            player = new Player(selectedBrawler);
-            enemies = [new Enemy(1000, 500), new Enemy(200, 900), new Enemy(1500, 1500)];
-            bullets = []; isMouseDown = false; gameState = 'PLAYING';
-        });
-
-        app.ticker.add((delta) => {
-            if (gameState !== 'PLAYING' || !player) return;
-            frames++;
-
-            camera.x = Math.max(0, Math.min(WORLD_W - screenW, ~~(player.x - screenW / 2)));
-            camera.y = Math.max(0, Math.min(WORLD_H - screenH, ~~(player.y - screenH / 2)));
-            worldContainer.x = -camera.x; worldContainer.y = -camera.y;
-            let mouseWorldX = mouse.screenX + camera.x; let mouseWorldY = mouse.screenY + camera.y;
-
-            buildings.forEach(b => b.update(camera.x, camera.y));
-            player.update(keys, mouseWorldX, mouseWorldY);
-
-            const now = Date.now();
-            if (isMouseDown && now - lastShotTime > player.brawler.reload) {
-                let angle = player.turret.rotation;
-                let sX = player.x + Math.cos(angle)*45, sY = player.y + Math.sin(angle)*45;
-                if (player.brawler.type === 'spread') {
-                    bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler)); bullets.push(new Bullet(sX, sY, angle, player.brawler)); bullets.push(new Bullet(sX, sY, angle + 0.2, player.brawler));
-                } else bullets.push(new Bullet(sX, sY, angle, player.brawler));
-                lastShotTime = now;
-            }
-            
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                let b = bullets[i]; b.update(delta);
-                if (!b.active) bullets.splice(i, 1);
-            }
-            
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                let enemy = enemies[i]; enemy.update(delta, player.x, player.y);
-                let dP = (player.x - enemy.x)**2 + (player.y - enemy.y)**2;
-                if (dP < 45*45) { player.takeDamage(2); enemy.hp = 0; enemy.takeDamage(100); }
-                for (let j = bullets.length - 1; j >= 0; j--) {
-                    let b = bullets[j]; if (!b.active) continue;
-                    if ((b.x-enemy.x)**2 + (b.y-enemy.y)**2 < (30 + b.radius)**2) {
-                        b.destroy(); bullets.splice(j, 1); enemy.takeDamage(b.dmg); break; 
-                    }
-                }
-                if (!enemy.active) enemies.splice(i, 1);
-            }
-
-            if(comboTextTimer > 0) comboTextTimer--;
-
-            hudCtx.clearRect(0, 0, screenW, screenH);
-            if (player) {
-                drawHPPill(hudCtx, 14, 8, 200, 54, 16); drawHudNotifs(hudCtx);
-                const gx2=Math.round(screenW/2-100);
-                hudCtx.fillStyle='rgba(8,8,18,0.75)'; hudCtx.beginPath();hudCtx.roundRect(gx2,8,200,54,16);hudCtx.fill();
-                hudCtx.fillStyle='#f1c40f';hudCtx.font='32px "Lilita One",cursive'; hudCtx.textAlign='left';hudCtx.textBaseline='middle'; hudCtx.strokeStyle='rgba(0,0,0,0.7)';hudCtx.lineWidth=4;
-                hudCtx.strokeText(stats.score,gx2+58,35);hudCtx.fillText(stats.score,gx2+58,35);
-                
-                const kx=screenW-14-200; hudCtx.fillStyle='rgba(8,8,18,0.75)'; hudCtx.beginPath();hudCtx.roundRect(kx,8,200,54,16);hudCtx.fill();
-                hudCtx.fillStyle='#e8dcc8'; hudCtx.strokeText(stats.kills,kx+50,35); hudCtx.fillText(stats.kills,kx+50,35);
-
-                const _mx=mouse.screenX,_my=mouse.screenY,_cl=16,_cg=5;
-                hudCtx.strokeStyle='#111'; hudCtx.lineWidth=3.5; hudCtx.lineCap='round';
-                hudCtx.beginPath(); hudCtx.moveTo(_mx-_cl,_my); hudCtx.lineTo(_mx-_cg,_my); hudCtx.moveTo(_mx+_cg,_my); hudCtx.lineTo(_mx+_cl,_my); hudCtx.moveTo(_mx,_my-_cl); hudCtx.lineTo(_mx,_my-_cg); hudCtx.moveTo(_mx,_my+_cg); hudCtx.lineTo(_mx,_my+_cl); hudCtx.stroke();
-                hudCtx.strokeStyle='#e74c3c'; hudCtx.lineWidth=2;
-                hudCtx.beginPath(); hudCtx.moveTo(_mx-_cl,_my); hudCtx.lineTo(_mx-_cg,_my); hudCtx.moveTo(_mx+_cg,_my); hudCtx.lineTo(_mx+_cl,_my); hudCtx.moveTo(_mx,_my-_cl); hudCtx.lineTo(_mx,_my-_cg); hudCtx.moveTo(_mx,_my+_cg); hudCtx.lineTo(_mx,_my+_cl); hudCtx.stroke();
-                hudCtx.fillStyle='#e74c3c'; hudCtx.beginPath(); hudCtx.arc(_mx,_my,2.5,0,Math.PI*2); hudCtx.fill();
-                
-                if(comboTextTimer > 0) {
-                    hudCtx.save(); hudCtx.translate(screenW/2, screenH/2 - 120); hudCtx.font=`bold 22px "Lilita One", cursive`;
-                    hudCtx.textAlign='center'; hudCtx.textBaseline='middle'; hudCtx.strokeStyle='#000'; hudCtx.lineWidth=5; 
-                    hudCtx.strokeText(comboText,0,0); hudCtx.fillStyle='#e67e22'; hudCtx.fillText(comboText,0,0); hudCtx.restore();
-                }
-            }
-        });
-    </script>
+    <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

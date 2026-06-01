@@ -3,6 +3,7 @@ import type { Brawler } from '../types/Brawler';
 import { getBrawlerTextures } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import type { CyberBuilding } from '../maps/CityMap';
+import type { EffectsManager } from '../rendering/Effects';
 
 interface KeysState {
     w: boolean; a: boolean; s: boolean; d: boolean;
@@ -18,6 +19,8 @@ export class Player {
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
+    private trackTimer: number = 0;
+    private lastMoveAngle: number = 0;
     
     constructor(brawlerData: Brawler, worldContainer: PIXI.Container) {
         this.brawler = brawlerData;
@@ -31,7 +34,6 @@ export class Player {
         this.container.x = this.x;
         this.container.y = this.y;
         
-        // OPT: użyj global cache (anti-leak pattern z lessons learned)
         const tex = getBrawlerTextures(this.brawler);
         
         this.hull = new PIXI.Sprite(tex.hull);
@@ -46,19 +48,21 @@ export class Player {
     }
     
     takeDamage(amount: number): boolean {
-        // TODO: aura check w Phase 3
         this.hp -= amount;
-        return this.hp <= 0; // zwraca true jeśli zginął
+        return this.hp <= 0;
     }
     
-    update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: CyberBuilding[]): void {
+    update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: CyberBuilding[], effects: EffectsManager): void {
         let dx = 0, dy = 0;
         if (keys.w) dy -= 1;
         if (keys.s) dy += 1;
         if (keys.a) dx -= 1;
         if (keys.d) dx += 1;
         
+        let isMoving = false;
+        
         if (dx !== 0 || dy !== 0) {
+            isMoving = true;
             const len = Math.sqrt(dx * dx + dy * dy);
             const nx = this.x + (dx / len) * this.speed;
             const ny = this.y + (dy / len) * this.speed;
@@ -71,12 +75,26 @@ export class Player {
             if (canMoveX) this.x = nx;
             if (canMoveY) this.y = ny;
             
-            this.hull.rotation = Math.atan2(dy, dx);
+            this.lastMoveAngle = Math.atan2(dy, dx);
+            this.hull.rotation = this.lastMoveAngle;
         }
         
         this.container.x = this.x;
         this.container.y = this.y;
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
+        
+        // Track marks — co 4 klatki podczas ruchu, 2 ślady (lewa+prawa gąsienica)
+        if (isMoving) {
+            this.trackTimer++;
+            if (this.trackTimer >= 4) {
+                this.trackTimer = 0;
+                // Offset 12px perpendicular do kierunku ruchu = dwie gąsienice
+                const perpX = -Math.sin(this.lastMoveAngle) * 12;
+                const perpY = Math.cos(this.lastMoveAngle) * 12;
+                effects.spawnTrackMark(this.x + perpX, this.y + perpY, this.lastMoveAngle);
+                effects.spawnTrackMark(this.x - perpX, this.y - perpY, this.lastMoveAngle);
+            }
+        }
     }
 }

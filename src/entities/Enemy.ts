@@ -3,6 +3,7 @@ import { getBrawlerTextures } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import { BRAWLERS } from '../config/brawlers';
 import type { CyberBuilding } from '../maps/CityMap';
+import type { EffectsManager } from '../rendering/Effects';
 
 export class Enemy {
     public x: number;
@@ -11,10 +12,12 @@ export class Enemy {
     public maxHp: number;
     public hp: number;
     public active: boolean;
+    public tintHex: number = 0xff4444; // kolor dla particles
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
     public hpBar: PIXI.Graphics;
+    private flashTimer: number = 0; // klatki hit flash (biały tint)
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
         this.x = x; this.y = y;
@@ -27,16 +30,15 @@ export class Enemy {
         this.container.x = this.x;
         this.container.y = this.y;
         
-        // Wrogowie używają na razie sprite Pancernego z czerwonym tintem
         const enemyTex = getBrawlerTextures(BRAWLERS[1]);
         
         this.hull = new PIXI.Sprite(enemyTex.hull);
         this.hull.anchor.set(0.5);
-        this.hull.tint = 0xff4444;
+        this.hull.tint = this.tintHex;
         
         this.turret = new PIXI.Sprite(enemyTex.turret);
         this.turret.anchor.set(0.5);
-        this.turret.tint = 0xff4444;
+        this.turret.tint = this.tintHex;
         
         this.hpBar = new PIXI.Graphics();
         this.hpBar.y = -55;
@@ -59,6 +61,15 @@ export class Enemy {
     
     update(delta: number, targetX: number, targetY: number, buildings: CyberBuilding[]): void {
         if (!this.active) return;
+        
+        // Hit flash decay
+        if (this.flashTimer > 0) {
+            this.flashTimer -= delta;
+            if (this.flashTimer <= 0) {
+                this.hull.tint = this.tintHex;
+                this.turret.tint = this.tintHex;
+            }
+        }
         
         const dx = targetX - this.x;
         const dy = targetY - this.y;
@@ -84,14 +95,29 @@ export class Enemy {
         this.container.zIndex = this.y + 19;
     }
     
-    takeDamage(amount: number, worldContainer: PIXI.Container): boolean {
+    /**
+     * Przyjmuje damage + spawnuje efekty.
+     * @returns true jeśli wróg zginął
+     */
+    takeDamage(amount: number, hitX: number, hitY: number, worldContainer: PIXI.Container, effects: EffectsManager): boolean {
         this.hp -= amount;
         this.drawHp();
+        
+        // Hit flash — biały tint na 4 klatki
+        this.hull.tint = 0xffffff;
+        this.turret.tint = 0xffffff;
+        this.flashTimer = 4;
+        
+        // Hit sparks w punkcie trafienia
+        effects.spawnEnemyHitSparks(hitX, hitY, this.tintHex);
+        
         if (this.hp <= 0) {
             this.active = false;
+            // Wybuch + wrak w pozycji wroga
+            effects.spawnExplosionAndWreck(this.x, this.y, this.tintHex);
             worldContainer.removeChild(this.container);
             this.container.destroy({ children: true });
-            return true; // zwraca true gdy zabity
+            return true;
         }
         return false;
     }

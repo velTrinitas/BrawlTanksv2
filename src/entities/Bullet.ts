@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
 import type { CyberBuilding } from '../maps/CityMap';
+import type { EffectsManager } from '../rendering/Effects';
 
 export class Bullet {
     public x: number;
@@ -24,7 +25,6 @@ export class Bullet {
         this.vx = Math.cos(angle) * this.speed;
         this.vy = Math.sin(angle) * this.speed;
         
-        // Kolor pocisku zależny od brawlera
         let color = 0x2ecc71;
         if (brawlerInfo.id === 'pyro') color = 0xe74c3c;
         else if (brawlerInfo.id === 'plasma') color = 0x00cec9;
@@ -41,7 +41,7 @@ export class Bullet {
         worldContainer.addChild(this.gfx);
     }
     
-    update(delta: number, buildings: CyberBuilding[]): void {
+    update(delta: number, buildings: CyberBuilding[], effects: EffectsManager): void {
         if (!this.active) return;
         
         this.x += this.vx * delta;
@@ -49,6 +49,8 @@ export class Bullet {
         
         for (const b of buildings) {
             if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
+                // Wall impact effect przy odbiciu
+                effects.spawnWallImpact(this.x, this.y);
                 this.destroy();
                 return;
             }

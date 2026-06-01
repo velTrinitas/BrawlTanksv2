@@ -7,6 +7,7 @@ import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
 import { HUD } from './rendering/HUD';
+import { EffectsManager } from './rendering/Effects';
 
 // ==========================================
 // STATE
@@ -21,6 +22,7 @@ let player: Player | null = null;
 let enemies: Enemy[] = [];
 let bullets: Bullet[] = [];
 let buildings: CyberBuilding[] = [];
+let effects: EffectsManager | null = null;
 let camera = { x: 0, y: 0 };
 
 const keys = { w: false, a: false, s: false, d: false };
@@ -28,7 +30,6 @@ const mouse = { screenX: window.innerWidth / 2, screenY: window.innerHeight / 2 
 let lastShotTime = 0;
 let isMouseDown = false;
 
-// Combo state
 let comboCount = 0;
 let comboEndTime = 0;
 
@@ -119,6 +120,9 @@ document.getElementById('startBtn')!.addEventListener('click', () => {
         buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer));
     });
     
+    // Effects (po buildings żeby były pod containers, ale particles są zIndex 500 więc będą na wierzchu)
+    effects = new EffectsManager(worldContainer);
+    
     // Reset state
     stats.score = 0;
     stats.kills = 0;
@@ -139,14 +143,14 @@ document.getElementById('startBtn')!.addEventListener('click', () => {
 // GAME LOOP
 // ==========================================
 app.ticker.add((delta) => {
-    if (gameState !== 'PLAYING' || !player) return;
+    if (gameState !== 'PLAYING' || !player || !effects) return;
     frames++;
     
-    // Camera follow
+    // Camera follow + screen shake offset
     camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - hud.screenH, ~~(player.y - hud.screenH / 2)));
-    worldContainer.x = -camera.x;
-    worldContainer.y = -camera.y;
+    worldContainer.x = -camera.x + effects.shakeOffsetX;
+    worldContainer.y = -camera.y + effects.shakeOffsetY;
     
     const mouseWorldX = mouse.screenX + camera.x;
     const mouseWorldY = mouse.screenY + camera.y;
@@ -155,14 +159,17 @@ app.ticker.add((delta) => {
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
     // Update player
-    player.update(keys, mouseWorldX, mouseWorldY, buildings);
+    player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // Shooting
+    // Shooting + muzzle flash
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;
+        
+        // Muzzle flash w pozycji końca lufy
+        effects.spawnMuzzleFlash(sX, sY, angle);
         
         if (player.brawler.type === 'spread') {
             bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer));
@@ -177,7 +184,7 @@ app.ticker.add((delta) => {
     // Update bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.update(delta, buildings);
+        b.update(delta, buildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
     
@@ -186,11 +193,17 @@ app.ticker.add((delta) => {
         const enemy = enemies[i];
         enemy.update(delta, player.x, player.y, buildings);
         
-        // Player-enemy collision
+        // Player-enemy collision (czołg na czołg = wzajemne zniszczenie)
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         if (dP < 45 * 45) {
             const playerDied = player.takeDamage(2);
-            enemy.takeDamage(100, worldContainer);
+            // Wybuch przy zderzeniu — wróg ginie natychmiast
+            effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
+            enemy.active = false;
+            if (enemy.container.parent) {
+                enemy.container.parent.removeChild(enemy.container);
+            }
+            enemy.container.destroy({ children: true });
             if (playerDied) {
                 gameState = 'MENU';
                 document.getElementById('welcomeScreen')!.classList.add('active-screen');
@@ -205,9 +218,10 @@ app.ticker.add((delta) => {
             const b = bullets[j];
             if (!b.active) continue;
             if ((b.x - enemy.x) ** 2 + (b.y - enemy.y) ** 2 < (30 + b.radius) ** 2) {
+                const hitX = b.x, hitY = b.y;
                 b.destroy();
                 bullets.splice(j, 1);
-                const killed = enemy.takeDamage(b.dmg, worldContainer);
+                const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
                 if (killed) {
                     stats.kills++;
                     stats.score += 2;
@@ -228,6 +242,9 @@ app.ticker.add((delta) => {
     }
     
     if (hud.comboTextTimer > 0) hud.comboTextTimer--;
+    
+    // Update effects (particles, screen shake, wrecks, tracks)
+    effects.update(delta);
     
     // Render HUD
     hud.render(player, stats.score, stats.kills, mouse);

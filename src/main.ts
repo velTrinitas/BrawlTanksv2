@@ -6,8 +6,10 @@ import { buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding } from './maps/C
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
+import { EnemyBullet } from './entities/EnemyBullet';
 import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
+import { SpawnSystem } from './systems/Spawn';
 
 // ==========================================
 // STATE
@@ -15,14 +17,16 @@ import { EffectsManager } from './rendering/Effects';
 let selectedBrawler: Brawler = BRAWLERS[0];
 let gameState: 'MENU' | 'PLAYING' = 'MENU';
 
-let stats = { kills: 0, score: 0 };
+let stats = { score: 0 };
 let frames = 0;
 
 let player: Player | null = null;
 let enemies: Enemy[] = [];
 let bullets: Bullet[] = [];
+let enemyBullets: EnemyBullet[] = [];
 let buildings: CyberBuilding[] = [];
 let effects: EffectsManager | null = null;
+let spawnSystem: SpawnSystem | null = null;
 let camera = { x: 0, y: 0 };
 
 const keys = { w: false, a: false, s: false, d: false };
@@ -49,9 +53,6 @@ const worldContainer = new PIXI.Container();
 worldContainer.sortableChildren = true;
 app.stage.addChild(worldContainer);
 
-// ==========================================
-// HUD
-// ==========================================
 const hud = new HUD('hudCanvas');
 
 // ==========================================
@@ -100,6 +101,22 @@ window.addEventListener('keyup', e => {
 (app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
 
 // ==========================================
+// HELPER — spawn pocisku wroga (z burst support)
+// ==========================================
+function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
+    const half = (shot.burstCount - 1) / 2;
+    for (let i = 0; i < shot.burstCount; i++) {
+        const offsetAngle = shot.burstCount > 1
+            ? (i - half) * (shot.burstSpread / Math.max(1, shot.burstCount - 1))
+            : 0;
+        enemyBullets.push(new EnemyBullet(
+            shot.x, shot.y, shot.angle + offsetAngle,
+            shot.speed, shot.dmg, shot.color, worldContainer
+        ));
+    }
+}
+
+// ==========================================
 // START GAME
 // ==========================================
 document.getElementById('startBtn')!.addEventListener('click', () => {
@@ -108,7 +125,7 @@ document.getElementById('startBtn')!.addEventListener('click', () => {
     
     worldContainer.removeChildren();
     
-    // City background
+    // City
     const cityTex = buildCityTexture();
     const citySprite = new PIXI.Sprite(cityTex);
     citySprite.zIndex = -100;
@@ -120,21 +137,20 @@ document.getElementById('startBtn')!.addEventListener('click', () => {
         buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer));
     });
     
-    // Effects (po buildings żeby były pod containers, ale particles są zIndex 500 więc będą na wierzchu)
+    // Effects + Spawn system
     effects = new EffectsManager(worldContainer);
+    spawnSystem = new SpawnSystem();
     
     // Reset state
     stats.score = 0;
-    stats.kills = 0;
+    comboCount = 0;
+    comboEndTime = 0;
     
     // Spawn entities
     player = new Player(selectedBrawler, worldContainer);
-    enemies = [
-        new Enemy(1000, 500, worldContainer),
-        new Enemy(200, 900, worldContainer),
-        new Enemy(1500, 1500, worldContainer),
-    ];
+    enemies = [];
     bullets = [];
+    enemyBullets = [];
     isMouseDown = false;
     gameState = 'PLAYING';
 });
@@ -143,10 +159,10 @@ document.getElementById('startBtn')!.addEventListener('click', () => {
 // GAME LOOP
 // ==========================================
 app.ticker.add((delta) => {
-    if (gameState !== 'PLAYING' || !player || !effects) return;
+    if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem) return;
     frames++;
     
-    // Camera follow + screen shake offset
+    // Camera + screen shake
     camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - hud.screenH, ~~(player.y - hud.screenH / 2)));
     worldContainer.x = -camera.x + effects.shakeOffsetX;
@@ -155,20 +171,18 @@ app.ticker.add((delta) => {
     const mouseWorldX = mouse.screenX + camera.x;
     const mouseWorldY = mouse.screenY + camera.y;
     
-    // Update buildings (parallax)
+    // Buildings parallax
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
-    // Update player
+    // Player
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // Shooting + muzzle flash
+    // Player shooting
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;
-        
-        // Muzzle flash w pozycji końca lufy
         effects.spawnMuzzleFlash(sX, sY, angle);
         
         if (player.brawler.type === 'spread') {
@@ -181,34 +195,65 @@ app.ticker.add((delta) => {
         lastShotTime = now;
     }
     
-    // Update bullets
+    // Player bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, buildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
     
-    // Update enemies + collisions
+    // Enemy bullets
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const eb = enemyBullets[i];
+        eb.update(delta, buildings, effects);
+        if (!eb.active) {
+            enemyBullets.splice(i, 1);
+            continue;
+        }
+        // Hit player?
+        const dx = eb.x - player.x, dy = eb.y - player.y;
+        if (dx * dx + dy * dy < 25 * 25) {
+            const playerDied = player.takeDamage(eb.dmg);
+            effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
+            effects.shake(4, 6);
+            eb.destroy();
+            enemyBullets.splice(i, 1);
+            if (playerDied) {
+                triggerGameOver();
+                return;
+            }
+        }
+    }
+    
+    // Spawn system — dodaj nowych wrogów
+    const newEnemies = spawnSystem.update(delta, enemies, player.x, player.y, worldContainer, buildings);
+    enemies.push(...newEnemies);
+    
+    // Enemies update + collisions
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-        enemy.update(delta, player.x, player.y, buildings);
+        const shotInfo = enemy.update(delta, player.x, player.y, buildings);
         
-        // Player-enemy collision (czołg na czołg = wzajemne zniszczenie)
+        // Enemy chciał strzelić?
+        if (shotInfo) {
+            spawnEnemyShot(shotInfo);
+        }
+        
+        // Player-enemy collision (taranowanie)
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
-        if (dP < 45 * 45) {
-            const playerDied = player.takeDamage(2);
-            // Wybuch przy zderzeniu — wróg ginie natychmiast
+        const collisionDist = enemy.isBoss ? 60 : 45;
+        if (dP < collisionDist * collisionDist) {
+            const playerDied = player.takeDamage(enemy.collisionDmg);
             effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
             enemy.active = false;
+            spawnSystem.registerKill(enemy);
+            stats.score += enemy.scoreValue;
             if (enemy.container.parent) {
                 enemy.container.parent.removeChild(enemy.container);
             }
             enemy.container.destroy({ children: true });
             if (playerDied) {
-                gameState = 'MENU';
-                document.getElementById('welcomeScreen')!.classList.add('active-screen');
-                document.body.classList.remove('game-cursor-hidden');
-                hud.clear();
+                triggerGameOver();
                 return;
             }
         }
@@ -217,15 +262,17 @@ app.ticker.add((delta) => {
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (!b.active) continue;
-            if ((b.x - enemy.x) ** 2 + (b.y - enemy.y) ** 2 < (30 + b.radius) ** 2) {
+            const hitDist = enemy.isBoss ? 45 : 30;
+            if ((b.x - enemy.x) ** 2 + (b.y - enemy.y) ** 2 < (hitDist + b.radius) ** 2) {
                 const hitX = b.x, hitY = b.y;
                 b.destroy();
                 bullets.splice(j, 1);
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
                 if (killed) {
-                    stats.kills++;
-                    stats.score += 2;
+                    spawnSystem.registerKill(enemy);
+                    stats.score += enemy.scoreValue;
                     
+                    // Combo
                     if (now < comboEndTime) comboCount++;
                     else comboCount = 1;
                     comboEndTime = now + 2000;
@@ -243,9 +290,17 @@ app.ticker.add((delta) => {
     
     if (hud.comboTextTimer > 0) hud.comboTextTimer--;
     
-    // Update effects (particles, screen shake, wrecks, tracks)
     effects.update(delta);
     
-    // Render HUD
-    hud.render(player, stats.score, stats.kills, mouse);
+    hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem);
 });
+
+// ==========================================
+// GAME OVER
+// ==========================================
+function triggerGameOver(): void {
+    gameState = 'MENU';
+    document.getElementById('welcomeScreen')!.classList.add('active-screen');
+    document.body.classList.remove('game-cursor-hidden');
+    hud.clear();
+}

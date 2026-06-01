@@ -1,4 +1,6 @@
 import type { Player } from '../entities/Player';
+import type { SpawnSystem } from '../systems/Spawn';
+import { SPAWN_CONFIG } from '../config/enemies';
 
 interface HudNotif {
     text: string;
@@ -12,10 +14,6 @@ export interface MouseState {
     screenY: number;
 }
 
-/**
- * HUD system — hybrid Canvas 2D overlay nad PIXI canvas.
- * Bazuje na v4.48 HUD pattern.
- */
 export class HUD {
     private ctx: CanvasRenderingContext2D;
     public canvas: HTMLCanvasElement;
@@ -23,7 +21,6 @@ export class HUD {
     public screenH: number;
     private hudNotifs: HudNotif[] = [];
     
-    // Stan kombo
     public comboText: string = '';
     public comboTextTimer: number = 0;
     
@@ -128,6 +125,68 @@ export class HUD {
         }
     }
     
+    /**
+     * Kill counter pill (top-right) z progress bar i alertem bossowym.
+     */
+    private drawKillsPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
+        const c = this.ctx;
+        const totalKills = spawnSystem.totalKills;
+        const regularKills = spawnSystem.regularKills;
+        
+        c.fillStyle = 'rgba(8,8,18,0.75)';
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.fill();
+        
+        // Skull icon (left)
+        c.fillStyle = '#e8dcc8';
+        c.font = `26px "Lilita One",cursive`;
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
+        c.fillText('💀', px + 14, py + PH / 2);
+        
+        // Kill count
+        c.font = `32px "Lilita One",cursive`;
+        c.strokeStyle = 'rgba(0,0,0,0.7)';
+        c.lineWidth = 4;
+        c.strokeText(String(totalKills), px + 56, py + PH / 2);
+        c.fillStyle = '#e8dcc8';
+        c.fillText(String(totalKills), px + 56, py + PH / 2);
+        
+        // Progress bar do następnego bossa
+        const BAR_H = 5;
+        const BAR_X = px + 14;
+        const BAR_W = PW - 28;
+        const BAR_Y = py + PH - BAR_H - 4;
+        
+        const allBossesNeeded = SPAWN_CONFIG.megaBossKillThreshold; // 100
+        const progress = Math.min(1, regularKills / allBossesNeeded);
+        
+        c.fillStyle = 'rgba(255,255,255,0.08)';
+        c.beginPath();
+        c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
+        c.fill();
+        
+        c.fillStyle = progress >= 1 ? '#ff3300' : '#ff8866';
+        c.beginPath();
+        c.roundRect(BAR_X, BAR_Y, BAR_W * progress, BAR_H, BAR_H / 2);
+        c.fill();
+        
+        // Alert text gdy progress full + bossy żyją (3B handle mega boss)
+        // Tu tylko prosty próg: gdy regularKills ≥ 100 (mega boss threshold) i pokazujemy alert "WALCZ Z BOSSAMI"
+        if (regularKills >= SPAWN_CONFIG.megaBossKillThreshold) {
+            // Pulsujący alert pod pillem
+            const pulse = 0.7 + Math.sin(Date.now() / 200) * 0.3;
+            c.save();
+            c.globalAlpha = pulse;
+            c.fillStyle = '#ff0033';
+            c.font = `bold 13px "Lilita One",cursive`;
+            c.textAlign = 'right';
+            c.fillText('💀 ZNISZCZ BOSSÓW!', px + PW - 4, py + PH + 18);
+            c.restore();
+        }
+    }
+    
     private drawCrosshair(mouse: MouseState): void {
         const c = this.ctx;
         const _mx = mouse.screenX, _my = mouse.screenY, _cl = 16, _cg = 5;
@@ -154,15 +213,15 @@ export class HUD {
         c.fill();
     }
     
-    render(player: Player, score: number, kills: number, mouse: MouseState): void {
+    render(player: Player, score: number, _killsLegacy: number, mouse: MouseState, spawnSystem: SpawnSystem): void {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
         
-        // HP Pill (left)
+        // HP pill (left)
         this.drawHPPill(player, 14, 8, 200, 54, 16);
         this.drawNotifs();
         
-        // Score (center)
+        // Score pill (center)
         const gx2 = Math.round(this.screenW / 2 - 100);
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
@@ -177,15 +236,9 @@ export class HUD {
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
         
-        // Kills (right)
+        // Kills pill (right) — nowy z progress bar
         const kx = this.screenW - 14 - 200;
-        c.fillStyle = 'rgba(8,8,18,0.75)';
-        c.beginPath();
-        c.roundRect(kx, 8, 200, 54, 16);
-        c.fill();
-        c.fillStyle = '#e8dcc8';
-        c.strokeText(String(kills), kx + 50, 35);
-        c.fillText(String(kills), kx + 50, 35);
+        this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
         // Crosshair
         this.drawCrosshair(mouse);

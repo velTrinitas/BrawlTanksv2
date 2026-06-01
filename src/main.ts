@@ -7,6 +7,7 @@ import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
 import { EnemyBullet } from './entities/EnemyBullet';
+import { Heart } from './entities/pickups/Heart';
 import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
@@ -15,15 +16,16 @@ import { SpawnSystem } from './systems/Spawn';
 // STATE
 // ==========================================
 let selectedBrawler: Brawler = BRAWLERS[0];
-let gameState: 'MENU' | 'PLAYING' = 'MENU';
+let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 let stats = { score: 0 };
-let frames = 0;
+let gameStartTime = 0;
 
 let player: Player | null = null;
 let enemies: Enemy[] = [];
 let bullets: Bullet[] = [];
 let enemyBullets: EnemyBullet[] = [];
+let hearts: Heart[] = [];
 let buildings: CyberBuilding[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
@@ -101,7 +103,7 @@ window.addEventListener('keyup', e => {
 (app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
 
 // ==========================================
-// HELPER — spawn pocisku wroga (z burst support)
+// HELPERS
 // ==========================================
 function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
     const half = (shot.burstCount - 1) / 2;
@@ -116,51 +118,81 @@ function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
     }
 }
 
-// ==========================================
-// START GAME
-// ==========================================
-document.getElementById('startBtn')!.addEventListener('click', () => {
+function startGame(): void {
     document.getElementById('welcomeScreen')!.classList.remove('active-screen');
+    document.getElementById('victoryScreen')!.classList.remove('active-screen');
+    document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
     
     worldContainer.removeChildren();
     
-    // City
     const cityTex = buildCityTexture();
     const citySprite = new PIXI.Sprite(cityTex);
     citySprite.zIndex = -100;
     worldContainer.addChild(citySprite);
     
-    // Buildings
     buildings = [];
     CITY_BUILDINGS_LAYOUT.forEach(b => {
         buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer));
     });
     
-    // Effects + Spawn system
     effects = new EffectsManager(worldContainer);
     spawnSystem = new SpawnSystem();
     
-    // Reset state
     stats.score = 0;
     comboCount = 0;
     comboEndTime = 0;
+    gameStartTime = Date.now();
     
-    // Spawn entities
     player = new Player(selectedBrawler, worldContainer);
     enemies = [];
     bullets = [];
     enemyBullets = [];
+    hearts = [];
     isMouseDown = false;
     gameState = 'PLAYING';
-});
+}
+
+document.getElementById('startBtn')!.addEventListener('click', startGame);
+document.getElementById('playAgainBtn')!.addEventListener('click', startGame);
+document.getElementById('retryBtn')!.addEventListener('click', startGame);
+
+function triggerGameOver(): void {
+    gameState = 'GAMEOVER';
+    const gameSeconds = Math.round((Date.now() - gameStartTime) / 1000);
+    const statsEl = document.getElementById('gameOverStats')!;
+    statsEl.innerHTML = `
+        <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
+        <div>⭐ Punkty: <b>${stats.score}</b></div>
+        <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
+        <div>👑 Bossów zabitych: <b>${spawnSystem?.bossKills ?? 0}</b></div>
+    `;
+    document.getElementById('gameOverScreen')!.classList.add('active-screen');
+    document.body.classList.remove('game-cursor-hidden');
+    hud.clear();
+}
+
+function triggerVictory(): void {
+    gameState = 'VICTORY';
+    const gameSeconds = Math.round((Date.now() - gameStartTime) / 1000);
+    const statsEl = document.getElementById('victoryStats')!;
+    statsEl.innerHTML = `
+        <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
+        <div>⭐ Punkty: <b>${stats.score}</b></div>
+        <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
+        <div>👑 Bossów: <b>${spawnSystem?.bossKills ?? 0}</b></div>
+        <div>🏆 Mega Boss: <b>POKONANY!</b></div>
+    `;
+    document.getElementById('victoryScreen')!.classList.add('active-screen');
+    document.body.classList.remove('game-cursor-hidden');
+    hud.clear();
+}
 
 // ==========================================
 // GAME LOOP
 // ==========================================
 app.ticker.add((delta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem) return;
-    frames++;
     
     // Camera + screen shake
     camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
@@ -171,11 +203,27 @@ app.ticker.add((delta) => {
     const mouseWorldX = mouse.screenX + camera.x;
     const mouseWorldY = mouse.screenY + camera.y;
     
-    // Buildings parallax
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
-    // Player
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
+    
+    // Hearts pickup check
+    for (let i = hearts.length - 1; i >= 0; i--) {
+        const h = hearts[i];
+        h.update(delta);
+        if (!h.active) {
+            hearts.splice(i, 1);
+            continue;
+        }
+        const dx = player.x - h.x, dy = player.y - h.y;
+        if (dx * dx + dy * dy < (h.radius + 22) * (h.radius + 22)) {
+            if (h.pickup(effects)) {
+                player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
+                hud.addNotif(`❤️ +${h.healAmount} HP`, '#ff3366');
+                hearts.splice(i, 1);
+            }
+        }
+    }
     
     // Player shooting
     const now = Date.now();
@@ -210,7 +258,6 @@ app.ticker.add((delta) => {
             enemyBullets.splice(i, 1);
             continue;
         }
-        // Hit player?
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {
             const playerDied = player.takeDamage(eb.dmg);
@@ -225,33 +272,42 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Spawn system — dodaj nowych wrogów
-    const newEnemies = spawnSystem.update(delta, enemies, player.x, player.y, worldContainer, buildings);
-    enemies.push(...newEnemies);
+    // Spawn system
+    const spawnResult = spawnSystem.update(delta, enemies, hearts, player.x, player.y, worldContainer, buildings);
+    enemies.push(...spawnResult.newEnemies);
+    hearts.push(...spawnResult.newHearts);
+    
+    if (spawnResult.megaBossJustSpawned) {
+        hud.triggerMegaBossAlert();
+    }
     
     // Enemies update + collisions
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
         
-        // Enemy chciał strzelić?
         if (shotInfo) {
             spawnEnemyShot(shotInfo);
         }
         
-        // Player-enemy collision (taranowanie)
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
-        const collisionDist = enemy.isBoss ? 60 : 45;
+        const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (dP < collisionDist * collisionDist) {
             const playerDied = player.takeDamage(enemy.collisionDmg);
-            effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
-            enemy.active = false;
-            spawnSystem.registerKill(enemy);
-            stats.score += enemy.scoreValue;
-            if (enemy.container.parent) {
-                enemy.container.parent.removeChild(enemy.container);
+            // Tylko zwykli wrogowie giną przy collision (boss/mega zostaje)
+            if (!enemy.isBoss && !enemy.isMegaBoss) {
+                effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
+                enemy.active = false;
+                spawnSystem.registerKill(enemy);
+                stats.score += enemy.scoreValue;
+                if (enemy.container.parent) {
+                    enemy.container.parent.removeChild(enemy.container);
+                }
+                enemy.container.destroy({ children: true });
+            } else {
+                // Boss / mega — gracz dostaje damage ale boss żyje, push back
+                effects.shake(8, 10);
             }
-            enemy.container.destroy({ children: true });
             if (playerDied) {
                 triggerGameOver();
                 return;
@@ -262,7 +318,7 @@ app.ticker.add((delta) => {
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (!b.active) continue;
-            const hitDist = enemy.isBoss ? 45 : 30;
+            const hitDist = enemy.isMegaBoss ? 60 : enemy.isBoss ? 45 : 30;
             if ((b.x - enemy.x) ** 2 + (b.y - enemy.y) ** 2 < (hitDist + b.radius) ** 2) {
                 const hitX = b.x, hitY = b.y;
                 b.destroy();
@@ -272,7 +328,12 @@ app.ticker.add((delta) => {
                     spawnSystem.registerKill(enemy);
                     stats.score += enemy.scoreValue;
                     
-                    // Combo
+                    // Victory check
+                    if (enemy.isMegaBoss) {
+                        // Trochę opóźnienia żeby wybuch się dokończył
+                        setTimeout(() => triggerVictory(), 800);
+                    }
+                    
                     if (now < comboEndTime) comboCount++;
                     else comboCount = 1;
                     comboEndTime = now + 2000;
@@ -292,15 +353,8 @@ app.ticker.add((delta) => {
     
     effects.update(delta);
     
-    hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem);
+    // Find current mega boss for HUD (jeśli żyje)
+    const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
+    
+    hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss);
 });
-
-// ==========================================
-// GAME OVER
-// ==========================================
-function triggerGameOver(): void {
-    gameState = 'MENU';
-    document.getElementById('welcomeScreen')!.classList.add('active-screen');
-    document.body.classList.remove('game-cursor-hidden');
-    hud.clear();
-}

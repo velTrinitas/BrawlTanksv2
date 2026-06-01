@@ -57,3 +57,29 @@ export const SPAWN_CONFIG = {
     bossKillTrigger: 20,     // co ile killów spawn boss
     megaBossKillThreshold: 100, // ile regular killów do mega boss (3B)
 };
+/**
+ * Mega Boss config — jeden raz na grę po 100 regular killach + wszyscy bossy martwi.
+ * 3 fazy AI: rush (>60% HP) → strafe (30-60%) → flee+spread (<30%).
+ */
+export const ENEMY_MEGA_BOSS: EnemyConfig = {
+    hp: 20,
+    speedMin: 2.0,
+    speedMax: 2.8,
+    scale: 2.0,
+    tint: 0xf1c40f,         // złoty
+    dmg: 4,                 // collision damage większy
+    shootIntervalMs: 1400,  // strzela częściej niż boss
+    bulletSpeed: 8,
+    bulletDmg: 2,
+    bulletColor: 0xffdd44,
+    scoreValue: 100,        // duża nagroda
+};
+
+/**
+ * Heart pickup config.
+ */
+export const HEART_CONFIG = {
+    spawnIntervalFrames: 522, // co ~8.7s
+    healAmount: 1,
+    maxOnMap: 3,
+};

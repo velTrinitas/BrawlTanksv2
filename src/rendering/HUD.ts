@@ -1,4 +1,5 @@
 import type { Player } from '../entities/Player';
+import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
 import { SPAWN_CONFIG } from '../config/enemies';
 
@@ -24,6 +25,9 @@ export class HUD {
     public comboText: string = '';
     public comboTextTimer: number = 0;
     
+    // Mega Boss alert — wielki tekst na środku
+    public megaBossAlertTimer: number = 0;
+    
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
@@ -43,6 +47,10 @@ export class HUD {
     addNotif(text: string, color: string): void {
         if (this.hudNotifs.length >= 3) this.hudNotifs.shift();
         this.hudNotifs.push({ text, color, timer: 200, maxTimer: 200 });
+    }
+    
+    triggerMegaBossAlert(): void {
+        this.megaBossAlertTimer = 180; // 3s
     }
     
     private drawNotifs(): void {
@@ -125,9 +133,6 @@ export class HUD {
         }
     }
     
-    /**
-     * Kill counter pill (top-right) z progress bar i alertem bossowym.
-     */
     private drawKillsPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
         const c = this.ctx;
         const totalKills = spawnSystem.totalKills;
@@ -138,14 +143,12 @@ export class HUD {
         c.roundRect(px, py, PW, PH, r);
         c.fill();
         
-        // Skull icon (left)
         c.fillStyle = '#e8dcc8';
         c.font = `26px "Lilita One",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.fillText('💀', px + 14, py + PH / 2);
         
-        // Kill count
         c.font = `32px "Lilita One",cursive`;
         c.strokeStyle = 'rgba(0,0,0,0.7)';
         c.lineWidth = 4;
@@ -153,29 +156,23 @@ export class HUD {
         c.fillStyle = '#e8dcc8';
         c.fillText(String(totalKills), px + 56, py + PH / 2);
         
-        // Progress bar do następnego bossa
         const BAR_H = 5;
         const BAR_X = px + 14;
         const BAR_W = PW - 28;
         const BAR_Y = py + PH - BAR_H - 4;
         
-        const allBossesNeeded = SPAWN_CONFIG.megaBossKillThreshold; // 100
-        const progress = Math.min(1, regularKills / allBossesNeeded);
+        const progress = Math.min(1, regularKills / SPAWN_CONFIG.megaBossKillThreshold);
         
         c.fillStyle = 'rgba(255,255,255,0.08)';
         c.beginPath();
         c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
         c.fill();
-        
-        c.fillStyle = progress >= 1 ? '#ff3300' : '#ff8866';
+        c.fillStyle = progress >= 1 ? '#ffdd00' : '#ff8866';
         c.beginPath();
         c.roundRect(BAR_X, BAR_Y, BAR_W * progress, BAR_H, BAR_H / 2);
         c.fill();
         
-        // Alert text gdy progress full + bossy żyją (3B handle mega boss)
-        // Tu tylko prosty próg: gdy regularKills ≥ 100 (mega boss threshold) i pokazujemy alert "WALCZ Z BOSSAMI"
-        if (regularKills >= SPAWN_CONFIG.megaBossKillThreshold) {
-            // Pulsujący alert pod pillem
+        if (regularKills >= SPAWN_CONFIG.megaBossKillThreshold && !spawnSystem.megaBossSpawned) {
             const pulse = 0.7 + Math.sin(Date.now() / 200) * 0.3;
             c.save();
             c.globalAlpha = pulse;
@@ -185,6 +182,96 @@ export class HUD {
             c.fillText('💀 ZNISZCZ BOSSÓW!', px + PW - 4, py + PH + 18);
             c.restore();
         }
+    }
+    
+    /**
+     * Bar Mega Bossa na górze ekranu (gdy żyje).
+     */
+    private drawMegaBossBar(megaBoss: Enemy): void {
+        const c = this.ctx;
+        const BW = 500, BH = 26;
+        const bx = (this.screenW - BW) / 2;
+        const by = 78;
+        
+        // Tło
+        c.fillStyle = 'rgba(0,0,0,0.7)';
+        c.beginPath();
+        c.roundRect(bx - 4, by - 4, BW + 8, BH + 8, 10);
+        c.fill();
+        
+        // Bar bg
+        c.fillStyle = 'rgba(60,40,0,0.5)';
+        c.beginPath();
+        c.roundRect(bx, by, BW, BH, 6);
+        c.fill();
+        
+        // HP fill (złoty)
+        const hpPct = Math.max(0, megaBoss.hp / megaBoss.maxHp);
+        c.fillStyle = '#ffdd00';
+        c.beginPath();
+        c.roundRect(bx, by, BW * hpPct, BH, 6);
+        c.fill();
+        
+        // Highlight
+        c.fillStyle = 'rgba(255,255,255,0.2)';
+        c.beginPath();
+        c.roundRect(bx, by, BW * hpPct, BH / 2, 6);
+        c.fill();
+        
+        // Label + faza
+        c.font = `bold 18px "Lilita One",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.strokeStyle = '#000';
+        c.lineWidth = 4;
+        const phase = megaBoss.getMegaPhase();
+        const phaseTxt = phase === 'rush' ? 'SZARŻA' : phase === 'strafe' ? 'OKRĄŻA' : 'WŚCIEKŁY';
+        const label = `👑 MEGA BOSS — ${phaseTxt}`;
+        c.strokeText(label, this.screenW / 2, by + BH / 2);
+        c.fillStyle = '#fff';
+        c.fillText(label, this.screenW / 2, by + BH / 2);
+    }
+    
+    /**
+     * Pełnoekranowy alert "⚠️ MEGA BOSS NADCHODZI!"
+     */
+    private drawMegaBossAlert(): void {
+        if (this.megaBossAlertTimer <= 0) return;
+        const c = this.ctx;
+        const t = this.megaBossAlertTimer;
+        this.megaBossAlertTimer--;
+        
+        // Fade in/out
+        const alpha = t > 150 ? (180 - t) / 30 : t < 30 ? t / 30 : 1;
+        
+        c.save();
+        c.globalAlpha = alpha;
+        c.translate(this.screenW / 2, this.screenH / 2 - 50);
+        
+        // Pulsujący scale
+        const pulse = 1 + Math.sin(Date.now() / 100) * 0.05;
+        c.scale(pulse, pulse);
+        
+        // Background bar
+        c.fillStyle = 'rgba(0,0,0,0.85)';
+        c.beginPath();
+        c.roundRect(-340, -50, 680, 100, 16);
+        c.fill();
+        c.strokeStyle = '#ffdd00';
+        c.lineWidth = 4;
+        c.stroke();
+        
+        // Text
+        c.font = `bold 52px "Lilita One",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.strokeStyle = '#000';
+        c.lineWidth = 6;
+        c.strokeText('⚠️ MEGA BOSS NADCHODZI!', 0, 0);
+        c.fillStyle = '#ffdd00';
+        c.fillText('⚠️ MEGA BOSS NADCHODZI!', 0, 0);
+        
+        c.restore();
     }
     
     private drawCrosshair(mouse: MouseState): void {
@@ -213,15 +300,13 @@ export class HUD {
         c.fill();
     }
     
-    render(player: Player, score: number, _killsLegacy: number, mouse: MouseState, spawnSystem: SpawnSystem): void {
+    render(player: Player, score: number, _killsLegacy: number, mouse: MouseState, spawnSystem: SpawnSystem, megaBoss: Enemy | null): void {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
         
-        // HP pill (left)
         this.drawHPPill(player, 14, 8, 200, 54, 16);
         this.drawNotifs();
         
-        // Score pill (center)
         const gx2 = Math.round(this.screenW / 2 - 100);
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
@@ -236,14 +321,16 @@ export class HUD {
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
         
-        // Kills pill (right) — nowy z progress bar
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
-        // Crosshair
+        // Mega Boss HP bar (gdy żyje)
+        if (megaBoss && megaBoss.active) {
+            this.drawMegaBossBar(megaBoss);
+        }
+        
         this.drawCrosshair(mouse);
         
-        // Combo text
         if (this.comboTextTimer > 0) {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);
@@ -257,6 +344,9 @@ export class HUD {
             c.fillText(this.comboText, 0, 0);
             c.restore();
         }
+        
+        // Mega Boss alert na wierzchu
+        this.drawMegaBossAlert();
     }
     
     clear(): void {

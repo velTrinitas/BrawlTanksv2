@@ -3,7 +3,7 @@ import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
 import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
-import { POWERS, CHARGE_CONFIG, type PowerId } from '../config/powers';
+import { POWERS, type PowerId } from '../config/powers';
 
 interface HudNotif {
     text: string;
@@ -227,18 +227,18 @@ export class HUD {
         }
     }
     
+    /**
+     * Super power bar — 3 ikony z cooldown overlay (zamiast charges).
+     */
     private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
         const cx = this.screenW / 2;
         
         const ICON_SIZE = 72;
         const ICON_GAP = 14;
-        const PILL_H = 40;
-        const PILL_W = 300;
-        const BOTTOM_MARGIN = 30;
+        const BOTTOM_MARGIN = 40;
         
-        const pillY = this.screenH - BOTTOM_MARGIN - PILL_H;
-        const iconsBaseY = pillY - 12 - ICON_SIZE;
+        const iconsBaseY = this.screenH - BOTTOM_MARGIN - ICON_SIZE;
         const hintY = iconsBaseY - 18;
         
         const totalW = ICON_SIZE * 3 + ICON_GAP * 2;
@@ -250,10 +250,15 @@ export class HUD {
             const ix = startX + i * (ICON_SIZE + ICON_GAP);
             const iy = iconsBaseY;
             const isSelected = powerSystem.selectedPowerId === id;
-            const isDisabled = !power.implemented;
+            const isActive = powerSystem.activePowerId === id;
+            const cooldownProgress = powerSystem.getCooldownProgress(id);
+            const onCooldown = cooldownProgress > 0;
             
-            if (isDisabled) {
-                c.fillStyle = 'rgba(8,8,18,0.55)';
+            // Background
+            if (isActive) {
+                c.fillStyle = 'rgba(60,40,0,0.95)';
+            } else if (onCooldown) {
+                c.fillStyle = 'rgba(8,8,18,0.7)';
             } else if (isSelected) {
                 c.fillStyle = 'rgba(40,30,8,0.85)';
             } else {
@@ -263,13 +268,19 @@ export class HUD {
             c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 12);
             c.fill();
             
-            if (isSelected && !isDisabled) {
+            // Border
+            if (isActive) {
+                const pulse = 0.8 + Math.sin(Date.now() / 100) * 0.2;
+                c.strokeStyle = `rgba(255,221,0,${pulse})`;
+                c.lineWidth = 4;
+                c.stroke();
+            } else if (isSelected && !onCooldown) {
                 const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
                 c.strokeStyle = `rgba(255,221,0,${pulse})`;
                 c.lineWidth = 3.5;
                 c.stroke();
-            } else if (isDisabled) {
-                c.strokeStyle = 'rgba(80,80,80,0.4)';
+            } else if (onCooldown) {
+                c.strokeStyle = 'rgba(120,120,120,0.5)';
                 c.lineWidth = 2;
                 c.stroke();
             } else {
@@ -278,18 +289,52 @@ export class HUD {
                 c.stroke();
             }
             
+            // Emoji icon (na cooldown = przyciemniony)
             c.font = `42px "Lilita One",cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
-            c.globalAlpha = isDisabled ? 0.30 : 1.0;
+            c.globalAlpha = onCooldown ? 0.4 : 1.0;
             c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 6);
             c.globalAlpha = 1.0;
             
+            // Cooldown overlay — radial sweep + sekundy
+            if (onCooldown) {
+                const secsLeft = powerSystem.getCooldownSecondsLeft(id);
+                
+                // Radial sweep (jak zegar — wypełniony fragment cooldownu)
+                c.save();
+                c.beginPath();
+                c.moveTo(ix + ICON_SIZE / 2, iy + ICON_SIZE / 2);
+                c.arc(
+                    ix + ICON_SIZE / 2, iy + ICON_SIZE / 2,
+                    ICON_SIZE / 2 - 4,
+                    -Math.PI / 2,
+                    -Math.PI / 2 + Math.PI * 2 * cooldownProgress,
+                    false
+                );
+                c.closePath();
+                c.fillStyle = 'rgba(0,0,0,0.6)';
+                c.fill();
+                c.restore();
+                
+                // Sekundy do centrum
+                c.font = `bold 22px "Lilita One",cursive`;
+                c.textAlign = 'center';
+                c.textBaseline = 'middle';
+                c.strokeStyle = '#000';
+                c.lineWidth = 4;
+                c.strokeText(secsLeft.toFixed(0), ix + ICON_SIZE / 2, iy + ICON_SIZE / 2);
+                c.fillStyle = '#ffaa00';
+                c.fillText(secsLeft.toFixed(0), ix + ICON_SIZE / 2, iy + ICON_SIZE / 2);
+            }
+            
+            // Name pod ikoną
             c.font = `bold 11px "Lilita One",cursive`;
-            c.fillStyle = isDisabled ? 'rgba(160,160,160,0.5)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
+            c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
             c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
             
-            if (isSelected && !isDisabled) {
+            // Strzałka selected
+            if (isSelected && !isActive) {
                 c.fillStyle = '#ffdd00';
                 c.beginPath();
                 c.moveTo(ix + ICON_SIZE / 2 - 7, iy + ICON_SIZE + 4);
@@ -298,77 +343,23 @@ export class HUD {
                 c.closePath();
                 c.fill();
             }
-            
-            if (isDisabled) {
-                c.save();
-                c.fillStyle = 'rgba(120,120,120,0.85)';
-                c.font = `bold 8px "Lilita One",cursive`;
-                c.textAlign = 'center';
-                c.fillText('WKRÓTCE', ix + ICON_SIZE / 2, iy + 12);
-                c.restore();
-            }
         });
         
-        const pillX = cx - PILL_W / 2;
-        
-        c.fillStyle = 'rgba(8,8,18,0.88)';
-        c.beginPath();
-        c.roundRect(pillX, pillY, PILL_W, PILL_H, 14);
-        c.fill();
-        c.strokeStyle = 'rgba(46,204,113,0.5)';
-        c.lineWidth = 1.5;
-        c.stroke();
-        
-        const gemCx = pillX + 26, gemCy = pillY + PILL_H / 2;
-        const gemR = 12;
-        c.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i - Math.PI / 2;
-            const x = gemCx + gemR * Math.cos(angle);
-            const y = gemCy + gemR * Math.sin(angle);
-            if (i === 0) c.moveTo(x, y);
-            else c.lineTo(x, y);
-        }
-        c.closePath();
-        c.fillStyle = '#2ecc71';
-        c.fill();
-        c.strokeStyle = '#0d4d28';
-        c.lineWidth = 1.5;
-        c.stroke();
-        
-        c.font = `bold 19px "Lilita One",cursive`;
-        c.textAlign = 'left';
-        c.textBaseline = 'middle';
-        c.fillStyle = '#ffdd00';
-        c.strokeStyle = 'rgba(0,0,0,0.8)';
-        c.lineWidth = 3;
-        
-        const text = powerSystem.charges > 0
-            ? `${powerSystem.gemsSinceLastCharge}/${CHARGE_CONFIG.gemsPerChargeTrigger} · ⚡x${powerSystem.charges}`
-            : `${powerSystem.gemsSinceLastCharge}/${CHARGE_CONFIG.gemsPerChargeTrigger} do Super`;
-        c.strokeText(text, pillX + 48, pillY + PILL_H / 2);
-        c.fillText(text, pillX + 48, pillY + PILL_H / 2);
-        
-        const BAR_X = pillX + 48;
-        const BAR_Y = pillY + PILL_H - 6;
-        const BAR_W = PILL_W - 60;
-        const BAR_H = 3;
-        c.fillStyle = 'rgba(255,255,255,0.1)';
-        c.fillRect(BAR_X, BAR_Y, BAR_W, BAR_H);
-        c.fillStyle = '#2ecc71';
-        c.fillRect(BAR_X, BAR_Y, BAR_W * powerSystem.getGemProgress(), BAR_H);
-        
+        // Hint nad ikonkami
         c.font = `12px "Lilita One",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
         c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
         
-        // v0.4d: Aura countdown + time bar
-        if (powerSystem.isActive) {
+        // Active notification (gdy aktywny aura lub freeze — z czasem)
+        if (powerSystem.activePowerId !== null) {
+            const power = POWERS[powerSystem.activePowerId];
+            const secsLeft = powerSystem.getActiveSecondsLeft();
+            
             const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
-            const power = POWERS[powerSystem.selectedPowerId];
-            const secondsLeft = (powerSystem.framesLeft / 60).toFixed(1);
-            const activeText = `☄️ AURA AKTYWNA — ${secondsLeft}s ☄️`;
+            const activeText = power.id === 'aura'
+                ? `🛡️ TARCZA — ${secsLeft.toFixed(1)}s 🛡️`
+                : `❄️ MRÓZ — ${secsLeft.toFixed(1)}s ❄️`;
             
             c.save();
             c.globalAlpha = pulse;
@@ -377,29 +368,27 @@ export class HUD {
             c.strokeStyle = '#000';
             c.lineWidth = 5;
             c.strokeText(activeText, cx, hintY - 38);
-            c.fillStyle = '#ffdd00';
+            c.fillStyle = power.id === 'aura' ? '#ffdd00' : '#66ddff';
             c.fillText(activeText, cx, hintY - 38);
             c.restore();
             
-            // Time bar (żółty → pomarańczowy przy końcu)
+            // Time bar
             const TIME_BAR_W = 200;
             const TIME_BAR_H = 6;
             const tbX = cx - TIME_BAR_W / 2;
             const tbY = hintY - 22;
             
-            c.save();
             c.fillStyle = 'rgba(0,0,0,0.7)';
             c.beginPath();
             c.roundRect(tbX - 2, tbY - 2, TIME_BAR_W + 4, TIME_BAR_H + 4, 4);
             c.fill();
             
             const timeProgress = powerSystem.framesLeft / power.durationFrames;
-            const barColor = timeProgress > 0.3 ? '#ffdd00' : '#ff6600';
+            const barColor = timeProgress > 0.3 ? (power.id === 'aura' ? '#ffdd00' : '#66ddff') : '#ff6600';
             c.fillStyle = barColor;
             c.beginPath();
             c.roundRect(tbX, tbY, TIME_BAR_W * timeProgress, TIME_BAR_H, 3);
             c.fill();
-            c.restore();
         }
     }
     
@@ -567,10 +556,8 @@ export class HUD {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
         
-        // === TOP ROW ===
         this.drawHPPill(player, 14, 8, 200, 54, 16);
         
-        // Score pill (środek)
         const gx2 = Math.round(this.screenW / 2 - 100);
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
@@ -585,19 +572,14 @@ export class HUD {
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
         
-        // Kill counter (prawy)
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
-        // === SECOND ROW ===
-        // Gem counter POD HP (lewy, rząd 2)
         this.drawGemPill(spawnSystem, 14, 70, 140, 44, 14);
         
         this.drawNotifs();
-        
         this.drawMagnetStatus(powerSystem);
         this.drawTurboStatus(player);
-        
         this.drawSuperPowerBar(powerSystem);
         
         if (megaBoss && megaBoss.active) {

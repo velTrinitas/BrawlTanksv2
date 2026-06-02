@@ -19,11 +19,8 @@ import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, AURA_CONFIG } from './config/powers';
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG } from './config/powers';
 
-// ==========================================
-// STATE
-// ==========================================
 let selectedBrawler: Brawler = BRAWLERS[0];
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
@@ -53,9 +50,6 @@ let isMouseDown = false;
 let comboCount = 0;
 let comboEndTime = 0;
 
-// ==========================================
-// PIXI APP
-// ==========================================
 const app = new PIXI.Application({
     resizeTo: window,
     backgroundColor: 0x14141e,
@@ -71,9 +65,6 @@ app.stage.addChild(worldContainer);
 
 const hud = new HUD('hudCanvas');
 
-// ==========================================
-// MENU — char select grid
-// ==========================================
 const charGrid = document.getElementById('charGrid')!;
 BRAWLERS.forEach(b => {
     const div = document.createElement('div');
@@ -101,11 +92,36 @@ BRAWLERS.forEach(b => {
 // INPUT HANDLERS
 // ==========================================
 function tryActivateSuper(): void {
-    if (gameState !== 'PLAYING' || !powerSystem) return;
-    console.log('[Input] tryActivateSuper(), charges=', powerSystem.charges);
-    if (powerSystem.activate()) {
-        hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
-        effects?.shake(6, 8);
+    if (gameState !== 'PLAYING' || !powerSystem || !player || !effects) return;
+    
+    const result = powerSystem.activate(player, enemies);
+    if (!result.activated) return;
+    
+    if (result.powerId === 'aura') {
+        hud.addNotif('🛡️ TARCZA AKTYWNA!', '#ffdd00');
+        effects.shake(4, 6);
+    } else if (result.powerId === 'megaBomb' && result.megaBombTargets) {
+        // Spawn explosion effect + apply damage
+        effects.spawnMegaBomb(player.x, player.y);
+        hud.addNotif(`💣 MEGA BOMBA — ${result.megaBombTargets.length} celów!`, '#ff4400');
+        
+        for (const enemy of result.megaBombTargets) {
+            const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
+            if (killed) {
+                spawnSystem!.registerKill(enemy);
+                stats.score += enemy.scoreValue;
+                dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+                if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
+            }
+        }
+    } else if (result.powerId === 'freeze' && result.freezeUntil !== undefined) {
+        // Freeze ALL active enemies
+        for (const enemy of enemies) {
+            if (enemy.active) enemy.freeze(result.freezeUntil);
+        }
+        effects.spawnFreezeOverlay(300); // 5s = 300 frames
+        hud.addNotif('❄️ MRÓZ NA WSZYSTKICH WROGACH!', '#66ddff');
+        effects.shake(3, 8);
     }
 }
 
@@ -269,9 +285,6 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // ==========================================
-    // PADS update — MediPady i PowerPady
-    // ==========================================
     const time = Date.now() / 1000;
     for (const pad of mediPads) {
         const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
@@ -291,14 +304,10 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Hearts pickup
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
         h.update(delta);
-        if (!h.active) {
-            hearts.splice(i, 1);
-            continue;
-        }
+        if (!h.active) { hearts.splice(i, 1); continue; }
         const dx = player.x - h.x, dy = player.y - h.y;
         if (dx * dx + dy * dy < (h.radius + 22) * (h.radius + 22)) {
             if (h.pickup(effects)) {
@@ -309,39 +318,26 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Gems pickup + magnet attract
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
         g.update(delta, player.x, player.y);
-        if (!g.active) {
-            gems.splice(i, 1);
-            continue;
-        }
+        if (!g.active) { gems.splice(i, 1); continue; }
         const dx = player.x - g.x, dy = player.y - g.y;
         if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
             if (g.pickup(effects)) {
-                const chargesBefore = powerSystem.charges;
-                powerSystem.onGemCollected();
                 spawnSystem.registerGemCollected();
                 stats.score += 1;
-                if (powerSystem.charges > chargesBefore) {
-                    hud.addNotif(`⚡ +${powerSystem.charges - chargesBefore} SUPER CHARGES!`, '#ffdd00');
-                    effects.shake(5, 8);
-                }
+                // Etap 1: gemy = score only (super-shot logic w Etapie 2)
                 gems.splice(i, 1);
             }
         }
     }
     
-    // Magnet pickup
     for (let i = magnets.length - 1; i >= 0; i--) {
         const m = magnets[i];
         m.update(delta);
-        if (!m.active) {
-            magnets.splice(i, 1);
-            continue;
-        }
+        if (!m.active) { magnets.splice(i, 1); continue; }
         const dx = player.x - m.x, dy = player.y - m.y;
         if (dx * dx + dy * dy < (m.radius + 22) * (m.radius + 22)) {
             if (m.pickup(effects)) {
@@ -352,7 +348,6 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Player shooting
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
@@ -369,52 +364,43 @@ app.ticker.add((delta) => {
         lastShotTime = now;
     }
     
-    // Player bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, buildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
     
-    // Enemy bullets
+    // === Enemy bullets hitting player — TARCZA SPRAWDZENIE ===
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         eb.update(delta, buildings, effects);
-        if (!eb.active) {
-            enemyBullets.splice(i, 1);
-            continue;
-        }
+        if (!eb.active) { enemyBullets.splice(i, 1); continue; }
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {
-            const playerDied = player.takeDamage(eb.dmg);
-            effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
-            effects.shake(4, 6);
+            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable);
+            
+            if (powerSystem.isInvulnerable) {
+                // Pocisk odbity od tarczy — wizualne sparks żółte
+                effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
+            } else {
+                effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
+                effects.shake(4, 6);
+            }
             eb.destroy();
             enemyBullets.splice(i, 1);
             if (playerDied) { triggerGameOver(); return; }
         }
     }
     
-    // Spawn system
     const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
     magnets.push(...spawnResult.newMagnets);
     if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     
-    // Power system update (aura damage tick na enemies) — v0.4e: damage z AURA_CONFIG
-    const auraTargets = powerSystem.update(delta, player, enemies, worldContainer, effects);
-    for (const enemy of auraTargets) {
-        const killed = enemy.takeDamage(AURA_CONFIG.damagePerTick, enemy.x, enemy.y, worldContainer, effects);
-        if (killed) {
-            spawnSystem.registerKill(enemy);
-            stats.score += enemy.scoreValue;
-            dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
-            if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
-        }
-    }
+    // Aura update (visual + duration)
+    powerSystem.update(delta, player, enemies, worldContainer, effects);
     
-    // Enemies update + collisions
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
@@ -423,7 +409,9 @@ app.ticker.add((delta) => {
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (dP < collisionDist * collisionDist) {
-            const playerDied = player.takeDamage(enemy.collisionDmg);
+            // Kolizja sprawdza tarczę
+            const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable);
+            
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
                 dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
@@ -433,12 +421,11 @@ app.ticker.add((delta) => {
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
-                effects.shake(8, 10);
+                if (!powerSystem.isInvulnerable) effects.shake(8, 10);
             }
             if (playerDied) { triggerGameOver(); return; }
         }
         
-        // Bullet-enemy collision
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (!b.active) continue;

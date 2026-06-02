@@ -13,14 +13,13 @@ export class Player {
     public brawler: Brawler;
     public x: number;
     public y: number;
-    public baseSpeed: number;          // bez bonusów
+    public baseSpeed: number;
     public maxHp: number;
     public hp: number;
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
     
-    // Speed boost state (z PowerPad)
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
     
@@ -53,22 +52,22 @@ export class Player {
         worldContainer.addChild(this.container);
     }
     
-    takeDamage(amount: number): boolean {
+    /**
+     * @param amount damage do zadania
+     * @param isInvulnerable jeśli true (np. aura aktywna), damage NIE zostaje zadany
+     * @returns true jeśli gracz zginął
+     */
+    takeDamage(amount: number, isInvulnerable: boolean = false): boolean {
+        if (isInvulnerable) return false; // TARCZA blokuje wszystko
         this.hp -= amount;
         return this.hp <= 0;
     }
     
-    /**
-     * Aktywuje turbo boost (z PowerPad).
-     */
     applyTurboBoost(durationMs: number, multiplier: number): void {
         this.speedBoostMult = multiplier;
         this.speedBoostEnd = Date.now() + durationMs;
     }
     
-    /**
-     * Aktualna prędkość z uwzględnieniem bonusów.
-     */
     get currentSpeed(): number {
         if (Date.now() > this.speedBoostEnd) {
             this.speedBoostMult = 1;
@@ -76,9 +75,6 @@ export class Player {
         return this.baseSpeed * this.speedBoostMult;
     }
     
-    /**
-     * Czy aktualnie pod boost'em.
-     */
     get hasSpeedBoost(): boolean {
         return Date.now() < this.speedBoostEnd && this.speedBoostMult > 1;
     }
@@ -116,7 +112,6 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
         
-        // Tint hull gdy boost (pomarańczowy glow)
         if (this.hasSpeedBoost) {
             this.hull.tint = 0xffcc66;
         } else {
@@ -125,7 +120,7 @@ export class Player {
         
         if (this.isMoving) {
             this.trackTimer++;
-            const trackInterval = this.hasSpeedBoost ? 2 : 4; // szybciej slady przy turbo
+            const trackInterval = this.hasSpeedBoost ? 2 : 4;
             if (this.trackTimer >= trackInterval) {
                 this.trackTimer = 0;
                 const perpX = -Math.sin(this.lastMoveAngle) * 12;

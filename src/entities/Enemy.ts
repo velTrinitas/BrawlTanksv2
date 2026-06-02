@@ -37,6 +37,9 @@ export class Enemy {
     public hpBar: PIXI.Graphics;
     public shieldGfx: PIXI.Graphics | null = null;
     
+    /** v0.5 Etap 1: Date.now() endpoint gdy freeze wygasa. 0 = nie zamrożony */
+    public frozenUntil: number = 0;
+    
     private shootIntervalMs: number;
     private bulletSpeed: number;
     private bulletDmg: number;
@@ -160,6 +163,17 @@ export class Enemy {
     
     update(delta: number, targetX: number, targetY: number, buildings: CyberBuilding[]): EnemyShotInfo | null {
         if (!this.active) return null;
+        
+        // v0.5 Etap 1: FREEZE check — zamrożony wróg nie rusza się, nie strzela
+        if (Date.now() < this.frozenUntil) {
+            this.hull.tint = 0x66ddff;
+            this.turret.tint = 0x66ddff;
+            return null;
+        } else if (this.hull.tint === 0x66ddff) {
+            // Freeze wygasł — przywróć normalny tint
+            this.hull.tint = this.tintHex;
+            this.turret.tint = this.tintHex;
+        }
         
         if (this.flashTimer > 0) {
             this.flashTimer -= delta;
@@ -309,5 +323,12 @@ export class Enemy {
         if (this.isMegaBoss) return 20;
         if (this.isBoss) return 5;
         return 1;
+    }
+    
+    /**
+     * v0.5 Etap 1: Zamraża wroga do timestampu `until` (Date.now() + duration).
+     */
+    freeze(until: number): void {
+        this.frozenUntil = until;
     }
 }

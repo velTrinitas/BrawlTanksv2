@@ -1,6 +1,6 @@
 /**
- * Super powers + pickup config.
- * v0.4c: magnetSpawnInterval 1500→900 (szybszy spawn, łatwiej go zobaczyć).
+ * Super powers config — v0.5 (Sesja 4B Etap 1).
+ * Refactor: per-super cooldowns, brak charges-as-cost, aura jako tarcza.
  */
 
 export type PowerId = 'aura' | 'megaBomb' | 'freeze';
@@ -10,7 +10,8 @@ export interface PowerConfig {
     name: string;
     emoji: string;
     color: number;
-    durationFrames: number;
+    cooldownMs: number;        // czas regeneracji po użyciu
+    durationFrames: number;    // czas trwania efektu (0 = instant)
     description: string;
     implemented: boolean;
 }
@@ -19,10 +20,11 @@ export const POWERS: Record<PowerId, PowerConfig> = {
     aura: {
         id: 'aura',
         name: 'Aura',
-        emoji: '☄️',
+        emoji: '🛡️',
         color: 0xffdd00,
-        durationFrames: 480,
-        description: 'Pierścień ognia zadaje obrażenia wrogom wokół ciebie przez 8s',
+        cooldownMs: 30000,       // v4.48: 30s
+        durationFrames: 480,     // 8s u nas (v4.48 miało 5s — zachowujemy buff)
+        description: 'Tarcza ochronna — blokuje wszystkie obrażenia przez 8s',
         implemented: true,
     },
     megaBomb: {
@@ -30,33 +32,36 @@ export const POWERS: Record<PowerId, PowerConfig> = {
         name: 'Mega Bomba',
         emoji: '💣',
         color: 0xff4400,
-        durationFrames: 30,
-        description: '[Sesja 4B] AoE wybuch zabija wszystkich w promieniu 250px',
-        implemented: false,
+        cooldownMs: 20000,       // v4.48: 20s
+        durationFrames: 0,       // instant
+        description: 'AoE wybuch — 8 obrażeń w promieniu 250px',
+        implemented: true,
     },
     freeze: {
         id: 'freeze',
         name: 'Mróz',
         emoji: '❄️',
         color: 0x66ddff,
-        durationFrames: 240,
-        description: '[Sesja 4B] Zamraża wszystkich wrogów na 4s',
-        implemented: false,
+        cooldownMs: 25000,       // v4.48: 25s
+        durationFrames: 300,     // 5s
+        description: 'Zamraża wszystkich wrogów na 5s',
+        implemented: true,
     },
 };
 
-export const CHARGE_CONFIG = {
-    gemsPerChargeTrigger: 10,
-    chargesPerTrigger: 3,
-    maxCharges: 9,
+/**
+ * Mega Bomb stats.
+ */
+export const MEGA_BOMB_CONFIG = {
+    blastRadius: 250,
+    damage: 8,
 };
 
-export const AURA_CONFIG = {
-    radius: 150,
-    tickEveryFrames: 24,
-    damagePerTick: 3,
-};
-
+/**
+ * Pickup config (gem, magnet).
+ * UWAGA: gemValue zostaje, ale w Etapie 1 gemy NIE ładują super powers.
+ * W Etapie 2 będą ładować super-shot broni.
+ */
 export const PICKUP_CONFIG = {
     gemValue: 1,
     gemLifetimeMs: 20000,
@@ -65,7 +70,6 @@ export const PICKUP_CONFIG = {
     gemsPerBoss: 5,
     gemsPerMegaBoss: 20,
     
-    // Magnet — v0.4c: szybszy spawn (15s zamiast 25s)
     magnetSpawnIntervalFrames: 900,
     magnetMaxOnMap: 1,
     magnetActiveDurationMs: 5000,

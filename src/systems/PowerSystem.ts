@@ -2,20 +2,42 @@ import * as PIXI from 'pixi.js';
 import type { Enemy } from '../entities/Enemy';
 import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
-import { POWERS, AURA_CONFIG, CHARGE_CONFIG, type PowerId } from '../config/powers';
+import { POWERS, MEGA_BOMB_CONFIG, type PowerId } from '../config/powers';
 
+/**
+ * Result aktywacji super powera — main.ts używa do triggers efektów + damage.
+ */
+export interface ActivationResult {
+    activated: boolean;
+    powerId?: PowerId;
+    // Mega Bomb: enemies do zaaplikowania damage
+    megaBombTargets?: Enemy[];
+    // Freeze: enemies do zamrożenia
+    freezeUntil?: number;
+}
+
+/**
+ * Super power system z per-super cooldowns (zgodne z v4.48).
+ * Brak charges — supery dostępne od początku, ograniczone tylko cooldownami.
+ */
 export class PowerSystem {
     public selectedPowerId: PowerId = 'aura';
-    public charges: number = 0;
-    public gemsSinceLastCharge: number = 0;
     
-    public isActive: boolean = false;
-    public framesLeft: number = 0;
+    /** Date.now() timestamps gdy cooldown wygasa per super */
+    public powerCooldowns: Record<PowerId, number> = {
+        aura: 0,
+        megaBomb: 0,
+        freeze: 0,
+    };
+    
+    /** Aktualnie aktywny super (lub null) */
     public activePowerId: PowerId | null = null;
+    public framesLeft: number = 0;
     
+    // Aura shield visual
     private auraGfx: PIXI.Graphics;
-    private auraTickFrames: number = 0;
     
+    // Magnet (osobna mechanika od super powers)
     public magnetActive: boolean = false;
     public magnetEndTime: number = 0;
     
@@ -26,47 +48,87 @@ export class PowerSystem {
         worldContainer.addChild(this.auraGfx);
     }
     
-    onGemCollected(): void {
-        this.gemsSinceLastCharge++;
-        if (this.gemsSinceLastCharge >= CHARGE_CONFIG.gemsPerChargeTrigger) {
-            this.gemsSinceLastCharge = 0;
-            this.charges = Math.min(CHARGE_CONFIG.maxCharges, this.charges + CHARGE_CONFIG.chargesPerTrigger);
-        }
-    }
-    
+    /**
+     * Cycle wybór super powera (scroll).
+     */
     cycleSelected(direction: number): void {
         const order: PowerId[] = ['aura', 'megaBomb', 'freeze'];
         const idx = order.indexOf(this.selectedPowerId);
-        let newIdx = (idx + direction + order.length) % order.length;
-        let attempts = 0;
-        while (!POWERS[order[newIdx]].implemented && attempts < order.length) {
-            newIdx = (newIdx + direction + order.length) % order.length;
-            attempts++;
-        }
+        const newIdx = (idx + direction + order.length) % order.length;
         this.selectedPowerId = order[newIdx];
     }
     
-    activate(): boolean {
-        // Debug log diagnozujący punkt #1 z user feedback
-        console.log('[PowerSystem] activate() called:', {
-            isActive: this.isActive,
-            charges: this.charges,
-            selectedPowerId: this.selectedPowerId,
-            implemented: POWERS[this.selectedPowerId].implemented,
-        });
+    /**
+     * Czy wybrany super jest gotowy do aktywacji?
+     */
+    canActivate(id: PowerId = this.selectedPowerId): boolean {
+        if (this.activePowerId !== null) return false; // jakiś inny super aktywny
+        return Date.now() >= this.powerCooldowns[id];
+    }
+    
+    /**
+     * Cooldown progress 0..1 (0 = gotowy, 1 = pełny cooldown).
+     */
+    getCooldownProgress(id: PowerId): number {
+        const power = POWERS[id];
+        const remaining = this.powerCooldowns[id] - Date.now();
+        if (remaining <= 0) return 0;
+        return Math.min(1, remaining / power.cooldownMs);
+    }
+    
+    /**
+     * Pozostałe sekundy cooldownu dla super (lub 0 jeśli gotowy).
+     */
+    getCooldownSecondsLeft(id: PowerId): number {
+        const remaining = this.powerCooldowns[id] - Date.now();
+        return Math.max(0, remaining / 1000);
+    }
+    
+    /**
+     * Aktywacja wybranego super powera.
+     * @param player gracz (potrzebny dla Mega Bomb/Freeze do referencji pozycji)
+     * @param enemies lista wrogów (dla Mega Bomb damage + Freeze)
+     */
+    activate(player: Player, enemies: Enemy[]): ActivationResult {
+        if (!this.canActivate()) {
+            return { activated: false };
+        }
         
-        if (this.isActive) return false;
-        if (this.charges <= 0) return false;
-        const power = POWERS[this.selectedPowerId];
-        if (!power.implemented) return false;
+        const id = this.selectedPowerId;
+        const power = POWERS[id];
         
-        this.isActive = true;
-        this.activePowerId = this.selectedPowerId;
-        this.framesLeft = power.durationFrames;
-        this.charges--;
-        this.auraGfx.visible = true;
-        this.auraTickFrames = 0;
-        return true;
+        console.log(`[PowerSystem] Activating ${id}, cooldown set for ${power.cooldownMs}ms`);
+        
+        // Ustaw cooldown TYLKO dla tego super
+        this.powerCooldowns[id] = Date.now() + power.cooldownMs;
+        
+        if (id === 'aura') {
+            this.activePowerId = 'aura';
+            this.framesLeft = power.durationFrames;
+            this.auraGfx.visible = true;
+            return { activated: true, powerId: 'aura' };
+        }
+        
+        if (id === 'megaBomb') {
+            // Instant — znajdź wrogów w radiusie
+            const blastR2 = MEGA_BOMB_CONFIG.blastRadius * MEGA_BOMB_CONFIG.blastRadius;
+            const targets = enemies.filter(e => {
+                if (!e.active) return false;
+                const dx = e.x - player.x;
+                const dy = e.y - player.y;
+                return (dx * dx + dy * dy) < blastR2;
+            });
+            return { activated: true, powerId: 'megaBomb', megaBombTargets: targets };
+        }
+        
+        if (id === 'freeze') {
+            this.activePowerId = 'freeze';
+            this.framesLeft = power.durationFrames;
+            const freezeUntil = Date.now() + (power.durationFrames / 60) * 1000;
+            return { activated: true, powerId: 'freeze', freezeUntil };
+        }
+        
+        return { activated: false };
     }
     
     activateMagnet(durationMs: number): void {
@@ -74,93 +136,96 @@ export class PowerSystem {
         this.magnetEndTime = Date.now() + durationMs;
     }
     
-    private isInAuraRange(enemy: Enemy, playerX: number, playerY: number): boolean {
-        const dx = enemy.x - playerX;
-        const dy = enemy.y - playerY;
-        return (dx * dx + dy * dy) < (AURA_CONFIG.radius * AURA_CONFIG.radius);
+    /**
+     * Czy gracz aktualnie ma tarczę (invulnerability)?
+     */
+    get isInvulnerable(): boolean {
+        return this.activePowerId === 'aura';
+    }
+    
+    /**
+     * Czy aktualnie freeze jest aktywny?
+     */
+    get isFreezeActive(): boolean {
+        return this.activePowerId === 'freeze';
     }
     
     update(
         delta: number,
         player: Player,
-        enemies: Enemy[],
+        _enemies: Enemy[],
         _worldContainer: PIXI.Container,
         effects: EffectsManager
-    ): Enemy[] {
+    ): void {
         if (this.magnetActive && Date.now() >= this.magnetEndTime) {
             this.magnetActive = false;
         }
         
-        const enemiesToDamage: Enemy[] = [];
-        
-        if (this.isActive && this.activePowerId === 'aura') {
+        if (this.activePowerId === 'aura') {
             this.framesLeft -= delta;
-            this.auraTickFrames += delta;
-            
-            this.drawAuraRing(player.x, player.y);
-            
-            if (this.auraTickFrames >= AURA_CONFIG.tickEveryFrames) {
-                this.auraTickFrames = 0;
-                for (const enemy of enemies) {
-                    if (enemy.active && this.isInAuraRange(enemy, player.x, player.y)) {
-                        enemiesToDamage.push(enemy);
-                    }
-                }
-            }
+            this.drawAuraShield(player.x, player.y);
             
             if (this.framesLeft <= 0) {
-                this.isActive = false;
                 this.activePowerId = null;
                 this.auraGfx.visible = false;
                 this.auraGfx.clear();
-                effects.spawnExplosionAndWreck(player.x, player.y, 0xffdd00);
+                effects.spawnEnemyHitSparks(player.x, player.y, 0xffdd00);
+            }
+        } else if (this.activePowerId === 'freeze') {
+            this.framesLeft -= delta;
+            
+            if (this.framesLeft <= 0) {
+                this.activePowerId = null;
             }
         }
-        
-        return enemiesToDamage;
     }
     
-    private drawAuraRing(playerX: number, playerY: number): void {
+    /**
+     * Visual tarczy (zamiast "ognisty pierścień") — wnętrze pulsujące, deflection-style.
+     */
+    private drawAuraShield(playerX: number, playerY: number): void {
         this.auraGfx.x = playerX;
         this.auraGfx.y = playerY;
         this.auraGfx.clear();
         
         const t = Date.now() / 100;
         const pulse = 0.7 + Math.sin(t) * 0.3;
-        const r = AURA_CONFIG.radius;
+        const r = 55; // tarcza bezpośrednio wokół gracza
         
-        this.auraGfx.lineStyle(6, 0xffdd00, pulse);
+        // Zewnętrzny pierścień
+        this.auraGfx.lineStyle(4, 0xffdd00, pulse);
         this.auraGfx.drawCircle(0, 0, r);
-        this.auraGfx.lineStyle(2, 0xffffaa, pulse * 0.7);
-        this.auraGfx.drawCircle(0, 0, r - 8);
-        this.auraGfx.beginFill(0xffaa00, 0.08 * pulse);
+        
+        // Wewnętrzny ring (cieńszy)
+        this.auraGfx.lineStyle(2, 0xffffaa, pulse * 0.5);
+        this.auraGfx.drawCircle(0, 0, r - 6);
+        
+        // Subtelne wypełnienie (transparent shield)
+        this.auraGfx.beginFill(0xffdd00, 0.05 * pulse);
         this.auraGfx.drawCircle(0, 0, r);
         this.auraGfx.endFill();
         
-        const sparkCount = 8;
-        const baseRot = Date.now() / 200;
-        for (let i = 0; i < sparkCount; i++) {
-            const a = baseRot + (i / sparkCount) * Math.PI * 2;
-            const sx = Math.cos(a) * r;
-            const sy = Math.sin(a) * r;
-            this.auraGfx.beginFill(0xffffff, pulse);
-            this.auraGfx.drawCircle(sx, sy, 3);
+        // Heksagonalny pattern shield (segmenty)
+        const segments = 6;
+        for (let i = 0; i < segments; i++) {
+            const angle = (i / segments) * Math.PI * 2 + Date.now() / 800;
+            const sx = Math.cos(angle) * r;
+            const sy = Math.sin(angle) * r;
+            this.auraGfx.beginFill(0xffffff, pulse * 0.8);
+            this.auraGfx.drawCircle(sx, sy, 2);
             this.auraGfx.endFill();
         }
     }
     
-    getGemProgress(): number {
-        return this.gemsSinceLastCharge / CHARGE_CONFIG.gemsPerChargeTrigger;
-    }
-    
-    isReady(): boolean {
-        return this.charges > 0 && !this.isActive && POWERS[this.selectedPowerId].implemented;
+    /**
+     * Pozostały czas aktywnego super w sekundach (do HUD).
+     */
+    getActiveSecondsLeft(): number {
+        return this.framesLeft / 60;
     }
     
     reset(): void {
-        this.charges = 0;
-        this.gemsSinceLastCharge = 0;
-        this.isActive = false;
+        this.powerCooldowns = { aura: 0, megaBomb: 0, freeze: 0 };
         this.activePowerId = null;
         this.framesLeft = 0;
         this.magnetActive = false;

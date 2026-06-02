@@ -133,9 +133,6 @@ export class HUD {
         }
     }
     
-    /**
-     * Gem counter pill — pokazuje ile total gemów zebrałeś (z ikoną zielonego gema).
-     */
     private drawGemPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
         const c = this.ctx;
         
@@ -147,7 +144,6 @@ export class HUD {
         c.lineWidth = 1;
         c.stroke();
         
-        // Zielony heksagonalny gem ikon
         const gemCx = px + 22, gemCy = py + PH / 2;
         const gemR = 11;
         c.beginPath();
@@ -165,13 +161,11 @@ export class HUD {
         c.lineWidth = 1.5;
         c.stroke();
         
-        // Mały highlight na gemie
         c.fillStyle = 'rgba(255,255,255,0.5)';
         c.beginPath();
         c.ellipse(gemCx - 2, gemCy - 5, 2.5, 1.2, 0, 0, Math.PI * 2);
         c.fill();
         
-        // Liczba zebranych gemów
         c.font = `28px "Lilita One",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
@@ -233,25 +227,16 @@ export class HUD {
         }
     }
     
-    /**
-     * Super power UI — dolny środek ekranu (FIX: layout + ikony +20% + pill widoczny).
-     */
     private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
         const cx = this.screenW / 2;
         
-        // +20% icons (72×72)
         const ICON_SIZE = 72;
         const ICON_GAP = 14;
         const PILL_H = 40;
         const PILL_W = 300;
         const BOTTOM_MARGIN = 30;
         
-        // Layout od dołu w górę:
-        // - pill_y_bottom = screenH - BOTTOM_MARGIN
-        // - pill_y_top = pill_y_bottom - PILL_H
-        // - icons_y_bottom = pill_y_top - 12
-        // - icons_y_top = icons_y_bottom - ICON_SIZE
         const pillY = this.screenH - BOTTOM_MARGIN - PILL_H;
         const iconsBaseY = pillY - 12 - ICON_SIZE;
         const hintY = iconsBaseY - 18;
@@ -267,7 +252,6 @@ export class HUD {
             const isSelected = powerSystem.selectedPowerId === id;
             const isDisabled = !power.implemented;
             
-            // Background
             if (isDisabled) {
                 c.fillStyle = 'rgba(8,8,18,0.55)';
             } else if (isSelected) {
@@ -279,7 +263,6 @@ export class HUD {
             c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 12);
             c.fill();
             
-            // Border
             if (isSelected && !isDisabled) {
                 const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
                 c.strokeStyle = `rgba(255,221,0,${pulse})`;
@@ -295,7 +278,6 @@ export class HUD {
                 c.stroke();
             }
             
-            // Emoji icon
             c.font = `42px "Lilita One",cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
@@ -303,12 +285,10 @@ export class HUD {
             c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 6);
             c.globalAlpha = 1.0;
             
-            // Name pod ikoną
             c.font = `bold 11px "Lilita One",cursive`;
             c.fillStyle = isDisabled ? 'rgba(160,160,160,0.5)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
             c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
             
-            // Strzałka selected
             if (isSelected && !isDisabled) {
                 c.fillStyle = '#ffdd00';
                 c.beginPath();
@@ -319,7 +299,6 @@ export class HUD {
                 c.fill();
             }
             
-            // "SOON" tag dla disabled
             if (isDisabled) {
                 c.save();
                 c.fillStyle = 'rgba(120,120,120,0.85)';
@@ -330,7 +309,6 @@ export class HUD {
             }
         });
         
-        // === Pill "X/10 do Super" pod ikonkami ===
         const pillX = cx - PILL_W / 2;
         
         c.fillStyle = 'rgba(8,8,18,0.88)';
@@ -341,7 +319,6 @@ export class HUD {
         c.lineWidth = 1.5;
         c.stroke();
         
-        // Heksagonalny gem
         const gemCx = pillX + 26, gemCy = pillY + PILL_H / 2;
         const gemR = 12;
         c.beginPath();
@@ -359,7 +336,6 @@ export class HUD {
         c.lineWidth = 1.5;
         c.stroke();
         
-        // Tekst
         c.font = `bold 19px "Lilita One",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
@@ -373,7 +349,6 @@ export class HUD {
         c.strokeText(text, pillX + 48, pillY + PILL_H / 2);
         c.fillText(text, pillX + 48, pillY + PILL_H / 2);
         
-        // Progress bar w pillu
         const BAR_X = pillX + 48;
         const BAR_Y = pillY + PILL_H - 6;
         const BAR_W = PILL_W - 60;
@@ -383,13 +358,11 @@ export class HUD {
         c.fillStyle = '#2ecc71';
         c.fillRect(BAR_X, BAR_Y, BAR_W * powerSystem.getGemProgress(), BAR_H);
         
-        // === Hint nad ikonkami ===
         c.font = `12px "Lilita One",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
         c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
         
-        // === "AKTYWNE" notification ===
         if (powerSystem.isActive) {
             const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
             c.save();
@@ -431,9 +404,6 @@ export class HUD {
         c.restore();
     }
     
-    /**
-     * Turbo boost status pill — gdy gracz pod boost'em z PowerPad.
-     */
     private drawTurboStatus(player: Player): void {
         if (!player.hasSpeedBoost) return;
         const c = this.ctx;
@@ -573,6 +543,7 @@ export class HUD {
         c.clearRect(0, 0, this.screenW, this.screenH);
         
         // === TOP ROW ===
+        // HP pill (lewy górny, rząd 1)
         this.drawHPPill(player, 14, 8, 200, 54, 16);
         
         // Score pill (środek)
@@ -590,31 +561,30 @@ export class HUD {
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
         
-        // Gem counter pill — między score a kills (po lewej stronie kills)
-        const gemPillX = this.screenW - 14 - 200 - 14 - 140;
-        this.drawGemPill(spawnSystem, gemPillX, 8, 140, 54, 16);
-        
-        // Kill counter (najbardziej w prawo)
+        // Kill counter (prawy górny)
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
+        // === SECOND ROW ===
+        // Gem counter POD HP (lewy, rząd 2) — v0.4c
+        this.drawGemPill(spawnSystem, 14, 70, 140, 44, 14);
+        
         this.drawNotifs();
         
-        // === Active status pills (pod kill counter) ===
+        // Status pills (pod kill counter)
         this.drawMagnetStatus(powerSystem);
         this.drawTurboStatus(player);
         
-        // === BOTTOM CENTER — Super power bar ===
+        // Super power bar (dół środek)
         this.drawSuperPowerBar(powerSystem);
         
-        // === Mega Boss elements ===
+        // Mega boss
         if (megaBoss && megaBoss.active) {
             this.drawMegaBossBar(megaBoss);
         }
         
         this.drawCrosshair(mouse);
         
-        // Combo text
         if (this.comboTextTimer > 0) {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);

@@ -1,6 +1,6 @@
 /**
- * Super powers config + pad config.
- * Hotfix v0.4b: usunięty PowerCube (zastąpiony PowerHoverPad jako część mapy).
+ * Super powers + pickup config.
+ * v0.4c: magnetSpawnInterval 1500→900 (szybszy spawn, łatwiej go zobaczyć).
  */
 
 export type PowerId = 'aura' | 'megaBomb' | 'freeze';
@@ -57,9 +57,6 @@ export const AURA_CONFIG = {
     damagePerTick: 2,
 };
 
-/**
- * Pickup config (gem, magnet — PowerCube usunięty).
- */
 export const PICKUP_CONFIG = {
     gemValue: 1,
     gemLifetimeMs: 20000,
@@ -68,8 +65,8 @@ export const PICKUP_CONFIG = {
     gemsPerBoss: 5,
     gemsPerMegaBoss: 20,
     
-    // Magnet — hotfix: range -25%, speed -25%
-    magnetSpawnIntervalFrames: 1500,
+    // Magnet — v0.4c: szybszy spawn (15s zamiast 25s)
+    magnetSpawnIntervalFrames: 900,
     magnetMaxOnMap: 1,
     magnetActiveDurationMs: 5000,
     magnetAttractSpeed: 6,

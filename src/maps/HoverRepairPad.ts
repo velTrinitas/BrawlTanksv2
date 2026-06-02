@@ -2,13 +2,12 @@ import * as PIXI from 'pixi.js';
 
 /**
  * HoverRepairPad — MediPad z v4.48.
- * Lecący nad ziemią pad medyczny. Gdy gracz stoi na nim 3s → +1 HP, cooldown 60s.
- * Wizual: czerwony glow, krzyż medyczny, lasery naprawcze, "NAPRAWIAM..." progress bar.
+ * v0.4c: range 48→60px, naprawa 3s→2.25s (łatwiejszy healing).
  */
 
 const PAD_SIZE = 100;
-const ACTIVATE_RANGE = 48;
-const REPAIR_TIME_MS = 3000;
+const ACTIVATE_RANGE = 60;       // v0.4c: +25% (było 48)
+const REPAIR_TIME_MS = 2250;     // v0.4c: -25% (było 3000)
 const COOLDOWN_MS = 60000;
 
 let _redGlowTexture: PIXI.Texture | null = null;
@@ -28,9 +27,6 @@ function getRedGlowTexture(): PIXI.Texture {
     return _redGlowTexture;
 }
 
-/**
- * Wynik tryUse — czy pad uleczył gracza w tym ticku.
- */
 export interface PadInteractionResult {
     healed: boolean;
 }
@@ -64,14 +60,12 @@ export class HoverRepairPad {
         this.container.zIndex = y + 50;
         worldContainer.addChild(this.container);
         
-        // Floor shadow (statyczna na podłodze)
         this.floorShadow = new PIXI.Graphics();
         this.floorShadow.beginFill(0x000000, 0.6);
         this.floorShadow.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
         this.floorShadow.endFill();
         this.container.addChild(this.floorShadow);
         
-        // Floor glow (radialny gradient sprite)
         this.glowSprite = new PIXI.Sprite(getRedGlowTexture());
         this.glowSprite.anchor.set(0.5);
         this.glowSprite.x = PAD_SIZE / 2;
@@ -79,22 +73,18 @@ export class HoverRepairPad {
         this.glowSprite.blendMode = PIXI.BLEND_MODES.SCREEN;
         this.container.addChild(this.glowSprite);
         
-        // Platform base (translocuje się w górę dla hover effect)
         this.platformBase = new PIXI.Container();
         this.container.addChild(this.platformBase);
         
-        // Ściany boczne + powierzchnia
         this.wallGfx = new PIXI.Graphics();
         this.platformBase.addChild(this.wallGfx);
         
         this.surfaceGfx = new PIXI.Graphics();
         this.platformBase.addChild(this.surfaceGfx);
         
-        // Lasery naprawcze (rysowane w surfaceGfx ale jako osobny layer)
         this.laserGfx = new PIXI.Graphics();
         this.platformBase.addChild(this.laserGfx);
         
-        // Progress bar nad padem
         this.progressBarBg = new PIXI.Graphics();
         this.progressBarBg.visible = false;
         this.platformBase.addChild(this.progressBarBg);
@@ -113,7 +103,6 @@ export class HoverRepairPad {
         this.progressLabel.visible = false;
         this.platformBase.addChild(this.progressLabel);
         
-        // Cooldown text (gdy pad nieaktywny)
         this.cooldownLabel = new PIXI.Text('', {
             fontFamily: 'Arial',
             fontSize: 9,
@@ -125,10 +114,6 @@ export class HoverRepairPad {
         this.platformBase.addChild(this.cooldownLabel);
     }
     
-    /**
-     * Sprawdza interakcję z graczem + rysuje wizualy.
-     * isPlayerMoving = czy gracz się rusza (jeśli tak, repair się resetuje).
-     */
     update(
         playerX: number,
         playerY: number,
@@ -141,7 +126,6 @@ export class HoverRepairPad {
         const isActive = now >= this.cooldownEnd;
         let healed = false;
         
-        // === Repair logic ===
         if (isActive) {
             const cx = this.x + PAD_SIZE / 2;
             const cy = this.y + PAD_SIZE / 2;
@@ -170,7 +154,6 @@ export class HoverRepairPad {
             this.repairProgress = 0;
         }
         
-        // === Visual update ===
         this.drawVisuals(isActive, time);
         
         return { healed };
@@ -180,7 +163,6 @@ export class HoverRepairPad {
         const isRepairing = this.repairProgress > 0;
         const hoverH = isActive ? 10 + Math.sin(time * 3) * 5 : 2;
         
-        // Glow alpha pulse
         if (isActive) {
             this.glowSprite.visible = true;
             this.glowSprite.alpha = isRepairing ? 0.5 + Math.random() * 0.3 : 0.6;
@@ -188,51 +170,41 @@ export class HoverRepairPad {
             this.glowSprite.visible = false;
         }
         
-        // Platform base hover position
         this.platformBase.y = -hoverH;
         
-        // === Walls (ściany boczne) ===
         const wallColor = isActive ? 0x14050a : 0x0c0f12;
         this.wallGfx.clear();
         this.wallGfx.beginFill(wallColor);
         this.wallGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        // Front wall trapezoid (visible side from below)
         this.wallGfx.moveTo(15, hoverH);
         this.wallGfx.lineTo(15, 0);
         this.wallGfx.lineTo(PAD_SIZE - 15, 0);
         this.wallGfx.lineTo(PAD_SIZE - 15, hoverH);
         this.wallGfx.endFill();
         
-        // === Surface (powierzchnia platformy) ===
         this.surfaceGfx.clear();
-        
-        // Tło
         this.surfaceGfx.beginFill(isActive ? 0x1f0d14 : 0x14181f);
         this.surfaceGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
         this.surfaceGfx.endFill();
         
-        // Wzór technologiczny (krzyż linii środkowych)
         this.surfaceGfx.lineStyle(2, isActive ? 0x3b1622 : 0x222222, 1);
         this.surfaceGfx.moveTo(15, PAD_SIZE / 2);
         this.surfaceGfx.lineTo(PAD_SIZE - 15, PAD_SIZE / 2);
         this.surfaceGfx.moveTo(PAD_SIZE / 2, 15);
         this.surfaceGfx.lineTo(PAD_SIZE / 2, PAD_SIZE - 15);
         
-        // Neonowe krawędzie
         this.surfaceGfx.lineStyle(4, isActive ? 0xff003c : 0x333333, 1);
         this.surfaceGfx.drawRoundedRect(2, 2, PAD_SIZE - 4, PAD_SIZE - 4, 15);
         
-        // Krzyż medyczny (centrum, czerwony)
+        // Krzyż medyczny
         const cwHalf = 4, chHalf = 11;
         this.surfaceGfx.lineStyle(0);
         this.surfaceGfx.beginFill(isActive ? 0xff003c : 0x552233);
-        // pionowe
         this.surfaceGfx.drawRect(PAD_SIZE / 2 - cwHalf, PAD_SIZE / 2 - chHalf, cwHalf * 2, chHalf * 2);
-        // poziome
         this.surfaceGfx.drawRect(PAD_SIZE / 2 - chHalf, PAD_SIZE / 2 - cwHalf, chHalf * 2, cwHalf * 2);
         this.surfaceGfx.endFill();
         
-        // === Lasery naprawcze (gdy repairing) ===
+        // Lasery
         this.laserGfx.clear();
         if (isRepairing) {
             const targetX = PAD_SIZE / 2 + (Math.random() - 0.5) * 5;
@@ -252,7 +224,7 @@ export class HoverRepairPad {
             }
         }
         
-        // === Progress bar + NAPRAWIAM label ===
+        // Progress bar
         if (isRepairing) {
             this.progressBarBg.visible = true;
             this.progressBarFill.visible = true;
@@ -276,7 +248,6 @@ export class HoverRepairPad {
             this.progressLabel.visible = false;
         }
         
-        // === Cooldown label (gdy nieaktywny) ===
         if (!isActive) {
             this.cooldownLabel.visible = true;
             const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);

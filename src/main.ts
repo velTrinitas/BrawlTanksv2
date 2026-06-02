@@ -72,7 +72,7 @@ app.stage.addChild(worldContainer);
 const hud = new HUD('hudCanvas');
 
 // ==========================================
-// MENU
+// MENU — char select grid
 // ==========================================
 const charGrid = document.getElementById('charGrid')!;
 BRAWLERS.forEach(b => {
@@ -98,19 +98,16 @@ BRAWLERS.forEach(b => {
 });
 
 // ==========================================
-// INPUT HANDLERS — FIX: dual handler (mousedown + pointerdown)
+// INPUT HANDLERS — PPM przez contextmenu event (v4.48 sposób, niezawodne)
 // ==========================================
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem) return;
+    console.log('[Input] tryActivateSuper(), charges=', powerSystem.charges);
     if (powerSystem.activate()) {
         hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
         effects?.shake(6, 8);
-    } else {
-        // Diagnostyczny feedback dla gracza
-        if (powerSystem.charges <= 0) {
-            hud.addNotif('Zbieraj zielone gemy!', '#aaaaaa');
-        }
     }
+    // Brak fallback notyfikacji gdy charges=0 (cicho)
 }
 
 window.addEventListener('keydown', e => {
@@ -131,27 +128,20 @@ window.addEventListener('keyup', e => {
     mouse.screenY = e.clientY;
 });
 
-// DUAL HANDLER — pointerdown + mousedown (gwarancja PPM działa)
-const handleMouseButton = (e: any) => {
-    if (gameState !== 'PLAYING') return;
-    if (e.button === 2) {
-        e.preventDefault();
-        tryActivateSuper();
-        return;
-    }
-    if (e.button === 0) {
-        isMouseDown = true;
-    }
-};
-(app.view as HTMLCanvasElement).addEventListener('pointerdown', handleMouseButton);
-(app.view as HTMLCanvasElement).addEventListener('mousedown', handleMouseButton);
-
+// LPM dla strzelania
+(app.view as HTMLCanvasElement).addEventListener('pointerdown', (e: any) => {
+    if (e.button === 0) isMouseDown = true;
+});
 (app.view as HTMLCanvasElement).addEventListener('pointerup', () => { isMouseDown = false; });
-(app.view as HTMLCanvasElement).addEventListener('mouseup', () => { isMouseDown = false; });
 (app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
 
-(app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => e.preventDefault());
+// PPM = super (contextmenu event — najpewniejsze)
+(app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => {
+    e.preventDefault();
+    tryActivateSuper();
+});
 
+// Scroll = wybór super
 (app.view as HTMLCanvasElement).addEventListener('wheel', (e: any) => {
     if (gameState !== 'PLAYING' || !powerSystem) return;
     e.preventDefault();
@@ -203,7 +193,6 @@ function startGame(): void {
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
     
-    // Spawn padów statycznie z pozycji v4.48
     mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
     powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     
@@ -278,9 +267,6 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // ==========================================
-    // PADS update — MediPady i PowerPady
-    // ==========================================
     const time = Date.now() / 1000;
     for (const pad of mediPads) {
         const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
@@ -300,7 +286,6 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Hearts pickup
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
         h.update(delta);
@@ -318,14 +303,9 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Gems pickup + magnet attract
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
-        
-        if (powerSystem.magnetActive) {
-            g.attracted = true;
-        }
-        
+        if (powerSystem.magnetActive) g.attracted = true;
         g.update(delta, player.x, player.y);
         if (!g.active) {
             gems.splice(i, 1);
@@ -337,7 +317,7 @@ app.ticker.add((delta) => {
                 const chargesBefore = powerSystem.charges;
                 powerSystem.onGemCollected();
                 spawnSystem.registerGemCollected();
-                stats.score += 1; // +1 score per gem (jak v4.48)
+                stats.score += 1;
                 if (powerSystem.charges > chargesBefore) {
                     hud.addNotif(`⚡ +${powerSystem.charges - chargesBefore} SUPER CHARGES!`, '#ffdd00');
                     effects.shake(5, 8);
@@ -347,7 +327,6 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Magnet pickup
     for (let i = magnets.length - 1; i >= 0; i--) {
         const m = magnets[i];
         m.update(delta);
@@ -365,14 +344,12 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Player shooting
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;
         effects.spawnMuzzleFlash(sX, sY, angle);
-        
         if (player.brawler.type === 'spread') {
             bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer));
             bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer));
@@ -383,14 +360,12 @@ app.ticker.add((delta) => {
         lastShotTime = now;
     }
     
-    // Player bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, buildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
     
-    // Enemy bullets
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         eb.update(delta, buildings, effects);
@@ -405,24 +380,16 @@ app.ticker.add((delta) => {
             effects.shake(4, 6);
             eb.destroy();
             enemyBullets.splice(i, 1);
-            if (playerDied) {
-                triggerGameOver();
-                return;
-            }
+            if (playerDied) { triggerGameOver(); return; }
         }
     }
     
-    // Spawn system
     const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
     magnets.push(...spawnResult.newMagnets);
+    if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     
-    if (spawnResult.megaBossJustSpawned) {
-        hud.triggerMegaBossAlert();
-    }
-    
-    // Power system (aura damage)
     const auraTargets = powerSystem.update(delta, player, enemies, worldContainer, effects);
     for (const enemy of auraTargets) {
         const killed = enemy.takeDamage(2, enemy.x, enemy.y, worldContainer, effects);
@@ -430,20 +397,14 @@ app.ticker.add((delta) => {
             spawnSystem.registerKill(enemy);
             stats.score += enemy.scoreValue;
             dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
-            if (enemy.isMegaBoss) {
-                setTimeout(() => triggerVictory(), 800);
-            }
+            if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
         }
     }
     
-    // Enemies update + collisions
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
-        
-        if (shotInfo) {
-            spawnEnemyShot(shotInfo);
-        }
+        if (shotInfo) spawnEnemyShot(shotInfo);
         
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
@@ -455,20 +416,14 @@ app.ticker.add((delta) => {
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
                 stats.score += enemy.scoreValue;
-                if (enemy.container.parent) {
-                    enemy.container.parent.removeChild(enemy.container);
-                }
+                if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
                 effects.shake(8, 10);
             }
-            if (playerDied) {
-                triggerGameOver();
-                return;
-            }
+            if (playerDied) { triggerGameOver(); return; }
         }
         
-        // Bullet-enemy collision
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (!b.active) continue;
@@ -482,15 +437,9 @@ app.ticker.add((delta) => {
                     spawnSystem.registerKill(enemy);
                     stats.score += enemy.scoreValue;
                     dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
-                    
-                    if (enemy.isMegaBoss) {
-                        setTimeout(() => triggerVictory(), 800);
-                    }
-                    
-                    if (now < comboEndTime) comboCount++;
-                    else comboCount = 1;
+                    if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
+                    if (now < comboEndTime) comboCount++; else comboCount = 1;
                     comboEndTime = now + 2000;
-                    
                     if (comboCount === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
                     else if (comboCount === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
                     else if (comboCount >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }
@@ -503,10 +452,8 @@ app.ticker.add((delta) => {
     }
     
     if (hud.comboTextTimer > 0) hud.comboTextTimer--;
-    
     effects.update(delta);
     
     const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
-    
     hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

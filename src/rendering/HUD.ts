@@ -363,17 +363,42 @@ export class HUD {
         c.textAlign = 'center';
         c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
         
+        // v0.4d: Aura countdown + time bar
         if (powerSystem.isActive) {
             const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
+            const power = POWERS[powerSystem.selectedPowerId];
+            const secondsLeft = (powerSystem.framesLeft / 60).toFixed(1);
+            const activeText = `☄️ AURA AKTYWNA — ${secondsLeft}s ☄️`;
+            
             c.save();
             c.globalAlpha = pulse;
             c.font = `bold 24px "Lilita One",cursive`;
             c.textAlign = 'center';
             c.strokeStyle = '#000';
             c.lineWidth = 5;
-            c.strokeText('☄️ AURA AKTYWNA ☄️', cx, hintY - 24);
+            c.strokeText(activeText, cx, hintY - 38);
             c.fillStyle = '#ffdd00';
-            c.fillText('☄️ AURA AKTYWNA ☄️', cx, hintY - 24);
+            c.fillText(activeText, cx, hintY - 38);
+            c.restore();
+            
+            // Time bar (żółty → pomarańczowy przy końcu)
+            const TIME_BAR_W = 200;
+            const TIME_BAR_H = 6;
+            const tbX = cx - TIME_BAR_W / 2;
+            const tbY = hintY - 22;
+            
+            c.save();
+            c.fillStyle = 'rgba(0,0,0,0.7)';
+            c.beginPath();
+            c.roundRect(tbX - 2, tbY - 2, TIME_BAR_W + 4, TIME_BAR_H + 4, 4);
+            c.fill();
+            
+            const timeProgress = powerSystem.framesLeft / power.durationFrames;
+            const barColor = timeProgress > 0.3 ? '#ffdd00' : '#ff6600';
+            c.fillStyle = barColor;
+            c.beginPath();
+            c.roundRect(tbX, tbY, TIME_BAR_W * timeProgress, TIME_BAR_H, 3);
+            c.fill();
             c.restore();
         }
     }
@@ -543,7 +568,6 @@ export class HUD {
         c.clearRect(0, 0, this.screenW, this.screenH);
         
         // === TOP ROW ===
-        // HP pill (lewy górny, rząd 1)
         this.drawHPPill(player, 14, 8, 200, 54, 16);
         
         // Score pill (środek)
@@ -561,24 +585,21 @@ export class HUD {
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
         
-        // Kill counter (prawy górny)
+        // Kill counter (prawy)
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
         // === SECOND ROW ===
-        // Gem counter POD HP (lewy, rząd 2) — v0.4c
+        // Gem counter POD HP (lewy, rząd 2)
         this.drawGemPill(spawnSystem, 14, 70, 140, 44, 14);
         
         this.drawNotifs();
         
-        // Status pills (pod kill counter)
         this.drawMagnetStatus(powerSystem);
         this.drawTurboStatus(player);
         
-        // Super power bar (dół środek)
         this.drawSuperPowerBar(powerSystem);
         
-        // Mega boss
         if (megaBoss && megaBoss.active) {
             this.drawMegaBossBar(megaBoss);
         }

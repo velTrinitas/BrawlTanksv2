@@ -3,50 +3,63 @@ import type { EffectsManager } from '../../rendering/Effects';
 
 /**
  * Magnet pickup — rare. Aktywuje 5s podczas których wszystkie gems lecą do gracza.
+ * v0.4d: dodany błękitnawy glow aura (był praktycznie niewidoczny bez glow).
  */
 
 let _magnetTexture: PIXI.Texture | null = null;
 function getMagnetTexture(): PIXI.Texture {
     if (_magnetTexture) return _magnetTexture;
     const cv = document.createElement('canvas');
-    cv.width = 32; cv.height = 32;
+    cv.width = 56; cv.height = 56;
     const ctx = cv.getContext('2d')!;
     
-    // Stylizowany magnes — kształt podkowy ze końcami N/S
-    // Background dim
-    ctx.fillStyle = 'rgba(0,0,0,0.0)';
-    ctx.fillRect(0, 0, 32, 32);
+    const cx = 28, cy = 28;
     
+    // === Błękitny glow aura (zewnętrzny soft glow) — v0.4d ===
+    const glowGrad = ctx.createRadialGradient(cx, cy, 8, cx, cy, 28);
+    glowGrad.addColorStop(0, 'rgba(102,204,255,0.7)');
+    glowGrad.addColorStop(0.5, 'rgba(102,204,255,0.35)');
+    glowGrad.addColorStop(1, 'rgba(102,204,255,0)');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, 56, 56);
+    
+    // === Magnes — podkowa ===
     // Czerwona część (N)
     ctx.fillStyle = '#e74c3c';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(4, 4, 10, 20, 2);
+    ctx.roundRect(cx - 12, cy - 12, 10, 20, 2);
     ctx.fill();
     ctx.stroke();
     
     // Szara część (S)
     ctx.fillStyle = '#95a5a6';
     ctx.beginPath();
-    ctx.roundRect(18, 4, 10, 20, 2);
+    ctx.roundRect(cx + 2, cy - 12, 10, 20, 2);
     ctx.fill();
     ctx.stroke();
     
-    // Łącznik środkowy
+    // Łącznik środkowy (zaokrąglony szczyt)
     ctx.fillStyle = '#7f8c8d';
     ctx.beginPath();
-    ctx.roundRect(4, 18, 24, 6, 2);
+    ctx.roundRect(cx - 12, cy + 2, 24, 6, 2);
     ctx.fill();
     ctx.stroke();
     
     // Litery N i S
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 8px sans-serif';
+    ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('N', 9, 12);
-    ctx.fillText('S', 23, 12);
+    ctx.fillText('N', cx - 7, cy - 4);
+    ctx.fillText('S', cx + 7, cy - 4);
+    
+    // Highlight na podkowie
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.arc(cx - 9, cy - 8, 2, 0, Math.PI * 2);
+    ctx.fill();
     
     _magnetTexture = PIXI.Texture.from(cv);
     return _magnetTexture;
@@ -57,7 +70,7 @@ export class Magnet {
     public y: number;
     public active: boolean;
     public sprite: PIXI.Sprite;
-    public radius: number = 16;
+    public radius: number = 22;
     private bornAt: number;
     private static readonly LIFETIME_MS = 20000;
     
@@ -95,8 +108,8 @@ export class Magnet {
     
     pickup(effects: EffectsManager): boolean {
         if (!this.active) return false;
-        // Czerwono-szare iskry
-        effects.spawnEnemyHitSparks(this.x, this.y, 0xe74c3c);
+        // Błękitne iskry (matching glow)
+        effects.spawnEnemyHitSparks(this.x, this.y, 0x66ccff);
         this.destroy();
         return true;
     }

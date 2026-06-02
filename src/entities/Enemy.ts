@@ -47,7 +47,6 @@ export class Enemy {
     
     private flashTimer: number = 0;
     
-    // Mega Boss state
     private megaPhase: MegaBossPhase = 'rush';
     private megaStrafeAngle: number = 0;
     private megaStrafeDir: number = 1;
@@ -81,7 +80,7 @@ export class Enemy {
         this.bulletColor = config.bulletColor;
         
         if (isMegaBoss) {
-            this.burstCount = 1; // rush phase pojedyncze, zmieni się w fazach
+            this.burstCount = 1;
             this.burstSpread = 0;
         } else if (isBoss) {
             this.burstCount = 3;
@@ -93,7 +92,6 @@ export class Enemy {
         
         this.lastShotTime = Date.now() + Math.random() * 1000 - this.shootIntervalMs;
         
-        // Mega Boss: pierwszy shield po 12s, pamiętamy żeby uruchomić co 12/8s
         if (isMegaBoss) {
             this.megaShieldNextTime = Date.now() + 12000;
         }
@@ -121,7 +119,6 @@ export class Enemy {
         this.container.addChild(this.turret);
         this.container.addChild(this.hpBar);
         
-        // Mega Boss shield graphic (rysowany tylko gdy aktywny)
         if (isMegaBoss) {
             this.shieldGfx = new PIXI.Graphics();
             this.shieldGfx.visible = false;
@@ -150,7 +147,6 @@ export class Enemy {
             return;
         }
         this.shieldGfx.visible = true;
-        // Złoty pierścień z pulsacją
         const pulse = 0.7 + Math.sin(Date.now() / 80) * 0.3;
         this.shieldGfx.lineStyle(4, 0xffd700, pulse);
         this.shieldGfx.drawCircle(0, 0, 38);
@@ -158,9 +154,6 @@ export class Enemy {
         this.shieldGfx.drawCircle(0, 0, 42);
     }
     
-    /**
-     * Aktualna faza Mega Bossa (dla HUD).
-     */
     getMegaPhase(): MegaBossPhase | null {
         return this.isMegaBoss ? this.megaPhase : null;
     }
@@ -181,32 +174,25 @@ export class Enemy {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const angleToTarget = Math.atan2(dy, dx);
         
-        // ============================
-        // Mega Boss — special AI
-        // ============================
         if (this.isMegaBoss) {
-            // Update fazy na podstawie HP %
             const hpPct = this.hp / this.maxHp;
             if (hpPct > 0.6) this.megaPhase = 'rush';
             else if (hpPct > 0.3) this.megaPhase = 'strafe';
             else this.megaPhase = 'flee';
             
-            // Update shield timer
             const now = Date.now();
             if (!this.megaShieldActive && now >= this.megaShieldNextTime) {
                 this.megaShieldActive = true;
-                this.megaShieldEndTime = now + 3000; // 3s shielda
+                this.megaShieldEndTime = now + 3000;
             }
             if (this.megaShieldActive && now >= this.megaShieldEndTime) {
                 this.megaShieldActive = false;
-                this.megaShieldNextTime = now + (hpPct < 0.5 ? 8000 : 12000); // krótszy cooldown przy niskim HP
+                this.megaShieldNextTime = now + (hpPct < 0.5 ? 8000 : 12000);
             }
             this.drawShield();
             
-            // Movement per faza
             let moveX = 0, moveY = 0;
             if (this.megaPhase === 'rush') {
-                // Rush = direct chase
                 this.burstCount = 1;
                 this.burstSpread = 0;
                 if (dist > Enemy.MIN_DIST_TO_PLAYER) {
@@ -214,30 +200,24 @@ export class Enemy {
                     moveY = (dy / dist) * this.speed;
                 }
             } else if (this.megaPhase === 'strafe') {
-                // Strafe = krąży dookoła gracza utrzymując dystans 250-350
                 this.burstCount = 1;
                 this.burstSpread = 0;
                 const idealDist = 280;
                 this.megaStrafeAngle += 0.02 * this.megaStrafeDir * delta;
-                // Czasem zmień kierunek strafe
                 if (Math.random() < 0.005) this.megaStrafeDir *= -1;
                 
                 if (Math.abs(dist - idealDist) > 30) {
-                    // Idź do/od gracza żeby trafić w idealDist
                     const radialDir = dist > idealDist ? 1 : -1;
                     moveX = (dx / dist) * this.speed * radialDir * 0.7;
                     moveY = (dy / dist) * this.speed * radialDir * 0.7;
                 } else {
-                    // Strafe tangentially
                     moveX = -(dy / dist) * this.speed * this.megaStrafeDir;
                     moveY = (dx / dist) * this.speed * this.megaStrafeDir;
                 }
             } else {
-                // Flee = ucieka od gracza, ale strzela triple spread
                 this.burstCount = 3;
                 this.burstSpread = 0.40;
                 if (dist < 500) {
-                    // Run away
                     moveX = -(dx / dist) * this.speed * 1.3;
                     moveY = -(dy / dist) * this.speed * 1.3;
                 }
@@ -253,9 +233,6 @@ export class Enemy {
             if (canMoveX) this.x = nx;
             if (canMoveY) this.y = ny;
         } else {
-            // ============================
-            // Regular enemy + Boss — standard chase
-            // ============================
             if (dist > Enemy.MIN_DIST_TO_PLAYER) {
                 const nx = this.x + (dx / dist) * this.speed * delta;
                 const ny = this.y + (dy / dist) * this.speed * delta;
@@ -276,7 +253,6 @@ export class Enemy {
         this.container.y = this.y;
         this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : 19);
         
-        // Strzelanie
         const now = Date.now();
         if (now - this.lastShotTime >= this.shootIntervalMs && dist < 800) {
             this.lastShotTime = now;
@@ -296,13 +272,8 @@ export class Enemy {
         return null;
     }
     
-    /**
-     * @returns true jeśli wróg zginął
-     */
     takeDamage(amount: number, hitX: number, hitY: number, worldContainer: PIXI.Container, effects: EffectsManager): boolean {
-        // Mega Boss shield deflektuje
         if (this.isMegaBoss && this.megaShieldActive) {
-            // Złota eksplozja na pancerzu
             effects.spawnEnemyHitSparks(hitX, hitY, 0xffd700);
             return false;
         }
@@ -320,7 +291,7 @@ export class Enemy {
             this.active = false;
             effects.spawnExplosionAndWreck(this.x, this.y, this.tintHex);
             if (this.isMegaBoss) {
-                effects.shake(28, 40); // mega screen shake
+                effects.shake(28, 40);
             } else if (this.isBoss) {
                 effects.shake(16, 22);
             }
@@ -329,5 +300,14 @@ export class Enemy {
             return true;
         }
         return false;
+    }
+    
+    /**
+     * Ilość gemów które wróg dropi po śmierci.
+     */
+    getGemDropCount(): number {
+        if (this.isMegaBoss) return 20;
+        if (this.isBoss) return 5;
+        return 1;
     }
 }

@@ -8,9 +8,14 @@ import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
 import { EnemyBullet } from './entities/EnemyBullet';
 import { Heart } from './entities/pickups/Heart';
+import { Gem } from './entities/pickups/Gem';
+import { Magnet } from './entities/pickups/Magnet';
+import { PowerCube } from './entities/pickups/PowerCube';
 import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
+import { PowerSystem } from './systems/PowerSystem';
+import { PICKUP_CONFIG } from './config/powers';
 
 // ==========================================
 // STATE
@@ -26,9 +31,13 @@ let enemies: Enemy[] = [];
 let bullets: Bullet[] = [];
 let enemyBullets: EnemyBullet[] = [];
 let hearts: Heart[] = [];
+let gems: Gem[] = [];
+let magnets: Magnet[] = [];
+let powerCubes: PowerCube[] = [];
 let buildings: CyberBuilding[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
+let powerSystem: PowerSystem | null = null;
 let camera = { x: 0, y: 0 };
 
 const keys = { w: false, a: false, s: false, d: false };
@@ -89,6 +98,15 @@ BRAWLERS.forEach(b => {
 window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k in keys) (keys as any)[k] = true;
+    
+    // SPACE — super power activate
+    if (e.code === 'Space' && gameState === 'PLAYING' && powerSystem) {
+        e.preventDefault();
+        if (powerSystem.activate()) {
+            hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
+            effects?.shake(6, 8);
+        }
+    }
 });
 window.addEventListener('keyup', e => {
     const k = e.key.toLowerCase();
@@ -118,6 +136,12 @@ function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
     }
 }
 
+function dropGems(x: number, y: number, count: number): void {
+    for (let i = 0; i < count; i++) {
+        gems.push(new Gem(x, y, worldContainer));
+    }
+}
+
 function startGame(): void {
     document.getElementById('welcomeScreen')!.classList.remove('active-screen');
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
@@ -138,6 +162,7 @@ function startGame(): void {
     
     effects = new EffectsManager(worldContainer);
     spawnSystem = new SpawnSystem();
+    powerSystem = new PowerSystem(worldContainer);
     
     stats.score = 0;
     comboCount = 0;
@@ -149,6 +174,9 @@ function startGame(): void {
     bullets = [];
     enemyBullets = [];
     hearts = [];
+    gems = [];
+    magnets = [];
+    powerCubes = [];
     isMouseDown = false;
     gameState = 'PLAYING';
 }
@@ -192,9 +220,8 @@ function triggerVictory(): void {
 // GAME LOOP
 // ==========================================
 app.ticker.add((delta) => {
-    if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem) return;
+    if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem) return;
     
-    // Camera + screen shake
     camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - hud.screenH, ~~(player.y - hud.screenH / 2)));
     worldContainer.x = -camera.x + effects.shakeOffsetX;
@@ -207,7 +234,7 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // Hearts pickup check
+    // Hearts pickup
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
         h.update(delta);
@@ -221,6 +248,65 @@ app.ticker.add((delta) => {
                 player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
                 hud.addNotif(`❤️ +${h.healAmount} HP`, '#ff3366');
                 hearts.splice(i, 1);
+            }
+        }
+    }
+    
+    // Gems pickup + magnet attract
+    for (let i = gems.length - 1; i >= 0; i--) {
+        const g = gems[i];
+        
+        // Magnet attracts gems
+        if (powerSystem.magnetActive) {
+            g.attracted = true;
+        }
+        
+        g.update(delta, player.x, player.y);
+        if (!g.active) {
+            gems.splice(i, 1);
+            continue;
+        }
+        const dx = player.x - g.x, dy = player.y - g.y;
+        if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
+            if (g.pickup(effects)) {
+                powerSystem.addCharge(g.value);
+                gems.splice(i, 1);
+            }
+        }
+    }
+    
+    // Magnet pickup
+    for (let i = magnets.length - 1; i >= 0; i--) {
+        const m = magnets[i];
+        m.update(delta);
+        if (!m.active) {
+            magnets.splice(i, 1);
+            continue;
+        }
+        const dx = player.x - m.x, dy = player.y - m.y;
+        if (dx * dx + dy * dy < (m.radius + 22) * (m.radius + 22)) {
+            if (m.pickup(effects)) {
+                powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
+                hud.addNotif('🧲 MAGNET 5s!', '#e74c3c');
+                magnets.splice(i, 1);
+            }
+        }
+    }
+    
+    // PowerCube pickup
+    for (let i = powerCubes.length - 1; i >= 0; i--) {
+        const pc = powerCubes[i];
+        pc.update(delta);
+        if (!pc.active) {
+            powerCubes.splice(i, 1);
+            continue;
+        }
+        const dx = player.x - pc.x, dy = player.y - pc.y;
+        if (dx * dx + dy * dy < (pc.radius + 22) * (pc.radius + 22)) {
+            if (pc.pickup(effects)) {
+                powerSystem.addChargePercent(PICKUP_CONFIG.powerCubeChargePercent);
+                hud.addNotif(`⚡ +${Math.round(PICKUP_CONFIG.powerCubeChargePercent * 100)}% CHARGE`, '#ffdd00');
+                powerCubes.splice(i, 1);
             }
         }
     }
@@ -273,12 +359,28 @@ app.ticker.add((delta) => {
     }
     
     // Spawn system
-    const spawnResult = spawnSystem.update(delta, enemies, hearts, player.x, player.y, worldContainer, buildings);
+    const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, powerCubes, player.x, player.y, worldContainer, buildings);
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
+    magnets.push(...spawnResult.newMagnets);
+    powerCubes.push(...spawnResult.newPowerCubes);
     
     if (spawnResult.megaBossJustSpawned) {
         hud.triggerMegaBossAlert();
+    }
+    
+    // Power system update (aura damage tick na enemies)
+    const auraTargets = powerSystem.update(delta, player, enemies, worldContainer, effects);
+    for (const enemy of auraTargets) {
+        const killed = enemy.takeDamage(2, enemy.x, enemy.y, worldContainer, effects);
+        if (killed) {
+            spawnSystem.registerKill(enemy);
+            stats.score += enemy.scoreValue;
+            dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+            if (enemy.isMegaBoss) {
+                setTimeout(() => triggerVictory(), 800);
+            }
+        }
     }
     
     // Enemies update + collisions
@@ -294,9 +396,9 @@ app.ticker.add((delta) => {
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (dP < collisionDist * collisionDist) {
             const playerDied = player.takeDamage(enemy.collisionDmg);
-            // Tylko zwykli wrogowie giną przy collision (boss/mega zostaje)
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
+                dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
                 stats.score += enemy.scoreValue;
@@ -305,7 +407,6 @@ app.ticker.add((delta) => {
                 }
                 enemy.container.destroy({ children: true });
             } else {
-                // Boss / mega — gracz dostaje damage ale boss żyje, push back
                 effects.shake(8, 10);
             }
             if (playerDied) {
@@ -327,10 +428,9 @@ app.ticker.add((delta) => {
                 if (killed) {
                     spawnSystem.registerKill(enemy);
                     stats.score += enemy.scoreValue;
+                    dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                     
-                    // Victory check
                     if (enemy.isMegaBoss) {
-                        // Trochę opóźnienia żeby wybuch się dokończył
                         setTimeout(() => triggerVictory(), 800);
                     }
                     
@@ -353,8 +453,7 @@ app.ticker.add((delta) => {
     
     effects.update(delta);
     
-    // Find current mega boss for HUD (jeśli żyje)
     const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
     
-    hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss);
+    hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

@@ -1,23 +1,27 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../entities/Enemy';
 import { Heart } from '../entities/pickups/Heart';
+import { Magnet } from '../entities/pickups/Magnet';
+import { PowerCube } from '../entities/pickups/PowerCube';
 import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_MEGA_BOSS, SPAWN_CONFIG, HEART_CONFIG } from '../config/enemies';
+import { PICKUP_CONFIG } from '../config/powers';
 import { WORLD_W, WORLD_H } from '../config/constants';
 import type { CyberBuilding } from '../maps/CityMap';
 
-/**
- * Wynik update() — info dla głównego loopa.
- */
 export interface SpawnResult {
     newEnemies: Enemy[];
     newHearts: Heart[];
-    megaBossJustSpawned: boolean; // true tylko w pierwszej klatce gdy mega boss spawnuje
+    newMagnets: Magnet[];
+    newPowerCubes: PowerCube[];
+    megaBossJustSpawned: boolean;
 }
 
 export class SpawnSystem {
     private frameCounter: number = 0;
     private gameTimeSeconds: number = 0;
     private heartFrameCounter: number = 0;
+    private magnetFrameCounter: number = 0;
+    private powerCubeFrameCounter: number = 0;
     
     public regularKills: number = 0;
     public bossKills: number = 0;
@@ -34,6 +38,8 @@ export class SpawnSystem {
         delta: number,
         currentEnemies: Enemy[],
         currentHearts: Heart[],
+        currentMagnets: Magnet[],
+        currentPowerCubes: PowerCube[],
         playerX: number,
         playerY: number,
         worldContainer: PIXI.Container,
@@ -42,9 +48,13 @@ export class SpawnSystem {
         this.frameCounter += delta;
         this.gameTimeSeconds += delta / 60;
         this.heartFrameCounter += delta;
+        this.magnetFrameCounter += delta;
+        this.powerCubeFrameCounter += delta;
         
         const newEnemies: Enemy[] = [];
         const newHearts: Heart[] = [];
+        const newMagnets: Magnet[] = [];
+        const newPowerCubes: PowerCube[] = [];
         let megaBossJustSpawned = false;
         
         // === Regular enemy spawn ===
@@ -75,7 +85,6 @@ export class SpawnSystem {
         }
         
         // === Mega Boss spawn ===
-        // Warunek: ≥100 regular killów + wszyscy regular bossy martwi + nie spawnowany jeszcze
         const anyRegularBossAlive = currentEnemies.some(e => e.isBoss && !e.isMegaBoss);
         if (
             this.regularKills >= SPAWN_CONFIG.megaBossKillThreshold &&
@@ -102,7 +111,31 @@ export class SpawnSystem {
             }
         }
         
-        return { newEnemies, newHearts, megaBossJustSpawned };
+        // === Magnet spawn ===
+        if (
+            this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames &&
+            currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap
+        ) {
+            this.magnetFrameCounter = 0;
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250);
+            if (pos) {
+                newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
+            }
+        }
+        
+        // === PowerCube spawn ===
+        if (
+            this.powerCubeFrameCounter >= PICKUP_CONFIG.powerCubeSpawnIntervalFrames &&
+            currentPowerCubes.length < PICKUP_CONFIG.powerCubeMaxOnMap
+        ) {
+            this.powerCubeFrameCounter = 0;
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250);
+            if (pos) {
+                newPowerCubes.push(new PowerCube(pos.x, pos.y, worldContainer));
+            }
+        }
+        
+        return { newEnemies, newHearts, newMagnets, newPowerCubes, megaBossJustSpawned };
     }
     
     registerKill(enemy: Enemy): void {
@@ -144,6 +177,8 @@ export class SpawnSystem {
         this.frameCounter = 0;
         this.gameTimeSeconds = 0;
         this.heartFrameCounter = 0;
+        this.magnetFrameCounter = 0;
+        this.powerCubeFrameCounter = 0;
         this.regularKills = 0;
         this.bossKills = 0;
         this.totalKills = 0;

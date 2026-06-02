@@ -1,7 +1,9 @@
 import type { Player } from '../entities/Player';
 import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
+import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
+import { POWERS } from '../config/powers';
 
 interface HudNotif {
     text: string;
@@ -24,8 +26,6 @@ export class HUD {
     
     public comboText: string = '';
     public comboTextTimer: number = 0;
-    
-    // Mega Boss alert — wielki tekst na środku
     public megaBossAlertTimer: number = 0;
     
     constructor(canvasId: string) {
@@ -50,7 +50,7 @@ export class HUD {
     }
     
     triggerMegaBossAlert(): void {
-        this.megaBossAlertTimer = 180; // 3s
+        this.megaBossAlertTimer = 180;
     }
     
     private drawNotifs(): void {
@@ -185,40 +185,143 @@ export class HUD {
     }
     
     /**
-     * Bar Mega Bossa na górze ekranu (gdy żyje).
+     * Super power slot — pod kill counter po prawej.
      */
+    private drawSuperPowerSlot(powerSystem: PowerSystem, px: number, py: number, PW: number, PH: number, r: number): void {
+        const c = this.ctx;
+        const power = POWERS[powerSystem.currentPowerId];
+        const chargePct = powerSystem.getChargePercent();
+        const isReady = powerSystem.isReady();
+        const isActive = powerSystem.isActive;
+        
+        // Background
+        c.fillStyle = isActive ? 'rgba(255,180,0,0.25)' : 'rgba(8,8,18,0.75)';
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.fill();
+        
+        // Border kiedy gotowe lub aktywne
+        if (isReady || isActive) {
+            const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
+            c.strokeStyle = `rgba(255,221,0,${pulse})`;
+            c.lineWidth = 3;
+            c.stroke();
+        }
+        
+        // Icon (emoji)
+        c.font = `28px "Lilita One",cursive`;
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
+        c.fillStyle = '#ffdd00';
+        c.fillText(power.emoji, px + 12, py + PH / 2);
+        
+        // Power name
+        c.font = `bold 13px "Lilita One",cursive`;
+        c.fillStyle = isReady ? '#ffdd00' : 'rgba(255,255,255,0.7)';
+        c.fillText(power.name.toUpperCase(), px + 50, py + PH / 2 - 8);
+        
+        // Charge bar
+        const BAR_H = 8;
+        const BAR_X = px + 50;
+        const BAR_W = PW - 60;
+        const BAR_Y = py + PH / 2 + 4;
+        
+        c.fillStyle = 'rgba(255,255,255,0.1)';
+        c.beginPath();
+        c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
+        c.fill();
+        
+        if (isActive) {
+            // Aktywne: bar pokazuje ile czasu zostało
+            const power = POWERS[powerSystem.currentPowerId];
+            const activePct = powerSystem.framesLeft / power.durationFrames;
+            c.fillStyle = '#ff8800';
+            c.beginPath();
+            c.roundRect(BAR_X, BAR_Y, BAR_W * activePct, BAR_H, BAR_H / 2);
+            c.fill();
+        } else {
+            // Ładowanie
+            const barColor = isReady ? '#ffdd00' : '#66aaff';
+            c.fillStyle = barColor;
+            c.beginPath();
+            c.roundRect(BAR_X, BAR_Y, BAR_W * chargePct, BAR_H, BAR_H / 2);
+            c.fill();
+        }
+        
+        // "SPACE" hint gdy gotowe
+        if (isReady) {
+            const pulse = 0.7 + Math.sin(Date.now() / 200) * 0.3;
+            c.save();
+            c.globalAlpha = pulse;
+            c.fillStyle = '#ffdd00';
+            c.font = `bold 13px "Lilita One",cursive`;
+            c.textAlign = 'center';
+            c.fillText('SPACE!', px + PW / 2, py + PH + 18);
+            c.restore();
+        }
+        
+        // "AKTYWNE" w trakcie
+        if (isActive) {
+            c.fillStyle = '#ff8800';
+            c.font = `bold 13px "Lilita One",cursive`;
+            c.textAlign = 'center';
+            c.fillText('AKTYWNE', px + PW / 2, py + PH + 18);
+        }
+    }
+    
+    /**
+     * Magnet status pill — pokazywany tylko gdy aktywny.
+     */
+    private drawMagnetStatus(powerSystem: PowerSystem, px: number, py: number): void {
+        if (!powerSystem.magnetActive) return;
+        const c = this.ctx;
+        const remaining = Math.max(0, (powerSystem.magnetEndTime - Date.now()) / 1000);
+        
+        const pulse = 0.85 + Math.sin(Date.now() / 100) * 0.15;
+        c.save();
+        c.globalAlpha = pulse;
+        c.fillStyle = 'rgba(231,76,60,0.85)';
+        c.beginPath();
+        c.roundRect(px, py, 160, 32, 10);
+        c.fill();
+        c.font = `bold 16px "Lilita One",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillStyle = '#fff';
+        c.strokeStyle = '#000';
+        c.lineWidth = 3;
+        c.strokeText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 80, py + 16);
+        c.fillText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 80, py + 16);
+        c.restore();
+    }
+    
     private drawMegaBossBar(megaBoss: Enemy): void {
         const c = this.ctx;
         const BW = 500, BH = 26;
         const bx = (this.screenW - BW) / 2;
         const by = 78;
         
-        // Tło
         c.fillStyle = 'rgba(0,0,0,0.7)';
         c.beginPath();
         c.roundRect(bx - 4, by - 4, BW + 8, BH + 8, 10);
         c.fill();
         
-        // Bar bg
         c.fillStyle = 'rgba(60,40,0,0.5)';
         c.beginPath();
         c.roundRect(bx, by, BW, BH, 6);
         c.fill();
         
-        // HP fill (złoty)
         const hpPct = Math.max(0, megaBoss.hp / megaBoss.maxHp);
         c.fillStyle = '#ffdd00';
         c.beginPath();
         c.roundRect(bx, by, BW * hpPct, BH, 6);
         c.fill();
         
-        // Highlight
         c.fillStyle = 'rgba(255,255,255,0.2)';
         c.beginPath();
         c.roundRect(bx, by, BW * hpPct, BH / 2, 6);
         c.fill();
         
-        // Label + faza
         c.font = `bold 18px "Lilita One",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
@@ -232,27 +335,20 @@ export class HUD {
         c.fillText(label, this.screenW / 2, by + BH / 2);
     }
     
-    /**
-     * Pełnoekranowy alert "⚠️ MEGA BOSS NADCHODZI!"
-     */
     private drawMegaBossAlert(): void {
         if (this.megaBossAlertTimer <= 0) return;
         const c = this.ctx;
         const t = this.megaBossAlertTimer;
         this.megaBossAlertTimer--;
         
-        // Fade in/out
         const alpha = t > 150 ? (180 - t) / 30 : t < 30 ? t / 30 : 1;
         
         c.save();
         c.globalAlpha = alpha;
         c.translate(this.screenW / 2, this.screenH / 2 - 50);
-        
-        // Pulsujący scale
         const pulse = 1 + Math.sin(Date.now() / 100) * 0.05;
         c.scale(pulse, pulse);
         
-        // Background bar
         c.fillStyle = 'rgba(0,0,0,0.85)';
         c.beginPath();
         c.roundRect(-340, -50, 680, 100, 16);
@@ -261,7 +357,6 @@ export class HUD {
         c.lineWidth = 4;
         c.stroke();
         
-        // Text
         c.font = `bold 52px "Lilita One",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
@@ -300,7 +395,15 @@ export class HUD {
         c.fill();
     }
     
-    render(player: Player, score: number, _killsLegacy: number, mouse: MouseState, spawnSystem: SpawnSystem, megaBoss: Enemy | null): void {
+    render(
+        player: Player,
+        score: number,
+        _killsLegacy: number,
+        mouse: MouseState,
+        spawnSystem: SpawnSystem,
+        megaBoss: Enemy | null,
+        powerSystem: PowerSystem
+    ): void {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
         
@@ -324,7 +427,12 @@ export class HUD {
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
-        // Mega Boss HP bar (gdy żyje)
+        // Super power slot pod kill counter
+        this.drawSuperPowerSlot(powerSystem, kx, 80, 200, 50, 14);
+        
+        // Magnet status (jeśli aktywny) — pod super power slot
+        this.drawMagnetStatus(powerSystem, kx + 20, 152);
+        
         if (megaBoss && megaBoss.active) {
             this.drawMegaBossBar(megaBoss);
         }
@@ -345,7 +453,6 @@ export class HUD {
             c.restore();
         }
         
-        // Mega Boss alert na wierzchu
         this.drawMegaBossAlert();
     }
     

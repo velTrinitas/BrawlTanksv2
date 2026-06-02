@@ -5,6 +5,9 @@ import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
 import { POWERS, type PowerId } from '../config/powers';
 
+const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
+const SUPER_TINT_HEX = '#c850ff';
+
 interface HudNotif {
     text: string;
     color: string;
@@ -133,6 +136,9 @@ export class HUD {
         }
     }
     
+    /**
+     * Gem pill — z progress barem do następnego +3 super charge (v0.5 Etap 2).
+     */
     private drawGemPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
         const c = this.ctx;
         
@@ -144,6 +150,7 @@ export class HUD {
         c.lineWidth = 1;
         c.stroke();
         
+        // Zielony hex gem icon
         const gemCx = px + 22, gemCy = py + PH / 2;
         const gemR = 11;
         c.beginPath();
@@ -166,14 +173,95 @@ export class HUD {
         c.ellipse(gemCx - 2, gemCy - 5, 2.5, 1.2, 0, 0, Math.PI * 2);
         c.fill();
         
-        c.font = `28px "Lilita One",cursive`;
+        // Total gems liczba
+        c.font = `26px "Lilita One",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.7)';
         c.lineWidth = 4;
-        c.strokeText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2);
+        c.strokeText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2 - 5);
         c.fillStyle = '#2ecc71';
-        c.fillText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2);
+        c.fillText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2 - 5);
+        
+        // Progress bar X/10 → +3 super (v0.5 Etap 2)
+        const gemsToNext = spawnSystem.gemsCollected % GEMS_PER_SUPER_CHARGE_TRIGGER;
+        const progressLabel = `${gemsToNext}/${GEMS_PER_SUPER_CHARGE_TRIGGER} → ⚡`;
+        c.font = `bold 10px "Lilita One",cursive`;
+        c.fillStyle = SUPER_TINT_HEX;
+        c.fillText(progressLabel, px + 42, py + PH - 9);
+        
+        const BAR_X = px + 42;
+        const BAR_W = PW - 50;
+        const BAR_Y = py + PH - 4;
+        const BAR_H = 3;
+        c.fillStyle = 'rgba(255,255,255,0.1)';
+        c.beginPath();
+        c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
+        c.fill();
+        c.fillStyle = SUPER_TINT_HEX;
+        c.beginPath();
+        c.roundRect(BAR_X, BAR_Y, BAR_W * (gemsToNext / GEMS_PER_SUPER_CHARGE_TRIGGER), BAR_H, BAR_H / 2);
+        c.fill();
+    }
+    
+    /**
+     * Super shot pill — pokazuje charges + countdown gdy aktywne (v0.5 Etap 2).
+     */
+    private drawSuperShotPill(player: Player, px: number, py: number, PW: number, PH: number, r: number): void {
+        if (player.superCharges === 0 && !player.isSuperShotActive) return;
+        
+        const c = this.ctx;
+        const isActive = player.isSuperShotActive;
+        
+        // Background
+        if (isActive) {
+            const pulse = 0.85 + Math.sin(Date.now() / 80) * 0.15;
+            c.save();
+            c.globalAlpha = pulse;
+            c.fillStyle = 'rgba(200,80,255,0.85)';
+        } else {
+            c.fillStyle = 'rgba(40,15,60,0.85)';
+        }
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.fill();
+        if (isActive) c.restore();
+        
+        c.strokeStyle = SUPER_TINT_HEX;
+        c.lineWidth = 2;
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.stroke();
+        
+        // Icon ⚡
+        c.font = `22px "Lilita One",cursive`;
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
+        c.fillStyle = '#fff';
+        c.fillText('⚡', px + 10, py + PH / 2);
+        
+        // Text
+        if (isActive) {
+            // Countdown: "SUPER X.Xs"
+            const secsLeft = player.superShotSecondsLeft;
+            const text = `SUPER ${secsLeft.toFixed(1)}s`;
+            c.font = `bold 14px "Lilita One",cursive`;
+            c.fillStyle = '#fff';
+            c.strokeStyle = '#000';
+            c.lineWidth = 3;
+            c.strokeText(text, px + 36, py + PH / 2);
+            c.fillStyle = '#fff';
+            c.fillText(text, px + 36, py + PH / 2);
+        } else {
+            // Charges count: "×N"
+            const text = `×${player.superCharges}`;
+            c.font = `bold 18px "Lilita One",cursive`;
+            c.strokeStyle = '#000';
+            c.lineWidth = 3;
+            c.strokeText(text, px + 36, py + PH / 2);
+            c.fillStyle = SUPER_TINT_HEX;
+            c.fillText(text, px + 36, py + PH / 2);
+        }
     }
     
     private drawKillsPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
@@ -227,9 +315,6 @@ export class HUD {
         }
     }
     
-    /**
-     * Super power bar — 3 ikony z cooldown overlay (zamiast charges).
-     */
     private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
         const cx = this.screenW / 2;
@@ -254,7 +339,6 @@ export class HUD {
             const cooldownProgress = powerSystem.getCooldownProgress(id);
             const onCooldown = cooldownProgress > 0;
             
-            // Background
             if (isActive) {
                 c.fillStyle = 'rgba(60,40,0,0.95)';
             } else if (onCooldown) {
@@ -268,7 +352,6 @@ export class HUD {
             c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 12);
             c.fill();
             
-            // Border
             if (isActive) {
                 const pulse = 0.8 + Math.sin(Date.now() / 100) * 0.2;
                 c.strokeStyle = `rgba(255,221,0,${pulse})`;
@@ -289,7 +372,6 @@ export class HUD {
                 c.stroke();
             }
             
-            // Emoji icon (na cooldown = przyciemniony)
             c.font = `42px "Lilita One",cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
@@ -297,11 +379,9 @@ export class HUD {
             c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 6);
             c.globalAlpha = 1.0;
             
-            // Cooldown overlay — radial sweep + sekundy
             if (onCooldown) {
                 const secsLeft = powerSystem.getCooldownSecondsLeft(id);
                 
-                // Radial sweep (jak zegar — wypełniony fragment cooldownu)
                 c.save();
                 c.beginPath();
                 c.moveTo(ix + ICON_SIZE / 2, iy + ICON_SIZE / 2);
@@ -317,7 +397,6 @@ export class HUD {
                 c.fill();
                 c.restore();
                 
-                // Sekundy do centrum
                 c.font = `bold 22px "Lilita One",cursive`;
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
@@ -328,12 +407,10 @@ export class HUD {
                 c.fillText(secsLeft.toFixed(0), ix + ICON_SIZE / 2, iy + ICON_SIZE / 2);
             }
             
-            // Name pod ikoną
             c.font = `bold 11px "Lilita One",cursive`;
             c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
             c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
             
-            // Strzałka selected
             if (isSelected && !isActive) {
                 c.fillStyle = '#ffdd00';
                 c.beginPath();
@@ -345,13 +422,11 @@ export class HUD {
             }
         });
         
-        // Hint nad ikonkami
         c.font = `12px "Lilita One",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
         c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
         
-        // Active notification (gdy aktywny aura lub freeze — z czasem)
         if (powerSystem.activePowerId !== null) {
             const power = POWERS[powerSystem.activePowerId];
             const secsLeft = powerSystem.getActiveSecondsLeft();
@@ -372,7 +447,6 @@ export class HUD {
             c.fillText(activeText, cx, hintY - 38);
             c.restore();
             
-            // Time bar
             const TIME_BAR_W = 200;
             const TIME_BAR_H = 6;
             const tbX = cx - TIME_BAR_W / 2;
@@ -575,7 +649,11 @@ export class HUD {
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
-        this.drawGemPill(spawnSystem, 14, 70, 140, 44, 14);
+        // Gem counter (lewy, drugi rząd) — z progress barem do +3 charges
+        this.drawGemPill(spawnSystem, 14, 70, 140, 50, 14);
+        
+        // Super shot pill (lewy, trzeci rząd) — gdy są charges lub aktywne
+        this.drawSuperShotPill(player, 14, 126, 140, 38, 12);
         
         this.drawNotifs();
         this.drawMagnetStatus(powerSystem);

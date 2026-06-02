@@ -9,6 +9,10 @@ interface KeysState {
     w: boolean; a: boolean; s: boolean; d: boolean;
 }
 
+const SUPER_SHOT_DURATION_MS = 5000;  // v4.48: 5s super-shot mode
+const SUPER_MAX_CHARGES = 9;            // soft cap (3 cycles × 3 charges)
+const SUPER_TINT = 0xc850ff;
+
 export class Player {
     public brawler: Brawler;
     public x: number;
@@ -20,8 +24,15 @@ export class Player {
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
     
+    // Speed boost state (PowerPad)
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
+    
+    // === Super-shot state (v0.5 Etap 2) ===
+    public superCharges: number = 0;
+    public superActive: boolean = false;
+    public superEndTime: number = 0;
+    private superRingGfx: PIXI.Graphics;
     
     private trackTimer: number = 0;
     private lastMoveAngle: number = 0;
@@ -47,18 +58,18 @@ export class Player {
         this.turret = new PIXI.Sprite(tex.turret);
         this.turret.anchor.set(0.5);
         
+        // Super-shot ring (fioletowy, pulsujący gdy są charges)
+        this.superRingGfx = new PIXI.Graphics();
+        this.superRingGfx.visible = false;
+        
+        this.container.addChild(this.superRingGfx); // pod sprite'ami
         this.container.addChild(this.hull);
         this.container.addChild(this.turret);
         worldContainer.addChild(this.container);
     }
     
-    /**
-     * @param amount damage do zadania
-     * @param isInvulnerable jeśli true (np. aura aktywna), damage NIE zostaje zadany
-     * @returns true jeśli gracz zginął
-     */
     takeDamage(amount: number, isInvulnerable: boolean = false): boolean {
-        if (isInvulnerable) return false; // TARCZA blokuje wszystko
+        if (isInvulnerable) return false; // Aura tarcza blokuje wszystko
         this.hp -= amount;
         return this.hp <= 0;
     }
@@ -77,6 +88,101 @@ export class Player {
     
     get hasSpeedBoost(): boolean {
         return Date.now() < this.speedBoostEnd && this.speedBoostMult > 1;
+    }
+    
+    // ==========================================
+    // SUPER-SHOT API (v0.5 Etap 2)
+    // ==========================================
+    
+    /**
+     * Dodaj N charges (wywoływane po zebraniu 10 gemów).
+     */
+    addSuperCharge(amount: number): void {
+        this.superCharges = Math.min(SUPER_MAX_CHARGES, this.superCharges + amount);
+    }
+    
+    /**
+     * Try to activate or continue super-shot mode (called per shoot).
+     * AUTO-aktywacja (Q1🅰️): jeśli charges > 0 i super nie aktywny, włącz na 5s.
+     * Jeśli super już aktywny, return true (kontynuuj).
+     * @returns isSuperShot — czy ten strzał jest super
+     */
+    tryActivateOrContinueSuperShot(): boolean {
+        const now = Date.now();
+        
+        // Sprawdź czy aktywny super wciąż trwa
+        if (this.superActive && now < this.superEndTime) {
+            return true;
+        }
+        
+        // Super wygasł — odznacz
+        if (this.superActive && now >= this.superEndTime) {
+            this.superActive = false;
+        }
+        
+        // Aktywuj nowy super jeśli są charges
+        if (!this.superActive && this.superCharges > 0) {
+            this.superActive = true;
+            this.superEndTime = now + SUPER_SHOT_DURATION_MS;
+            this.superCharges--;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    get isSuperShotActive(): boolean {
+        return this.superActive && Date.now() < this.superEndTime;
+    }
+    
+    get superShotSecondsLeft(): number {
+        if (!this.superActive) return 0;
+        return Math.max(0, (this.superEndTime - Date.now()) / 1000);
+    }
+    
+    private updateSuperRing(): void {
+        const showRing = this.superCharges > 0 || this.isSuperShotActive;
+        
+        if (!showRing) {
+            this.superRingGfx.visible = false;
+            return;
+        }
+        
+        this.superRingGfx.visible = true;
+        this.superRingGfx.clear();
+        
+        const t = Date.now() / 100;
+        const pulse = 0.6 + Math.sin(t) * 0.4;
+        const isActive = this.isSuperShotActive;
+        
+        if (isActive) {
+            // Intensywny ring podczas super-shot (większy + mocniejszy pulse)
+            const r = 38 + Math.sin(t * 1.5) * 3;
+            this.superRingGfx.lineStyle(5, SUPER_TINT, pulse);
+            this.superRingGfx.drawCircle(0, 0, r);
+            this.superRingGfx.lineStyle(3, 0xffffff, pulse * 0.7);
+            this.superRingGfx.drawCircle(0, 0, r - 6);
+            this.superRingGfx.beginFill(SUPER_TINT, 0.08 * pulse);
+            this.superRingGfx.drawCircle(0, 0, r);
+            this.superRingGfx.endFill();
+            
+            // Iskry orbitujące
+            const sparkCount = 6;
+            const baseRot = Date.now() / 150;
+            for (let i = 0; i < sparkCount; i++) {
+                const angle = baseRot + (i / sparkCount) * Math.PI * 2;
+                const sx = Math.cos(angle) * r;
+                const sy = Math.sin(angle) * r;
+                this.superRingGfx.beginFill(0xffffff, pulse);
+                this.superRingGfx.drawCircle(sx, sy, 2.5);
+                this.superRingGfx.endFill();
+            }
+        } else {
+            // Idle ring (charges > 0 ale nie aktywne) — subtelny fioletowy
+            const r = 35;
+            this.superRingGfx.lineStyle(2.5, SUPER_TINT, pulse * 0.6);
+            this.superRingGfx.drawCircle(0, 0, r);
+        }
     }
     
     update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: CyberBuilding[], effects: EffectsManager): void {
@@ -112,11 +218,22 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
         
-        if (this.hasSpeedBoost) {
+        // Hull tint: turbo = pomarańczowy, super = fioletowy, normal = brak
+        if (this.isSuperShotActive) {
+            this.hull.tint = SUPER_TINT;
+        } else if (this.hasSpeedBoost) {
             this.hull.tint = 0xffcc66;
         } else {
             this.hull.tint = 0xffffff;
         }
+        
+        // Super-shot: auto-dezaktywacja gdy czas wygasł
+        if (this.superActive && Date.now() >= this.superEndTime) {
+            this.superActive = false;
+        }
+        
+        // Update fioletowego ringa
+        this.updateSuperRing();
         
         if (this.isMoving) {
             this.trackTimer++;

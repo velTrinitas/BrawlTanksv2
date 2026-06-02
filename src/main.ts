@@ -21,6 +21,9 @@ import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
 import { PICKUP_CONFIG, MEGA_BOMB_CONFIG } from './config/powers';
 
+const GEMS_PER_SUPER_CHARGE_TRIGGER = 10; // v4.48: co 10 gemów +3 charges
+const SUPER_CHARGES_PER_TRIGGER = 3;
+
 let selectedBrawler: Brawler = BRAWLERS[0];
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
@@ -88,9 +91,6 @@ BRAWLERS.forEach(b => {
     charGrid.appendChild(div);
 });
 
-// ==========================================
-// INPUT HANDLERS
-// ==========================================
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects) return;
     
@@ -101,7 +101,6 @@ function tryActivateSuper(): void {
         hud.addNotif('🛡️ TARCZA AKTYWNA!', '#ffdd00');
         effects.shake(4, 6);
     } else if (result.powerId === 'megaBomb' && result.megaBombTargets) {
-        // Spawn explosion effect + apply damage
         effects.spawnMegaBomb(player.x, player.y);
         hud.addNotif(`💣 MEGA BOMBA — ${result.megaBombTargets.length} celów!`, '#ff4400');
         
@@ -115,11 +114,10 @@ function tryActivateSuper(): void {
             }
         }
     } else if (result.powerId === 'freeze' && result.freezeUntil !== undefined) {
-        // Freeze ALL active enemies
         for (const enemy of enemies) {
             if (enemy.active) enemy.freeze(result.freezeUntil);
         }
-        effects.spawnFreezeOverlay(300); // 5s = 300 frames
+        effects.spawnFreezeOverlay(300);
         hud.addNotif('❄️ MRÓZ NA WSZYSTKICH WROGACH!', '#66ddff');
         effects.shake(3, 8);
     }
@@ -161,9 +159,6 @@ window.addEventListener('keyup', e => {
     powerSystem.cycleSelected(direction);
 }, { passive: false });
 
-// ==========================================
-// HELPERS
-// ==========================================
 function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
     const half = (shot.burstCount - 1) / 2;
     for (let i = 0; i < shot.burstCount; i++) {
@@ -267,9 +262,6 @@ function triggerVictory(): void {
     hud.clear();
 }
 
-// ==========================================
-// GAME LOOP
-// ==========================================
 app.ticker.add((delta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem) return;
     
@@ -318,6 +310,7 @@ app.ticker.add((delta) => {
         }
     }
     
+    // === Gem pickup + super-charge logic (v0.5 Etap 2) ===
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
@@ -326,9 +319,19 @@ app.ticker.add((delta) => {
         const dx = player.x - g.x, dy = player.y - g.y;
         if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
             if (g.pickup(effects)) {
+                const prevTotal = spawnSystem.gemsCollected;
                 spawnSystem.registerGemCollected();
                 stats.score += 1;
-                // Etap 1: gemy = score only (super-shot logic w Etapie 2)
+                
+                // v4.48: co 10 gemów → +3 super charges
+                const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
+                const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
+                if (newTrigger > prevTrigger) {
+                    player.addSuperCharge(SUPER_CHARGES_PER_TRIGGER);
+                    hud.addNotif(`⚡ +${SUPER_CHARGES_PER_TRIGGER} SUPER STRZAŁY! (×${player.superCharges})`, '#c850ff');
+                    effects.shake(4, 8);
+                }
+                
                 gems.splice(i, 1);
             }
         }
@@ -348,18 +351,29 @@ app.ticker.add((delta) => {
         }
     }
     
+    // === Player shooting — z auto-aktywacją super-shot (v0.5 Etap 2) ===
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;
         effects.spawnMuzzleFlash(sX, sY, angle);
+        
+        // v4.48: AUTO aktywacja super-shot przy najbliższym strzale jeśli charges > 0
+        const isSuperShot = player.tryActivateOrContinueSuperShot();
+        
         if (player.brawler.type === 'spread') {
-            bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer));
-            bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer));
-            bullets.push(new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer));
+            // Pyro/Ogniarz: zawsze 3 pociski (-0.2, 0, +0.2)
+            bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot));
+            bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
+            bullets.push(new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer, isSuperShot));
         } else {
-            bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer));
+            // Inne: 1 pocisk normalnie, 3 podczas super-shot (-0.1, 0, +0.1)
+            bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
+            if (isSuperShot) {
+                bullets.push(new Bullet(sX, sY, angle - 0.1, player.brawler, worldContainer, isSuperShot));
+                bullets.push(new Bullet(sX, sY, angle + 0.1, player.brawler, worldContainer, isSuperShot));
+            }
         }
         lastShotTime = now;
     }
@@ -370,7 +384,6 @@ app.ticker.add((delta) => {
         if (!b.active) bullets.splice(i, 1);
     }
     
-    // === Enemy bullets hitting player — TARCZA SPRAWDZENIE ===
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         eb.update(delta, buildings, effects);
@@ -380,7 +393,6 @@ app.ticker.add((delta) => {
             const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable);
             
             if (powerSystem.isInvulnerable) {
-                // Pocisk odbity od tarczy — wizualne sparks żółte
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
@@ -398,7 +410,6 @@ app.ticker.add((delta) => {
     magnets.push(...spawnResult.newMagnets);
     if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     
-    // Aura update (visual + duration)
     powerSystem.update(delta, player, enemies, worldContainer, effects);
     
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -409,7 +420,6 @@ app.ticker.add((delta) => {
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (dP < collisionDist * collisionDist) {
-            // Kolizja sprawdza tarczę
             const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable);
             
             if (!enemy.isBoss && !enemy.isMegaBoss) {

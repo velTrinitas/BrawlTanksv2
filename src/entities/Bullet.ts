@@ -2,10 +2,12 @@ import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
+import { AudioSys } from '../audio/AudioSys';
 
 /**
- * Bullet z per-brawler stats + super-shot mode (v0.5 Etap 2).
- * Zgodne z v4.48 (linia 1985-2000): speedMap, radMap, trailLens per brawler.id.
+ * Bullet z per-brawler stats + super-shot mode (v0.7 Sesja 5).
+ * v0.5 Etap 2: SPEED_MAP, RADIUS_MAP, TRAIL_LEN_MAP per brawler.id zgodne z v4.48.
+ * v0.7 Sesja 5: dodane wall hit audio.
  */
 
 // Per-brawler base stats (z v4.48 linia 1986-1999)
@@ -42,7 +44,7 @@ const SUPER_TRAIL_MULT = 1.5;
 
 // Fioletowy tint (Q2🅲️ user choice)
 const SUPER_TINT = 0xc850ff;
-const SUPER_SPARKLE_EVERY_FRAMES = 5; // co 5 klatek spawnuj sparkle
+const SUPER_SPARKLE_EVERY_FRAMES = 5;
 
 export class Bullet {
     public x: number;
@@ -74,12 +76,10 @@ export class Bullet {
         this.distance = 0;
         this.isSuper = isSuper;
         
-        // Per-brawler base stats
         const baseSpeed = SPEED_MAP[brawlerInfo.id] ?? 15;
         const baseRadius = RADIUS_MAP[brawlerInfo.id] ?? 6;
         const baseTrail = TRAIL_LEN_MAP[brawlerInfo.id] ?? 0;
         
-        // Apply super multipliers
         this.dmg = brawlerInfo.dmg * (isSuper ? SUPER_DMG_MULT : 1);
         this.speed = baseSpeed;
         this.radius = baseRadius * (isSuper ? SUPER_RADIUS_MULT : 1);
@@ -91,7 +91,6 @@ export class Bullet {
         this.brawlerColor = COLOR_MAP[brawlerInfo.id] ?? 0x2ecc71;
         const drawColor = isSuper ? SUPER_TINT : this.brawlerColor;
         
-        // Main bullet sprite
         this.gfx = new PIXI.Graphics();
         
         // Outer glow gdy super (fioletowy halo)
@@ -119,10 +118,9 @@ export class Bullet {
         this.gfx.zIndex = this.y + 10;
         worldContainer.addChild(this.gfx);
         
-        // Trail (jeśli brawler ma trailLen > 0)
         if (this.trailLen > 0) {
             this.trailGfx = new PIXI.Graphics();
-            this.trailGfx.zIndex = this.y + 9; // pod główmym pociskem
+            this.trailGfx.zIndex = this.y + 9;
             worldContainer.addChild(this.trailGfx);
         }
     }
@@ -130,7 +128,6 @@ export class Bullet {
     update(delta: number, buildings: CyberBuilding[], effects: EffectsManager): void {
         if (!this.active) return;
         
-        // Zapamiętaj poprzednią pozycję w trail
         if (this.trailLen > 0) {
             this.trail.push({ x: this.x, y: this.y });
             while (this.trail.length > this.trailLen) {
@@ -138,7 +135,6 @@ export class Bullet {
             }
         }
         
-        // Move
         this.x += this.vx * delta;
         this.y += this.vy * delta;
         
@@ -146,6 +142,7 @@ export class Bullet {
         for (const b of buildings) {
             if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
                 effects.spawnWallImpact(this.x, this.y);
+                AudioSys.getInstance().playHit('wall'); // v0.7 Sesja 5
                 this.destroy();
                 return;
             }
@@ -170,7 +167,7 @@ export class Bullet {
             }
         }
         
-        // Sparkle trail (Q2🅲️) — co N klatek spawn iskrę gdy super
+        // Sparkle trail gdy super (Q2🅲️)
         if (this.isSuper) {
             this.sparkleTimer += delta;
             if (this.sparkleTimer >= SUPER_SPARKLE_EVERY_FRAMES) {

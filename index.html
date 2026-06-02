@@ -83,6 +83,27 @@
             z-index: 50; pointer-events: none; 
             width: 100vw; height: 100vh;
         }
+        
+        /* Controls hint (v0.7 Sesja 5) */
+        .controls-hint {
+            margin-top: 18px;
+            padding: 12px 24px;
+            background: rgba(44, 62, 80, 0.08);
+            border-radius: 16px;
+            border: 2px dashed rgba(44, 62, 80, 0.25);
+            color: #2c3e50;
+            font-size: 0.95rem;
+            text-align: center;
+            line-height: 1.6;
+            max-width: 700px;
+        }
+        .controls-hint b {
+            color: #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin: 0 2px;
+        }
     </style>
 </head>
 <body>
@@ -95,6 +116,10 @@
             <h2>Wybierz swój czołg</h2>
             <div class="grid-container char-grid" id="charGrid"></div>
             <button class="brawl-btn" id="startBtn">Wejdź do Miasta!</button>
+            <div class="controls-hint">
+                <b>WASD</b> = ruch &nbsp;·&nbsp; <b>LPM</b> = strzał &nbsp;·&nbsp; <b>scroll</b> = wybór super<br>
+                <b>PPM</b> lub <b>SPACE</b> = aktywuj super &nbsp;·&nbsp; 🔇 <b>M</b> = wycisz dźwięk
+            </div>
         </div>
         <div id="victoryScreen" class="screen">
             <h1 style="color: #ffdd00;">🏆 ZWYCIĘSTWO!</h1>

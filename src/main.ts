@@ -20,8 +20,9 @@ import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
 import { PICKUP_CONFIG, MEGA_BOMB_CONFIG } from './config/powers';
+import { AudioSys } from './audio/AudioSys';
 
-const GEMS_PER_SUPER_CHARGE_TRIGGER = 10; // v4.48: co 10 gemów +3 charges
+const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 
 let selectedBrawler: Brawler = BRAWLERS[0];
@@ -52,6 +53,9 @@ let isMouseDown = false;
 
 let comboCount = 0;
 let comboEndTime = 0;
+
+// AudioSys singleton (gentle failure if files missing)
+const audio = AudioSys.getInstance();
 
 const app = new PIXI.Application({
     resizeTo: window,
@@ -100,9 +104,11 @@ function tryActivateSuper(): void {
     if (result.powerId === 'aura') {
         hud.addNotif('🛡️ TARCZA AKTYWNA!', '#ffdd00');
         effects.shake(4, 6);
+        audio.playSuperActivate('aura');
     } else if (result.powerId === 'megaBomb' && result.megaBombTargets) {
         effects.spawnMegaBomb(player.x, player.y);
         hud.addNotif(`💣 MEGA BOMBA — ${result.megaBombTargets.length} celów!`, '#ff4400');
+        audio.playSuperActivate('megaBomb');
         
         for (const enemy of result.megaBombTargets) {
             const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
@@ -120,6 +126,7 @@ function tryActivateSuper(): void {
         effects.spawnFreezeOverlay(300);
         hud.addNotif('❄️ MRÓZ NA WSZYSTKICH WROGACH!', '#66ddff');
         effects.shake(3, 8);
+        audio.playSuperActivate('freeze');
     }
 }
 
@@ -129,6 +136,11 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Space') {
         e.preventDefault();
         tryActivateSuper();
+    }
+    // M = toggle mute
+    if (k === 'm') {
+        const nowMuted = audio.toggleMute();
+        hud.addNotif(nowMuted ? '🔇 WYCISZONO' : '🔊 DŹWIĘK WŁ.', '#aaaaaa');
     }
 });
 window.addEventListener('keyup', e => {
@@ -217,6 +229,9 @@ function startGame(): void {
     magnets = [];
     isMouseDown = false;
     gameState = 'PLAYING';
+    
+    // Start music (Howler obsługuje autoplay policy — gra po pierwszym user gesture, czyli kliknięciu Start)
+    audio.startMusic();
 }
 
 document.getElementById('startBtn')!.addEventListener('click', startGame);
@@ -225,6 +240,8 @@ document.getElementById('retryBtn')!.addEventListener('click', startGame);
 
 function triggerGameOver(): void {
     gameState = 'GAMEOVER';
+    audio.playGameOver();
+    
     const gameSeconds = Math.round((Date.now() - gameStartTime) / 1000);
     const statsEl = document.getElementById('gameOverStats')!;
     statsEl.innerHTML = `
@@ -244,6 +261,8 @@ function triggerGameOver(): void {
 
 function triggerVictory(): void {
     gameState = 'VICTORY';
+    audio.playVictory();
+    
     const gameSeconds = Math.round((Date.now() - gameStartTime) / 1000);
     const statsEl = document.getElementById('victoryStats')!;
     statsEl.innerHTML = `
@@ -284,6 +303,7 @@ app.ticker.add((delta) => {
             player.hp = Math.min(player.maxHp, player.hp + 1);
             effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
             hud.addNotif('🔧 +1 HP', '#2ecc71');
+            audio.playHeartPickup(); // ten sam dźwięk co heart — heal vibe
         }
     }
     for (const pad of powerPads) {
@@ -293,6 +313,7 @@ app.ticker.add((delta) => {
             effects.spawnEnemyHitSparks(player.x, player.y, 0xff6600);
             effects.shake(5, 8);
             hud.addNotif('⚡ TURBO ×2 — 5s!', '#ffcc00');
+            audio.playMagnetPickup(); // turbo vibe = magnet whoosh
         }
     }
     
@@ -305,12 +326,12 @@ app.ticker.add((delta) => {
             if (h.pickup(effects)) {
                 player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
                 hud.addNotif(`❤️ +${h.healAmount} HP`, '#ff3366');
+                audio.playHeartPickup();
                 hearts.splice(i, 1);
             }
         }
     }
     
-    // === Gem pickup + super-charge logic (v0.5 Etap 2) ===
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
@@ -322,8 +343,8 @@ app.ticker.add((delta) => {
                 const prevTotal = spawnSystem.gemsCollected;
                 spawnSystem.registerGemCollected();
                 stats.score += 1;
+                audio.playGemPickup(); // anti-spam wbudowane w AudioSys
                 
-                // v4.48: co 10 gemów → +3 super charges
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 if (newTrigger > prevTrigger) {
@@ -346,12 +367,12 @@ app.ticker.add((delta) => {
             if (m.pickup(effects)) {
                 powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
                 hud.addNotif('🧲 MAGNET 5s!', '#e74c3c');
+                audio.playMagnetPickup();
                 magnets.splice(i, 1);
             }
         }
     }
     
-    // === Player shooting — z auto-aktywacją super-shot (v0.5 Etap 2) ===
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
@@ -359,16 +380,22 @@ app.ticker.add((delta) => {
         const sY = player.y + Math.sin(angle) * 45;
         effects.spawnMuzzleFlash(sX, sY, angle);
         
-        // v4.48: AUTO aktywacja super-shot przy najbliższym strzale jeśli charges > 0
+        // Detect super-shot FRESH activation (przed → po)
+        const wasActive = player.isSuperShotActive;
         const isSuperShot = player.tryActivateOrContinueSuperShot();
+        const justActivated = !wasActive && isSuperShot;
+        
+        if (justActivated) {
+            audio.playSuperShotActivate(); // sparkle "power up" dźwięk
+        }
+        
+        audio.playShoot(player.brawler.id); // shoot SFX per brawler type
         
         if (player.brawler.type === 'spread') {
-            // Pyro/Ogniarz: zawsze 3 pociski (-0.2, 0, +0.2)
             bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot));
             bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
             bullets.push(new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer, isSuperShot));
         } else {
-            // Inne: 1 pocisk normalnie, 3 podczas super-shot (-0.1, 0, +0.1)
             bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
             if (isSuperShot) {
                 bullets.push(new Bullet(sX, sY, angle - 0.1, player.brawler, worldContainer, isSuperShot));
@@ -394,9 +421,11 @@ app.ticker.add((delta) => {
             
             if (powerSystem.isInvulnerable) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
+                // Brak playHit('player') gdy tarcza — bo nic się nie stało
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
                 effects.shake(4, 6);
+                audio.playHit('player');
             }
             eb.destroy();
             enemyBullets.splice(i, 1);
@@ -424,6 +453,7 @@ app.ticker.add((delta) => {
             
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
+                audio.playExplosion();
                 dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
@@ -431,7 +461,10 @@ app.ticker.add((delta) => {
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
-                if (!powerSystem.isInvulnerable) effects.shake(8, 10);
+                if (!powerSystem.isInvulnerable) {
+                    effects.shake(8, 10);
+                    audio.playHit('player');
+                }
             }
             if (playerDied) { triggerGameOver(); return; }
         }
@@ -444,8 +477,10 @@ app.ticker.add((delta) => {
                 const hitX = b.x, hitY = b.y;
                 b.destroy();
                 bullets.splice(j, 1);
+                audio.playHit('enemy');
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
                 if (killed) {
+                    audio.playExplosion(); // wreck/death
                     spawnSystem.registerKill(enemy);
                     stats.score += enemy.scoreValue;
                     dropGems(enemy.x, enemy.y, enemy.getGemDropCount());

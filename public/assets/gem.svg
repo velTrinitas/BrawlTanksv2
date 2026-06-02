@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100" height="100">
+  <defs>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <g transform="translate(0, 0)">
+    <ellipse cx="60" cy="112" rx="25" ry="7" fill="#000000" opacity="0.35" />
+    <g filter="url(#glow)">
+      <path d="M 15 45 L 40 15 L 80 15 L 105 45 L 60 105 Z" fill="none" stroke="#2c3e50" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" />
+      <path d="M 40 15 L 80 15 L 75 40 L 45 40 Z" fill="#abebc6" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round" />
+      <path d="M 15 45 L 40 15 L 45 40 Z" fill="#58d68d" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round" />
+      <path d="M 80 15 L 105 45 L 75 40 Z" fill="#27ae60" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round" />
+      <path d="M 45 40 L 75 40 L 60 105 Z" fill="#229954" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round" />
+      <path d="M 15 45 L 45 40 L 60 105 Z" fill="#2ecc71" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round" />
+      <path d="M 105 45 L 75 40 L 60 105 Z" fill="#145a32" stroke="#2c3e50" stroke-width="2" stroke-linejoin="round" />
+    </g>
+    <path d="M 47 20 L 73 20 L 70 27 L 50 27 Z" fill="#ffffff" opacity="0.8" />
+    <polygon points="26,38 38,24 41,31 32,41" fill="#ffffff" opacity="0.5" />
+    <path d="M 25 15 L 27 5 L 29 15 L 39 17 L 29 19 L 27 29 L 25 19 L 15 17 Z" fill="#ffffff" opacity="0.9" />
+  </g>
+</svg>

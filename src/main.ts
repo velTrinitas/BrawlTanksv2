@@ -19,7 +19,7 @@ import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG } from './config/powers';
+import { PICKUP_CONFIG, AURA_CONFIG } from './config/powers';
 
 // ==========================================
 // STATE
@@ -98,7 +98,7 @@ BRAWLERS.forEach(b => {
 });
 
 // ==========================================
-// INPUT HANDLERS — PPM przez contextmenu event (v4.48 sposób, niezawodne)
+// INPUT HANDLERS
 // ==========================================
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem) return;
@@ -107,7 +107,6 @@ function tryActivateSuper(): void {
         hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
         effects?.shake(6, 8);
     }
-    // Brak fallback notyfikacji gdy charges=0 (cicho)
 }
 
 window.addEventListener('keydown', e => {
@@ -128,20 +127,17 @@ window.addEventListener('keyup', e => {
     mouse.screenY = e.clientY;
 });
 
-// LPM dla strzelania
 (app.view as HTMLCanvasElement).addEventListener('pointerdown', (e: any) => {
     if (e.button === 0) isMouseDown = true;
 });
 (app.view as HTMLCanvasElement).addEventListener('pointerup', () => { isMouseDown = false; });
 (app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
 
-// PPM = super (contextmenu event — najpewniejsze)
 (app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => {
     e.preventDefault();
     tryActivateSuper();
 });
 
-// Scroll = wybór super
 (app.view as HTMLCanvasElement).addEventListener('wheel', (e: any) => {
     if (gameState !== 'PLAYING' || !powerSystem) return;
     e.preventDefault();
@@ -222,7 +218,10 @@ function triggerGameOver(): void {
     const statsEl = document.getElementById('gameOverStats')!;
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
-        <div>💎 Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+            <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
+            <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
+        </div>
         <div>⭐ Punkty: <b>${stats.score}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów zabitych: <b>${spawnSystem?.bossKills ?? 0}</b></div>
@@ -238,7 +237,10 @@ function triggerVictory(): void {
     const statsEl = document.getElementById('victoryStats')!;
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
-        <div>💎 Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+            <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
+            <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
+        </div>
         <div>⭐ Punkty: <b>${stats.score}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów: <b>${spawnSystem?.bossKills ?? 0}</b></div>
@@ -267,6 +269,9 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
+    // ==========================================
+    // PADS update — MediPady i PowerPady
+    // ==========================================
     const time = Date.now() / 1000;
     for (const pad of mediPads) {
         const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
@@ -286,6 +291,7 @@ app.ticker.add((delta) => {
         }
     }
     
+    // Hearts pickup
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
         h.update(delta);
@@ -303,6 +309,7 @@ app.ticker.add((delta) => {
         }
     }
     
+    // Gems pickup + magnet attract
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
@@ -327,6 +334,7 @@ app.ticker.add((delta) => {
         }
     }
     
+    // Magnet pickup
     for (let i = magnets.length - 1; i >= 0; i--) {
         const m = magnets[i];
         m.update(delta);
@@ -344,6 +352,7 @@ app.ticker.add((delta) => {
         }
     }
     
+    // Player shooting
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
@@ -360,12 +369,14 @@ app.ticker.add((delta) => {
         lastShotTime = now;
     }
     
+    // Player bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, buildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
     
+    // Enemy bullets
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         eb.update(delta, buildings, effects);
@@ -384,15 +395,17 @@ app.ticker.add((delta) => {
         }
     }
     
+    // Spawn system
     const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
     magnets.push(...spawnResult.newMagnets);
     if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     
+    // Power system update (aura damage tick na enemies) — v0.4e: damage z AURA_CONFIG
     const auraTargets = powerSystem.update(delta, player, enemies, worldContainer, effects);
     for (const enemy of auraTargets) {
-        const killed = enemy.takeDamage(2, enemy.x, enemy.y, worldContainer, effects);
+        const killed = enemy.takeDamage(AURA_CONFIG.damagePerTick, enemy.x, enemy.y, worldContainer, effects);
         if (killed) {
             spawnSystem.registerKill(enemy);
             stats.score += enemy.scoreValue;
@@ -401,6 +414,7 @@ app.ticker.add((delta) => {
         }
     }
     
+    // Enemies update + collisions
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
@@ -424,6 +438,7 @@ app.ticker.add((delta) => {
             if (playerDied) { triggerGameOver(); return; }
         }
         
+        // Bullet-enemy collision
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (!b.active) continue;

@@ -53,8 +53,8 @@ export const CHARGE_CONFIG = {
 
 export const AURA_CONFIG = {
     radius: 150,
-    tickEveryFrames: 30,
-    damagePerTick: 2,
+    tickEveryFrames: 24,
+    damagePerTick: 3,
 };
 
 export const PICKUP_CONFIG = {

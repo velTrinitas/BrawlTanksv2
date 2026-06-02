@@ -50,10 +50,10 @@ export const ENEMY_BOSS: EnemyConfig = {
  * Difficulty na razie hardcoded 'normal'. Wprowadzimy 4 poziomy w późniejszej sesji.
  */
 export const SPAWN_CONFIG = {
-    diffBase: 120,           // klatki między spawnami (start)
-    minSpawnFrames: 20,      // minimum (cap)
-    timeScaling: 1.5,        // ile szybciej co sekundę
-    maxEnemiesOnMap: 25,     // hard cap
+    diffBase: 150,           // klatki między spawnami (start)
+    minSpawnFrames: 30,      // minimum (cap)
+    timeScaling: 1,        // ile szybciej co sekundę
+    maxEnemiesOnMap: 20,     // hard cap
     bossKillTrigger: 20,     // co ile killów spawn boss
     megaBossKillThreshold: 100, // ile regular killów do mega boss (3B)
 };
@@ -79,7 +79,7 @@ export const ENEMY_MEGA_BOSS: EnemyConfig = {
  * Heart pickup config.
  */
 export const HEART_CONFIG = {
-    spawnIntervalFrames: 522, // co ~8.7s
+    spawnIntervalFrames: 360, // co ~8.7s
     healAmount: 1,
     maxOnMap: 3,
 };

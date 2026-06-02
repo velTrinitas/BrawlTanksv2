@@ -16,6 +16,8 @@ export interface SpawnResult {
     megaBossJustSpawned: boolean;
 }
 
+const MAX_CONCURRENT_REGULAR_BOSSES = 2; // HOTFIX: max 2 bossy naraz
+
 export class SpawnSystem {
     private frameCounter: number = 0;
     private gameTimeSeconds: number = 0;
@@ -31,6 +33,7 @@ export class SpawnSystem {
     public megaBossKilled: boolean = false;
     
     private lastBossKillTrigger: number = 0;
+    private pendingBossSpawns: number = 0; // ile bossów czeka na spawn
     
     constructor() {}
     
@@ -70,7 +73,7 @@ export class SpawnSystem {
             }
         }
         
-        // === Regular Boss spawn ===
+        // === Regular Boss spawn trigger (co 20 killów) ===
         if (
             this.regularKills > 0 &&
             this.regularKills % SPAWN_CONFIG.bossKillTrigger === 0 &&
@@ -78,9 +81,16 @@ export class SpawnSystem {
             this.regularKills < SPAWN_CONFIG.megaBossKillThreshold
         ) {
             this.lastBossKillTrigger = this.regularKills;
+            this.pendingBossSpawns++; // dodaj do kolejki, spawn gdy mniej niż 2 bossów żyje
+        }
+        
+        // === Spawn pending bossów, ale max 2 naraz ===
+        const aliveBosses = currentEnemies.filter(e => e.isBoss && !e.isMegaBoss).length;
+        if (this.pendingBossSpawns > 0 && aliveBosses < MAX_CONCURRENT_REGULAR_BOSSES) {
             const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 400);
             if (pos) {
                 newEnemies.push(new Enemy(pos.x, pos.y, ENEMY_BOSS, true, worldContainer));
+                this.pendingBossSpawns--;
             }
         }
         
@@ -89,6 +99,7 @@ export class SpawnSystem {
         if (
             this.regularKills >= SPAWN_CONFIG.megaBossKillThreshold &&
             !anyRegularBossAlive &&
+            this.pendingBossSpawns === 0 && // wszyscy bossy spawnęli i zostali zabici
             !this.megaBossSpawned
         ) {
             const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 500);
@@ -185,5 +196,6 @@ export class SpawnSystem {
         this.megaBossSpawned = false;
         this.megaBossKilled = false;
         this.lastBossKillTrigger = 0;
+        this.pendingBossSpawns = 0;
     }
 }

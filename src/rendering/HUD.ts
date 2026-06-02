@@ -3,7 +3,7 @@ import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
 import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
-import { POWERS } from '../config/powers';
+import { POWERS, CHARGE_CONFIG, type PowerId } from '../config/powers';
 
 interface HudNotif {
     text: string;
@@ -185,104 +185,162 @@ export class HUD {
     }
     
     /**
-     * Super power slot — pod kill counter po prawej.
+     * Super power UI — dolny środek ekranu (jak v4.48).
+     * Pasek z 3 ikonami + pill "X/10 do Super" + hint sterowania.
      */
-    private drawSuperPowerSlot(powerSystem: PowerSystem, px: number, py: number, PW: number, PH: number, r: number): void {
+    private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
-        const power = POWERS[powerSystem.currentPowerId];
-        const chargePct = powerSystem.getChargePercent();
-        const isReady = powerSystem.isReady();
-        const isActive = powerSystem.isActive;
+        const cx = this.screenW / 2;
+        const baseY = this.screenH - 90;
         
-        // Background
-        c.fillStyle = isActive ? 'rgba(255,180,0,0.25)' : 'rgba(8,8,18,0.75)';
+        // 3 ikony obok siebie
+        const ICON_SIZE = 60;
+        const ICON_GAP = 12;
+        const totalW = ICON_SIZE * 3 + ICON_GAP * 2;
+        const startX = cx - totalW / 2;
+        
+        const powerOrder: PowerId[] = ['aura', 'megaBomb', 'freeze'];
+        powerOrder.forEach((id, i) => {
+            const power = POWERS[id];
+            const ix = startX + i * (ICON_SIZE + ICON_GAP);
+            const iy = baseY;
+            const isSelected = powerSystem.selectedPowerId === id;
+            const isDisabled = !power.implemented;
+            
+            // Tło
+            if (isDisabled) {
+                c.fillStyle = 'rgba(8,8,18,0.6)';
+            } else if (isSelected) {
+                c.fillStyle = 'rgba(40,30,8,0.85)';
+            } else {
+                c.fillStyle = 'rgba(8,8,18,0.75)';
+            }
+            c.beginPath();
+            c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 10);
+            c.fill();
+            
+            // Border — pulsujący żółty gdy selected, szary gdy disabled, brak inaczej
+            if (isSelected && !isDisabled) {
+                const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
+                c.strokeStyle = `rgba(255,221,0,${pulse})`;
+                c.lineWidth = 3;
+                c.stroke();
+            } else if (isDisabled) {
+                c.strokeStyle = 'rgba(80,80,80,0.5)';
+                c.lineWidth = 2;
+                c.stroke();
+            }
+            
+            // Emoji icon
+            c.font = `34px "Lilita One",cursive`;
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.globalAlpha = isDisabled ? 0.35 : 1.0;
+            c.fillStyle = isSelected ? '#ffdd00' : '#fff';
+            c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 4);
+            c.globalAlpha = 1.0;
+            
+            // Name pod ikoną
+            c.font = `bold 10px "Lilita One",cursive`;
+            c.fillStyle = isDisabled ? 'rgba(180,180,180,0.5)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
+            c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 8);
+            
+            // Strzałka wskaźnika pod selected
+            if (isSelected && !isDisabled) {
+                c.fillStyle = '#ffdd00';
+                c.beginPath();
+                c.moveTo(ix + ICON_SIZE / 2 - 6, iy + ICON_SIZE + 4);
+                c.lineTo(ix + ICON_SIZE / 2 + 6, iy + ICON_SIZE + 4);
+                c.lineTo(ix + ICON_SIZE / 2, iy + ICON_SIZE + 12);
+                c.closePath();
+                c.fill();
+            }
+        });
+        
+        // === Pill "X/10 do Super" pod ikonkami ===
+        const PILL_Y = baseY + ICON_SIZE + 18;
+        const PILL_W = 260;
+        const PILL_H = 36;
+        const pillX = cx - PILL_W / 2;
+        
+        c.fillStyle = 'rgba(8,8,18,0.85)';
         c.beginPath();
-        c.roundRect(px, py, PW, PH, r);
+        c.roundRect(pillX, PILL_Y, PILL_W, PILL_H, 12);
         c.fill();
         
-        // Border kiedy gotowe lub aktywne
-        if (isReady || isActive) {
-            const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
-            c.strokeStyle = `rgba(255,221,0,${pulse})`;
-            c.lineWidth = 3;
-            c.stroke();
-        }
+        // Zielony gem icon
+        c.fillStyle = '#2ecc71';
+        c.beginPath();
+        c.moveTo(pillX + 22, PILL_Y + 8);
+        c.lineTo(pillX + 32, PILL_Y + 18);
+        c.lineTo(pillX + 22, PILL_Y + 28);
+        c.lineTo(pillX + 12, PILL_Y + 18);
+        c.closePath();
+        c.fill();
+        c.strokeStyle = '#0d4d28';
+        c.lineWidth = 1.5;
+        c.stroke();
         
-        // Icon (emoji)
-        c.font = `28px "Lilita One",cursive`;
+        // Tekst "X/10 do Super"  lub "x3 charges"
+        c.font = `bold 18px "Lilita One",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.fillStyle = '#ffdd00';
-        c.fillText(power.emoji, px + 12, py + PH / 2);
+        c.strokeStyle = 'rgba(0,0,0,0.8)';
+        c.lineWidth = 3;
         
-        // Power name
-        c.font = `bold 13px "Lilita One",cursive`;
-        c.fillStyle = isReady ? '#ffdd00' : 'rgba(255,255,255,0.7)';
-        c.fillText(power.name.toUpperCase(), px + 50, py + PH / 2 - 8);
+        const text = powerSystem.charges > 0
+            ? `${powerSystem.gemsSinceLastCharge}/${CHARGE_CONFIG.gemsPerChargeTrigger} · ⚡x${powerSystem.charges}`
+            : `${powerSystem.gemsSinceLastCharge}/${CHARGE_CONFIG.gemsPerChargeTrigger} do Super`;
+        c.strokeText(text, pillX + 40, PILL_Y + PILL_H / 2);
+        c.fillText(text, pillX + 40, PILL_Y + PILL_H / 2);
         
-        // Charge bar
-        const BAR_H = 8;
-        const BAR_X = px + 50;
-        const BAR_W = PW - 60;
-        const BAR_Y = py + PH / 2 + 4;
-        
+        // Charge progress bar w pillu
+        const BAR_X = pillX + 40;
+        const BAR_Y = PILL_Y + PILL_H - 5;
+        const BAR_W = PILL_W - 50;
+        const BAR_H = 2;
         c.fillStyle = 'rgba(255,255,255,0.1)';
-        c.beginPath();
-        c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
-        c.fill();
+        c.fillRect(BAR_X, BAR_Y, BAR_W, BAR_H);
+        c.fillStyle = '#2ecc71';
+        c.fillRect(BAR_X, BAR_Y, BAR_W * powerSystem.getGemProgress(), BAR_H);
         
-        if (isActive) {
-            // Aktywne: bar pokazuje ile czasu zostało
-            const power = POWERS[powerSystem.currentPowerId];
-            const activePct = powerSystem.framesLeft / power.durationFrames;
-            c.fillStyle = '#ff8800';
-            c.beginPath();
-            c.roundRect(BAR_X, BAR_Y, BAR_W * activePct, BAR_H, BAR_H / 2);
-            c.fill();
-        } else {
-            // Ładowanie
-            const barColor = isReady ? '#ffdd00' : '#66aaff';
-            c.fillStyle = barColor;
-            c.beginPath();
-            c.roundRect(BAR_X, BAR_Y, BAR_W * chargePct, BAR_H, BAR_H / 2);
-            c.fill();
-        }
+        // === Hint sterowania (mały tekst nad ikonkami) ===
+        c.font = `12px "Lilita One",cursive`;
+        c.fillStyle = 'rgba(255,255,255,0.55)';
+        c.textAlign = 'center';
+        c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, baseY - 12);
         
-        // "SPACE" hint gdy gotowe
-        if (isReady) {
-            const pulse = 0.7 + Math.sin(Date.now() / 200) * 0.3;
+        // === Status: "AKTYWNE" gdy super aktywny ===
+        if (powerSystem.isActive) {
+            const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
             c.save();
             c.globalAlpha = pulse;
+            c.font = `bold 22px "Lilita One",cursive`;
+            c.textAlign = 'center';
+            c.strokeStyle = '#000';
+            c.lineWidth = 5;
+            c.strokeText('☄️ AURA AKTYWNA ☄️', cx, baseY - 38);
             c.fillStyle = '#ffdd00';
-            c.font = `bold 13px "Lilita One",cursive`;
-            c.textAlign = 'center';
-            c.fillText('SPACE!', px + PW / 2, py + PH + 18);
+            c.fillText('☄️ AURA AKTYWNA ☄️', cx, baseY - 38);
             c.restore();
-        }
-        
-        // "AKTYWNE" w trakcie
-        if (isActive) {
-            c.fillStyle = '#ff8800';
-            c.font = `bold 13px "Lilita One",cursive`;
-            c.textAlign = 'center';
-            c.fillText('AKTYWNE', px + PW / 2, py + PH + 18);
         }
     }
     
-    /**
-     * Magnet status pill — pokazywany tylko gdy aktywny.
-     */
-    private drawMagnetStatus(powerSystem: PowerSystem, px: number, py: number): void {
+    private drawMagnetStatus(powerSystem: PowerSystem, _px: number, _py: number): void {
         if (!powerSystem.magnetActive) return;
         const c = this.ctx;
         const remaining = Math.max(0, (powerSystem.magnetEndTime - Date.now()) / 1000);
+        
+        const px = this.screenW - 14 - 200;
+        const py = 80;
         
         const pulse = 0.85 + Math.sin(Date.now() / 100) * 0.15;
         c.save();
         c.globalAlpha = pulse;
         c.fillStyle = 'rgba(231,76,60,0.85)';
         c.beginPath();
-        c.roundRect(px, py, 160, 32, 10);
+        c.roundRect(px, py, 200, 32, 10);
         c.fill();
         c.font = `bold 16px "Lilita One",cursive`;
         c.textAlign = 'center';
@@ -290,8 +348,8 @@ export class HUD {
         c.fillStyle = '#fff';
         c.strokeStyle = '#000';
         c.lineWidth = 3;
-        c.strokeText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 80, py + 16);
-        c.fillText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 80, py + 16);
+        c.strokeText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 100, py + 16);
+        c.fillText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 100, py + 16);
         c.restore();
     }
     
@@ -427,11 +485,11 @@ export class HUD {
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
-        // Super power slot pod kill counter
-        this.drawSuperPowerSlot(powerSystem, kx, 80, 200, 50, 14);
+        // === SUPER POWER UI na dole pośrodku (hotfix!) ===
+        this.drawSuperPowerBar(powerSystem);
         
-        // Magnet status (jeśli aktywny) — pod super power slot
-        this.drawMagnetStatus(powerSystem, kx + 20, 152);
+        // Magnet status — pod kill counter po prawej
+        this.drawMagnetStatus(powerSystem, 0, 0);
         
         if (megaBoss && megaBoss.active) {
             this.drawMegaBossBar(megaBoss);

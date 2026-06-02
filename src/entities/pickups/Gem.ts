@@ -4,42 +4,92 @@ import { PICKUP_CONFIG } from '../../config/powers';
 
 /**
  * Gem pickup — drop po zabiciu wroga. Daje XP do super charge.
+ * HOTFIX: zielony, heksagonalny, większy (28×32), 3D shading + glow outline.
  */
 
 let _gemTexture: PIXI.Texture | null = null;
 function getGemTexture(): PIXI.Texture {
     if (_gemTexture) return _gemTexture;
     const cv = document.createElement('canvas');
-    cv.width = 20; cv.height = 24;
+    cv.width = 36; cv.height = 40;
     const ctx = cv.getContext('2d')!;
     
-    // Diamond shape (cyan/blue)
-    ctx.fillStyle = '#00bfff';
-    ctx.strokeStyle = '#0080cc';
+    const cx = 18, cy = 20;
+    
+    // === Glow outline (zewnętrzny soft glow) ===
+    const glowGrad = ctx.createRadialGradient(cx, cy, 8, cx, cy, 18);
+    glowGrad.addColorStop(0, 'rgba(46,204,113,0.6)');
+    glowGrad.addColorStop(0.6, 'rgba(46,204,113,0.2)');
+    glowGrad.addColorStop(1, 'rgba(46,204,113,0)');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, 36, 40);
+    
+    // === Hexagonalny kształt (6 wierzchołków) ===
+    // Pointy-top hexagon
+    const r = 13; // promień gema
+    const points: Array<[number, number]> = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 2;
+        points.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)]);
+    }
+    
+    // Dark outline (ciemniejszy zielony)
+    ctx.fillStyle = '#1a6b3a';
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < 6; i++) ctx.lineTo(points[i][0], points[i][1]);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Main fill (jaskrawy zielony) — trochę mniejszy żeby outline było widać
+    const mainGrad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+    mainGrad.addColorStop(0, '#5fdba0');
+    mainGrad.addColorStop(0.5, '#2ecc71');
+    mainGrad.addColorStop(1, '#27ae60');
+    ctx.fillStyle = mainGrad;
+    ctx.beginPath();
+    const innerR = r - 1.5;
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 2;
+        const x = cx + innerR * Math.cos(angle);
+        const y = cy + innerR * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    
+    // === 3D facet — jasny segment top-left ===
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(points[0][0], points[0][1]);       // top
+    ctx.lineTo(points[5][0], points[5][1]);       // top-left
+    ctx.closePath();
+    ctx.fill();
+    
+    // Drugi jasny segment — top-right
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(points[0][0], points[0][1]);
+    ctx.lineTo(points[1][0], points[1][1]);
+    ctx.closePath();
+    ctx.fill();
+    
+    // === Cienki ciemny outline (kontur główny) ===
+    ctx.strokeStyle = '#0d4d28';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(10, 2);
-    ctx.lineTo(18, 10);
-    ctx.lineTo(10, 22);
-    ctx.lineTo(2, 10);
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < 6; i++) ctx.lineTo(points[i][0], points[i][1]);
     ctx.closePath();
-    ctx.fill();
     ctx.stroke();
     
-    // Facet highlights
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    // === Bright shine (mały biały highlight top) ===
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath();
-    ctx.moveTo(10, 2);
-    ctx.lineTo(14, 10);
-    ctx.lineTo(10, 12);
-    ctx.lineTo(6, 10);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Inner shine
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath();
-    ctx.arc(8, 8, 1.5, 0, Math.PI * 2);
+    ctx.ellipse(cx - 2, cy - 7, 3, 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
     
     _gemTexture = PIXI.Texture.from(cv);
@@ -51,19 +101,19 @@ export class Gem {
     public y: number;
     public active: boolean;
     public sprite: PIXI.Sprite;
-    public radius: number = 10;
+    public radius: number = 14; // hotfix: większy
     public value: number = PICKUP_CONFIG.gemValue;
     private bornAt: number;
+    private baseY: number; // do float animation
     
-    // Magnet-attracted state
     public attracted: boolean = false;
     private vx: number = 0;
     private vy: number = 0;
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
-        // Lekkie odsunięcie od punktu śmierci
         this.x = x + (Math.random() - 0.5) * 30;
         this.y = y + (Math.random() - 0.5) * 30;
+        this.baseY = this.y;
         this.active = true;
         this.bornAt = Date.now();
         
@@ -78,24 +128,32 @@ export class Gem {
     update(delta: number, playerX: number, playerY: number): void {
         if (!this.active) return;
         
-        // Bobbing animation + lekki spin
-        const t = Date.now() / 200;
-        this.sprite.scale.set(1 + Math.sin(t + this.x) * 0.08);
+        // Float (lewitacja) — sprite.y oscyluje wokół this.baseY
+        const t = Date.now() / 250;
+        const floatOffset = Math.sin(t + this.x * 0.01) * 3;
         
-        // Magnet attraction
+        // Pulse scale (subtle)
+        const pulseScale = 1 + Math.sin(t * 1.5) * 0.06;
+        this.sprite.scale.set(pulseScale);
+        
+        // Magnet attraction (HOTFIX: range check + slower speed)
         if (this.attracted) {
             const dx = playerX - this.x;
-            const dy = playerY - this.y;
+            const dy = playerY - this.baseY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > 1) {
+            
+            // Tylko gdy w zasięgu magnesu
+            if (dist < PICKUP_CONFIG.magnetAttractRange && dist > 1) {
                 this.vx = (dx / dist) * PICKUP_CONFIG.magnetAttractSpeed;
                 this.vy = (dy / dist) * PICKUP_CONFIG.magnetAttractSpeed;
                 this.x += this.vx * delta;
-                this.y += this.vy * delta;
-                this.sprite.x = this.x;
-                this.sprite.y = this.y;
+                this.baseY += this.vy * delta;
             }
+            // Poza zasięgiem = czeka aż gracz zbliży się lub do wygaśnięcia
         }
+        
+        this.sprite.x = this.x;
+        this.sprite.y = this.baseY + floatOffset; // float wokół baseY
         
         // Migotanie przed zniknięciem (ostatnie 3s)
         const age = Date.now() - this.bornAt;
@@ -111,7 +169,8 @@ export class Gem {
     
     pickup(effects: EffectsManager): boolean {
         if (!this.active) return false;
-        effects.spawnEnemyHitSparks(this.x, this.y, 0x00bfff);
+        // Zielone particles (hotfix)
+        effects.spawnEnemyHitSparks(this.x, this.baseY, 0x2ecc71);
         this.destroy();
         return true;
     }

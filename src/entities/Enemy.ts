@@ -254,7 +254,7 @@ export class Enemy {
         this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : 19);
         
         const now = Date.now();
-        if (now - this.lastShotTime >= this.shootIntervalMs && dist < 800) {
+        if (now - this.lastShotTime >= this.shootIntervalMs && dist < 640) {
             this.lastShotTime = now;
             const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : 40;
             return {

@@ -1,6 +1,6 @@
 /**
  * Super powers config. Pure data, no logic.
- * W Sesji 4A wprowadzamy tylko Aura. W 4B dorzucimy Mega Bomb + Freeze.
+ * Hotfix: zgodne z v4.48 — 10 gemów = +3 charges, MEGA BOMB i FREEZE jako "soon".
  */
 
 export type PowerId = 'aura' | 'megaBomb' | 'freeze';
@@ -9,10 +9,11 @@ export interface PowerConfig {
     id: PowerId;
     name: string;
     emoji: string;
-    color: number;          // hex tint dla HUD i efektów
-    durationFrames: number; // ile klatek aktywne (60 = 1s)
-    chargeNeeded: number;   // ile XP do naładowania (1 gem = 1 XP)
+    color: number;
+    durationFrames: number;
     description: string;
+    /** Czy zaimplementowane. false = wyświetlane ale niemożliwe do wyboru/aktywacji */
+    implemented: boolean;
 }
 
 export const POWERS: Record<PowerId, PowerConfig> = {
@@ -21,9 +22,9 @@ export const POWERS: Record<PowerId, PowerConfig> = {
         name: 'Aura',
         emoji: '☄️',
         color: 0xffdd00,
-        durationFrames: 480,  // 8 sekund
-        chargeNeeded: 100,
+        durationFrames: 480,  // 8 sekund (per charge use)
         description: 'Pierścień ognia zadaje obrażenia wrogom wokół ciebie przez 8s',
+        implemented: true,
     },
     megaBomb: {
         id: 'megaBomb',
@@ -31,8 +32,8 @@ export const POWERS: Record<PowerId, PowerConfig> = {
         emoji: '💣',
         color: 0xff4400,
         durationFrames: 30,
-        chargeNeeded: 100,
         description: '[Sesja 4B] AoE wybuch zabija wszystkich w promieniu 250px',
+        implemented: false,
     },
     freeze: {
         id: 'freeze',
@@ -40,40 +41,51 @@ export const POWERS: Record<PowerId, PowerConfig> = {
         emoji: '❄️',
         color: 0x66ddff,
         durationFrames: 240,
-        chargeNeeded: 100,
         description: '[Sesja 4B] Zamraża wszystkich wrogów na 4s',
+        implemented: false,
     },
 };
 
 /**
- * Aura specific stats — tylko ten power, reszta w Sesji 4B.
+ * Charges system — zgodnie z v4.48.
+ * Po 10 zebranych gemach gracz dostaje +3 charges (3 użycia super).
  */
-export const AURA_CONFIG = {
-    radius: 150,            // promień działania
-    tickEveryFrames: 30,    // co ile klatek robi damage tick (30 = co 0.5s)
-    damagePerTick: 2,       // ile damage per tick
+export const CHARGE_CONFIG = {
+    gemsPerChargeTrigger: 10,    // co 10 gemów
+    chargesPerTrigger: 3,         // dostajesz +3 użycia
+    maxCharges: 9,                // soft cap (przeciwko stacking)
 };
 
 /**
- * Pickup spawning config.
+ * Aura specific stats.
+ */
+export const AURA_CONFIG = {
+    radius: 150,
+    tickEveryFrames: 30,
+    damagePerTick: 2,
+};
+
+/**
+ * Pickup config. ZMIANA HOTFIX: magnet wolniejszy i z mniejszym range.
  */
 export const PICKUP_CONFIG = {
-    // Gems
-    gemValue: 1,                       // 1 gem = 1 XP
-    gemLifetimeMs: 20000,              // znika po 20s
-    gemAutoCollectRadius: 35,          // auto-pickup gdy gracz w tym promieniu
+    // Gems (zielone, większe — hotfix)
+    gemValue: 1,
+    gemLifetimeMs: 20000,
+    gemAutoCollectRadius: 35,
     gemsPerNormalEnemy: 1,
     gemsPerBoss: 5,
     gemsPerMegaBoss: 20,
     
-    // Magnet
-    magnetSpawnIntervalFrames: 1500,   // co ~25s
+    // Magnet — hotfix: range -25%, speed -25%
+    magnetSpawnIntervalFrames: 1500,
     magnetMaxOnMap: 1,
-    magnetActiveDurationMs: 5000,      // 5s przyciąga wszystkie gems
-    magnetAttractSpeed: 8,
+    magnetActiveDurationMs: 5000,
+    magnetAttractSpeed: 6,        // było 8, -25% = 6
+    magnetAttractRange: 400,      // NOWE: max odległość przyciągania (gemy dalej niż to NIE są attracted)
     
     // PowerCube
-    powerCubeSpawnIntervalFrames: 1800, // co ~30s
+    powerCubeSpawnIntervalFrames: 1800,
     powerCubeMaxOnMap: 1,
-    powerCubeChargePercent: 0.5,        // +50% super charge
+    powerCubeChargePercent: 0.5,
 };

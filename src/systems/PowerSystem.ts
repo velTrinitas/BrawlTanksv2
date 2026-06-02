@@ -2,109 +2,128 @@ import * as PIXI from 'pixi.js';
 import type { Enemy } from '../entities/Enemy';
 import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
-import { POWERS, AURA_CONFIG, type PowerId } from '../config/powers';
+import { POWERS, AURA_CONFIG, CHARGE_CONFIG, type PowerId } from '../config/powers';
 
 /**
- * Stan + logika super powera. Jeden aktywny power per game (na razie tylko Aura).
+ * Power System z charges (hotfix v0.4b).
+ * - Zbieranie 10 gemów → +3 charges
+ * - Każda aktywacja = -1 charge
+ * - Scroll wybór super (tylko implemented można wybrać)
+ * - PPM lub SPACE = aktywacja
  */
 export class PowerSystem {
-    public currentPowerId: PowerId = 'aura';
-    public charge: number = 0;              // 0..chargeNeeded
-    public maxCharge: number;
-    public isActive: boolean = false;
-    public framesLeft: number = 0;          // klatki pozostałe gdy aktywne
+    public selectedPowerId: PowerId = 'aura'; // wybór gracza
+    public charges: number = 0;                 // ile zostało użyć
+    public gemsSinceLastCharge: number = 0;     // licznik do +3
     
-    // Aura wizualne (gdy aktywna)
+    public isActive: boolean = false;
+    public framesLeft: number = 0;
+    public activePowerId: PowerId | null = null; // który power aktualnie aktywny
+    
+    // Aura wizualne
     private auraGfx: PIXI.Graphics;
     private auraTickFrames: number = 0;
     
-    // Magnet active state
+    // Magnet
     public magnetActive: boolean = false;
     public magnetEndTime: number = 0;
     
     constructor(worldContainer: PIXI.Container) {
-        this.maxCharge = POWERS[this.currentPowerId].chargeNeeded;
-        
         this.auraGfx = new PIXI.Graphics();
         this.auraGfx.visible = false;
-        this.auraGfx.zIndex = 400; // nad efektami ale pod HUD
+        this.auraGfx.zIndex = 400;
         worldContainer.addChild(this.auraGfx);
     }
     
     /**
-     * Dodaje XP do super charge. Wywoływane gdy gracz zbiera gem / PowerCube.
+     * Zarejestruj zebrany gem. Co 10 gemów → +3 charges.
      */
-    addCharge(amount: number): void {
-        if (this.isActive) return; // nie ładuje gdy aktywne
-        this.charge = Math.min(this.maxCharge, this.charge + amount);
+    onGemCollected(): void {
+        this.gemsSinceLastCharge++;
+        if (this.gemsSinceLastCharge >= CHARGE_CONFIG.gemsPerChargeTrigger) {
+            this.gemsSinceLastCharge = 0;
+            this.charges = Math.min(CHARGE_CONFIG.maxCharges, this.charges + CHARGE_CONFIG.chargesPerTrigger);
+            return; // sygnał że dostał charges (caller może pokazać notyfikację)
+        }
     }
     
     /**
-     * Dodaje % charge (PowerCube).
+     * PowerCube — instant +50% od triggera (= 5 gemów).
      */
-    addChargePercent(percent: number): void {
-        if (this.isActive) return;
-        this.charge = Math.min(this.maxCharge, this.charge + this.maxCharge * percent);
+    addPowerCubeBonus(): void {
+        const gemsBonus = Math.ceil(CHARGE_CONFIG.gemsPerChargeTrigger * 0.5);
+        this.gemsSinceLastCharge += gemsBonus;
+        if (this.gemsSinceLastCharge >= CHARGE_CONFIG.gemsPerChargeTrigger) {
+            this.gemsSinceLastCharge = 0;
+            this.charges = Math.min(CHARGE_CONFIG.maxCharges, this.charges + CHARGE_CONFIG.chargesPerTrigger);
+        }
     }
     
     /**
-     * Aktywuje super power (jeśli naładowany i nie aktywny).
+     * Przełącz selected power (scroll).
+     * direction = 1 (right) lub -1 (left)
+     */
+    cycleSelected(direction: number): void {
+        const order: PowerId[] = ['aura', 'megaBomb', 'freeze'];
+        const idx = order.indexOf(this.selectedPowerId);
+        let newIdx = (idx + direction + order.length) % order.length;
+        // Tylko implemented można wybrać
+        let attempts = 0;
+        while (!POWERS[order[newIdx]].implemented && attempts < order.length) {
+            newIdx = (newIdx + direction + order.length) % order.length;
+            attempts++;
+        }
+        this.selectedPowerId = order[newIdx];
+    }
+    
+    /**
+     * Aktywacja aktualnie wybranego super powera.
      * @returns true jeśli aktywowane
      */
     activate(): boolean {
-        if (this.isActive || this.charge < this.maxCharge) return false;
+        if (this.isActive || this.charges <= 0) return false;
+        const power = POWERS[this.selectedPowerId];
+        if (!power.implemented) return false;
         
         this.isActive = true;
-        this.framesLeft = POWERS[this.currentPowerId].durationFrames;
-        this.charge = 0;
+        this.activePowerId = this.selectedPowerId;
+        this.framesLeft = power.durationFrames;
+        this.charges--;
         this.auraGfx.visible = true;
         this.auraTickFrames = 0;
         return true;
     }
     
-    /**
-     * Aktywuje magnet.
-     */
     activateMagnet(durationMs: number): void {
         this.magnetActive = true;
         this.magnetEndTime = Date.now() + durationMs;
     }
     
-    /**
-     * Sprawdza czy enemy znajduje się w zasięgu aury.
-     */
     private isInAuraRange(enemy: Enemy, playerX: number, playerY: number): boolean {
         const dx = enemy.x - playerX;
         const dy = enemy.y - playerY;
         return (dx * dx + dy * dy) < (AURA_CONFIG.radius * AURA_CONFIG.radius);
     }
     
-    /**
-     * Update — wywoływane co klatkę w gameLoop.
-     * Zwraca array enemies do których trzeba zadać damage tick (jeśli aura active i tick frame).
-     */
     update(
         delta: number,
         player: Player,
         enemies: Enemy[],
-        worldContainer: PIXI.Container,
+        _worldContainer: PIXI.Container,
         effects: EffectsManager
     ): Enemy[] {
-        // Magnet timeout
         if (this.magnetActive && Date.now() >= this.magnetEndTime) {
             this.magnetActive = false;
         }
         
         const enemiesToDamage: Enemy[] = [];
         
-        if (this.isActive) {
+        if (this.isActive && this.activePowerId === 'aura') {
             this.framesLeft -= delta;
             this.auraTickFrames += delta;
             
-            // Rysuj pierścień aury
             this.drawAuraRing(player.x, player.y);
             
-            // Damage tick co AURA_CONFIG.tickEveryFrames
             if (this.auraTickFrames >= AURA_CONFIG.tickEveryFrames) {
                 this.auraTickFrames = 0;
                 for (const enemy of enemies) {
@@ -114,12 +133,12 @@ export class PowerSystem {
                 }
             }
             
-            // Wygaśnięcie aury
             if (this.framesLeft <= 0) {
                 this.isActive = false;
+                this.activePowerId = null;
                 this.auraGfx.visible = false;
                 this.auraGfx.clear();
-                effects.spawnExplosionAndWreck(player.x, player.y, POWERS.aura.color);
+                effects.spawnExplosionAndWreck(player.x, player.y, 0xffdd00);
             }
         }
         
@@ -135,20 +154,14 @@ export class PowerSystem {
         const pulse = 0.7 + Math.sin(t) * 0.3;
         const r = AURA_CONFIG.radius;
         
-        // Outer ring
         this.auraGfx.lineStyle(6, 0xffdd00, pulse);
         this.auraGfx.drawCircle(0, 0, r);
-        
-        // Inner ring (cieńszy)
         this.auraGfx.lineStyle(2, 0xffffaa, pulse * 0.7);
         this.auraGfx.drawCircle(0, 0, r - 8);
-        
-        // Pulsating fill (semi-transparent)
         this.auraGfx.beginFill(0xffaa00, 0.08 * pulse);
         this.auraGfx.drawCircle(0, 0, r);
         this.auraGfx.endFill();
         
-        // Rotujące "iskry" na obwodzie
         const sparkCount = 8;
         const baseRot = Date.now() / 200;
         for (let i = 0; i < sparkCount; i++) {
@@ -161,21 +174,27 @@ export class PowerSystem {
         }
     }
     
-    getChargePercent(): number {
-        return this.charge / this.maxCharge;
+    /**
+     * Progress do następnego charge trigger (0..1).
+     */
+    getGemProgress(): number {
+        return this.gemsSinceLastCharge / CHARGE_CONFIG.gemsPerChargeTrigger;
     }
     
     isReady(): boolean {
-        return this.charge >= this.maxCharge && !this.isActive;
+        return this.charges > 0 && !this.isActive && POWERS[this.selectedPowerId].implemented;
     }
     
     reset(): void {
-        this.charge = 0;
+        this.charges = 0;
+        this.gemsSinceLastCharge = 0;
         this.isActive = false;
+        this.activePowerId = null;
         this.framesLeft = 0;
         this.magnetActive = false;
         this.magnetEndTime = 0;
         this.auraGfx.visible = false;
         this.auraGfx.clear();
+        this.selectedPowerId = 'aura';
     }
 }

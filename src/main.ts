@@ -112,13 +112,41 @@ window.addEventListener('keyup', e => {
     const k = e.key.toLowerCase();
     if (k in keys) (keys as any)[k] = false;
 });
+
 (app.view as HTMLCanvasElement).addEventListener('pointermove', (e: any) => {
     mouse.screenX = e.clientX;
     mouse.screenY = e.clientY;
 });
-(app.view as HTMLCanvasElement).addEventListener('pointerdown', () => { isMouseDown = true; });
+
+(app.view as HTMLCanvasElement).addEventListener('pointerdown', (e: any) => {
+    // PPM (button 2) = super power activate
+    if (e.button === 2 && gameState === 'PLAYING' && powerSystem) {
+        e.preventDefault();
+        if (powerSystem.activate()) {
+            hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
+            effects?.shake(6, 8);
+        }
+        return;
+    }
+    // LPM (button 0) = strzelanie
+    if (e.button === 0) {
+        isMouseDown = true;
+    }
+});
+
 (app.view as HTMLCanvasElement).addEventListener('pointerup', () => { isMouseDown = false; });
 (app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
+
+// Zablokuj context menu na canvas (PPM ma być na super)
+(app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => e.preventDefault());
+
+// Scroll = wybór super powera
+(app.view as HTMLCanvasElement).addEventListener('wheel', (e: any) => {
+    if (gameState !== 'PLAYING' || !powerSystem) return;
+    e.preventDefault();
+    const direction = e.deltaY > 0 ? 1 : -1;
+    powerSystem.cycleSelected(direction);
+}, { passive: false });
 
 // ==========================================
 // HELPERS
@@ -252,7 +280,7 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Gems pickup + magnet attract
+    // Gems pickup + magnet attract (HOTFIX: charges system)
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         
@@ -269,7 +297,12 @@ app.ticker.add((delta) => {
         const dx = player.x - g.x, dy = player.y - g.y;
         if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
             if (g.pickup(effects)) {
-                powerSystem.addCharge(g.value);
+                const chargesBefore = powerSystem.charges;
+                powerSystem.onGemCollected();
+                if (powerSystem.charges > chargesBefore) {
+                    hud.addNotif(`⚡ +${powerSystem.charges - chargesBefore} SUPER CHARGES!`, '#ffdd00');
+                    effects.shake(5, 8);
+                }
                 gems.splice(i, 1);
             }
         }
@@ -293,7 +326,7 @@ app.ticker.add((delta) => {
         }
     }
     
-    // PowerCube pickup
+    // PowerCube pickup (HOTFIX: dodaje 5 gems do gem counter)
     for (let i = powerCubes.length - 1; i >= 0; i--) {
         const pc = powerCubes[i];
         pc.update(delta);
@@ -304,8 +337,13 @@ app.ticker.add((delta) => {
         const dx = player.x - pc.x, dy = player.y - pc.y;
         if (dx * dx + dy * dy < (pc.radius + 22) * (pc.radius + 22)) {
             if (pc.pickup(effects)) {
-                powerSystem.addChargePercent(PICKUP_CONFIG.powerCubeChargePercent);
-                hud.addNotif(`⚡ +${Math.round(PICKUP_CONFIG.powerCubeChargePercent * 100)}% CHARGE`, '#ffdd00');
+                const chargesBefore = powerSystem.charges;
+                powerSystem.addPowerCubeBonus();
+                if (powerSystem.charges > chargesBefore) {
+                    hud.addNotif(`⚡ +${powerSystem.charges - chargesBefore} SUPER CHARGES!`, '#ffdd00');
+                } else {
+                    hud.addNotif(`⚡ +5 GEMS BONUS`, '#ffdd00');
+                }
                 powerCubes.splice(i, 1);
             }
         }

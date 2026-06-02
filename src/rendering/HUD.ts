@@ -133,6 +133,55 @@ export class HUD {
         }
     }
     
+    /**
+     * Gem counter pill — pokazuje ile total gemów zebrałeś (z ikoną zielonego gema).
+     */
+    private drawGemPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
+        const c = this.ctx;
+        
+        c.fillStyle = 'rgba(8,8,18,0.75)';
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.fill();
+        c.strokeStyle = 'rgba(46,204,113,0.4)';
+        c.lineWidth = 1;
+        c.stroke();
+        
+        // Zielony heksagonalny gem ikon
+        const gemCx = px + 22, gemCy = py + PH / 2;
+        const gemR = 11;
+        c.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i - Math.PI / 2;
+            const x = gemCx + gemR * Math.cos(angle);
+            const y = gemCy + gemR * Math.sin(angle);
+            if (i === 0) c.moveTo(x, y);
+            else c.lineTo(x, y);
+        }
+        c.closePath();
+        c.fillStyle = '#2ecc71';
+        c.fill();
+        c.strokeStyle = '#0d4d28';
+        c.lineWidth = 1.5;
+        c.stroke();
+        
+        // Mały highlight na gemie
+        c.fillStyle = 'rgba(255,255,255,0.5)';
+        c.beginPath();
+        c.ellipse(gemCx - 2, gemCy - 5, 2.5, 1.2, 0, 0, Math.PI * 2);
+        c.fill();
+        
+        // Liczba zebranych gemów
+        c.font = `28px "Lilita One",cursive`;
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
+        c.strokeStyle = 'rgba(0,0,0,0.7)';
+        c.lineWidth = 4;
+        c.strokeText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2);
+        c.fillStyle = '#2ecc71';
+        c.fillText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2);
+    }
+    
     private drawKillsPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
         const c = this.ctx;
         const totalKills = spawnSystem.totalKills;
@@ -185,17 +234,28 @@ export class HUD {
     }
     
     /**
-     * Super power UI — dolny środek ekranu (jak v4.48).
-     * Pasek z 3 ikonami + pill "X/10 do Super" + hint sterowania.
+     * Super power UI — dolny środek ekranu (FIX: layout + ikony +20% + pill widoczny).
      */
     private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
         const cx = this.screenW / 2;
-        const baseY = this.screenH - 90;
         
-        // 3 ikony obok siebie
-        const ICON_SIZE = 60;
-        const ICON_GAP = 12;
+        // +20% icons (72×72)
+        const ICON_SIZE = 72;
+        const ICON_GAP = 14;
+        const PILL_H = 40;
+        const PILL_W = 300;
+        const BOTTOM_MARGIN = 30;
+        
+        // Layout od dołu w górę:
+        // - pill_y_bottom = screenH - BOTTOM_MARGIN
+        // - pill_y_top = pill_y_bottom - PILL_H
+        // - icons_y_bottom = pill_y_top - 12
+        // - icons_y_top = icons_y_bottom - ICON_SIZE
+        const pillY = this.screenH - BOTTOM_MARGIN - PILL_H;
+        const iconsBaseY = pillY - 12 - ICON_SIZE;
+        const hintY = iconsBaseY - 18;
+        
         const totalW = ICON_SIZE * 3 + ICON_GAP * 2;
         const startX = cx - totalW / 2;
         
@@ -203,86 +263,104 @@ export class HUD {
         powerOrder.forEach((id, i) => {
             const power = POWERS[id];
             const ix = startX + i * (ICON_SIZE + ICON_GAP);
-            const iy = baseY;
+            const iy = iconsBaseY;
             const isSelected = powerSystem.selectedPowerId === id;
             const isDisabled = !power.implemented;
             
-            // Tło
+            // Background
             if (isDisabled) {
-                c.fillStyle = 'rgba(8,8,18,0.6)';
+                c.fillStyle = 'rgba(8,8,18,0.55)';
             } else if (isSelected) {
                 c.fillStyle = 'rgba(40,30,8,0.85)';
             } else {
                 c.fillStyle = 'rgba(8,8,18,0.75)';
             }
             c.beginPath();
-            c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 10);
+            c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 12);
             c.fill();
             
-            // Border — pulsujący żółty gdy selected, szary gdy disabled, brak inaczej
+            // Border
             if (isSelected && !isDisabled) {
                 const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
                 c.strokeStyle = `rgba(255,221,0,${pulse})`;
-                c.lineWidth = 3;
+                c.lineWidth = 3.5;
                 c.stroke();
             } else if (isDisabled) {
-                c.strokeStyle = 'rgba(80,80,80,0.5)';
+                c.strokeStyle = 'rgba(80,80,80,0.4)';
                 c.lineWidth = 2;
+                c.stroke();
+            } else {
+                c.strokeStyle = 'rgba(255,221,0,0.3)';
+                c.lineWidth = 1.5;
                 c.stroke();
             }
             
             // Emoji icon
-            c.font = `34px "Lilita One",cursive`;
+            c.font = `42px "Lilita One",cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
-            c.globalAlpha = isDisabled ? 0.35 : 1.0;
-            c.fillStyle = isSelected ? '#ffdd00' : '#fff';
-            c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 4);
+            c.globalAlpha = isDisabled ? 0.30 : 1.0;
+            c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 6);
             c.globalAlpha = 1.0;
             
             // Name pod ikoną
-            c.font = `bold 10px "Lilita One",cursive`;
-            c.fillStyle = isDisabled ? 'rgba(180,180,180,0.5)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
-            c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 8);
+            c.font = `bold 11px "Lilita One",cursive`;
+            c.fillStyle = isDisabled ? 'rgba(160,160,160,0.5)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
+            c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
             
-            // Strzałka wskaźnika pod selected
+            // Strzałka selected
             if (isSelected && !isDisabled) {
                 c.fillStyle = '#ffdd00';
                 c.beginPath();
-                c.moveTo(ix + ICON_SIZE / 2 - 6, iy + ICON_SIZE + 4);
-                c.lineTo(ix + ICON_SIZE / 2 + 6, iy + ICON_SIZE + 4);
-                c.lineTo(ix + ICON_SIZE / 2, iy + ICON_SIZE + 12);
+                c.moveTo(ix + ICON_SIZE / 2 - 7, iy + ICON_SIZE + 4);
+                c.lineTo(ix + ICON_SIZE / 2 + 7, iy + ICON_SIZE + 4);
+                c.lineTo(ix + ICON_SIZE / 2, iy + ICON_SIZE + 14);
                 c.closePath();
                 c.fill();
+            }
+            
+            // "SOON" tag dla disabled
+            if (isDisabled) {
+                c.save();
+                c.fillStyle = 'rgba(120,120,120,0.85)';
+                c.font = `bold 8px "Lilita One",cursive`;
+                c.textAlign = 'center';
+                c.fillText('WKRÓTCE', ix + ICON_SIZE / 2, iy + 12);
+                c.restore();
             }
         });
         
         // === Pill "X/10 do Super" pod ikonkami ===
-        const PILL_Y = baseY + ICON_SIZE + 18;
-        const PILL_W = 260;
-        const PILL_H = 36;
         const pillX = cx - PILL_W / 2;
         
-        c.fillStyle = 'rgba(8,8,18,0.85)';
+        c.fillStyle = 'rgba(8,8,18,0.88)';
         c.beginPath();
-        c.roundRect(pillX, PILL_Y, PILL_W, PILL_H, 12);
+        c.roundRect(pillX, pillY, PILL_W, PILL_H, 14);
         c.fill();
+        c.strokeStyle = 'rgba(46,204,113,0.5)';
+        c.lineWidth = 1.5;
+        c.stroke();
         
-        // Zielony gem icon
-        c.fillStyle = '#2ecc71';
+        // Heksagonalny gem
+        const gemCx = pillX + 26, gemCy = pillY + PILL_H / 2;
+        const gemR = 12;
         c.beginPath();
-        c.moveTo(pillX + 22, PILL_Y + 8);
-        c.lineTo(pillX + 32, PILL_Y + 18);
-        c.lineTo(pillX + 22, PILL_Y + 28);
-        c.lineTo(pillX + 12, PILL_Y + 18);
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i - Math.PI / 2;
+            const x = gemCx + gemR * Math.cos(angle);
+            const y = gemCy + gemR * Math.sin(angle);
+            if (i === 0) c.moveTo(x, y);
+            else c.lineTo(x, y);
+        }
         c.closePath();
+        c.fillStyle = '#2ecc71';
         c.fill();
         c.strokeStyle = '#0d4d28';
         c.lineWidth = 1.5;
         c.stroke();
         
-        // Tekst "X/10 do Super"  lub "x3 charges"
-        c.font = `bold 18px "Lilita One",cursive`;
+        // Tekst
+        c.font = `bold 19px "Lilita One",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.fillStyle = '#ffdd00';
@@ -292,42 +370,42 @@ export class HUD {
         const text = powerSystem.charges > 0
             ? `${powerSystem.gemsSinceLastCharge}/${CHARGE_CONFIG.gemsPerChargeTrigger} · ⚡x${powerSystem.charges}`
             : `${powerSystem.gemsSinceLastCharge}/${CHARGE_CONFIG.gemsPerChargeTrigger} do Super`;
-        c.strokeText(text, pillX + 40, PILL_Y + PILL_H / 2);
-        c.fillText(text, pillX + 40, PILL_Y + PILL_H / 2);
+        c.strokeText(text, pillX + 48, pillY + PILL_H / 2);
+        c.fillText(text, pillX + 48, pillY + PILL_H / 2);
         
-        // Charge progress bar w pillu
-        const BAR_X = pillX + 40;
-        const BAR_Y = PILL_Y + PILL_H - 5;
-        const BAR_W = PILL_W - 50;
-        const BAR_H = 2;
+        // Progress bar w pillu
+        const BAR_X = pillX + 48;
+        const BAR_Y = pillY + PILL_H - 6;
+        const BAR_W = PILL_W - 60;
+        const BAR_H = 3;
         c.fillStyle = 'rgba(255,255,255,0.1)';
         c.fillRect(BAR_X, BAR_Y, BAR_W, BAR_H);
         c.fillStyle = '#2ecc71';
         c.fillRect(BAR_X, BAR_Y, BAR_W * powerSystem.getGemProgress(), BAR_H);
         
-        // === Hint sterowania (mały tekst nad ikonkami) ===
+        // === Hint nad ikonkami ===
         c.font = `12px "Lilita One",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
-        c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, baseY - 12);
+        c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
         
-        // === Status: "AKTYWNE" gdy super aktywny ===
+        // === "AKTYWNE" notification ===
         if (powerSystem.isActive) {
             const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
             c.save();
             c.globalAlpha = pulse;
-            c.font = `bold 22px "Lilita One",cursive`;
+            c.font = `bold 24px "Lilita One",cursive`;
             c.textAlign = 'center';
             c.strokeStyle = '#000';
             c.lineWidth = 5;
-            c.strokeText('☄️ AURA AKTYWNA ☄️', cx, baseY - 38);
+            c.strokeText('☄️ AURA AKTYWNA ☄️', cx, hintY - 24);
             c.fillStyle = '#ffdd00';
-            c.fillText('☄️ AURA AKTYWNA ☄️', cx, baseY - 38);
+            c.fillText('☄️ AURA AKTYWNA ☄️', cx, hintY - 24);
             c.restore();
         }
     }
     
-    private drawMagnetStatus(powerSystem: PowerSystem, _px: number, _py: number): void {
+    private drawMagnetStatus(powerSystem: PowerSystem): void {
         if (!powerSystem.magnetActive) return;
         const c = this.ctx;
         const remaining = Math.max(0, (powerSystem.magnetEndTime - Date.now()) / 1000);
@@ -350,6 +428,35 @@ export class HUD {
         c.lineWidth = 3;
         c.strokeText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 100, py + 16);
         c.fillText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 100, py + 16);
+        c.restore();
+    }
+    
+    /**
+     * Turbo boost status pill — gdy gracz pod boost'em z PowerPad.
+     */
+    private drawTurboStatus(player: Player): void {
+        if (!player.hasSpeedBoost) return;
+        const c = this.ctx;
+        const remaining = Math.max(0, (player.speedBoostEnd - Date.now()) / 1000);
+        
+        const px = this.screenW - 14 - 200;
+        const py = 118;
+        
+        const pulse = 0.85 + Math.sin(Date.now() / 80) * 0.15;
+        c.save();
+        c.globalAlpha = pulse;
+        c.fillStyle = 'rgba(255,102,0,0.85)';
+        c.beginPath();
+        c.roundRect(px, py, 200, 32, 10);
+        c.fill();
+        c.font = `bold 16px "Lilita One",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillStyle = '#fff';
+        c.strokeStyle = '#000';
+        c.lineWidth = 3;
+        c.strokeText(`⚡ TURBO ×2 ${remaining.toFixed(1)}s`, px + 100, py + 16);
+        c.fillText(`⚡ TURBO ×2 ${remaining.toFixed(1)}s`, px + 100, py + 16);
         c.restore();
     }
     
@@ -465,9 +572,10 @@ export class HUD {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
         
+        // === TOP ROW ===
         this.drawHPPill(player, 14, 8, 200, 54, 16);
-        this.drawNotifs();
         
+        // Score pill (środek)
         const gx2 = Math.round(this.screenW / 2 - 100);
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
@@ -482,21 +590,31 @@ export class HUD {
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
         
+        // Gem counter pill — między score a kills (po lewej stronie kills)
+        const gemPillX = this.screenW - 14 - 200 - 14 - 140;
+        this.drawGemPill(spawnSystem, gemPillX, 8, 140, 54, 16);
+        
+        // Kill counter (najbardziej w prawo)
         const kx = this.screenW - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
         
-        // === SUPER POWER UI na dole pośrodku (hotfix!) ===
+        this.drawNotifs();
+        
+        // === Active status pills (pod kill counter) ===
+        this.drawMagnetStatus(powerSystem);
+        this.drawTurboStatus(player);
+        
+        // === BOTTOM CENTER — Super power bar ===
         this.drawSuperPowerBar(powerSystem);
         
-        // Magnet status — pod kill counter po prawej
-        this.drawMagnetStatus(powerSystem, 0, 0);
-        
+        // === Mega Boss elements ===
         if (megaBoss && megaBoss.active) {
             this.drawMegaBossBar(megaBoss);
         }
         
         this.drawCrosshair(mouse);
         
+        // Combo text
         if (this.comboTextTimer > 0) {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);

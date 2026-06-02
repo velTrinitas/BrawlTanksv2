@@ -2,7 +2,10 @@ import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
 import type { Brawler } from './types/Brawler';
-import { buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding } from './maps/CityMap';
+import {
+    buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
+    MEDI_PAD_POSITIONS, POWER_PAD_POSITIONS,
+} from './maps/CityMap';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
@@ -10,7 +13,8 @@ import { EnemyBullet } from './entities/EnemyBullet';
 import { Heart } from './entities/pickups/Heart';
 import { Gem } from './entities/pickups/Gem';
 import { Magnet } from './entities/pickups/Magnet';
-import { PowerCube } from './entities/pickups/PowerCube';
+import { HoverRepairPad } from './maps/HoverRepairPad';
+import { PowerHoverPad } from './maps/PowerHoverPad';
 import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
@@ -33,7 +37,8 @@ let enemyBullets: EnemyBullet[] = [];
 let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
-let powerCubes: PowerCube[] = [];
+let mediPads: HoverRepairPad[] = [];
+let powerPads: PowerHoverPad[] = [];
 let buildings: CyberBuilding[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
@@ -67,7 +72,7 @@ app.stage.addChild(worldContainer);
 const hud = new HUD('hudCanvas');
 
 // ==========================================
-// MENU — char select grid
+// MENU
 // ==========================================
 const charGrid = document.getElementById('charGrid')!;
 BRAWLERS.forEach(b => {
@@ -93,19 +98,27 @@ BRAWLERS.forEach(b => {
 });
 
 // ==========================================
-// INPUT HANDLERS
+// INPUT HANDLERS — FIX: dual handler (mousedown + pointerdown)
 // ==========================================
+function tryActivateSuper(): void {
+    if (gameState !== 'PLAYING' || !powerSystem) return;
+    if (powerSystem.activate()) {
+        hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
+        effects?.shake(6, 8);
+    } else {
+        // Diagnostyczny feedback dla gracza
+        if (powerSystem.charges <= 0) {
+            hud.addNotif('Zbieraj zielone gemy!', '#aaaaaa');
+        }
+    }
+}
+
 window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k in keys) (keys as any)[k] = true;
-    
-    // SPACE — super power activate
-    if (e.code === 'Space' && gameState === 'PLAYING' && powerSystem) {
+    if (e.code === 'Space') {
         e.preventDefault();
-        if (powerSystem.activate()) {
-            hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
-            effects?.shake(6, 8);
-        }
+        tryActivateSuper();
     }
 });
 window.addEventListener('keyup', e => {
@@ -118,29 +131,27 @@ window.addEventListener('keyup', e => {
     mouse.screenY = e.clientY;
 });
 
-(app.view as HTMLCanvasElement).addEventListener('pointerdown', (e: any) => {
-    // PPM (button 2) = super power activate
-    if (e.button === 2 && gameState === 'PLAYING' && powerSystem) {
+// DUAL HANDLER — pointerdown + mousedown (gwarancja PPM działa)
+const handleMouseButton = (e: any) => {
+    if (gameState !== 'PLAYING') return;
+    if (e.button === 2) {
         e.preventDefault();
-        if (powerSystem.activate()) {
-            hud.addNotif('☄️ AURA AKTYWNA!', '#ffdd00');
-            effects?.shake(6, 8);
-        }
+        tryActivateSuper();
         return;
     }
-    // LPM (button 0) = strzelanie
     if (e.button === 0) {
         isMouseDown = true;
     }
-});
+};
+(app.view as HTMLCanvasElement).addEventListener('pointerdown', handleMouseButton);
+(app.view as HTMLCanvasElement).addEventListener('mousedown', handleMouseButton);
 
 (app.view as HTMLCanvasElement).addEventListener('pointerup', () => { isMouseDown = false; });
+(app.view as HTMLCanvasElement).addEventListener('mouseup', () => { isMouseDown = false; });
 (app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
 
-// Zablokuj context menu na canvas (PPM ma być na super)
 (app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => e.preventDefault());
 
-// Scroll = wybór super powera
 (app.view as HTMLCanvasElement).addEventListener('wheel', (e: any) => {
     if (gameState !== 'PLAYING' || !powerSystem) return;
     e.preventDefault();
@@ -192,6 +203,10 @@ function startGame(): void {
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
     
+    // Spawn padów statycznie z pozycji v4.48
+    mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+    powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+    
     stats.score = 0;
     comboCount = 0;
     comboEndTime = 0;
@@ -204,7 +219,6 @@ function startGame(): void {
     hearts = [];
     gems = [];
     magnets = [];
-    powerCubes = [];
     isMouseDown = false;
     gameState = 'PLAYING';
 }
@@ -219,6 +233,7 @@ function triggerGameOver(): void {
     const statsEl = document.getElementById('gameOverStats')!;
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
+        <div>💎 Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></div>
         <div>⭐ Punkty: <b>${stats.score}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów zabitych: <b>${spawnSystem?.bossKills ?? 0}</b></div>
@@ -234,6 +249,7 @@ function triggerVictory(): void {
     const statsEl = document.getElementById('victoryStats')!;
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
+        <div>💎 Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></div>
         <div>⭐ Punkty: <b>${stats.score}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów: <b>${spawnSystem?.bossKills ?? 0}</b></div>
@@ -262,6 +278,28 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
+    // ==========================================
+    // PADS update — MediPady i PowerPady
+    // ==========================================
+    const time = Date.now() / 1000;
+    for (const pad of mediPads) {
+        const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
+        if (result.healed) {
+            player.hp = Math.min(player.maxHp, player.hp + 1);
+            effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
+            hud.addNotif('🔧 +1 HP', '#2ecc71');
+        }
+    }
+    for (const pad of powerPads) {
+        const result = pad.update(player.x, player.y, time);
+        if (result.activated) {
+            player.applyTurboBoost(result.durationMs, result.multiplier);
+            effects.spawnEnemyHitSparks(player.x, player.y, 0xff6600);
+            effects.shake(5, 8);
+            hud.addNotif('⚡ TURBO ×2 — 5s!', '#ffcc00');
+        }
+    }
+    
     // Hearts pickup
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
@@ -280,11 +318,10 @@ app.ticker.add((delta) => {
         }
     }
     
-    // Gems pickup + magnet attract (HOTFIX: charges system)
+    // Gems pickup + magnet attract
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         
-        // Magnet attracts gems
         if (powerSystem.magnetActive) {
             g.attracted = true;
         }
@@ -299,6 +336,8 @@ app.ticker.add((delta) => {
             if (g.pickup(effects)) {
                 const chargesBefore = powerSystem.charges;
                 powerSystem.onGemCollected();
+                spawnSystem.registerGemCollected();
+                stats.score += 1; // +1 score per gem (jak v4.48)
                 if (powerSystem.charges > chargesBefore) {
                     hud.addNotif(`⚡ +${powerSystem.charges - chargesBefore} SUPER CHARGES!`, '#ffdd00');
                     effects.shake(5, 8);
@@ -322,29 +361,6 @@ app.ticker.add((delta) => {
                 powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
                 hud.addNotif('🧲 MAGNET 5s!', '#e74c3c');
                 magnets.splice(i, 1);
-            }
-        }
-    }
-    
-    // PowerCube pickup (HOTFIX: dodaje 5 gems do gem counter)
-    for (let i = powerCubes.length - 1; i >= 0; i--) {
-        const pc = powerCubes[i];
-        pc.update(delta);
-        if (!pc.active) {
-            powerCubes.splice(i, 1);
-            continue;
-        }
-        const dx = player.x - pc.x, dy = player.y - pc.y;
-        if (dx * dx + dy * dy < (pc.radius + 22) * (pc.radius + 22)) {
-            if (pc.pickup(effects)) {
-                const chargesBefore = powerSystem.charges;
-                powerSystem.addPowerCubeBonus();
-                if (powerSystem.charges > chargesBefore) {
-                    hud.addNotif(`⚡ +${powerSystem.charges - chargesBefore} SUPER CHARGES!`, '#ffdd00');
-                } else {
-                    hud.addNotif(`⚡ +5 GEMS BONUS`, '#ffdd00');
-                }
-                powerCubes.splice(i, 1);
             }
         }
     }
@@ -397,17 +413,16 @@ app.ticker.add((delta) => {
     }
     
     // Spawn system
-    const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, powerCubes, player.x, player.y, worldContainer, buildings);
+    const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
     magnets.push(...spawnResult.newMagnets);
-    powerCubes.push(...spawnResult.newPowerCubes);
     
     if (spawnResult.megaBossJustSpawned) {
         hud.triggerMegaBossAlert();
     }
     
-    // Power system update (aura damage tick na enemies)
+    // Power system (aura damage)
     const auraTargets = powerSystem.update(delta, player, enemies, worldContainer, effects);
     for (const enemy of auraTargets) {
         const killed = enemy.takeDamage(2, enemy.x, enemy.y, worldContainer, effects);

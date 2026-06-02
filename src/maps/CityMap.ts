@@ -149,3 +149,19 @@ export class CyberBuilding {
         g.drawRect(this.x + ox + 8, this.y + oy + 8, this.w - 16, this.h - 16);
     }
 }
+/**
+ * Pozycje MediPadów (HoverRepairPad) na CityMap — zgodnie z v4.48.
+ */
+export const MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
+    { x: 617, y: 200 },    // V1 street, północ
+    { x: 1283, y: 850 },   // V2 street, środek
+    { x: 617, y: 1450 },   // V1 street, południe
+];
+
+/**
+ * Pozycje PowerPadów (PowerHoverPad) na CityMap — zgodnie z v4.48.
+ */
+export const POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
+    { x: 617, y: 900 },    // V1 street, środek
+    { x: 1283, y: 400 },   // V2 street, północ
+];

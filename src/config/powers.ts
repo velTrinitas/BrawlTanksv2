@@ -1,6 +1,6 @@
 /**
- * Super powers config. Pure data, no logic.
- * Hotfix: zgodne z v4.48 — 10 gemów = +3 charges, MEGA BOMB i FREEZE jako "soon".
+ * Super powers config + pad config.
+ * Hotfix v0.4b: usunięty PowerCube (zastąpiony PowerHoverPad jako część mapy).
  */
 
 export type PowerId = 'aura' | 'megaBomb' | 'freeze';
@@ -12,7 +12,6 @@ export interface PowerConfig {
     color: number;
     durationFrames: number;
     description: string;
-    /** Czy zaimplementowane. false = wyświetlane ale niemożliwe do wyboru/aktywacji */
     implemented: boolean;
 }
 
@@ -22,7 +21,7 @@ export const POWERS: Record<PowerId, PowerConfig> = {
         name: 'Aura',
         emoji: '☄️',
         color: 0xffdd00,
-        durationFrames: 480,  // 8 sekund (per charge use)
+        durationFrames: 480,
         description: 'Pierścień ognia zadaje obrażenia wrogom wokół ciebie przez 8s',
         implemented: true,
     },
@@ -46,19 +45,12 @@ export const POWERS: Record<PowerId, PowerConfig> = {
     },
 };
 
-/**
- * Charges system — zgodnie z v4.48.
- * Po 10 zebranych gemach gracz dostaje +3 charges (3 użycia super).
- */
 export const CHARGE_CONFIG = {
-    gemsPerChargeTrigger: 10,    // co 10 gemów
-    chargesPerTrigger: 3,         // dostajesz +3 użycia
-    maxCharges: 9,                // soft cap (przeciwko stacking)
+    gemsPerChargeTrigger: 10,
+    chargesPerTrigger: 3,
+    maxCharges: 9,
 };
 
-/**
- * Aura specific stats.
- */
 export const AURA_CONFIG = {
     radius: 150,
     tickEveryFrames: 30,
@@ -66,10 +58,9 @@ export const AURA_CONFIG = {
 };
 
 /**
- * Pickup config. ZMIANA HOTFIX: magnet wolniejszy i z mniejszym range.
+ * Pickup config (gem, magnet — PowerCube usunięty).
  */
 export const PICKUP_CONFIG = {
-    // Gems (zielone, większe — hotfix)
     gemValue: 1,
     gemLifetimeMs: 20000,
     gemAutoCollectRadius: 35,
@@ -81,11 +72,6 @@ export const PICKUP_CONFIG = {
     magnetSpawnIntervalFrames: 1500,
     magnetMaxOnMap: 1,
     magnetActiveDurationMs: 5000,
-    magnetAttractSpeed: 6,        // było 8, -25% = 6
-    magnetAttractRange: 400,      // NOWE: max odległość przyciągania (gemy dalej niż to NIE są attracted)
-    
-    // PowerCube
-    powerCubeSpawnIntervalFrames: 1800,
-    powerCubeMaxOnMap: 1,
-    powerCubeChargePercent: 0.5,
+    magnetAttractSpeed: 6,
+    magnetAttractRange: 400,
 };

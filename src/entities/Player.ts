@@ -13,20 +13,26 @@ export class Player {
     public brawler: Brawler;
     public x: number;
     public y: number;
-    public speed: number;
+    public baseSpeed: number;          // bez bonusów
     public maxHp: number;
     public hp: number;
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
+    
+    // Speed boost state (z PowerPad)
+    public speedBoostMult: number = 1;
+    public speedBoostEnd: number = 0;
+    
     private trackTimer: number = 0;
     private lastMoveAngle: number = 0;
+    public isMoving: boolean = false;
     
     constructor(brawlerData: Brawler, worldContainer: PIXI.Container) {
         this.brawler = brawlerData;
         this.x = 800;
         this.y = 800;
-        this.speed = brawlerData.speed;
+        this.baseSpeed = brawlerData.speed;
         this.maxHp = brawlerData.hp;
         this.hp = this.maxHp;
         
@@ -52,6 +58,31 @@ export class Player {
         return this.hp <= 0;
     }
     
+    /**
+     * Aktywuje turbo boost (z PowerPad).
+     */
+    applyTurboBoost(durationMs: number, multiplier: number): void {
+        this.speedBoostMult = multiplier;
+        this.speedBoostEnd = Date.now() + durationMs;
+    }
+    
+    /**
+     * Aktualna prędkość z uwzględnieniem bonusów.
+     */
+    get currentSpeed(): number {
+        if (Date.now() > this.speedBoostEnd) {
+            this.speedBoostMult = 1;
+        }
+        return this.baseSpeed * this.speedBoostMult;
+    }
+    
+    /**
+     * Czy aktualnie pod boost'em.
+     */
+    get hasSpeedBoost(): boolean {
+        return Date.now() < this.speedBoostEnd && this.speedBoostMult > 1;
+    }
+    
     update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: CyberBuilding[], effects: EffectsManager): void {
         let dx = 0, dy = 0;
         if (keys.w) dy -= 1;
@@ -59,13 +90,14 @@ export class Player {
         if (keys.a) dx -= 1;
         if (keys.d) dx += 1;
         
-        let isMoving = false;
+        this.isMoving = false;
         
         if (dx !== 0 || dy !== 0) {
-            isMoving = true;
+            this.isMoving = true;
             const len = Math.sqrt(dx * dx + dy * dy);
-            const nx = this.x + (dx / len) * this.speed;
-            const ny = this.y + (dy / len) * this.speed;
+            const speed = this.currentSpeed;
+            const nx = this.x + (dx / len) * speed;
+            const ny = this.y + (dy / len) * speed;
             
             let canMoveX = true, canMoveY = true;
             for (const b of buildings) {
@@ -84,12 +116,18 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
         
-        // Track marks — co 4 klatki podczas ruchu, 2 ślady (lewa+prawa gąsienica)
-        if (isMoving) {
+        // Tint hull gdy boost (pomarańczowy glow)
+        if (this.hasSpeedBoost) {
+            this.hull.tint = 0xffcc66;
+        } else {
+            this.hull.tint = 0xffffff;
+        }
+        
+        if (this.isMoving) {
             this.trackTimer++;
-            if (this.trackTimer >= 4) {
+            const trackInterval = this.hasSpeedBoost ? 2 : 4; // szybciej slady przy turbo
+            if (this.trackTimer >= trackInterval) {
                 this.trackTimer = 0;
-                // Offset 12px perpendicular do kierunku ruchu = dwie gąsienice
                 const perpX = -Math.sin(this.lastMoveAngle) * 12;
                 const perpY = Math.cos(this.lastMoveAngle) * 12;
                 effects.spawnTrackMark(this.x + perpX, this.y + perpY, this.lastMoveAngle);

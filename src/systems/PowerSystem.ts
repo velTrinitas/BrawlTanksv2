@@ -4,27 +4,18 @@ import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
 import { POWERS, AURA_CONFIG, CHARGE_CONFIG, type PowerId } from '../config/powers';
 
-/**
- * Power System z charges (hotfix v0.4b).
- * - Zbieranie 10 gemów → +3 charges
- * - Każda aktywacja = -1 charge
- * - Scroll wybór super (tylko implemented można wybrać)
- * - PPM lub SPACE = aktywacja
- */
 export class PowerSystem {
-    public selectedPowerId: PowerId = 'aura'; // wybór gracza
-    public charges: number = 0;                 // ile zostało użyć
-    public gemsSinceLastCharge: number = 0;     // licznik do +3
+    public selectedPowerId: PowerId = 'aura';
+    public charges: number = 0;
+    public gemsSinceLastCharge: number = 0;
     
     public isActive: boolean = false;
     public framesLeft: number = 0;
-    public activePowerId: PowerId | null = null; // który power aktualnie aktywny
+    public activePowerId: PowerId | null = null;
     
-    // Aura wizualne
     private auraGfx: PIXI.Graphics;
     private auraTickFrames: number = 0;
     
-    // Magnet
     public magnetActive: boolean = false;
     public magnetEndTime: number = 0;
     
@@ -35,39 +26,18 @@ export class PowerSystem {
         worldContainer.addChild(this.auraGfx);
     }
     
-    /**
-     * Zarejestruj zebrany gem. Co 10 gemów → +3 charges.
-     */
     onGemCollected(): void {
         this.gemsSinceLastCharge++;
         if (this.gemsSinceLastCharge >= CHARGE_CONFIG.gemsPerChargeTrigger) {
             this.gemsSinceLastCharge = 0;
             this.charges = Math.min(CHARGE_CONFIG.maxCharges, this.charges + CHARGE_CONFIG.chargesPerTrigger);
-            return; // sygnał że dostał charges (caller może pokazać notyfikację)
         }
     }
     
-    /**
-     * PowerCube — instant +50% od triggera (= 5 gemów).
-     */
-    addPowerCubeBonus(): void {
-        const gemsBonus = Math.ceil(CHARGE_CONFIG.gemsPerChargeTrigger * 0.5);
-        this.gemsSinceLastCharge += gemsBonus;
-        if (this.gemsSinceLastCharge >= CHARGE_CONFIG.gemsPerChargeTrigger) {
-            this.gemsSinceLastCharge = 0;
-            this.charges = Math.min(CHARGE_CONFIG.maxCharges, this.charges + CHARGE_CONFIG.chargesPerTrigger);
-        }
-    }
-    
-    /**
-     * Przełącz selected power (scroll).
-     * direction = 1 (right) lub -1 (left)
-     */
     cycleSelected(direction: number): void {
         const order: PowerId[] = ['aura', 'megaBomb', 'freeze'];
         const idx = order.indexOf(this.selectedPowerId);
         let newIdx = (idx + direction + order.length) % order.length;
-        // Tylko implemented można wybrać
         let attempts = 0;
         while (!POWERS[order[newIdx]].implemented && attempts < order.length) {
             newIdx = (newIdx + direction + order.length) % order.length;
@@ -76,12 +46,17 @@ export class PowerSystem {
         this.selectedPowerId = order[newIdx];
     }
     
-    /**
-     * Aktywacja aktualnie wybranego super powera.
-     * @returns true jeśli aktywowane
-     */
     activate(): boolean {
-        if (this.isActive || this.charges <= 0) return false;
+        // Debug log diagnozujący punkt #1 z user feedback
+        console.log('[PowerSystem] activate() called:', {
+            isActive: this.isActive,
+            charges: this.charges,
+            selectedPowerId: this.selectedPowerId,
+            implemented: POWERS[this.selectedPowerId].implemented,
+        });
+        
+        if (this.isActive) return false;
+        if (this.charges <= 0) return false;
         const power = POWERS[this.selectedPowerId];
         if (!power.implemented) return false;
         
@@ -174,9 +149,6 @@ export class PowerSystem {
         }
     }
     
-    /**
-     * Progress do następnego charge trigger (0..1).
-     */
     getGemProgress(): number {
         return this.gemsSinceLastCharge / CHARGE_CONFIG.gemsPerChargeTrigger;
     }

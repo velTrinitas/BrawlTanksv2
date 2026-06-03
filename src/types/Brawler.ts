@@ -15,4 +15,5 @@ export interface Brawler {
     dmg: number;
     reload: number;      // ms między strzałami
     type: BrawlerType;
+    flag?: string;  // 👈 DODAJ TĘ LINIJKĘ
 }

@@ -91,27 +91,43 @@ const BRAWLER_TEX_CACHE = new Map<string, BrawlerTextures>();
 
 /**
  * Zwraca textury dla brawlera. Pierwsze wywołanie generuje, kolejne zwracają z cache.
+ * 
+ * v0.8 Sesja 6: jeśli brawler.useExternalSprite === true, ładuje zewnętrzne PNG-i
+ * (np. AI-generated King sprite) zamiast bake'owania z drawTankHull/Turret.
  */
 export function getBrawlerTextures(brawler: Brawler): BrawlerTextures {
     if (BRAWLER_TEX_CACHE.has(brawler.id)) {
         return BRAWLER_TEX_CACHE.get(brawler.id)!;
     }
     
-    const createTex = (drawFn: (ctx: CanvasRenderingContext2D) => void): PIXI.Texture => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 160;
-        canvas.height = 160;
-        const ctx = canvas.getContext('2d')!;
-        ctx.translate(80, 80);
-        ctx.scale(1.75, 1.75); // skala z v4.48 dla detalu
-        drawFn(ctx);
-        return PIXI.Texture.from(canvas);
-    };
+    let textures: BrawlerTextures;
     
-    const textures: BrawlerTextures = {
-        hull: createTex(ctx => drawTankHull(ctx, brawler)),
-        turret: createTex(ctx => drawTankTurret(ctx, brawler)),
-    };
+    if (brawler.useExternalSprite) {
+        // Ścieżka A: zewnętrzne PNG (AI-generated lub artist assets).
+        // Vite automatycznie podstawia BASE_URL: '/' w dev, '/BrawlTanksv2/' w prod GH Pages.
+        const BASE = import.meta.env.BASE_URL;
+        textures = {
+            hull: PIXI.Texture.from(BASE + 'assets/tanks/' + brawler.id + '_hull.png'),
+            turret: PIXI.Texture.from(BASE + 'assets/tanks/' + brawler.id + '_turret.png'),
+        };
+    } else {
+        // Ścieżka B: bake'owanie z Canvas 2D (oryginalna mechanika dla 7 brawlerów).
+        const createTex = (drawFn: (ctx: CanvasRenderingContext2D) => void): PIXI.Texture => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 160;
+            canvas.height = 160;
+            const ctx = canvas.getContext('2d')!;
+            ctx.translate(80, 80);
+            ctx.scale(1.75, 1.75); // skala z v4.48 dla detalu
+            drawFn(ctx);
+            return PIXI.Texture.from(canvas);
+        };
+        
+        textures = {
+            hull: createTex(ctx => drawTankHull(ctx, brawler)),
+            turret: createTex(ctx => drawTankTurret(ctx, brawler)),
+        };
+    }
     
     BRAWLER_TEX_CACHE.set(brawler.id, textures);
     return textures;

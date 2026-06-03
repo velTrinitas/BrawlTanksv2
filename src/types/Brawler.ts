@@ -16,4 +16,5 @@ export interface Brawler {
     reload: number;      // ms między strzałami
     type: BrawlerType;
     flag?: string;  // 👈 DODAJ TĘ LINIJKĘ
+    useExternalSprite?: boolean;  // 👈 DODAJ TĘ LINIJKĘ
 }

@@ -13,6 +13,10 @@ const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
 
+// Target sizes dla external sprites (v0.8 Sesja 6: King AI sprite)
+const TARGET_HULL_SIZE = 100;
+const TARGET_TURRET_SIZE = 80;
+
 export class Player {
     public brawler: Brawler;
     public x: number;
@@ -34,8 +38,11 @@ export class Player {
     public superEndTime: number = 0;
     private superRingGfx: PIXI.Graphics;
     
-    // Flag placeholder (v0.8 Sesja 6 init) — child hull, rotuje z hull
+    // Flag (v0.8 Sesja 6 init) — child hull, rotuje z hull
     private flagGfx: PIXI.Graphics;
+    
+    // Per-brawler aura (v0.8 Sesja 6 final) — child container, world space
+    private auraGfx: PIXI.Graphics;
     
     private trackTimer: number = 0;
     private lastMoveAngle: number = 0;
@@ -68,14 +75,42 @@ export class Player {
         this.turret = new PIXI.Sprite(tex.turret);
         this.turret.anchor.set(0.5);
         
+        // External sprite scaling (v0.8 Sesja 6: King AI sprite)
+        if (this.brawler.useExternalSprite) {
+            this.applyUniformScale(this.hull, TARGET_HULL_SIZE);
+            this.applyUniformScale(this.turret, TARGET_TURRET_SIZE);
+        }
+        
         // Super-shot ring
         this.superRingGfx = new PIXI.Graphics();
         this.superRingGfx.visible = false;
         
+        // Aura (per-brawler glow, najniższa warstwa w container)
+        this.auraGfx = new PIXI.Graphics();
+        
+        // Order: aura (bottom) -> super-shot ring -> hull -> turret
+        this.container.addChild(this.auraGfx);
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
         this.container.addChild(this.turret);
         worldContainer.addChild(this.container);
+    }
+    
+    /**
+     * Skaluje sprite tak, aby max(width, height) = targetSize (aspect ratio preserved).
+     * Obsługuje async loading PNG — jeśli texture nie załadowana, czeka na event 'loaded'.
+     */
+    private applyUniformScale(sprite: PIXI.Sprite, targetSize: number): void {
+        const t = sprite.texture;
+        if (t.baseTexture.valid && t.width > 1 && t.height > 1) {
+            const maxDim = Math.max(t.width, t.height);
+            sprite.scale.set(targetSize / maxDim);
+        } else {
+            t.baseTexture.once('loaded', () => {
+                const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
+                sprite.scale.set(targetSize / maxDim);
+            });
+        }
     }
     
     /**
@@ -243,6 +278,62 @@ export class Player {
         }
     }
     
+    /**
+     * Aura per-brawler. Dispatch po brawler.id.
+     * v0.8 Sesja 6: tylko King ma aurę (gold royal glow).
+     */
+    private updateAura(): void {
+        this.auraGfx.clear();
+        
+        if (this.brawler.id === 'king') {
+            this.drawKingAura();
+        }
+    }
+    
+    /**
+     * King aura: 2 gold pulse rings + crown halo + 4 orbiting sparkles.
+     */
+    private drawKingAura(): void {
+        const time = Date.now();
+        const pulse = 0.4 + Math.sin(time / 700) * 0.3;
+        
+        // Gold pulse ring 1 (zewnętrzny, grubszy)
+        const r1 = 55 + Math.sin(time / 500) * 3;
+        this.auraGfx.lineStyle(2.5, 0xffd700, pulse * 0.55);
+        this.auraGfx.drawCircle(0, 0, r1);
+        
+        // Gold pulse ring 2 (wewnętrzny, cieńszy, jaśniejszy)
+        const r2 = r1 - 8;
+        this.auraGfx.lineStyle(1.5, 0xfff4a3, pulse * 0.35);
+        this.auraGfx.drawCircle(0, 0, r2);
+        
+        // Crown glow halo — subtelny gold halo nad turret center
+        const haloPulse = 0.3 + Math.sin(time / 800) * 0.2;
+        this.auraGfx.beginFill(0xffd700, haloPulse * 0.12);
+        this.auraGfx.drawCircle(0, 0, 30);
+        this.auraGfx.endFill();
+        
+        // 4 sparkle dust orbitujące
+        this.auraGfx.lineStyle(0);
+        const sparkleCount = 4;
+        for (let i = 0; i < sparkleCount; i++) {
+            const angle = time / 1200 + (i / sparkleCount) * Math.PI * 2;
+            const dist = 48 + Math.sin(time / 500 + i * 0.8) * 5;
+            const sx = Math.cos(angle) * dist;
+            const sy = Math.sin(angle) * dist;
+            const sa = 0.5 + Math.sin(time / 280 + i * 1.7) * 0.5;
+            
+            // Outer glow
+            this.auraGfx.beginFill(0xffd700, sa * 0.35);
+            this.auraGfx.drawCircle(sx, sy, 4);
+            this.auraGfx.endFill();
+            // Inner spark (biały rdzeń)
+            this.auraGfx.beginFill(0xffffff, sa);
+            this.auraGfx.drawCircle(sx, sy, 1.5);
+            this.auraGfx.endFill();
+        }
+    }
+    
     update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: CyberBuilding[], effects: EffectsManager): void {
         let dx = 0, dy = 0;
         if (keys.w) dy -= 1;
@@ -289,6 +380,7 @@ export class Player {
         }
         
         this.updateSuperRing();
+        this.updateAura();  // 👈 NEW (v0.8 Sesja 6)
         
         if (this.isMoving) {
             this.trackTimer++;

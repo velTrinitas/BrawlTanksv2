@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
-import { getBrawlerTextures, PYRO_EXHAUST_LOCAL_X, PYRO_EXHAUST_OFFSET_Y, PYRO_CANVAS_SCALE, PYRO_HULL_HL, PYRO_HULL_HW, PYRO_HULL_TRK_H } from '../rendering/SpriteFactory';
+import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
@@ -16,12 +16,10 @@ const SUPER_TINT = 0xc850ff;
 const TARGET_HULL_SIZE = 100;
 const TARGET_TURRET_SIZE = 80;
 
-// Flaga — większa o 50% (z 14×9 → 21×13.5)
 const FLAG_W = 21;
 const FLAG_H = 13.5;
 const FLAG_POLE_W = 2.25;
 const FLAG_POLE_H = 17.5;
-// Pozycja flagi: na tylnej krawędzi hull (większy offset niż wcześniejsze 25)
 const FLAG_BEHIND_DIST = 50;
 
 export class Player {
@@ -45,9 +43,9 @@ export class Player {
     
     private flagGfx: PIXI.Graphics;
     
-    // Pyro-specific animations (v0.10 Sesja 8)
-    private pyroExhaustGfx: PIXI.Graphics;
-    private pyroTracksGfx: PIXI.Graphics;
+    // Per-brawler animacje (programmatic brawlers tylko)
+    private tracksGfx: PIXI.Graphics;
+    private exhaustGfx: PIXI.Graphics;
     
     private trackTimer: number = 0;
     private lastMoveAngle: number = 0;
@@ -81,18 +79,17 @@ export class Player {
         this.superRingGfx = new PIXI.Graphics();
         this.superRingGfx.visible = false;
         
-        // Pyro animation gfx (clear gdy nie Pyro)
-        this.pyroTracksGfx = new PIXI.Graphics();
-        this.pyroExhaustGfx = new PIXI.Graphics();
+        this.tracksGfx = new PIXI.Graphics();
+        this.exhaustGfx = new PIXI.Graphics();
         
         this.flagGfx = new PIXI.Graphics();
         this.drawFlag(this.brawler.flag ?? 'PL');
         
-        // Container order: super-ring → hull → tracks anim → exhaust → turret → flag
+        // Order: super-ring → hull → tracks anim → exhaust → turret → flag
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
-        this.container.addChild(this.pyroTracksGfx);
-        this.container.addChild(this.pyroExhaustGfx);
+        this.container.addChild(this.tracksGfx);
+        this.container.addChild(this.exhaustGfx);
         this.container.addChild(this.turret);
         this.container.addChild(this.flagGfx);
         worldContainer.addChild(this.container);
@@ -111,15 +108,10 @@ export class Player {
         }
     }
     
-    /**
-     * Rysuje flagę (v0.10 Sesja 8: większa o 50% — flagW=21, flagH=13.5).
-     */
     drawFlag(countryCode: string): void {
         this.flagGfx.clear();
-        
         const flagX = FLAG_POLE_W / 2;
         
-        // Drzewce
         this.flagGfx.beginFill(0x4a3520);
         this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
         this.flagGfx.endFill();
@@ -177,12 +169,9 @@ export class Player {
                 this.flagGfx.endFill();
         }
         
-        // Obwódka flagi
         this.flagGfx.lineStyle(0.8, 0x000000, 0.75);
         this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
         this.flagGfx.lineStyle(0);
-        
-        // Złota kulka na czubku drzewca
         this.flagGfx.beginFill(0xd4af37);
         this.flagGfx.drawCircle(0, -FLAG_POLE_H / 2 - 0.5, 2);
         this.flagGfx.endFill();
@@ -200,9 +189,7 @@ export class Player {
     }
     
     get currentSpeed(): number {
-        if (Date.now() > this.speedBoostEnd) {
-            this.speedBoostMult = 1;
-        }
+        if (Date.now() > this.speedBoostEnd) this.speedBoostMult = 1;
         return this.baseSpeed * this.speedBoostMult;
     }
     
@@ -238,10 +225,7 @@ export class Player {
     
     private updateSuperRing(): void {
         const showRing = this.superCharges > 0 || this.isSuperShotActive;
-        if (!showRing) {
-            this.superRingGfx.visible = false;
-            return;
-        }
+        if (!showRing) { this.superRingGfx.visible = false; return; }
         this.superRingGfx.visible = true;
         this.superRingGfx.clear();
         const t = Date.now() / 100;
@@ -260,138 +244,115 @@ export class Player {
             const baseRot = Date.now() / 150;
             for (let i = 0; i < sparkCount; i++) {
                 const angle = baseRot + (i / sparkCount) * Math.PI * 2;
-                const sx = Math.cos(angle) * r;
-                const sy = Math.sin(angle) * r;
                 this.superRingGfx.beginFill(0xffffff, pulse);
-                this.superRingGfx.drawCircle(sx, sy, 2.5);
+                this.superRingGfx.drawCircle(Math.cos(angle) * r, Math.sin(angle) * r, 2.5);
                 this.superRingGfx.endFill();
             }
         } else {
-            const r = 35;
             this.superRingGfx.lineStyle(2.5, SUPER_TINT, pulse * 0.6);
-            this.superRingGfx.drawCircle(0, 0, r);
+            this.superRingGfx.drawCircle(0, 0, 35);
         }
     }
     
     /**
-     * PYRO TRACKS — animowane speed lines wzdłuż gąsienic gdy isMoving.
-     * Visual fake na ruchu gąsienic.
+     * Speed lines wzdłuż gąsienic dla programmatic brawlerów gdy isMoving.
      */
-    private updatePyroTracks(): void {
-        this.pyroTracksGfx.clear();
+    private updateBrawlerTracks(): void {
+        this.tracksGfx.clear();
         
-        if (this.brawler.id !== 'pyro' || !this.isMoving) return;
+        const config = PROGRAMMATIC_BRAWLER_CONFIG[this.brawler.id];
+        if (!config) return;
+        if (!this.isMoving) return;
         
         const time = Date.now();
         const speedFactor = this.currentSpeed / 5;
         const phase = (time * speedFactor * 0.04) % 12;
-        
-        // Track Y w hull local coords (po canvas scale 1.75)
-        const trackHalfLen = PYRO_HULL_HL / 2; // 31
-        const trackY = (PYRO_HULL_HW / 2) + (PYRO_HULL_TRK_H / 2); // ~18.5
-        
+        const trackHalfLen = config.HL / 2;
+        const trackY = (config.HW / 2) + (config.TRK_H / 2);
         const cos = Math.cos(this.hull.rotation);
         const sin = Math.sin(this.hull.rotation);
         
-        this.pyroTracksGfx.lineStyle(1.8, 0xffeaa3, 0.55);
+        this.tracksGfx.lineStyle(1.8, 0xfff5cf, 0.55);
         
         for (const ty of [-trackY, trackY]) {
             for (let i = -3; i <= 3; i++) {
                 const localX1 = i * 12 + phase - 8;
                 const localX2 = localX1 + 5;
-                
                 const cx1 = Math.max(localX1, -trackHalfLen);
                 const cx2 = Math.min(localX2, trackHalfLen);
                 if (cx2 <= cx1) continue;
-                
-                const sx1 = (cx1 * cos - ty * sin) * PYRO_CANVAS_SCALE;
-                const sy1 = (cx1 * sin + ty * cos) * PYRO_CANVAS_SCALE;
-                const sx2 = (cx2 * cos - ty * sin) * PYRO_CANVAS_SCALE;
-                const sy2 = (cx2 * sin + ty * cos) * PYRO_CANVAS_SCALE;
-                
-                this.pyroTracksGfx.moveTo(sx1, sy1);
-                this.pyroTracksGfx.lineTo(sx2, sy2);
+                const sx1 = (cx1 * cos - ty * sin) * TANK_CANVAS_SCALE;
+                const sy1 = (cx1 * sin + ty * cos) * TANK_CANVAS_SCALE;
+                const sx2 = (cx2 * cos - ty * sin) * TANK_CANVAS_SCALE;
+                const sy2 = (cx2 * sin + ty * cos) * TANK_CANVAS_SCALE;
+                this.tracksGfx.moveTo(sx1, sy1);
+                this.tracksGfx.lineTo(sx2, sy2);
             }
         }
     }
     
     /**
-     * PYRO EXHAUST — animowany ogień + dym z 2 rur wydechowych.
-     * Zawsze widoczne (pulsuje), intensywniej gdy isMoving.
+     * Animacja ognia + dymu z 2 exhaust pipes (per-brawler kolory).
      */
-    private updatePyroExhaust(): void {
-        this.pyroExhaustGfx.clear();
+    private updateBrawlerExhaust(): void {
+        this.exhaustGfx.clear();
         
-        if (this.brawler.id !== 'pyro') return;
+        const config = PROGRAMMATIC_BRAWLER_CONFIG[this.brawler.id];
+        if (!config) return;
+        if (!config.HAS_FLAME && !config.HAS_SMOKE) return;
         
         const time = Date.now();
         const cos = Math.cos(this.hull.rotation);
         const sin = Math.sin(this.hull.rotation);
-        
-        // Direction "tył tanka" w container space (przeciwnie do hull facing)
         const rearDirX = -cos;
         const rearDirY = -sin;
-        
-        // Intensywność ognia rośnie gdy isMoving
         const intensityBase = this.isMoving ? 1.0 : 0.55;
         
-        const offsets = [-PYRO_EXHAUST_OFFSET_Y, PYRO_EXHAUST_OFFSET_Y];
+        const offsets = [-config.EXHAUST_Y, config.EXHAUST_Y];
         
-        for (let idx = 0; idx < offsets.length; idx++) {
+        for (let idx = 0; idx < 2; idx++) {
             const offLocalY = offsets[idx];
+            const ex = (config.EXHAUST_X * cos - offLocalY * sin) * TANK_CANVAS_SCALE;
+            const ey = (config.EXHAUST_X * sin + offLocalY * cos) * TANK_CANVAS_SCALE;
             
-            // Pozycja exhaust w container space (po hull rotation + canvas scale)
-            const ex = (PYRO_EXHAUST_LOCAL_X * cos - offLocalY * sin) * PYRO_CANVAS_SCALE;
-            const ey = (PYRO_EXHAUST_LOCAL_X * sin + offLocalY * cos) * PYRO_CANVAS_SCALE;
-            
-            // ===== FLAME (animowany ogień z różnymi fazami per exhaust) =====
-            const flamePhase = time / 130 + idx * 1.7;
-            const flameScale = 0.85 + Math.sin(flamePhase) * 0.25;
-            const flameSize = 5 * flameScale * intensityBase;
-            
-            // Pozycja flame: tuż za exhaust (kierunek rear)
-            const flameDist = 5 + Math.sin(flamePhase * 0.7) * 1.5;
-            const fx = ex + rearDirX * flameDist;
-            const fy = ey + rearDirY * flameDist;
-            
-            // Outer flame (pomarańczowy)
-            this.pyroExhaustGfx.beginFill(0xff7e2a, 0.75 * intensityBase);
-            this.pyroExhaustGfx.drawCircle(fx, fy, flameSize);
-            this.pyroExhaustGfx.endFill();
-            
-            // Inner flame (jasny żółty rdzeń)
-            this.pyroExhaustGfx.beginFill(0xffdc4a, 0.92 * intensityBase);
-            this.pyroExhaustGfx.drawCircle(fx, fy, flameSize * 0.55);
-            this.pyroExhaustGfx.endFill();
-            
-            // Bright core (biały hot center)
-            this.pyroExhaustGfx.beginFill(0xffffff, 0.6 * intensityBase);
-            this.pyroExhaustGfx.drawCircle(fx, fy, flameSize * 0.22);
-            this.pyroExhaustGfx.endFill();
-            
-            // ===== SMOKE (3 obłoczki dymu w różnych fazach trailowane do tyłu) =====
-            for (let s = 0; s < 3; s++) {
-                const smokePhase = ((time / 900) + s * 0.33 + idx * 0.17) % 1.0;
-                const smokeDist = 10 + smokePhase * 22;
-                const smokeSize = 2.5 + smokePhase * 3.5;
-                const smokeAlpha = 0.45 * (1 - smokePhase) * intensityBase;
+            if (config.HAS_FLAME) {
+                const flamePhase = time / 130 + idx * 1.7;
+                const flameScale = 0.85 + Math.sin(flamePhase) * 0.25;
+                const flameSize = 5 * flameScale * intensityBase;
+                const flameDist = 5 + Math.sin(flamePhase * 0.7) * 1.5;
+                const fx = ex + rearDirX * flameDist;
+                const fy = ey + rearDirY * flameDist;
                 
-                // Drift lekko w bok (perpendykularnie do kierunku rear)
-                const driftPerp = Math.sin(smokePhase * Math.PI * 2 + idx) * 2;
-                const perpX = -rearDirY * driftPerp;
-                const perpY = rearDirX * driftPerp;
-                
-                const smx = ex + rearDirX * smokeDist + perpX;
-                const smy = ey + rearDirY * smokeDist + perpY;
-                
-                this.pyroExhaustGfx.beginFill(0x4a4a4a, smokeAlpha);
-                this.pyroExhaustGfx.drawCircle(smx, smy, smokeSize);
-                this.pyroExhaustGfx.endFill();
-                
-                // Inner lighter
-                this.pyroExhaustGfx.beginFill(0x7a7a7a, smokeAlpha * 0.6);
-                this.pyroExhaustGfx.drawCircle(smx, smy, smokeSize * 0.5);
-                this.pyroExhaustGfx.endFill();
+                this.exhaustGfx.beginFill(config.FLAME_COLOR_OUTER!, 0.75 * intensityBase);
+                this.exhaustGfx.drawCircle(fx, fy, flameSize);
+                this.exhaustGfx.endFill();
+                this.exhaustGfx.beginFill(config.FLAME_COLOR_INNER!, 0.92 * intensityBase);
+                this.exhaustGfx.drawCircle(fx, fy, flameSize * 0.55);
+                this.exhaustGfx.endFill();
+                this.exhaustGfx.beginFill(0xffffff, 0.6 * intensityBase);
+                this.exhaustGfx.drawCircle(fx, fy, flameSize * 0.22);
+                this.exhaustGfx.endFill();
+            }
+            
+            if (config.HAS_SMOKE) {
+                for (let s = 0; s < 3; s++) {
+                    const smokePhase = ((time / 900) + s * 0.33 + idx * 0.17) % 1.0;
+                    const smokeDist = 10 + smokePhase * 22;
+                    const smokeSize = 2.5 + smokePhase * 3.5;
+                    const smokeAlpha = config.SMOKE_ALPHA! * (1 - smokePhase) * intensityBase;
+                    const driftPerp = Math.sin(smokePhase * Math.PI * 2 + idx) * 2;
+                    const perpX = -rearDirY * driftPerp;
+                    const perpY = rearDirX * driftPerp;
+                    const smx = ex + rearDirX * smokeDist + perpX;
+                    const smy = ey + rearDirY * smokeDist + perpY;
+                    
+                    this.exhaustGfx.beginFill(config.SMOKE_COLOR!, smokeAlpha);
+                    this.exhaustGfx.drawCircle(smx, smy, smokeSize);
+                    this.exhaustGfx.endFill();
+                    this.exhaustGfx.beginFill(0xffffff, smokeAlpha * 0.3);
+                    this.exhaustGfx.drawCircle(smx, smy, smokeSize * 0.4);
+                    this.exhaustGfx.endFill();
+                }
             }
         }
     }
@@ -411,7 +372,6 @@ export class Player {
             const speed = this.currentSpeed;
             const nx = this.x + (dx / len) * speed;
             const ny = this.y + (dy / len) * speed;
-            
             let canMoveX = true, canMoveY = true;
             for (const b of buildings) {
                 if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;
@@ -419,7 +379,6 @@ export class Player {
             }
             if (canMoveX) this.x = nx;
             if (canMoveY) this.y = ny;
-            
             this.lastMoveAngle = Math.atan2(dy, dx);
             this.hull.rotation = this.lastMoveAngle;
         }
@@ -429,26 +388,19 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
         
-        // Flag — na tylnej krawędzi (+50% rozmiar)
         this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_BEHIND_DIST;
         this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_BEHIND_DIST;
         this.flagGfx.rotation = this.hull.rotation + Math.PI;
         
-        if (this.isSuperShotActive) {
-            this.hull.tint = SUPER_TINT;
-        } else if (this.hasSpeedBoost) {
-            this.hull.tint = 0xffcc66;
-        } else {
-            this.hull.tint = 0xffffff;
-        }
+        if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
+        else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;
+        else this.hull.tint = 0xffffff;
         
-        if (this.superActive && Date.now() >= this.superEndTime) {
-            this.superActive = false;
-        }
+        if (this.superActive && Date.now() >= this.superEndTime) this.superActive = false;
         
         this.updateSuperRing();
-        this.updatePyroTracks();
-        this.updatePyroExhaust();
+        this.updateBrawlerTracks();
+        this.updateBrawlerExhaust();
         
         if (this.isMoving) {
             this.trackTimer++;

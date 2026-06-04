@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { getBrawlerTextures } from '../rendering/SpriteFactory';
+import { getEnemyTextures } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import { BRAWLERS } from '../config/brawlers';
 import type { CyberBuilding } from '../maps/CityMap';
@@ -104,7 +104,9 @@ export class Enemy {
         this.container.y = this.y;
         this.container.scale.set(config.scale);
         
-        const tex = getBrawlerTextures(BRAWLERS[1]);
+        // v0.12.2 fix — getEnemyTextures wymusza PIERWOTNY v4.48 look (generic drawTankHull/Turret)
+        // niezależnie od BRAWLERS[1].id ('heavy'). Brawler używany TYLKO dla colorMain (potem nadpisane tintem).
+        const tex = getEnemyTextures(BRAWLERS[1]);
         
         this.hull = new PIXI.Sprite(tex.hull);
         this.hull.anchor.set(0.5);

@@ -14,7 +14,7 @@ export interface BrawlerProgrammaticConfig {
     FLAME_COLOR_OUTER?: number; FLAME_COLOR_INNER?: number;
     HAS_SMOKE: boolean;
     SMOKE_COLOR?: number; SMOKE_ALPHA?: number;
-    SMOKE_BOOST?: number; // 1.5 dla Twardy/Heavy (większy dym)
+    SMOKE_BOOST?: number;
 }
 
 export const PROGRAMMATIC_BRAWLER_CONFIG: Record<string, BrawlerProgrammaticConfig> = {
@@ -259,7 +259,6 @@ function drawTankNumber(ctx: CanvasRenderingContext2D, num: string, cx: number, 
 }
 
 function drawFrontSpikes(ctx: CanvasRenderingContext2D, frontX: number, color: string, outline: string): void {
-    // 3 ostre kolce z przodu hull (Tech/Shadow/King)
     ctx.fillStyle = color;
     ctx.strokeStyle = outline;
     ctx.lineWidth = 0.8;
@@ -287,11 +286,9 @@ function drawLongBarrelWithTip(ctx: CanvasRenderingContext2D, barrelStart: numbe
     ctx.roundRect(barrelStart, -barrelW / 2, barrelLen, barrelW, 1.2);
     ctx.fill(); ctx.stroke();
     
-    // Highlight band
     ctx.fillStyle = lerpHex(baseColor, 25);
     ctx.fillRect(barrelStart + 2, -barrelW / 2 + 0.5, barrelLen - 4, 1.1);
     
-    // Tip (czerwony / zielony itd.)
     ctx.fillStyle = tipColor;
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
@@ -299,7 +296,6 @@ function drawLongBarrelWithTip(ctx: CanvasRenderingContext2D, barrelStart: numbe
     ctx.roundRect(barrelStart + barrelLen - 4, -barrelW / 2 - 0.5, 4, barrelW + 1, 0.8);
     ctx.fill(); ctx.stroke();
     
-    // Muzzle hole
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.arc(barrelStart + barrelLen - 2, 0, barrelW * 0.35, 0, Math.PI * 2);
@@ -368,7 +364,6 @@ function drawPyroHull(ctx: CanvasRenderingContext2D): void {
         ctx.closePath();
     };
     
-    // Ceglany moro gradient: jasny ceglany → ciemny ceglany → jasny ceglany
     const grad = ctx.createLinearGradient(0, -hhw, 0, hhw);
     grad.addColorStop(0, '#c44d2f');
     grad.addColorStop(0.5, '#6b2818');
@@ -377,40 +372,32 @@ function drawPyroHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.fill();
     
-    // Camo spots (ciemniejszy ceglany)
     drawCamoSpot(ctx, -hhl + 9, -6, 5, 3, '#4b1810', 0.3);
     drawCamoSpot(ctx, -4, 7, 4.5, 3.5, '#3a120a', -0.4);
     drawCamoSpot(ctx, 8, -8, 4, 2.5, '#4b1810', 0.5);
     drawCamoSpot(ctx, hhl - 14, 5, 3, 4, '#3a120a', 0.2);
     
-    // Engine grille z tyłu
     drawEngineGrille(ctx, -hhl + 8, 0, 7, 16, '#1a1a1a', '#7a3520');
     
-    // Exhausts
     drawExhaustPipe(ctx, c.EXHAUST_X, -c.EXHAUST_Y, 2.8);
     drawExhaustPipe(ctx, c.EXHAUST_X, c.EXHAUST_Y, 2.8);
     
-    // Outline
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     drawShape();
     ctx.stroke();
     
-    // Panel seam
     ctx.strokeStyle = '#3a120a';
     ctx.lineWidth = 0.6;
     ctx.beginPath();
     ctx.moveTo(-hhl + 5, 0); ctx.lineTo(hhl - 5, 0);
     ctx.stroke();
     
-    // Płomienie na bokach
     drawPyroFlameDecal(ctx, -6, -hhw * 0.6, 6);
     drawPyroFlameDecal(ctx, -6, hhw * 0.6, 6, true);
     
-    // Wizjer na froncie hull (mały)
     drawPyroVisor(ctx, hhl - 11, 0, 4.5, 2.8);
     
-    // Center turret mount
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#000';
     ctx.fillStyle = '#4b1810';
@@ -424,7 +411,6 @@ function drawPyroHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawPyroTurret(ctx: CanvasRenderingContext2D): void {
-    // 3 lufy (Pyro = spread shot)
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#000';
     
@@ -446,7 +432,6 @@ function drawPyroTurret(ctx: CanvasRenderingContext2D): void {
     ctx.beginPath(); ctx.arc(barrelStart + sideLen - 1.5, -sideY, sideW * 0.4, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(barrelStart + sideLen - 1.5, sideY, sideW * 0.4, 0, Math.PI * 2); ctx.fill();
     
-    // Hex turret base
     const R = 15.6;
     const drawHex = () => {
         ctx.beginPath();
@@ -471,17 +456,13 @@ function drawPyroTurret(ctx: CanvasRenderingContext2D): void {
     drawHex();
     ctx.stroke();
     
-    // Hatch przesunięty 20% do tyłu
     const hatchX = -R * 0.2;
     drawHatch(ctx, hatchX, 0, R * 0.35, '#4b1810');
     
-    // Wizjer dodatkowy na turret (z przodu od hatch)
     drawPyroVisor(ctx, R * 0.45, 0, 3, 1.8);
     
-    // Numer 09 nad włazem (-y od hatch)
     drawTankNumber(ctx, '09', hatchX, -R * 0.62, 5, '#ffd700');
     
-    // Płomień na boku turret
     drawPyroFlameDecal(ctx, -R * 0.65, -R * 0.55, 3.5);
 }
 
@@ -531,7 +512,6 @@ function drawTwardyHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.stroke();
     
-    // Star powiększona 50% (z 4.5 → 6.75)
     drawWhiteStar(ctx, hhl - 11, 0, 6.75);
     
     ctx.fillStyle = '#3d5a2d';
@@ -541,11 +521,9 @@ function drawTwardyHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawTwardyTurret(ctx: CanvasRenderingContext2D): void {
-    // Lufa +20% dłuższa (23 → 27.6), kolor #4a6a32 (najciemniejszy), końcówka zielona
     const barrelLen = 27.6, barrelW = 5, barrelStart = 4;
     drawLongBarrelWithTip(ctx, barrelStart, barrelLen, barrelW, '#4a6a32', '#27ae60');
     
-    // Ucięty stożek — 2 concentric circles
     const outerR = 14.5, innerR = 10;
     const g = ctx.createLinearGradient(0, -outerR, 0, outerR);
     g.addColorStop(0, '#8aae6a');
@@ -567,13 +545,10 @@ function drawTwardyTurret(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(0, 0, (outerR + innerR) / 2, 0, Math.PI * 2); ctx.stroke();
     
-    // Hatch
     drawHatch(ctx, 0, 0, innerR * 0.45, '#3d5a2d');
     
-    // Numer 21 nad włazem - żółta czcionka
     drawTankNumber(ctx, '21', 0, -outerR * 0.62, 5, '#ffd700');
     
-    // Star powiększona 50% na boku
     drawWhiteStar(ctx, -outerR * 0.6, -outerR * 0.6, 3.75);
 }
 
@@ -607,16 +582,13 @@ function drawHeavyHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.fill();
     
-    // 4 ERA armor panels
     drawActiveArmorBlock(ctx, -8, -hhw + 3, 8, 4, '#7a7a7a');
     drawActiveArmorBlock(ctx, 8, -hhw + 3, 8, 4, '#7a7a7a');
     drawActiveArmorBlock(ctx, -8, hhw - 3, 8, 4, '#7a7a7a');
     drawActiveArmorBlock(ctx, 8, hhw - 3, 8, 4, '#7a7a7a');
     
-    // Engine grille z tyłu
     drawEngineGrille(ctx, -hhl + 9, 0, 9, 18, '#1a1a1a', '#888');
     
-    // NOWA: kratka wentylacyjna z PRZODU (mniejsza)
     drawEngineGrille(ctx, hhl - 9, 0, 6, 12, '#1a1a1a', '#aaa');
     
     drawExhaustPipe(ctx, c.EXHAUST_X, -c.EXHAUST_Y, 3.2);
@@ -633,7 +605,6 @@ function drawHeavyHull(ctx: CanvasRenderingContext2D): void {
     ctx.moveTo(-hhl + 5, 0); ctx.lineTo(hhl - 5, 0);
     ctx.stroke();
     
-    // WIĘCEJ ciemno-szarych nitów na hull
     const hullRivets: [number, number][] = [
         [-hhl + 3, -hhw + 3], [hhl - 7, -hhw + 3], [-hhl + 3, hhw - 3], [hhl - 7, hhw - 3],
         [-hhl + 12, -hhw + 4], [-hhl + 12, hhw - 4],
@@ -651,7 +622,6 @@ function drawHeavyHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawHeavyTurret(ctx: CanvasRenderingContext2D): void {
-    // 2 lufy +20% dłuższe (24 → 28.8)
     const barrelLen = 28.8, barrelW = 4.5, barrelStart = 5, barrelGap = 5;
     ctx.fillStyle = '#3a3a3a';
     ctx.strokeStyle = '#000';
@@ -667,7 +637,6 @@ function drawHeavyTurret(ctx: CanvasRenderingContext2D): void {
     ctx.beginPath(); ctx.arc(barrelStart + barrelLen - 1.5, -barrelGap / 2 - barrelW / 2, barrelW * 0.4, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(barrelStart + barrelLen - 1.5, barrelGap / 2 + barrelW / 2, barrelW * 0.4, 0, Math.PI * 2); ctx.fill();
     
-    // Domek pentagonal turret
     const R = 14, frontPoint = 5;
     const drawDomek = () => {
         ctx.beginPath();
@@ -692,7 +661,6 @@ function drawHeavyTurret(ctx: CanvasRenderingContext2D): void {
     drawDomek();
     ctx.stroke();
     
-    // Nity na turret (więcej ciemno-szarych)
     const turretRivets: [number, number][] = [
         [-R + 2, -R * 0.75], [R * 0.55, -R * 0.75],
         [-R + 2, R * 0.75], [R * 0.55, R * 0.75],
@@ -700,10 +668,8 @@ function drawHeavyTurret(ctx: CanvasRenderingContext2D): void {
     ];
     for (const [rx, ry] of turretRivets) drawDarkRivet(ctx, rx, ry, 1.0);
     
-    // Hatch
     drawHatch(ctx, -R * 0.3, 0, 4.5, '#3a3a3a');
     
-    // Numer 44 - biała czcionka
     drawTankNumber(ctx, '44', -R * 0.3, -R * 0.55, 5, '#ffffff');
 }
 
@@ -751,7 +717,6 @@ function drawScoutHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.stroke();
     
-    // Magnifier emblem na froncie
     ctx.strokeStyle = '#3a2e1a';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(hhl - 10, -1, 2.5, 0, Math.PI * 2); ctx.stroke();
@@ -764,7 +729,6 @@ function drawScoutHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawScoutTurret(ctx: CanvasRenderingContext2D): void {
-    // Lufa +100% dłuższa (19 → 38)
     const barrelLen = 38, barrelW = 4, barrelStart = 4;
     ctx.fillStyle = '#3a3a3a';
     ctx.strokeStyle = '#000';
@@ -775,16 +739,14 @@ function drawScoutTurret(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.arc(barrelStart + barrelLen - 1.5, 0, barrelW * 0.4, 0, Math.PI * 2); ctx.fill();
     
-    // ERA armor blocks
     const armorR = 16.5;
     for (let i = -1; i <= 1; i++) {
         drawActiveArmorBlock(ctx, i * 5.5, -armorR, 4.5, 4, '#a48a52');
         drawActiveArmorBlock(ctx, i * 5.5, armorR, 4.5, 4, '#a48a52');
     }
     
-    // PRZYCIĘTA wieżyczka — elliptical (boki cut off, prostokąt z zaokrąglonymi końcami)
-    const Rx = 14.5; // szerszy w x
-    const Ry = 10;   // węższy w y (boki cut)
+    const Rx = 14.5;
+    const Ry = 10;
     
     const g = ctx.createLinearGradient(0, -Ry, 0, Ry);
     g.addColorStop(0, '#e0c890');
@@ -796,13 +758,10 @@ function drawScoutTurret(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.ellipse(0, 0, Rx, Ry, 0, 0, Math.PI * 2); ctx.stroke();
     
-    // Duży wizjer w środku turret
     drawBigVisor(ctx, -2, 0, Rx * 0.55, Ry * 0.5);
     
-    // Hatch z tyłu
     drawHatch(ctx, -Rx * 0.55, 0, Ry * 0.35, '#6e5a30');
     
-    // Numer 67 nad hatch - biała czcionka
     drawTankNumber(ctx, '67', -Rx * 0.55, -Ry * 0.55, 4, '#ffffff');
 }
 
@@ -852,7 +811,6 @@ function drawSniperHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.stroke();
     
-    // Gold rivets
     drawGoldRivet(ctx, -hhl + 4, -hhw + 4, 1.5);
     drawGoldRivet(ctx, hhl - 6, -hhw + 4, 1.5);
     drawGoldRivet(ctx, -hhl + 4, hhw - 4, 1.5);
@@ -860,7 +818,6 @@ function drawSniperHull(ctx: CanvasRenderingContext2D): void {
     drawGoldRivet(ctx, 0, -hhw + 4, 1.3);
     drawGoldRivet(ctx, 0, hhw - 4, 1.3);
     
-    // Crosshair na froncie
     ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(hhl - 10, 0, 3, 0, Math.PI * 2); ctx.stroke();
@@ -879,14 +836,12 @@ function drawSniperHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawSniperTurret(ctx: CanvasRenderingContext2D): void {
-    // Lufa +30% dłuższa (30 → 39), gruba
     const barrelLen = 39, barrelW = 6.5, barrelStart = 4;
     ctx.fillStyle = '#3a3a3a';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.roundRect(barrelStart, -barrelW / 2, barrelLen, barrelW, 1.5); ctx.fill(); ctx.stroke();
     
-    // Gold trim na lufie (2 paski)
     ctx.fillStyle = '#d4af37';
     ctx.fillRect(barrelStart + 4, -barrelW / 2, 1.5, barrelW);
     ctx.fillRect(barrelStart + barrelLen - 6, -barrelW / 2, 1.5, barrelW);
@@ -897,7 +852,6 @@ function drawSniperTurret(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.arc(barrelStart + barrelLen - 2, 0, barrelW * 0.4, 0, Math.PI * 2); ctx.fill();
     
-    // Domek pentagonal turret
     const R = 14, frontPoint = 4;
     const drawDomek = () => {
         ctx.beginPath();
@@ -922,10 +876,8 @@ function drawSniperTurret(ctx: CanvasRenderingContext2D): void {
     drawDomek();
     ctx.stroke();
     
-    // Scope na top
     drawScopeAttachment(ctx, -R * 0.15, -R * 0.45, 9, 4);
     
-    // Range finder panel
     ctx.fillStyle = '#0c1838';
     ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 0.7;
@@ -939,25 +891,21 @@ function drawSniperTurret(ctx: CanvasRenderingContext2D): void {
         ctx.fill();
     });
     
-    // Hatch z gold trim
     drawHatch(ctx, -R * 0.3, R * 0.15, 4, '#0c1838', true);
     
-    // Numer 7 - żółta czcionka
     drawTankNumber(ctx, '7', -R * 0.3, -R * 0.3, 5, '#ffd700');
     
-    // Gold rivets
-    [[-R * 0.9, -R * 0.7], [R * 0.35, -R * 0.7], [-R * 0.9, R * 0.7], [R * 0.35, R * 0.7], [R * 0.85, -R * 0.25], [R * 0.85, R * 0.25]].forEach(([rx, ry]) => drawGoldRivet(ctx, rx, ry, 1.1));
+    ([[-R * 0.9, -R * 0.7], [R * 0.35, -R * 0.7], [-R * 0.9, R * 0.7], [R * 0.35, R * 0.7], [R * 0.85, -R * 0.25], [R * 0.85, R * 0.25]] as [number, number][]).forEach(([rx, ry]) => drawGoldRivet(ctx, rx, ry, 1.1));
 }
 
 // =============================================================================
-// TECH (PLASMA) — #71B7F2 z PCB camo, kolce, domek turret z rounded rogami, długa lufa z red tip
+// TECH (PLASMA) — #71B7F2 z PCB camo, kolce, domek turret, długa lufa z red tip
 // =============================================================================
 
 function drawPCBPattern(ctx: CanvasRenderingContext2D, hhl: number, hhw: number, lineColor: string, dotColor: string): void {
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 0.5;
     
-    // Linie PCB (połączenia)
     const lines = [
         [[-hhl + 6, -hhw + 5], [-hhl + 6, 0], [-5, 0]],
         [[-hhl + 12, hhw - 5], [-hhl + 12, hhw - 12], [0, hhw - 12]],
@@ -975,7 +923,6 @@ function drawPCBPattern(ctx: CanvasRenderingContext2D, hhl: number, hhw: number,
         ctx.stroke();
     }
     
-    // Kółeczka (chip pads)
     ctx.fillStyle = dotColor;
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 0.3;
@@ -1012,7 +959,6 @@ function drawTechHull(ctx: CanvasRenderingContext2D): void {
         ctx.closePath();
     };
     
-    // #71B7F2 błękit z gradientem
     const grad = ctx.createLinearGradient(0, -hhw, 0, hhw);
     grad.addColorStop(0, '#a8d4f8');
     grad.addColorStop(0.5, '#71B7F2');
@@ -1021,16 +967,13 @@ function drawTechHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.fill();
     
-    // PCB camo pattern
     drawPCBPattern(ctx, hhl, hhw, '#1a3560', '#0a2548');
     
-    // Okrągłe silniki wydechowe (na tyle, większe niż exhaust pipes)
     ctx.fillStyle = '#1a3560';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.arc(-hhl + 5, -8, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.arc(-hhl + 5, 8, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    // Inner cyan glow
     ctx.fillStyle = '#71B7F2';
     ctx.beginPath(); ctx.arc(-hhl + 5, -8, 2, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(-hhl + 5, 8, 2, 0, Math.PI * 2); ctx.fill();
@@ -1041,16 +984,13 @@ function drawTechHull(ctx: CanvasRenderingContext2D): void {
     drawExhaustPipe(ctx, c.EXHAUST_X, -c.EXHAUST_Y, 2.5);
     drawExhaustPipe(ctx, c.EXHAUST_X, c.EXHAUST_Y, 2.5);
     
-    // Outline
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     drawShape();
     ctx.stroke();
     
-    // KOLCE z przodu
     drawFrontSpikes(ctx, hhl, '#a8d4f8', '#000');
     
-    // Center turret mount
     ctx.fillStyle = '#1a3560';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
@@ -1058,11 +998,9 @@ function drawTechHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawTechTurret(ctx: CanvasRenderingContext2D): void {
-    // Długa lufa z czerwoną końcówką (jak Snajper ~39)
     const barrelLen = 39, barrelW = 5;
     drawLongBarrelWithTip(ctx, 5, barrelLen, barrelW, '#3a3a3a', '#ff3a3a');
     
-    // Domek turret z zaokrąglonymi rogami
     const R = 14, frontPoint = 5;
     const drawDomek = () => {
         ctx.beginPath();
@@ -1090,7 +1028,6 @@ function drawTechTurret(ctx: CanvasRenderingContext2D): void {
     drawDomek();
     ctx.stroke();
     
-    // PCB lines na turret (mini)
     ctx.strokeStyle = '#1a3560';
     ctx.lineWidth = 0.4;
     ctx.beginPath();
@@ -1101,14 +1038,12 @@ function drawTechTurret(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = '#0a2548';
     ctx.strokeStyle = '#1a3560';
     ctx.lineWidth = 0.3;
-    [[-R + 4, -R * 0.6], [-R + 4, -2], [R * 0.3, -2], [-R + 8, R * 0.6], [-R + 8, 3], [R * 0.3, 3]].forEach(([x, y]) => {
+    ([[-R + 4, -R * 0.6], [-R + 4, -2], [R * 0.3, -2], [-R + 8, R * 0.6], [-R + 8, 3], [R * 0.3, 3]] as [number, number][]).forEach(([x, y]) => {
         ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     });
     
-    // Hatch
     drawHatch(ctx, -R * 0.3, 0, R * 0.35, '#1a3560');
     
-    // Numer 49 - czarna czcionka
     drawTankNumber(ctx, '49', -R * 0.3, -R * 0.6, 5, '#000000');
 }
 
@@ -1134,7 +1069,6 @@ function drawShadowHull(ctx: CanvasRenderingContext2D): void {
         ctx.closePath();
     };
     
-    // Fioletowy gradient
     const grad = ctx.createLinearGradient(0, -hhw, 0, hhw);
     grad.addColorStop(0, '#7a72a0');
     grad.addColorStop(0.5, '#2D123F');
@@ -1143,7 +1077,6 @@ function drawShadowHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.fill();
     
-    // Fioletowy kamuflaż - spots
     drawCamoSpot(ctx, -hhl + 8, -5, 4, 3, '#1a0828', 0.3);
     drawCamoSpot(ctx, -4, 6, 4, 3, '#3a1858', -0.4);
     drawCamoSpot(ctx, 6, -6, 3.5, 2.5, '#1a0828', 0.5);
@@ -1159,10 +1092,8 @@ function drawShadowHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.stroke();
     
-    // KOLCE z przodu - fioletowe
     drawFrontSpikes(ctx, hhl, '#9b8ad0', '#000');
     
-    // Center mount
     ctx.fillStyle = '#2D123F';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
@@ -1170,14 +1101,12 @@ function drawShadowHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawShadowTurret(ctx: CanvasRenderingContext2D): void {
-    // Długa lufa z czerwoną końcówką + PIERŚCIENIE na początku
     const barrelLen = 39, barrelW = 5, barrelStart = 5;
     ctx.fillStyle = '#3a3a3a';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.roundRect(barrelStart, -barrelW / 2, barrelLen, barrelW, 1.2); ctx.fill(); ctx.stroke();
     
-    // Pierścienie na początku lufy (cooling rings - 3 sztuki)
     ctx.fillStyle = '#5a5a5a';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 0.6;
@@ -1186,11 +1115,9 @@ function drawShadowTurret(ctx: CanvasRenderingContext2D): void {
         ctx.beginPath(); ctx.roundRect(rx, -barrelW / 2 - 1, 1.5, barrelW + 2, 0.5); ctx.fill(); ctx.stroke();
     }
     
-    // Highlight
     ctx.fillStyle = '#6a6a6a';
     ctx.fillRect(barrelStart + 12, -barrelW / 2 + 0.5, barrelLen - 14, 1.1);
     
-    // Red tip
     ctx.fillStyle = '#ff3a3a';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
@@ -1198,8 +1125,6 @@ function drawShadowTurret(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.arc(barrelStart + barrelLen - 2, 0, barrelW * 0.35, 0, Math.PI * 2); ctx.fill();
     
-    // Rectangle turret zwężający się do lufy (z zaokrąglonymi rogami)
-    // Tail: full width (hwBack), Front: narrow (hwFront)
     const hl = 13, hwBack = 12, hwFront = 5;
     const drawTaperedRect = () => {
         ctx.beginPath();
@@ -1227,10 +1152,8 @@ function drawShadowTurret(ctx: CanvasRenderingContext2D): void {
     drawTaperedRect();
     ctx.stroke();
     
-    // Hatch
     drawHatch(ctx, -hl * 0.45, 0, 4, '#2D123F');
     
-    // Numer 03 - szara czcionka
     drawTankNumber(ctx, '03', -hl * 0.45, -hwBack * 0.55, 4.5, '#aaaaaa');
 }
 
@@ -1256,7 +1179,6 @@ function drawKingHull(ctx: CanvasRenderingContext2D): void {
         ctx.closePath();
     };
     
-    // Czerwony kamuflaż gradient
     const grad = ctx.createLinearGradient(0, -hhw, 0, hhw);
     grad.addColorStop(0, '#ff6680');
     grad.addColorStop(0.5, '#7a0e1f');
@@ -1265,13 +1187,11 @@ function drawKingHull(ctx: CanvasRenderingContext2D): void {
     drawShape();
     ctx.fill();
     
-    // Camo spots (ciemnoczerwone)
     drawCamoSpot(ctx, -hhl + 10, -6, 5, 3.5, '#5a0815', 0.3);
     drawCamoSpot(ctx, -4, 7, 4.5, 3.5, '#3a0410', -0.4);
     drawCamoSpot(ctx, 8, -8, 4, 2.5, '#5a0815', 0.5);
     drawCamoSpot(ctx, hhl - 14, 5, 3.5, 4, '#3a0410', 0.2);
     
-    // SHINE effect - jasna pozioma smuga
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#ffaabb';
     ctx.beginPath();
@@ -1279,28 +1199,23 @@ function drawKingHull(ctx: CanvasRenderingContext2D): void {
     ctx.fill();
     ctx.globalAlpha = 1;
     
-    // Engine grille
     drawEngineGrille(ctx, -hhl + 9, 0, 8, 18, '#3a0410', '#d4af37');
     drawExhaustPipe(ctx, c.EXHAUST_X, -c.EXHAUST_Y, 3);
     drawExhaustPipe(ctx, c.EXHAUST_X, c.EXHAUST_Y, 3);
     
-    // Outline
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     drawShape();
     ctx.stroke();
     
-    // Gold seam line (spawy)
     ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
     ctx.moveTo(-hhl + 5, 0); ctx.lineTo(hhl - 5, 0);
     ctx.stroke();
     
-    // KOLCE z przodu - złote ostrza
     drawFrontSpikes(ctx, hhl, '#d4af37', '#000');
     
-    // Gold rivets (dużo!)
     const rivets: [number, number][] = [
         [-hhl + 4, -hhw + 4], [hhl - 7, -hhw + 4], [-hhl + 4, hhw - 4], [hhl - 7, hhw - 4],
         [-hhl + 14, -hhw + 5], [-hhl + 14, hhw - 5],
@@ -1309,7 +1224,6 @@ function drawKingHull(ctx: CanvasRenderingContext2D): void {
     ];
     for (const [rx, ry] of rivets) drawGoldRivet(ctx, rx, ry, 1.4);
     
-    // Center turret mount z gold ring
     ctx.fillStyle = '#3a0410';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
@@ -1320,36 +1234,30 @@ function drawKingHull(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawKingTurret(ctx: CanvasRenderingContext2D): void {
-    // Długa lufa ton ciemniejszy (ciemniejsza czerwień), dobiona szmaragdami
     const barrelLen = 39, barrelW = 6, barrelStart = 5;
-    ctx.fillStyle = '#5a0815'; // ton ciemniejszy niż hull #7a0e1f
+    ctx.fillStyle = '#5a0815';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.roundRect(barrelStart, -barrelW / 2, barrelLen, barrelW, 1.5); ctx.fill(); ctx.stroke();
     
-    // Highlight
     ctx.fillStyle = '#9a182a';
     ctx.fillRect(barrelStart + 2, -barrelW / 2 + 0.5, barrelLen - 4, 1.2);
     
-    // Gold trim na lufie
     ctx.fillStyle = '#d4af37';
     ctx.fillRect(barrelStart + 4, -barrelW / 2, 1.5, barrelW);
     ctx.fillRect(barrelStart + barrelLen - 6, -barrelW / 2, 1.5, barrelW);
     
-    // SZMARAGDY na lufie (3 zielone gemy)
     ctx.fillStyle = '#27ae60';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 0.5;
     for (let i = 0; i < 3; i++) {
         const ex = barrelStart + 10 + i * 8;
         ctx.beginPath(); ctx.arc(ex, 0, 1.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        // Highlight gemu
         ctx.fillStyle = '#4ade80';
         ctx.beginPath(); ctx.arc(ex - 0.3, -0.3, 0.5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#27ae60';
     }
     
-    // Red tip (mocny czerwony)
     ctx.fillStyle = '#ff3a3a';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
@@ -1357,7 +1265,6 @@ function drawKingTurret(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.arc(barrelStart + barrelLen - 2, 0, barrelW * 0.4, 0, Math.PI * 2); ctx.fill();
     
-    // Ucięty stożek elipsoidalny (lekko szerszy w x)
     const outerRx = 16, outerRy = 14;
     const innerRx = 11, innerRy = 9.5;
     
@@ -1371,26 +1278,21 @@ function drawKingTurret(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.ellipse(0, 0, outerRx, outerRy, 0, 0, Math.PI * 2); ctx.stroke();
     
-    // Inner ring (jasniejsza)
     ctx.fillStyle = '#ad1530';
     ctx.beginPath(); ctx.ellipse(0, 0, innerRx, innerRy, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.ellipse(0, 0, innerRx, innerRy, 0, 0, Math.PI * 2); ctx.stroke();
     
-    // SHINE na turret
     ctx.globalAlpha = 0.4;
     ctx.fillStyle = '#ffaabb';
     ctx.beginPath(); ctx.ellipse(-outerRx * 0.3, -outerRy * 0.4, outerRx * 0.4, outerRy * 0.18, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
     
-    // Hatch z gold trim
     drawHatch(ctx, 0, 0, innerRy * 0.42, '#5a0815', true);
     
-    // Numer 1 - szara czcionka
     drawTankNumber(ctx, '1', 0, -innerRy * 0.55, 5, '#aaaaaa');
     
-    // Gold rivets na turret
     const turretRivets: [number, number][] = [
         [-outerRx * 0.6, -outerRy * 0.7],
         [outerRx * 0.6, -outerRy * 0.7],
@@ -1402,91 +1304,90 @@ function drawKingTurret(ctx: CanvasRenderingContext2D): void {
 }
 
 // =============================================================================
-// GENERIC FALLBACK (Enemy tank — stare dimensions, kadłub overlap track)
+// GENERIC FALLBACK (Enemy tank — PIERWOTNY v4.48, hull zachodzi na tracks)
 // =============================================================================
 
 function drawTankHull(ctx: CanvasRenderingContext2D, brawler: Brawler): void {
     const col = brawler.colorMain;
-    const cL = lerpHex(col, 35);
-    const cD = lerpHex(col, -25);
+    const cL = lerpHex(col, 45);
     const HL = 52, HW = 26, TRK = 5;
     const hhl = HL / 2, hhw = HW / 2;
     
-    // Tracks (rendered first, pod hull)
-    ctx.fillStyle = '#1a1a1a';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.roundRect(-hhl + 1, -hhw - TRK + 0.5, HL - 2, TRK, 1.5); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.roundRect(-hhl + 1, hhw - 0.5, HL - 2, TRK, 1.5); ctx.fill(); ctx.stroke();
+    // Gąsienice (góra + dół) — PIERWOTNE pozycje z v4.48
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.roundRect(-hhl, -(hhw + TRK / 2 + 0.5) - TRK / 2, HL, TRK, 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(-hhl, (hhw + TRK / 2 + 0.5) - TRK / 2, HL, TRK, 2);
+    ctx.fill();
     
-    // Track segments
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 0.5;
-    const segCount = 8;
-    for (let i = 1; i < segCount; i++) {
-        const x = -hhl + 1 + (i / segCount) * (HL - 2);
-        ctx.beginPath(); ctx.moveTo(x, -hhw - TRK + 1); ctx.lineTo(x, -hhw - 1); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x, hhw + 1); ctx.lineTo(x, hhw + TRK - 1); ctx.stroke();
-    }
-    
-    // Hull — OVERLAP TRACKS by 1.5px each side
+    // Główna bryła kadłuba — rozszerzona OVERLAP=2px w y żeby zachodzić na tracks
+    // (total bounding box pozostaje TEN SAM co pierwotny: HW + 2*TRK + 1 = 37px)
+    const OVERLAP = 2;
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#000';
-    const grad = ctx.createLinearGradient(0, -hhw - 1.5, 0, hhw + 1.5);
-    grad.addColorStop(0, cL);
-    grad.addColorStop(0.5, col);
-    grad.addColorStop(1, cD);
-    ctx.fillStyle = grad;
-    
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.moveTo(-hhl + 2, -hhw - 1.5);
-    ctx.lineTo(hhl - 4, -hhw - 1.5);
-    ctx.lineTo(hhl, -hhw * 0.3);
-    ctx.lineTo(hhl, hhw * 0.3);
-    ctx.lineTo(hhl - 4, hhw + 1.5);
-    ctx.lineTo(-hhl + 2, hhw + 1.5);
-    ctx.closePath();
+    ctx.roundRect(-hhl, -hhw - OVERLAP, HL, HW + 2 * OVERLAP, 3);
     ctx.fill();
     ctx.stroke();
+    
+    // Highlight (jasny pasek z lewej)
+    ctx.fillStyle = cL;
+    ctx.globalAlpha = 0.28;
+    ctx.beginPath();
+    ctx.roundRect(-hhl, -hhw - OVERLAP, HL * 0.2, HW + 2 * OVERLAP, 3);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 }
 
 function drawTankTurret(ctx: CanvasRenderingContext2D, brawler: Brawler): void {
     const col = brawler.colorMain;
-    const cL = lerpHex(col, 25);
-    const cD = lerpHex(col, -25);
     const tr = 12, bl = 20, bw = 5;
     const bstart = tr * 0.6;
     
-    // Barrel
-    ctx.fillStyle = '#484848';
+    // Baza wieżyczki — PIERWOTNA (cylinder, lerp -18)
+    ctx.fillStyle = lerpHex(col, -18);
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(bstart, -bw / 2, bl, bw, bw * 0.25);
-    ctx.fill(); ctx.stroke();
-    
-    // Turret base (cell shaded)
-    const g = ctx.createLinearGradient(0, -tr, 0, tr);
-    g.addColorStop(0, cL);
-    g.addColorStop(0.5, col);
-    g.addColorStop(1, cD);
-    ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(0, 0, tr + 2, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Lufa — PIERWOTNA
+    ctx.fillStyle = '#484848';
+    ctx.beginPath();
+    ctx.roundRect(bstart, -bw / 2, bl, bw, bw * 0.25);
+    ctx.fill();
     ctx.stroke();
 }
 
 // =============================================================================
-// TEXTURE CACHE & FACTORY
+// TEXTURE CACHE & FACTORIES
 // =============================================================================
 
 export interface BrawlerTextures { hull: PIXI.Texture; turret: PIXI.Texture; }
 
 const BRAWLER_TEX_CACHE = new Map<string, BrawlerTextures>();
+const ENEMY_TEX_CACHE = new Map<string, BrawlerTextures>();
 
+function createTex(drawFn: (ctx: CanvasRenderingContext2D) => void): PIXI.Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 160;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d')!;
+    ctx.translate(80, 80);
+    ctx.scale(TANK_CANVAS_SCALE, TANK_CANVAS_SCALE);
+    drawFn(ctx);
+    return PIXI.Texture.from(canvas);
+}
+
+/**
+ * Tekstury gracza — programmatic high cartoon art per brawler (Pyro, Twardy, Heavy, Scout, Sniper, Tech, Shadow, King).
+ * Każdy brawler ma unikalny look. Niezdefiniowane brawlery używają generic fallback.
+ */
 export function getBrawlerTextures(brawler: Brawler): BrawlerTextures {
     if (BRAWLER_TEX_CACHE.has(brawler.id)) return BRAWLER_TEX_CACHE.get(brawler.id)!;
     
@@ -1499,17 +1400,6 @@ export function getBrawlerTextures(brawler: Brawler): BrawlerTextures {
             turret: PIXI.Texture.from(BASE + 'assets/tanks/' + brawler.id + '_turret.png'),
         };
     } else {
-        const createTex = (drawFn: (ctx: CanvasRenderingContext2D) => void): PIXI.Texture => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 160;
-            canvas.height = 160;
-            const ctx = canvas.getContext('2d')!;
-            ctx.translate(80, 80);
-            ctx.scale(TANK_CANVAS_SCALE, TANK_CANVAS_SCALE);
-            drawFn(ctx);
-            return PIXI.Texture.from(canvas);
-        };
-        
         let hullDraw: (ctx: CanvasRenderingContext2D) => void;
         let turretDraw: (ctx: CanvasRenderingContext2D) => void;
         
@@ -1531,5 +1421,25 @@ export function getBrawlerTextures(brawler: Brawler): BrawlerTextures {
     }
     
     BRAWLER_TEX_CACHE.set(brawler.id, textures);
+    return textures;
+}
+
+/**
+ * Tekstury wroga — ZAWSZE generic drawTankHull/Turret (PIERWOTNY v4.48 look).
+ * Brawler jest używany TYLKO dla kolorów (colorMain) — kształt zawsze pierwotny prosty cylinder + 1 lufa.
+ * Nigdy NIE switchuje na programmatic high cartoon art gracza.
+ * 
+ * Owner cache jest niezależny od BRAWLER_TEX_CACHE — zapobiega konfliktom (gracz vs wróg z tym samym brawler.id).
+ */
+export function getEnemyTextures(brawler: Brawler): BrawlerTextures {
+    const cacheKey = 'enemy_' + brawler.id;
+    if (ENEMY_TEX_CACHE.has(cacheKey)) return ENEMY_TEX_CACHE.get(cacheKey)!;
+    
+    const textures: BrawlerTextures = {
+        hull: createTex(ctx => drawTankHull(ctx, brawler)),
+        turret: createTex(ctx => drawTankTurret(ctx, brawler)),
+    };
+    
+    ENEMY_TEX_CACHE.set(cacheKey, textures);
     return textures;
 }

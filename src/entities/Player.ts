@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
-import { getBrawlerTextures } from '../rendering/SpriteFactory';
+import { getBrawlerTextures, PYRO_EXHAUST_LOCAL_X, PYRO_EXHAUST_OFFSET_Y, PYRO_CANVAS_SCALE, PYRO_HULL_HL, PYRO_HULL_HW, PYRO_HULL_TRK_H } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
@@ -13,9 +13,16 @@ const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
 
-// Target sizes dla external sprites (v0.8 Sesja 6: King AI sprite)
 const TARGET_HULL_SIZE = 100;
 const TARGET_TURRET_SIZE = 80;
+
+// Flaga — większa o 50% (z 14×9 → 21×13.5)
+const FLAG_W = 21;
+const FLAG_H = 13.5;
+const FLAG_POLE_W = 2.25;
+const FLAG_POLE_H = 17.5;
+// Pozycja flagi: na tylnej krawędzi hull (większy offset niż wcześniejsze 25)
+const FLAG_BEHIND_DIST = 50;
 
 export class Player {
     public brawler: Brawler;
@@ -28,21 +35,19 @@ export class Player {
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
     
-    // Speed boost state (PowerPad)
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
     
-    // Super-shot state (v0.5 Etap 2)
     public superCharges: number = 0;
     public superActive: boolean = false;
     public superEndTime: number = 0;
     private superRingGfx: PIXI.Graphics;
     
-    // Flag (v0.8 Sesja 6 init) — child hull, rotuje z hull
     private flagGfx: PIXI.Graphics;
     
-    // Per-brawler aura (v0.8 Sesja 6 final) — child container, world space
-    private auraGfx: PIXI.Graphics;
+    // Pyro-specific animations (v0.10 Sesja 8)
+    private pyroExhaustGfx: PIXI.Graphics;
+    private pyroTracksGfx: PIXI.Graphics;
     
     private trackTimer: number = 0;
     private lastMoveAngle: number = 0;
@@ -65,41 +70,34 @@ export class Player {
         this.hull = new PIXI.Sprite(tex.hull);
         this.hull.anchor.set(0.5);
         
-        // Flag (child hull, za wieżyczką)
-        this.flagGfx = new PIXI.Graphics();
-        this.flagGfx.x = -15;
-        this.flagGfx.y = 0;
-        this.hull.addChild(this.flagGfx);
-        this.drawFlag(this.brawler.flag ?? 'PL');
-        
         this.turret = new PIXI.Sprite(tex.turret);
         this.turret.anchor.set(0.5);
         
-        // External sprite scaling (v0.8 Sesja 6: King AI sprite)
         if (this.brawler.useExternalSprite) {
             this.applyUniformScale(this.hull, TARGET_HULL_SIZE);
             this.applyUniformScale(this.turret, TARGET_TURRET_SIZE);
         }
         
-        // Super-shot ring
         this.superRingGfx = new PIXI.Graphics();
         this.superRingGfx.visible = false;
         
-        // Aura (per-brawler glow, najniższa warstwa w container)
-        this.auraGfx = new PIXI.Graphics();
+        // Pyro animation gfx (clear gdy nie Pyro)
+        this.pyroTracksGfx = new PIXI.Graphics();
+        this.pyroExhaustGfx = new PIXI.Graphics();
         
-        // Order: aura (bottom) -> super-shot ring -> hull -> turret
-        this.container.addChild(this.auraGfx);
+        this.flagGfx = new PIXI.Graphics();
+        this.drawFlag(this.brawler.flag ?? 'PL');
+        
+        // Container order: super-ring → hull → tracks anim → exhaust → turret → flag
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
+        this.container.addChild(this.pyroTracksGfx);
+        this.container.addChild(this.pyroExhaustGfx);
         this.container.addChild(this.turret);
+        this.container.addChild(this.flagGfx);
         worldContainer.addChild(this.container);
     }
     
-    /**
-     * Skaluje sprite tak, aby max(width, height) = targetSize (aspect ratio preserved).
-     * Obsługuje async loading PNG — jeśli texture nie załadowana, czeka na event 'loaded'.
-     */
     private applyUniformScale(sprite: PIXI.Sprite, targetSize: number): void {
         const t = sprite.texture;
         if (t.baseTexture.valid && t.width > 1 && t.height > 1) {
@@ -114,82 +112,79 @@ export class Player {
     }
     
     /**
-     * Rysuje flagę narodową na kadłubie (v0.8 Sesja 6 init).
-     * Wspierane: PL, UA, DE, JP, FR. Domyślnie szara dla nieznanych.
+     * Rysuje flagę (v0.10 Sesja 8: większa o 50% — flagW=21, flagH=13.5).
      */
     drawFlag(countryCode: string): void {
         this.flagGfx.clear();
         
-        const flagW = 14;
-        const flagH = 9;
-        const poleW = 1.5;
-        const poleH = flagH + 4;
-        const flagX = poleW / 2;
+        const flagX = FLAG_POLE_W / 2;
         
-        // Drzewce brązowe
+        // Drzewce
         this.flagGfx.beginFill(0x4a3520);
-        this.flagGfx.drawRect(-poleW / 2, -poleH / 2, poleW, poleH);
+        this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
         this.flagGfx.endFill();
         
         switch (countryCode.toUpperCase()) {
             case 'PL':
                 this.flagGfx.beginFill(0xffffff);
-                this.flagGfx.drawRect(flagX, -flagH / 2, flagW, flagH / 2);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xdc143c);
-                this.flagGfx.drawRect(flagX, 0, flagW, flagH / 2);
+                this.flagGfx.drawRect(flagX, 0, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 break;
             case 'UA':
                 this.flagGfx.beginFill(0x0057b8);
-                this.flagGfx.drawRect(flagX, -flagH / 2, flagW, flagH / 2);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xffd700);
-                this.flagGfx.drawRect(flagX, 0, flagW, flagH / 2);
+                this.flagGfx.drawRect(flagX, 0, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 break;
             case 'DE':
                 this.flagGfx.beginFill(0x000000);
-                this.flagGfx.drawRect(flagX, -flagH / 2, flagW, flagH / 3);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xdd0000);
-                this.flagGfx.drawRect(flagX, -flagH / 2 + flagH / 3, flagW, flagH / 3);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2 + FLAG_H / 3, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xffce00);
-                this.flagGfx.drawRect(flagX, flagH / 2 - flagH / 3, flagW, flagH / 3);
+                this.flagGfx.drawRect(flagX, FLAG_H / 2 - FLAG_H / 3, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
                 break;
             case 'JP':
                 this.flagGfx.beginFill(0xffffff);
-                this.flagGfx.drawRect(flagX, -flagH / 2, flagW, flagH);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xbc002d);
-                this.flagGfx.drawCircle(flagX + flagW / 2, 0, flagH / 3.5);
+                this.flagGfx.drawCircle(flagX + FLAG_W / 2, 0, FLAG_H / 3.5);
                 this.flagGfx.endFill();
                 break;
             case 'FR':
                 this.flagGfx.beginFill(0x0055a4);
-                this.flagGfx.drawRect(flagX, -flagH / 2, flagW / 3, flagH);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xffffff);
-                this.flagGfx.drawRect(flagX + flagW / 3, -flagH / 2, flagW / 3, flagH);
+                this.flagGfx.drawRect(flagX + FLAG_W / 3, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xef4135);
-                this.flagGfx.drawRect(flagX + 2 * flagW / 3, -flagH / 2, flagW / 3, flagH);
+                this.flagGfx.drawRect(flagX + 2 * FLAG_W / 3, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
                 this.flagGfx.endFill();
                 break;
             default:
                 this.flagGfx.beginFill(0xaaaaaa);
-                this.flagGfx.drawRect(flagX, -flagH / 2, flagW, flagH);
+                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
                 this.flagGfx.endFill();
         }
         
-        // Obwódka + złota kulka na czubku
-        this.flagGfx.lineStyle(0.6, 0x000000, 0.7);
-        this.flagGfx.drawRect(flagX, -flagH / 2, flagW, flagH);
+        // Obwódka flagi
+        this.flagGfx.lineStyle(0.8, 0x000000, 0.75);
+        this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
         this.flagGfx.lineStyle(0);
+        
+        // Złota kulka na czubku drzewca
         this.flagGfx.beginFill(0xd4af37);
-        this.flagGfx.drawCircle(0, -poleH / 2 - 0.5, 1.3);
+        this.flagGfx.drawCircle(0, -FLAG_POLE_H / 2 - 0.5, 2);
         this.flagGfx.endFill();
     }
     
@@ -279,58 +274,125 @@ export class Player {
     }
     
     /**
-     * Aura per-brawler. Dispatch po brawler.id.
-     * v0.8 Sesja 6: tylko King ma aurę (gold royal glow).
+     * PYRO TRACKS — animowane speed lines wzdłuż gąsienic gdy isMoving.
+     * Visual fake na ruchu gąsienic.
      */
-    private updateAura(): void {
-        this.auraGfx.clear();
+    private updatePyroTracks(): void {
+        this.pyroTracksGfx.clear();
         
-        if (this.brawler.id === 'king') {
-            this.drawKingAura();
+        if (this.brawler.id !== 'pyro' || !this.isMoving) return;
+        
+        const time = Date.now();
+        const speedFactor = this.currentSpeed / 5;
+        const phase = (time * speedFactor * 0.04) % 12;
+        
+        // Track Y w hull local coords (po canvas scale 1.75)
+        const trackHalfLen = PYRO_HULL_HL / 2; // 31
+        const trackY = (PYRO_HULL_HW / 2) + (PYRO_HULL_TRK_H / 2); // ~18.5
+        
+        const cos = Math.cos(this.hull.rotation);
+        const sin = Math.sin(this.hull.rotation);
+        
+        this.pyroTracksGfx.lineStyle(1.8, 0xffeaa3, 0.55);
+        
+        for (const ty of [-trackY, trackY]) {
+            for (let i = -3; i <= 3; i++) {
+                const localX1 = i * 12 + phase - 8;
+                const localX2 = localX1 + 5;
+                
+                const cx1 = Math.max(localX1, -trackHalfLen);
+                const cx2 = Math.min(localX2, trackHalfLen);
+                if (cx2 <= cx1) continue;
+                
+                const sx1 = (cx1 * cos - ty * sin) * PYRO_CANVAS_SCALE;
+                const sy1 = (cx1 * sin + ty * cos) * PYRO_CANVAS_SCALE;
+                const sx2 = (cx2 * cos - ty * sin) * PYRO_CANVAS_SCALE;
+                const sy2 = (cx2 * sin + ty * cos) * PYRO_CANVAS_SCALE;
+                
+                this.pyroTracksGfx.moveTo(sx1, sy1);
+                this.pyroTracksGfx.lineTo(sx2, sy2);
+            }
         }
     }
     
     /**
-     * King aura: 2 gold pulse rings + crown halo + 4 orbiting sparkles.
+     * PYRO EXHAUST — animowany ogień + dym z 2 rur wydechowych.
+     * Zawsze widoczne (pulsuje), intensywniej gdy isMoving.
      */
-    private drawKingAura(): void {
+    private updatePyroExhaust(): void {
+        this.pyroExhaustGfx.clear();
+        
+        if (this.brawler.id !== 'pyro') return;
+        
         const time = Date.now();
-        const pulse = 0.4 + Math.sin(time / 700) * 0.3;
+        const cos = Math.cos(this.hull.rotation);
+        const sin = Math.sin(this.hull.rotation);
         
-        // Gold pulse ring 1 (zewnętrzny, grubszy)
-        const r1 = 55 + Math.sin(time / 500) * 3;
-        this.auraGfx.lineStyle(2.5, 0xffd700, pulse * 0.55);
-        this.auraGfx.drawCircle(0, 0, r1);
+        // Direction "tył tanka" w container space (przeciwnie do hull facing)
+        const rearDirX = -cos;
+        const rearDirY = -sin;
         
-        // Gold pulse ring 2 (wewnętrzny, cieńszy, jaśniejszy)
-        const r2 = r1 - 8;
-        this.auraGfx.lineStyle(1.5, 0xfff4a3, pulse * 0.35);
-        this.auraGfx.drawCircle(0, 0, r2);
+        // Intensywność ognia rośnie gdy isMoving
+        const intensityBase = this.isMoving ? 1.0 : 0.55;
         
-        // Crown glow halo — subtelny gold halo nad turret center
-        const haloPulse = 0.3 + Math.sin(time / 800) * 0.2;
-        this.auraGfx.beginFill(0xffd700, haloPulse * 0.12);
-        this.auraGfx.drawCircle(0, 0, 30);
-        this.auraGfx.endFill();
+        const offsets = [-PYRO_EXHAUST_OFFSET_Y, PYRO_EXHAUST_OFFSET_Y];
         
-        // 4 sparkle dust orbitujące
-        this.auraGfx.lineStyle(0);
-        const sparkleCount = 4;
-        for (let i = 0; i < sparkleCount; i++) {
-            const angle = time / 1200 + (i / sparkleCount) * Math.PI * 2;
-            const dist = 48 + Math.sin(time / 500 + i * 0.8) * 5;
-            const sx = Math.cos(angle) * dist;
-            const sy = Math.sin(angle) * dist;
-            const sa = 0.5 + Math.sin(time / 280 + i * 1.7) * 0.5;
+        for (let idx = 0; idx < offsets.length; idx++) {
+            const offLocalY = offsets[idx];
             
-            // Outer glow
-            this.auraGfx.beginFill(0xffd700, sa * 0.35);
-            this.auraGfx.drawCircle(sx, sy, 4);
-            this.auraGfx.endFill();
-            // Inner spark (biały rdzeń)
-            this.auraGfx.beginFill(0xffffff, sa);
-            this.auraGfx.drawCircle(sx, sy, 1.5);
-            this.auraGfx.endFill();
+            // Pozycja exhaust w container space (po hull rotation + canvas scale)
+            const ex = (PYRO_EXHAUST_LOCAL_X * cos - offLocalY * sin) * PYRO_CANVAS_SCALE;
+            const ey = (PYRO_EXHAUST_LOCAL_X * sin + offLocalY * cos) * PYRO_CANVAS_SCALE;
+            
+            // ===== FLAME (animowany ogień z różnymi fazami per exhaust) =====
+            const flamePhase = time / 130 + idx * 1.7;
+            const flameScale = 0.85 + Math.sin(flamePhase) * 0.25;
+            const flameSize = 5 * flameScale * intensityBase;
+            
+            // Pozycja flame: tuż za exhaust (kierunek rear)
+            const flameDist = 5 + Math.sin(flamePhase * 0.7) * 1.5;
+            const fx = ex + rearDirX * flameDist;
+            const fy = ey + rearDirY * flameDist;
+            
+            // Outer flame (pomarańczowy)
+            this.pyroExhaustGfx.beginFill(0xff7e2a, 0.75 * intensityBase);
+            this.pyroExhaustGfx.drawCircle(fx, fy, flameSize);
+            this.pyroExhaustGfx.endFill();
+            
+            // Inner flame (jasny żółty rdzeń)
+            this.pyroExhaustGfx.beginFill(0xffdc4a, 0.92 * intensityBase);
+            this.pyroExhaustGfx.drawCircle(fx, fy, flameSize * 0.55);
+            this.pyroExhaustGfx.endFill();
+            
+            // Bright core (biały hot center)
+            this.pyroExhaustGfx.beginFill(0xffffff, 0.6 * intensityBase);
+            this.pyroExhaustGfx.drawCircle(fx, fy, flameSize * 0.22);
+            this.pyroExhaustGfx.endFill();
+            
+            // ===== SMOKE (3 obłoczki dymu w różnych fazach trailowane do tyłu) =====
+            for (let s = 0; s < 3; s++) {
+                const smokePhase = ((time / 900) + s * 0.33 + idx * 0.17) % 1.0;
+                const smokeDist = 10 + smokePhase * 22;
+                const smokeSize = 2.5 + smokePhase * 3.5;
+                const smokeAlpha = 0.45 * (1 - smokePhase) * intensityBase;
+                
+                // Drift lekko w bok (perpendykularnie do kierunku rear)
+                const driftPerp = Math.sin(smokePhase * Math.PI * 2 + idx) * 2;
+                const perpX = -rearDirY * driftPerp;
+                const perpY = rearDirX * driftPerp;
+                
+                const smx = ex + rearDirX * smokeDist + perpX;
+                const smy = ey + rearDirY * smokeDist + perpY;
+                
+                this.pyroExhaustGfx.beginFill(0x4a4a4a, smokeAlpha);
+                this.pyroExhaustGfx.drawCircle(smx, smy, smokeSize);
+                this.pyroExhaustGfx.endFill();
+                
+                // Inner lighter
+                this.pyroExhaustGfx.beginFill(0x7a7a7a, smokeAlpha * 0.6);
+                this.pyroExhaustGfx.drawCircle(smx, smy, smokeSize * 0.5);
+                this.pyroExhaustGfx.endFill();
+            }
         }
     }
     
@@ -367,6 +429,11 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
         
+        // Flag — na tylnej krawędzi (+50% rozmiar)
+        this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_BEHIND_DIST;
+        this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_BEHIND_DIST;
+        this.flagGfx.rotation = this.hull.rotation + Math.PI;
+        
         if (this.isSuperShotActive) {
             this.hull.tint = SUPER_TINT;
         } else if (this.hasSpeedBoost) {
@@ -380,7 +447,8 @@ export class Player {
         }
         
         this.updateSuperRing();
-        this.updateAura();  // 👈 NEW (v0.8 Sesja 6)
+        this.updatePyroTracks();
+        this.updatePyroExhaust();
         
         if (this.isMoving) {
             this.trackTimer++;

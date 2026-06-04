@@ -5,22 +5,18 @@ import { checkRectCollision } from '../systems/Physics';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
 
-interface KeysState {
-    w: boolean; a: boolean; s: boolean; d: boolean;
-}
+interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 
 const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
 
-const TARGET_HULL_SIZE = 100;
-const TARGET_TURRET_SIZE = 80;
-
+// Flag — pozycja WEWNĄTRZ hull (drzewce -25px od center, flag ciągnie w lewo)
 const FLAG_W = 21;
 const FLAG_H = 13.5;
 const FLAG_POLE_W = 2.25;
 const FLAG_POLE_H = 17.5;
-const FLAG_BEHIND_DIST = 50;
+const FLAG_POLE_DIST = 25; // drzewce x = -25 (w hull bounds dla wszystkich brawlerów)
 
 export class Player {
     public brawler: Brawler;
@@ -35,15 +31,12 @@ export class Player {
     
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
-    
     public superCharges: number = 0;
     public superActive: boolean = false;
     public superEndTime: number = 0;
     private superRingGfx: PIXI.Graphics;
     
     private flagGfx: PIXI.Graphics;
-    
-    // Per-brawler animacje (programmatic brawlers tylko)
     private tracksGfx: PIXI.Graphics;
     private exhaustGfx: PIXI.Graphics;
     
@@ -64,54 +57,37 @@ export class Player {
         this.container.y = this.y;
         
         const tex = getBrawlerTextures(this.brawler);
-        
         this.hull = new PIXI.Sprite(tex.hull);
         this.hull.anchor.set(0.5);
-        
         this.turret = new PIXI.Sprite(tex.turret);
         this.turret.anchor.set(0.5);
         
-        if (this.brawler.useExternalSprite) {
-            this.applyUniformScale(this.hull, TARGET_HULL_SIZE);
-            this.applyUniformScale(this.turret, TARGET_TURRET_SIZE);
-        }
-        
         this.superRingGfx = new PIXI.Graphics();
         this.superRingGfx.visible = false;
-        
         this.tracksGfx = new PIXI.Graphics();
         this.exhaustGfx = new PIXI.Graphics();
-        
         this.flagGfx = new PIXI.Graphics();
         this.drawFlag(this.brawler.flag ?? 'PL');
         
-        // Order: super-ring → hull → tracks anim → exhaust → turret → flag
+        // Order: super-ring → hull → tracks → exhaust → flag → turret (turret zasłania flag)
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
         this.container.addChild(this.tracksGfx);
         this.container.addChild(this.exhaustGfx);
-        this.container.addChild(this.turret);
         this.container.addChild(this.flagGfx);
+        this.container.addChild(this.turret);
         worldContainer.addChild(this.container);
     }
     
-    private applyUniformScale(sprite: PIXI.Sprite, targetSize: number): void {
-        const t = sprite.texture;
-        if (t.baseTexture.valid && t.width > 1 && t.height > 1) {
-            const maxDim = Math.max(t.width, t.height);
-            sprite.scale.set(targetSize / maxDim);
-        } else {
-            t.baseTexture.once('loaded', () => {
-                const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
-                sprite.scale.set(targetSize / maxDim);
-            });
-        }
-    }
-    
+    /**
+     * Flaga — drzewce w (0,0), flaga ciągnie w LEWO (x ∈ [-FLAG_W, 0]).
+     * Biało-czerwona PL: biały TOP (-y), czerwony BOTTOM (+y) — w default rotation widoczne jako biały NA GÓRZE.
+     */
     drawFlag(countryCode: string): void {
         this.flagGfx.clear();
-        const flagX = FLAG_POLE_W / 2;
+        const flagStartX = -FLAG_W;
         
+        // Drzewce
         this.flagGfx.beginFill(0x4a3520);
         this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
         this.flagGfx.endFill();
@@ -119,58 +95,47 @@ export class Player {
         switch (countryCode.toUpperCase()) {
             case 'PL':
                 this.flagGfx.beginFill(0xffffff);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xdc143c);
-                this.flagGfx.drawRect(flagX, 0, FLAG_W, FLAG_H / 2);
+                this.flagGfx.drawRect(flagStartX, 0, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 break;
             case 'UA':
                 this.flagGfx.beginFill(0x0057b8);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xffd700);
-                this.flagGfx.drawRect(flagX, 0, FLAG_W, FLAG_H / 2);
+                this.flagGfx.drawRect(flagStartX, 0, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
                 break;
             case 'DE':
                 this.flagGfx.beginFill(0x000000);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H / 3);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xdd0000);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2 + FLAG_H / 3, FLAG_W, FLAG_H / 3);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2 + FLAG_H / 3, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xffce00);
-                this.flagGfx.drawRect(flagX, FLAG_H / 2 - FLAG_H / 3, FLAG_W, FLAG_H / 3);
+                this.flagGfx.drawRect(flagStartX, FLAG_H / 2 - FLAG_H / 3, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
                 break;
             case 'JP':
                 this.flagGfx.beginFill(0xffffff);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H);
                 this.flagGfx.endFill();
                 this.flagGfx.beginFill(0xbc002d);
-                this.flagGfx.drawCircle(flagX + FLAG_W / 2, 0, FLAG_H / 3.5);
-                this.flagGfx.endFill();
-                break;
-            case 'FR':
-                this.flagGfx.beginFill(0x0055a4);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
-                this.flagGfx.endFill();
-                this.flagGfx.beginFill(0xffffff);
-                this.flagGfx.drawRect(flagX + FLAG_W / 3, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
-                this.flagGfx.endFill();
-                this.flagGfx.beginFill(0xef4135);
-                this.flagGfx.drawRect(flagX + 2 * FLAG_W / 3, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
+                this.flagGfx.drawCircle(flagStartX + FLAG_W / 2, 0, FLAG_H / 3.5);
                 this.flagGfx.endFill();
                 break;
             default:
                 this.flagGfx.beginFill(0xaaaaaa);
-                this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H);
                 this.flagGfx.endFill();
         }
         
         this.flagGfx.lineStyle(0.8, 0x000000, 0.75);
-        this.flagGfx.drawRect(flagX, -FLAG_H / 2, FLAG_W, FLAG_H);
+        this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H);
         this.flagGfx.lineStyle(0);
         this.flagGfx.beginFill(0xd4af37);
         this.flagGfx.drawCircle(0, -FLAG_POLE_H / 2 - 0.5, 2);
@@ -240,10 +205,8 @@ export class Player {
             this.superRingGfx.beginFill(SUPER_TINT, 0.08 * pulse);
             this.superRingGfx.drawCircle(0, 0, r);
             this.superRingGfx.endFill();
-            const sparkCount = 6;
-            const baseRot = Date.now() / 150;
-            for (let i = 0; i < sparkCount; i++) {
-                const angle = baseRot + (i / sparkCount) * Math.PI * 2;
+            for (let i = 0; i < 6; i++) {
+                const angle = Date.now() / 150 + (i / 6) * Math.PI * 2;
                 this.superRingGfx.beginFill(0xffffff, pulse);
                 this.superRingGfx.drawCircle(Math.cos(angle) * r, Math.sin(angle) * r, 2.5);
                 this.superRingGfx.endFill();
@@ -254,12 +217,8 @@ export class Player {
         }
     }
     
-    /**
-     * Speed lines wzdłuż gąsienic dla programmatic brawlerów gdy isMoving.
-     */
     private updateBrawlerTracks(): void {
         this.tracksGfx.clear();
-        
         const config = PROGRAMMATIC_BRAWLER_CONFIG[this.brawler.id];
         if (!config) return;
         if (!this.isMoving) return;
@@ -291,12 +250,8 @@ export class Player {
         }
     }
     
-    /**
-     * Animacja ognia + dymu z 2 exhaust pipes (per-brawler kolory).
-     */
     private updateBrawlerExhaust(): void {
         this.exhaustGfx.clear();
-        
         const config = PROGRAMMATIC_BRAWLER_CONFIG[this.brawler.id];
         if (!config) return;
         if (!config.HAS_FLAME && !config.HAS_SMOKE) return;
@@ -307,7 +262,6 @@ export class Player {
         const rearDirX = -cos;
         const rearDirY = -sin;
         const intensityBase = this.isMoving ? 1.0 : 0.55;
-        
         const offsets = [-config.EXHAUST_Y, config.EXHAUST_Y];
         
         for (let idx = 0; idx < 2; idx++) {
@@ -322,7 +276,6 @@ export class Player {
                 const flameDist = 5 + Math.sin(flamePhase * 0.7) * 1.5;
                 const fx = ex + rearDirX * flameDist;
                 const fy = ey + rearDirY * flameDist;
-                
                 this.exhaustGfx.beginFill(config.FLAME_COLOR_OUTER!, 0.75 * intensityBase);
                 this.exhaustGfx.drawCircle(fx, fy, flameSize);
                 this.exhaustGfx.endFill();
@@ -335,12 +288,13 @@ export class Player {
             }
             
             if (config.HAS_SMOKE) {
-                for (let s = 0; s < 3; s++) {
-                    const smokePhase = ((time / 900) + s * 0.33 + idx * 0.17) % 1.0;
-                    const smokeDist = 10 + smokePhase * 22;
-                    const smokeSize = 2.5 + smokePhase * 3.5;
+                const smokeBoost = config.SMOKE_BOOST ?? 1.0; // 1.5 dla większego dymu
+                for (let s = 0; s < 4; s++) {
+                    const smokePhase = ((time / 900) + s * 0.25 + idx * 0.17) % 1.0;
+                    const smokeDist = (10 + smokePhase * 25) * smokeBoost;
+                    const smokeSize = (2.5 + smokePhase * 4) * smokeBoost;
                     const smokeAlpha = config.SMOKE_ALPHA! * (1 - smokePhase) * intensityBase;
-                    const driftPerp = Math.sin(smokePhase * Math.PI * 2 + idx) * 2;
+                    const driftPerp = Math.sin(smokePhase * Math.PI * 2 + idx) * 2.5;
                     const perpX = -rearDirY * driftPerp;
                     const perpY = rearDirX * driftPerp;
                     const smx = ex + rearDirX * smokeDist + perpX;
@@ -363,7 +317,6 @@ export class Player {
         if (keys.s) dy += 1;
         if (keys.a) dx -= 1;
         if (keys.d) dx += 1;
-        
         this.isMoving = false;
         
         if (dx !== 0 || dy !== 0) {
@@ -388,9 +341,10 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
         
-        this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_BEHIND_DIST;
-        this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_BEHIND_DIST;
-        this.flagGfx.rotation = this.hull.rotation + Math.PI;
+        // Flag — drzewce w (FLAG_POLE_DIST za center hull), w hull local space (rotuje z hull, biały NA GÓRZE)
+        this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_POLE_DIST;
+        this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_POLE_DIST;
+        this.flagGfx.rotation = this.hull.rotation;
         
         if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
         else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;

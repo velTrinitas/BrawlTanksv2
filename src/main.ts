@@ -14,6 +14,8 @@ import {
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
+import { Sphinx } from './maps/desert/Sphinx';
+import { DESERT_SPHINX_POSITION } from './maps/DesertMap';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -244,6 +246,16 @@ function startGame(): void {
         DESERT_PYRAMID_LAYOUT.forEach(p => {
             buildings.push(new Pyramid(p.x, p.y, p.size, p.seed, worldContainer));
         });
+        // Sphinx — centralny landmark mapy
+        const sphinx = new Sphinx(
+            DESERT_SPHINX_POSITION.x,
+            DESERT_SPHINX_POSITION.y,
+            DESERT_SPHINX_POSITION.sizeX,
+            DESERT_SPHINX_POSITION.sizeY,
+            DESERT_SPHINX_POSITION.seed,
+            worldContainer
+        );
+        buildings.push(sphinx);
         
         // TODO FAZA 2b: Sfinks z parallax + skarabeusze
         // TODO FAZA 2c: Kolumny (2 grupy po 3)

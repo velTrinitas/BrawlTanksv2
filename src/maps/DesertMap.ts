@@ -135,6 +135,14 @@ export const DESERT_PYRAMID_LAYOUT: PyramidLayoutEntry[] = [
     { x: WORLD_W * 0.85, y: WORLD_H * 0.42, size: 210, seed: 3 },  // mała, wschód
 ];
 
+export const DESERT_SPHINX_POSITION = {
+    x: WORLD_W * 0.50,
+    y: WORLD_H * 0.42,
+    sizeX: 180,
+    sizeY: 400,
+    seed: 7,
+};
+
 /**
  * Pozycje MediPadów (HoverRepairPad) na pustyni — odpowiedniki repair hangars z v4.48.
  * 3 strefy w różnych ćwiartkach mapy (przesunięte żeby nie kolidować z piramidami).

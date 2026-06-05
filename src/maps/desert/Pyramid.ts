@@ -2,271 +2,209 @@ import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
 
 /**
- * Pojedyncza piramida z parallax 3-warstwowym.
+ * Pyramid — True 2.5D Parallax (dynamic apex calculation + 12-step stepped pyramid).
  * 
- * Warstwy (kolejne parallax strengths):
- *   - gfxBase  (0% parallax) — cień, sand ring wokół podstawy. STATIC drawn raz.
- *   - gfxMid   (5% parallax) — 4 walls trapezoidalne + step lines + wejście do grobowca. STATIC.
- *   - gfxTop   (12% parallax) — pyramidion gold + apex glow flicker + entrance torch glow. DYNAMIC.
+ * v0.14.2 fixy:
+ *   - HITBOX FIX: x/y to top-left corner hitboxu (zgodne z CyberBuilding convention)
+ *     Wcześniej x/y były center → collision tylko od S. Teraz visualX/visualY trzymają
+ *     center dla apex calc, this.x/this.y dla checkRectCollision (top-left).
+ *   - USUNIĘTE: wejście do grobowca, pochodnia, glow sprite, hieroglify
+ *     (apex przy HEIGHT_FACTOR=0.25 powodował "ucieczkę" wejścia na piramidach
+ *     daleko od centrum kamery — wygląd nienaturalny + user feedback "nic nie wnoszą")
  * 
- * Efekt głębi: gdy kamera porusza się, warstwy mid i top "uciekają" w stronę kamery,
- * dając wrażenie 3D bez prawdziwego 3D. Pyramidion przesuwa się najsilniej (12% parallax)
- * — wygląda jakby "leans" w przeciwną stronę kamery.
- * 
- * Hitbox: rectangle 55% × 55% size, centered at (x, y). Mniejszy niż visual,
- * żeby gracz mógł podjechać blisko piramidy.
+ * Mechanika 2.5D: apex (szczyt) jest DYNAMICZNIE LICZONY z pozycji kamery.
+ * Gdy gracz porusza się, szczyt "ucieka" w stronę kamery → iluzja wysokiej piramidy.
  */
+
 const PALETTE = {
-    sandLight:  0xd4a865,  // N wall (sun-facing, najjaśniejsza)
-    sandMid:    0xb8884a,  // E + W walls
-    sandDark:   0x8a5e2a,  // S wall (cień)
-    rim:        0x6a4a1e,  // step lines na walls
-    pyramidion: 0xf4d76a,  // gold capstone
-    entrance:   0x3a2410,  // ciemny otwór do grobowca
-    glow:       0xff8c2a,  // pochodnia z wewnątrz
-    apexGlow:   0xfff4a0,  // jasny halo wokół pyramidion
+    sandSunlit:       0xefd29d,
+    sandMid1:         0xd4ac6e,
+    sandMid2:         0xaa7a3e,
+    sandShadow:       0x66421a,
+    stepShadow:       0x000000,
+    pyramidionGold:   0xffd700,
+    pyramidionShadow: 0xb8860b,
+    baseShadow:       0x000000,
 };
 
 export class Pyramid implements ICollidable {
-    public x: number; public y: number;
-    public w: number; public h: number;
+    // ICollidable — top-left corner of hitbox (zgodne z konwencją CyberBuilding)
+    public x: number;
+    public y: number;
+    public w: number;
+    public h: number;
     
-    private gfxBase: PIXI.Graphics;
-    private gfxMid: PIXI.Graphics;
-    private gfxTop: PIXI.Graphics;
+    // Visual center (różny od this.x/this.y) — używany do parallax calc + container pos
+    private visualX: number;
+    private visualY: number;
+    
+    private container: PIXI.Container;
+    private gfxStatic: PIXI.Graphics;
+    private gfxDynamic: PIXI.Graphics;
     
     private size: number;
     private seed: number;
     
-    // Parallax strengths (factor offset = (pos - cameraCenter) × strength)
-    private static readonly PARALLAX_MID = 0.05;
-    private static readonly PARALLAX_TOP = 0.12;
+    private static readonly HEIGHT_FACTOR = 0.25;
+    private static readonly STEPS_COUNT = 12;
     
-    constructor(x: number, y: number, size: number, seed: number, container: PIXI.Container) {
-        this.x = x; this.y = y;
+    constructor(x: number, y: number, size: number, seed: number, worldContainer: PIXI.Container) {
+        // Visual center
+        this.visualX = x;
+        this.visualY = y;
         this.size = size;
-        // Hitbox 55% size — gracz może podjechać blisko piramidy bez kolizji z odległym kawałkiem visual
-        this.w = size * 0.55;
-        this.h = size * 0.55;
         this.seed = seed;
         
-        this.gfxBase = new PIXI.Graphics();
-        this.gfxMid = new PIXI.Graphics();
-        this.gfxTop = new PIXI.Graphics();
+        // v0.14.4 FIX: hitbox = visual size + 100px padding (50px each side).
+        // Padding kompensuje visual tank size (~100px long-axis po TANK_CANVAS_SCALE 1.75) vs player
+        // collision radius (20px w checkRectCollision). Bez padding-u tank wjeżdżał ~30px wizualnie
+        // w piramidę zanim collision react. +100 padding daje ~20px gap od visual brzegu piramidy
+        // ze WSZYSTKICH 4 stron — user wymóg "większe marginesy".
+        const hitboxSize = size + 100;
+        this.x = x - hitboxSize / 2;
+        this.y = y - hitboxSize / 2;
+        this.w = hitboxSize;
+        this.h = hitboxSize;
         
-        // zIndex w worldContainer (sorted by y) — base lowest, top highest
-        this.gfxBase.zIndex = y - size * 0.4;
-        this.gfxMid.zIndex = y;
-        this.gfxTop.zIndex = y + size * 0.5;
+        this.container = new PIXI.Container();
+        this.container.x = x;   // visual center
+        this.container.y = y;
+        this.container.zIndex = y + 10;  // v0.14.3 FIX: piramida ABOVE track markers/wrecks o tej samej y
+        worldContainer.addChild(this.container);
         
-        this.gfxBase.position.set(x, y);
-        this.gfxMid.position.set(x, y);
-        this.gfxTop.position.set(x, y);
+        this.gfxStatic = new PIXI.Graphics();
+        this.gfxDynamic = new PIXI.Graphics();
+        this.container.addChild(this.gfxStatic);
+        this.container.addChild(this.gfxDynamic);
         
-        container.addChild(this.gfxBase);
-        container.addChild(this.gfxMid);
-        container.addChild(this.gfxTop);
-        
-        // Static rendering raz w konstruktorze (warstwy base + mid bez animacji)
-        this.drawBase();
-        this.drawMid();
-        // drawTop() jest DYNAMIC (apex glow flicker + torch flicker) — wywoływane co frame w update()
+        this.drawStaticBase();
     }
     
     /**
-     * Warstwa BASE (0% parallax) — cień piramidy + sand ring wokół podstawy.
+     * Statyczna warstwa: cień rzucany na piasek + sand ring + noise.
      */
-    private drawBase(): void {
-        const g = this.gfxBase;
-        g.clear();
+    private drawStaticBase(): void {
+        const g = this.gfxStatic;
         const hs = this.size / 2;
         
-        // Cień (długi, sun from upper-left → shadow do dolu-prawo)
-        g.beginFill(0x000000, 0.35);
-        g.drawEllipse(hs * 0.45, hs * 0.55, hs * 1.15, hs * 0.55);
+        // Długi cień rzucany na piasek (sun from NW)
+        g.beginFill(PALETTE.baseShadow, 0.4);
+        g.drawPolygon([
+            -hs * 0.8, hs * 0.8,
+            hs, -hs * 0.8,
+            hs * 1.8, hs * 1.6,
+            hs * 0.2, hs * 1.8,
+        ]);
         g.endFill();
         
-        // Sand ring (rozsypany piasek wokół base, jaśniejsza wewnętrzna)
-        g.beginFill(PALETTE.sandMid, 0.55);
-        g.drawEllipse(0, 0, hs * 1.02, hs * 0.36);
+        // Ambient Occlusion pod bazą
+        g.beginFill(PALETTE.baseShadow, 0.3);
+        g.drawRect(-hs - 5, -hs - 5, this.size + 10, this.size + 10);
         g.endFill();
         
-        g.beginFill(PALETTE.sandLight, 0.4);
-        g.drawEllipse(0, 0, hs * 0.9, hs * 0.28);
-        g.endFill();
+        // Sand ring (subtle outline)
+        g.lineStyle(2, 0xdcb878, 0.4);
+        g.drawEllipse(0, 0, hs * 1.2, hs * 1.1);
         
-        // Drobny detail — kilka małych kropek piasku wokół (rozsypany sand)
-        for (let i = 0; i < 12; i++) {
-            const a = (i / 12) * Math.PI * 2 + this.seed * 0.3;
-            const r = hs * (0.95 + Math.sin(i * 1.7 + this.seed) * 0.1);
-            g.beginFill(PALETTE.sandDark, 0.4);
-            g.drawCircle(Math.cos(a) * r, Math.sin(a) * r * 0.32, 1.5);
+        // Noise na krawędziach (drobne kropki piasku)
+        g.lineStyle(0);
+        for (let i = 0; i < 20; i++) {
+            const angle = (i / 20) * Math.PI * 2 + this.seed;
+            const dist = hs * (1.0 + Math.random() * 0.3);
+            g.beginFill(0x8a5e2a, 0.3 + Math.random() * 0.3);
+            g.drawCircle(Math.cos(angle) * dist, Math.sin(angle) * dist, 1 + Math.random() * 2);
             g.endFill();
         }
     }
     
     /**
-     * Warstwa MID (5% parallax) — 4 walls trapezoidalne + step lines + wejście do grobowca.
-     */
-    private drawMid(): void {
-        const g = this.gfxMid;
-        g.clear();
-        const s = this.size;
-        const hs = s / 2;
-        
-        // Apex point — przesunięty do góry (perspektywa "wertykalna")
-        const apexX = 0;
-        const apexY = -hs * 0.2;
-        
-        // 4 corners of pyramidal base (w warstwie mid)
-        const tlX = -hs, tlY = -hs;
-        const trX = hs,  trY = -hs;
-        const brX = hs,  brY = hs;
-        const blX = -hs, blY = hs;
-        
-        // N wall (top, sun-facing — najjaśniejsza)
-        g.lineStyle(1.8, 0x000000, 0.95);
-        g.beginFill(PALETTE.sandLight);
-        g.moveTo(tlX, tlY);
-        g.lineTo(trX, trY);
-        g.lineTo(apexX, apexY);
-        g.closePath();
-        g.endFill();
-        
-        // E wall (right — mid lit)
-        g.beginFill(PALETTE.sandMid);
-        g.moveTo(trX, trY);
-        g.lineTo(brX, brY);
-        g.lineTo(apexX, apexY);
-        g.closePath();
-        g.endFill();
-        
-        // S wall (bottom — cień, najciemniejsza)
-        g.beginFill(PALETTE.sandDark);
-        g.moveTo(brX, brY);
-        g.lineTo(blX, blY);
-        g.lineTo(apexX, apexY);
-        g.closePath();
-        g.endFill();
-        
-        // W wall (left — mid lit, lekko ciemniejsza niż E)
-        g.beginFill(PALETTE.sandMid);
-        g.moveTo(blX, blY);
-        g.lineTo(tlX, tlY);
-        g.lineTo(apexX, apexY);
-        g.closePath();
-        g.endFill();
-        
-        // Step lines (stepped pyramid, 3 poziomy) — koncentryczne czworokąty zmniejszające się ku apex
-        g.lineStyle(0.9, PALETTE.rim, 0.6);
-        const levels = 3;
-        for (let i = 1; i <= levels; i++) {
-            const t = i / (levels + 1); // 0.25, 0.5, 0.75
-            // Interpolacja od corner do apex
-            const lx = hs * (1 - t);
-            // Y interpolation: top corner -hs → apex apexY ; bottom corner hs → apex apexY
-            const lyTop = tlY + (apexY - tlY) * t;
-            const lyBot = brY + (apexY - brY) * t;
-            
-            g.moveTo(-lx, lyTop);
-            g.lineTo(lx, lyTop);
-            g.lineTo(lx, lyBot);
-            g.lineTo(-lx, lyBot);
-            g.lineTo(-lx, lyTop);
-        }
-        
-        // Wejście do grobowca — small dark rect na E wall (z prawej)
-        g.lineStyle(1.2, 0x000000, 1);
-        g.beginFill(PALETTE.entrance);
-        const entW = s * 0.07;
-        const entH = s * 0.13;
-        const entX = hs * 0.6;
-        const entY = s * 0.08;
-        g.drawRect(entX, entY - entH / 2, entW, entH);
-        g.endFill();
-        
-        // Hieroglify wokół wejścia (subtle carvings — kilka małych pionowych kresek)
-        g.lineStyle(0.6, PALETTE.rim, 0.5);
-        for (let i = 0; i < 3; i++) {
-            const hx = entX + entW + 2 + i * 2;
-            g.moveTo(hx, entY - entH / 2 + 2);
-            g.lineTo(hx, entY + entH / 2 - 2);
-        }
-        for (let i = 0; i < 3; i++) {
-            const hx = entX - 3 - i * 2;
-            g.moveTo(hx, entY - entH / 2 + 2);
-            g.lineTo(hx, entY + entH / 2 - 2);
-        }
-    }
-    
-    /**
-     * Warstwa TOP (12% parallax) — pyramidion gold + apex glow + entrance torch flicker.
-     * Wywoływane co frame dla flicker effects.
-     */
-    private drawTop(time: number): void {
-        const g = this.gfxTop;
-        g.clear();
-        const s = this.size;
-        const hs = s / 2;
-        const apexY = -hs * 0.2;
-        
-        // Apex halo glow (najjaśniejsze tło wokół pyramidion)
-        const apexFlicker = 0.7 + Math.sin(time / 200 + this.seed) * 0.3;
-        g.beginFill(PALETTE.apexGlow, 0.22 * apexFlicker);
-        g.drawCircle(0, apexY, s * 0.16);
-        g.endFill();
-        g.beginFill(0xffe066, 0.4 * apexFlicker);
-        g.drawCircle(0, apexY, s * 0.09);
-        g.endFill();
-        
-        // Pyramidion gold capstone
-        g.lineStyle(1.5, 0x000000, 1);
-        g.beginFill(PALETTE.pyramidion);
-        g.drawCircle(0, apexY, s * 0.048);
-        g.endFill();
-        
-        // Highlight na pyramidion (rzucenie światła z N-W)
-        g.lineStyle(0);
-        g.beginFill(0xfff0a0);
-        g.drawCircle(-s * 0.014, apexY - s * 0.014, s * 0.018);
-        g.endFill();
-        
-        // Entrance torch glow (ciepły migotający flame z wewnątrz grobowca)
-        const torchFlicker = 0.6 + Math.sin(time / 130 + this.seed + 1.5) * 0.4;
-        const entW = s * 0.07;
-        const entH = s * 0.13;
-        const entCx = hs * 0.6 + entW / 2;
-        const entCy = s * 0.08;
-        
-        g.beginFill(PALETTE.glow, 0.35 * torchFlicker);
-        g.drawCircle(entCx, entCy, entH * 0.85);
-        g.endFill();
-        g.beginFill(0xffd33a, 0.55 * torchFlicker);
-        g.drawCircle(entCx, entCy, entH * 0.3);
-        g.endFill();
-        g.beginFill(0xffffff, 0.5 * torchFlicker);
-        g.drawCircle(entCx, entCy, entH * 0.12);
-        g.endFill();
-    }
-    
-    /**
-     * Update parallax positions + dynamic flicker effects (apex glow + torch glow).
+     * Main 2.5D parallax render. Wywoływane per frame.
+     * Zgodne z ICollidable.update sygnaturą (4 args).
      */
     update(camX: number, camY: number, screenW: number, screenH: number): void {
-        // Calc parallax offset (relative to camera center)
-        const cdx = this.x - (camX + screenW / 2);
-        const cdy = this.y - (camY + screenH / 2);
+        const time = Date.now();
+        const g = this.gfxDynamic;
+        g.clear();
         
-        const midOX = cdx * Pyramid.PARALLAX_MID;
-        const midOY = cdy * Pyramid.PARALLAX_MID;
-        const topOX = cdx * Pyramid.PARALLAX_TOP;
-        const topOY = cdy * Pyramid.PARALLAX_TOP;
+        const hs = this.size / 2;
+        const cameraCenterX = camX + screenW / 2;
+        const cameraCenterY = camY + screenH / 2;
         
-        this.gfxBase.position.set(this.x, this.y);
-        this.gfxMid.position.set(this.x + midOX, this.y + midOY);
-        this.gfxTop.position.set(this.x + topOX, this.y + topOY);
+        // 2.5D APEX — przesunięcie szczytu względem kamery (used visualX/Y, NIE this.x/y które są top-left hitboxu)
+        const apexX = (this.visualX - cameraCenterX) * Pyramid.HEIGHT_FACTOR;
+        const apexY = (this.visualY - cameraCenterY) * Pyramid.HEIGHT_FACTOR;
         
-        // Redraw top dla flicker effects
-        this.drawTop(Date.now());
+        const tl = { x: -hs, y: -hs };
+        const tr = { x: hs,  y: -hs };
+        const br = { x: hs,  y: hs };
+        const bl = { x: -hs, y: hs };
+        const apex = { x: apexX, y: apexY };
+        
+        // 1. ŚCIANY GŁÓWNE (4 trapezoidy zbiegające się w apex)
+        g.beginFill(PALETTE.sandSunlit);
+        g.drawPolygon([tl.x, tl.y, tr.x, tr.y, apex.x, apex.y]);
+        g.endFill();
+        g.beginFill(PALETTE.sandMid1);
+        g.drawPolygon([tl.x, tl.y, bl.x, bl.y, apex.x, apex.y]);
+        g.endFill();
+        g.beginFill(PALETTE.sandMid2);
+        g.drawPolygon([tr.x, tr.y, br.x, br.y, apex.x, apex.y]);
+        g.endFill();
+        g.beginFill(PALETTE.sandShadow);
+        g.drawPolygon([bl.x, bl.y, br.x, br.y, apex.x, apex.y]);
+        g.endFill();
+        
+        // 2. 12 SCHODKÓW (koncentryczne prostokąty kurczące się do apex)
+        for (let i = 1; i <= Pyramid.STEPS_COUNT; i++) {
+            const t = i / (Pyramid.STEPS_COUNT + 1);
+            const pTL = { x: tl.x + (apex.x - tl.x) * t, y: tl.y + (apex.y - tl.y) * t };
+            const pTR = { x: tr.x + (apex.x - tr.x) * t, y: tr.y + (apex.y - tr.y) * t };
+            const pBR = { x: br.x + (apex.x - br.x) * t, y: br.y + (apex.y - br.y) * t };
+            const pBL = { x: bl.x + (apex.x - bl.x) * t, y: bl.y + (apex.y - bl.y) * t };
+            
+            g.lineStyle(1.5, PALETTE.stepShadow, 0.25 - (t * 0.1));
+            g.moveTo(pTL.x, pTL.y); g.lineTo(pTR.x, pTR.y);
+            g.lineTo(pBR.x, pBR.y); g.lineTo(pBL.x, pBL.y);
+            g.lineTo(pTL.x, pTL.y);
+            
+            g.lineStyle(1, 0xffffff, 0.15 - (t * 0.1));
+            g.moveTo(pBL.x, pBL.y); g.lineTo(pTL.x, pTL.y); g.lineTo(pTR.x, pTR.y);
+        }
+        
+        // 3. KRAWĘDZIE WIREFRAME (4 linie base → apex)
+        g.lineStyle(2, PALETTE.stepShadow, 0.4);
+        g.moveTo(tl.x, tl.y); g.lineTo(apex.x, apex.y);
+        g.moveTo(tr.x, tr.y); g.lineTo(apex.x, apex.y);
+        g.moveTo(bl.x, bl.y); g.lineTo(apex.x, apex.y);
+        g.moveTo(br.x, br.y); g.lineTo(apex.x, apex.y);
+        
+        // 4. PYRAMIDION (mała piramidka złota na samym czubku, 4 ściany)
+        const pyrT = 0.90;
+        const pTL = { x: tl.x + (apex.x - tl.x) * pyrT, y: tl.y + (apex.y - tl.y) * pyrT };
+        const pTR = { x: tr.x + (apex.x - tr.x) * pyrT, y: tr.y + (apex.y - tr.y) * pyrT };
+        const pBR = { x: br.x + (apex.x - br.x) * pyrT, y: br.y + (apex.y - br.y) * pyrT };
+        const pBL = { x: bl.x + (apex.x - bl.x) * pyrT, y: bl.y + (apex.y - bl.y) * pyrT };
+        
+        g.lineStyle(0);
+        g.beginFill(PALETTE.pyramidionGold);
+        g.drawPolygon([pTL.x, pTL.y, pTR.x, pTR.y, apex.x, apex.y]); // N (sunlit)
+        g.drawPolygon([pTL.x, pTL.y, pBL.x, pBL.y, apex.x, apex.y]); // W (sunlit)
+        g.endFill();
+        
+        g.beginFill(PALETTE.pyramidionShadow);
+        g.drawPolygon([pTR.x, pTR.y, pBR.x, pBR.y, apex.x, apex.y]); // E (shadow)
+        g.drawPolygon([pBL.x, pBL.y, pBR.x, pBR.y, apex.x, apex.y]); // S (shadow)
+        g.endFill();
+        
+        // 5. MAGICZNY REFLEKS NA CZUBKU (migotający biały dot)
+        const sparkle = 0.7 + Math.sin(time / 100 + this.seed) * 0.3;
+        g.beginFill(0xffffff, 0.85 * sparkle);
+        g.drawCircle(apex.x - 1, apex.y - 1, 2.5);
+        g.endFill();
+        
+        // Subtle aureola wokół refleksu
+        g.beginFill(0xfff4a0, 0.25 * sparkle);
+        g.drawCircle(apex.x, apex.y, 6);
+        g.endFill();
     }
 }

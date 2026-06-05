@@ -1,12 +1,12 @@
 import { Howl, Howler } from 'howler';
+import type { MapId } from '../types/MapType';
 
 /**
- * AudioSys — singleton wrapper na Howler.js (v0.7.1 Sesja 5 update).
+ * AudioSys — singleton wrapper na Howler.js.
  * 
- * Update 2026-06-03:
- * - Multi-track music z smart random select (nie ten sam co poprzednio)
- * - Support dla .ogg i .mp3 (Howler auto-detect z rozszerzenia)
- * - 2 music tracki: music_main1.ogg + music_main2.mp3
+ * v0.13.0 update (Desert Map FAZA 1):
+ * - Per-map music pools (city vs desert) z smart random within pool
+ * - Łatwa rozbudowa dla nowych map (arktyka, tropiki, etc.)
  * 
  * GENTLE FAILURE: brakujące pliki audio NIE crashują gry.
  */
@@ -36,11 +36,17 @@ const VOLUMES = {
     endgame: 0.7,
 };
 
-/** Music tracks (user provided files) */
-const MUSIC_FILES = [
-    'music_main1.ogg',  // user file #1
-    'music_main2.mp3',  // user file #2
-];
+/**
+ * Music tracks per map. Każda mapa ma swoją pulę utworów (smart random within pool).
+ * Tracki muszą być w public/sfx/ folderze.
+ * 
+ * - city: 2 generic tracki (smart random, nie ten sam co poprzednio)
+ * - desert: 1 track (pustynia.mp3 z v4.48), zawsze ten sam — można dodać więcej później
+ */
+const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
+    city:   ['music_main1.ogg', 'music_main2.mp3'],
+    desert: ['pustynia.mp3'],
+};
 
 interface SoundDef {
     key: string;
@@ -78,10 +84,10 @@ export class AudioSys {
     
     private sounds: Map<string, Howl> = new Map();
     
-    // Music: tablica tracków + state dla smart random
-    private musicTracks: Howl[] = [];
+    // Music: per-map pool z Howl instancjami
+    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [] };
     private currentMusicTrack: Howl | null = null;
-    private lastTrackIdx: number = -1;
+    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1 };
     
     private muted: boolean = false;
     private gemPickupTimer: number = 0;
@@ -115,24 +121,28 @@ export class AudioSys {
     }
     
     /**
-     * Inicjalizuje wszystkie music tracki.
-     * Howler automatycznie wykrywa format z rozszerzenia (.ogg, .mp3, .wav).
+     * Inicjalizuje music tracki per mapa. Howler automatycznie wykrywa format z rozszerzenia.
+     * Tracki dla nieistniejących plików (brak w public/sfx/) NIE crashują gry — tylko warning.
      */
     private initMusic(): void {
-        for (const file of MUSIC_FILES) {
-            try {
-                const howl = new Howl({
-                    src: [BASE + 'sfx/' + file],
-                    loop: true,
-                    volume: VOLUMES.music,
-                    preload: true,
-                    onloaderror: (_id, err) => {
-                        console.warn(`[AudioSys] Brak music: ${file}`, err);
-                    },
-                });
-                this.musicTracks.push(howl);
-            } catch (e) {
-                console.warn(`[AudioSys] Music init failed for ${file}`, e);
+        const mapIds = Object.keys(MUSIC_TRACKS_PER_MAP) as MapId[];
+        for (const mapId of mapIds) {
+            const files = MUSIC_TRACKS_PER_MAP[mapId];
+            for (const file of files) {
+                try {
+                    const howl = new Howl({
+                        src: [BASE + 'sfx/' + file],
+                        loop: true,
+                        volume: VOLUMES.music,
+                        preload: true,
+                        onloaderror: (_id, err) => {
+                            console.warn(`[AudioSys] Brak music ${mapId}: ${file}`, err);
+                        },
+                    });
+                    this.musicHowlsPerMap[mapId].push(howl);
+                } catch (e) {
+                    console.warn(`[AudioSys] Music init failed for ${file}`, e);
+                }
             }
         }
     }
@@ -199,34 +209,42 @@ export class AudioSys {
     }
     
     /**
-     * Start music z smart random selection.
-     * Nigdy nie odtwarza tego samego tracku 2× z rzędu (jeśli są ≥2 tracki).
+     * Start music dla wybranej mapy. Smart random within map pool — nie odtwarza
+     * tego samego tracku 2× z rzędu (jeśli pool ≥2 tracki).
+     * 
+     * @param mapId - 'city' lub 'desert'. Domyślnie 'city' (backward compat).
      */
-    startMusic(): void {
-        if (this.musicTracks.length === 0) return;
+    startMusic(mapId: MapId = 'city'): void {
+        const tracks = this.musicHowlsPerMap[mapId];
+        if (!tracks || tracks.length === 0) {
+            console.warn(`[AudioSys] No music tracks for map ${mapId}`);
+            return;
+        }
         
-        // Stop poprzedni jeśli leci
+        // Stop poprzedni jeśli leci (np. po zmianie mapy)
         if (this.currentMusicTrack && this.currentMusicTrack.playing()) {
             this.currentMusicTrack.stop();
         }
         
-        // Smart random — nie ten sam co poprzednio
+        // Smart random within map pool
         let idx: number;
-        if (this.musicTracks.length === 1) {
+        const lastIdx = this.lastTrackIdxPerMap[mapId];
+        if (tracks.length === 1) {
             idx = 0;
         } else {
             do {
-                idx = Math.floor(Math.random() * this.musicTracks.length);
-            } while (idx === this.lastTrackIdx);
+                idx = Math.floor(Math.random() * tracks.length);
+            } while (idx === lastIdx);
         }
-        this.lastTrackIdx = idx;
-        this.currentMusicTrack = this.musicTracks[idx];
+        this.lastTrackIdxPerMap[mapId] = idx;
+        this.currentMusicTrack = tracks[idx];
         
         try {
             if (!this.currentMusicTrack.playing()) {
                 this.currentMusicTrack.play();
             }
-            console.log(`[AudioSys] Playing music track ${idx + 1}/${this.musicTracks.length}: ${MUSIC_FILES[idx]}`);
+            const fileName = MUSIC_TRACKS_PER_MAP[mapId][idx];
+            console.log(`[AudioSys] Playing ${mapId} music track ${idx + 1}/${tracks.length}: ${fileName}`);
         } catch (e) {
             console.warn('[AudioSys] Music play failed', e);
         }

@@ -6,6 +6,11 @@ import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
     MEDI_PAD_POSITIONS, POWER_PAD_POSITIONS,
 } from './maps/CityMap';
+import {
+    buildDesertTexture,
+    DESERT_MEDI_PAD_POSITIONS, DESERT_POWER_PAD_POSITIONS,
+} from './maps/DesertMap';
+import { MAP_CONFIGS, getMapIdFromUrl, type MapId } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
@@ -26,6 +31,8 @@ const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 
 let selectedBrawler: Brawler = BRAWLERS[0];
+// v0.13.0 FAZA 1 — map selection (URL param ?map=desert dla testowania, finalnie menu w FAZIE 6)
+let selectedMapId: MapId = getMapIdFromUrl();
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 let stats = { score: 0 };
@@ -54,7 +61,6 @@ let isMouseDown = false;
 let comboCount = 0;
 let comboEndTime = 0;
 
-// AudioSys singleton (gentle failure if files missing)
 const audio = AudioSys.getInstance();
 
 const app = new PIXI.Application({
@@ -94,6 +100,12 @@ BRAWLERS.forEach(b => {
     };
     charGrid.appendChild(div);
 });
+
+// v0.13.0 — Map info badge w corner (testowy, FAZA 1)
+const mapBadge = document.createElement('div');
+mapBadge.style.cssText = 'position:fixed;top:10px;right:10px;padding:6px 12px;background:rgba(0,0,0,0.6);color:#fff;border-radius:8px;font-family:sans-serif;font-size:13px;z-index:100;pointer-events:none;';
+mapBadge.innerHTML = `🗺️ Mapa: <b style="color:${MAP_CONFIGS[selectedMapId].badge}">${MAP_CONFIGS[selectedMapId].name}</b> <span style="opacity:0.6;font-size:11px;">(?map=desert | ?map=city)</span>`;
+document.body.appendChild(mapBadge);
 
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects) return;
@@ -137,7 +149,6 @@ window.addEventListener('keydown', e => {
         e.preventDefault();
         tryActivateSuper();
     }
-    // M = toggle mute
     if (k === 'm') {
         const nowMuted = audio.toggleMute();
         hud.addNotif(nowMuted ? '🔇 WYCISZONO' : '🔊 DŹWIĘK WŁ.', '#aaaaaa');
@@ -197,23 +208,38 @@ function startGame(): void {
     document.body.classList.add('game-cursor-hidden');
     
     worldContainer.removeChildren();
-    
-    const cityTex = buildCityTexture();
-    const citySprite = new PIXI.Sprite(cityTex);
-    citySprite.zIndex = -100;
-    worldContainer.addChild(citySprite);
-    
     buildings = [];
-    CITY_BUILDINGS_LAYOUT.forEach(b => {
-        buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer));
-    });
+    
+    // v0.13.0 — map-specific initialization (city vs desert)
+    if (selectedMapId === 'city') {
+        const cityTex = buildCityTexture();
+        const citySprite = new PIXI.Sprite(cityTex);
+        citySprite.zIndex = -100;
+        worldContainer.addChild(citySprite);
+        
+        CITY_BUILDINGS_LAYOUT.forEach(b => {
+            buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer));
+        });
+        
+        mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+        powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+    } else if (selectedMapId === 'desert') {
+        const desertTex = buildDesertTexture();
+        const desertSprite = new PIXI.Sprite(desertTex);
+        desertSprite.zIndex = -100;
+        worldContainer.addChild(desertSprite);
+        
+        // FAZA 1: buildings pusta (FAZA 2 dodamy piramidy + sfinks + kolumny jako collidables)
+        // FAZA 3: river collision (isBlockedByRiver)
+        // FAZA 4: rocks + quicksand
+        
+        mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+        powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+    }
     
     effects = new EffectsManager(worldContainer);
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
-    
-    mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
-    powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     
     stats.score = 0;
     comboCount = 0;
@@ -230,8 +256,8 @@ function startGame(): void {
     isMouseDown = false;
     gameState = 'PLAYING';
     
-    // Start music (Howler obsługuje autoplay policy — gra po pierwszym user gesture, czyli kliknięciu Start)
-    audio.startMusic();
+    // Start music — TODO: pass mapConfig.musicTrack do audio (potrzebny patch dla AudioSys.ts — patrz instrukcja niżej)
+    audio.startMusic(selectedMapId);
 }
 
 document.getElementById('startBtn')!.addEventListener('click', startGame);
@@ -303,7 +329,7 @@ app.ticker.add((delta) => {
             player.hp = Math.min(player.maxHp, player.hp + 1);
             effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
             hud.addNotif('🔧 +1 HP', '#2ecc71');
-            audio.playHeartPickup(); // ten sam dźwięk co heart — heal vibe
+            audio.playHeartPickup();
         }
     }
     for (const pad of powerPads) {
@@ -313,7 +339,7 @@ app.ticker.add((delta) => {
             effects.spawnEnemyHitSparks(player.x, player.y, 0xff6600);
             effects.shake(5, 8);
             hud.addNotif('⚡ TURBO ×2 — 5s!', '#ffcc00');
-            audio.playMagnetPickup(); // turbo vibe = magnet whoosh
+            audio.playMagnetPickup();
         }
     }
     
@@ -343,7 +369,7 @@ app.ticker.add((delta) => {
                 const prevTotal = spawnSystem.gemsCollected;
                 spawnSystem.registerGemCollected();
                 stats.score += 1;
-                audio.playGemPickup(); // anti-spam wbudowane w AudioSys
+                audio.playGemPickup();
                 
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
@@ -380,16 +406,15 @@ app.ticker.add((delta) => {
         const sY = player.y + Math.sin(angle) * 45;
         effects.spawnMuzzleFlash(sX, sY, angle);
         
-        // Detect super-shot FRESH activation (przed → po)
         const wasActive = player.isSuperShotActive;
         const isSuperShot = player.tryActivateOrContinueSuperShot();
         const justActivated = !wasActive && isSuperShot;
         
         if (justActivated) {
-            audio.playSuperShotActivate(); // sparkle "power up" dźwięk
+            audio.playSuperShotActivate();
         }
         
-        audio.playShoot(player.brawler.id); // shoot SFX per brawler type
+        audio.playShoot(player.brawler.id);
         
         if (player.brawler.type === 'spread') {
             bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot));
@@ -421,7 +446,6 @@ app.ticker.add((delta) => {
             
             if (powerSystem.isInvulnerable) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
-                // Brak playHit('player') gdy tarcza — bo nic się nie stało
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
                 effects.shake(4, 6);
@@ -480,7 +504,7 @@ app.ticker.add((delta) => {
                 audio.playHit('enemy');
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
                 if (killed) {
-                    audio.playExplosion(); // wreck/death
+                    audio.playExplosion();
                     spawnSystem.registerKill(enemy);
                     stats.score += enemy.scoreValue;
                     dropGems(enemy.x, enemy.y, enemy.getGemDropCount());

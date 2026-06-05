@@ -12,6 +12,8 @@ import {
     DESERT_MEDI_PAD_POSITIONS, DESERT_POWER_PAD_POSITIONS,
 } from './maps/DesertMap';
 import { Pyramid } from './maps/desert/Pyramid';
+import { DesertHeartPad } from './maps/desert/DesertHeartPad';
+import { DesertStormPad } from './maps/desert/DesertStormPad';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -47,8 +49,8 @@ let enemyBullets: EnemyBullet[] = [];
 let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
-let mediPads: HoverRepairPad[] = [];
-let powerPads: PowerHoverPad[] = [];
+let mediPads: Array<HoverRepairPad | DesertHeartPad> = [];
+let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
 // v0.14.0 FAZA 2a — typing rozszerzony na ICollidable[] (CyberBuilding z city + Pyramid z desert)
 let buildings: ICollidable[] = [];
 let effects: EffectsManager | null = null;
@@ -248,8 +250,8 @@ function startGame(): void {
         // TODO FAZA 3: river collision (isBlockedByRiver)
         // TODO FAZA 4: rocks + quicksand + oasis
         
-        mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
-        powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+        mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
+        powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     }
     
     effects = new EffectsManager(worldContainer);

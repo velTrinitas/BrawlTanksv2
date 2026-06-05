@@ -22,3 +22,17 @@ export function getMapIdFromUrl(): MapId {
     const m = params.get('map');
     return m === 'desert' ? 'desert' : 'city';
 }
+/**
+ * Wspólny interfejs dla obiektów map z kolizją i parallax.
+ * Implementowany przez CyberBuilding (city), Pyramid/Sphinx/DesertColumns (desert, FAZA 2+).
+ * 
+ * UWAGA: collision functions w Bullet.ts / Player.ts używają b.x, b.y, b.w, b.h
+ * (rectangle hitbox). Wartość update() obsługuje parallax offset per frame.
+ */
+export interface ICollidable {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    update(camX: number, camY: number, screenW: number, screenH: number): void;
+}

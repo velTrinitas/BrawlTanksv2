@@ -5,7 +5,7 @@ import { Magnet } from '../entities/pickups/Magnet';
 import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_MEGA_BOSS, SPAWN_CONFIG, HEART_CONFIG } from '../config/enemies';
 import { PICKUP_CONFIG } from '../config/powers';
 import { WORLD_W, WORLD_H } from '../config/constants';
-import type { CyberBuilding } from '../maps/CityMap';
+import type { ICollidable } from '../types/MapType';
 
 export interface SpawnResult {
     newEnemies: Enemy[];
@@ -43,7 +43,7 @@ export class SpawnSystem {
         playerX: number,
         playerY: number,
         worldContainer: PIXI.Container,
-        buildings: CyberBuilding[]
+        buildings: ICollidable[]
     ): SpawnResult {
         this.frameCounter += delta;
         this.gameTimeSeconds += delta / 60;
@@ -146,7 +146,7 @@ export class SpawnSystem {
     
     private findSafeSpawnPos(
         playerX: number, playerY: number,
-        buildings: CyberBuilding[],
+        buildings: ICollidable[],
         minDistFromPlayer: number = 300
     ): { x: number, y: number } | null {
         for (let i = 0; i < 30; i++) {

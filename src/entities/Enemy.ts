@@ -5,6 +5,7 @@ import { BRAWLERS } from '../config/brawlers';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
 import type { EnemyConfig } from '../config/enemies';
+import type { ICollidable } from '../types/MapType';
 
 export interface EnemyShotInfo {
     x: number;
@@ -163,7 +164,7 @@ export class Enemy {
         return this.isMegaBoss ? this.megaPhase : null;
     }
     
-    update(delta: number, targetX: number, targetY: number, buildings: CyberBuilding[]): EnemyShotInfo | null {
+    update(delta: number, targetX: number, targetY: number, buildings: ICollidable[]): EnemyShotInfo | null {
         if (!this.active) return null;
         
         // v0.5 Etap 1: FREEZE check — zamrożony wróg nie rusza się, nie strzela

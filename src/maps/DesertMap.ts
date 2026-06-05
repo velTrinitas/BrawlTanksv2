@@ -119,23 +119,30 @@ function drawDune(c: CanvasRenderingContext2D, x: number, y: number, w: number, 
 }
 
 /**
- * Layout dekoracji pustyni — pozycje piramid, sfinksa, kolumn, palm, oazy, etc.
- * FAZA 1: pusty. FAZA 2+: piramidy + sfinks + kolumny. FAZA 3: rzeka. FAZA 4: oasis, rocks, quicksand.
+ * Layout piramid na pustyni — 3 piramidy w 3 rogach mapy (różne rozmiary).
+ * Format: { x, y, size, seed } — seed dla wariacji flicker phase.
  */
-export const DESERT_DECORATIONS_LAYOUT: Array<{ x: number, y: number, type: string }> = [
-    // TODO FAZA 2: { x: WORLD_W * 0.20, y: WORLD_H * 0.70, type: 'pyramid' }, ...
-    // TODO FAZA 2: { x: WORLD_W * 0.72, y: WORLD_H * 0.10, type: 'sphinx' }, ...
-    // TODO FAZA 2: { x: WORLD_W * 0.35, y: WORLD_H * 0.25, type: 'columns' }, ...
+export interface PyramidLayoutEntry {
+    x: number;
+    y: number;
+    size: number;
+    seed: number;
+}
+
+export const DESERT_PYRAMID_LAYOUT: PyramidLayoutEntry[] = [
+    { x: WORLD_W * 0.18, y: WORLD_H * 0.72, size: 280, seed: 1 },  // największa, południowy zachód
+    { x: WORLD_W * 0.55, y: WORLD_H * 0.82, size: 240, seed: 2 },  // średnia, środek-południe
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.42, size: 210, seed: 3 },  // mała, wschód
 ];
 
 /**
  * Pozycje MediPadów (HoverRepairPad) na pustyni — odpowiedniki repair hangars z v4.48.
- * 3 strefy w różnych ćwiartkach mapy (north-west, south-east, mid-south).
+ * 3 strefy w różnych ćwiartkach mapy (przesunięte żeby nie kolidować z piramidami).
  */
 export const DESERT_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.18, y: WORLD_H * 0.50 },
     { x: WORLD_W * 0.82, y: WORLD_H * 0.28 },
-    { x: WORLD_W * 0.52, y: WORLD_H * 0.84 },
+    { x: WORLD_W * 0.52, y: WORLD_H * 0.30 },
 ];
 
 /**

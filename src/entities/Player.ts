@@ -4,6 +4,7 @@ import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE } fr
 import { checkRectCollision } from '../systems/Physics';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
+import type { ICollidable } from '../types/MapType';
 
 interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 
@@ -311,7 +312,7 @@ export class Player {
         }
     }
     
-    update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: CyberBuilding[], effects: EffectsManager): void {
+    update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: ICollidable[], effects: EffectsManager): void {
         let dx = 0, dy = 0;
         if (keys.w) dy -= 1;
         if (keys.s) dy += 1;

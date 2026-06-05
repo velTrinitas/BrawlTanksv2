@@ -8,9 +8,11 @@ import {
 } from './maps/CityMap';
 import {
     buildDesertTexture,
+    DESERT_PYRAMID_LAYOUT,
     DESERT_MEDI_PAD_POSITIONS, DESERT_POWER_PAD_POSITIONS,
 } from './maps/DesertMap';
-import { MAP_CONFIGS, getMapIdFromUrl, type MapId } from './types/MapType';
+import { Pyramid } from './maps/desert/Pyramid';
+import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
@@ -47,7 +49,8 @@ let gems: Gem[] = [];
 let magnets: Magnet[] = [];
 let mediPads: HoverRepairPad[] = [];
 let powerPads: PowerHoverPad[] = [];
-let buildings: CyberBuilding[] = [];
+// v0.14.0 FAZA 2a — typing rozszerzony na ICollidable[] (CyberBuilding z city + Pyramid z desert)
+let buildings: ICollidable[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
 let powerSystem: PowerSystem | null = null;
@@ -101,11 +104,17 @@ BRAWLERS.forEach(b => {
     charGrid.appendChild(div);
 });
 
-// v0.13.0 — Map info badge w corner (testowy, FAZA 1)
+// v0.14.0 — Map info badge (dolny prawy róg, auto-hide po 10s z fade)
 const mapBadge = document.createElement('div');
-mapBadge.style.cssText = 'position:fixed;top:10px;right:10px;padding:6px 12px;background:rgba(0,0,0,0.6);color:#fff;border-radius:8px;font-family:sans-serif;font-size:13px;z-index:100;pointer-events:none;';
-mapBadge.innerHTML = `🗺️ Mapa: <b style="color:${MAP_CONFIGS[selectedMapId].badge}">${MAP_CONFIGS[selectedMapId].name}</b> <span style="opacity:0.6;font-size:11px;">(?map=desert | ?map=city)</span>`;
+mapBadge.style.cssText = 'position:fixed;bottom:14px;right:14px;padding:6px 12px;background:rgba(0,0,0,0.65);color:#fff;border-radius:8px;font-family:sans-serif;font-size:13px;z-index:100;pointer-events:none;transition:opacity 0.6s ease-out;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+mapBadge.innerHTML = `🗺️ Mapa: <b style="color:${MAP_CONFIGS[selectedMapId].badge}">${MAP_CONFIGS[selectedMapId].name}</b>`;
 document.body.appendChild(mapBadge);
+
+// Auto-hide po 10s z fade
+setTimeout(() => {
+    mapBadge.style.opacity = '0';
+    setTimeout(() => mapBadge.remove(), 700);
+}, 10000);
 
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects) return;
@@ -229,9 +238,15 @@ function startGame(): void {
         desertSprite.zIndex = -100;
         worldContainer.addChild(desertSprite);
         
-        // FAZA 1: buildings pusta (FAZA 2 dodamy piramidy + sfinks + kolumny jako collidables)
-        // FAZA 3: river collision (isBlockedByRiver)
-        // FAZA 4: rocks + quicksand
+        // FAZA 2a: Piramidy z parallax 3-warstwowym (3 sztuki, collidable)
+        DESERT_PYRAMID_LAYOUT.forEach(p => {
+            buildings.push(new Pyramid(p.x, p.y, p.size, p.seed, worldContainer));
+        });
+        
+        // TODO FAZA 2b: Sfinks z parallax + skarabeusze
+        // TODO FAZA 2c: Kolumny (2 grupy po 3)
+        // TODO FAZA 3: river collision (isBlockedByRiver)
+        // TODO FAZA 4: rocks + quicksand + oasis
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
@@ -256,7 +271,7 @@ function startGame(): void {
     isMouseDown = false;
     gameState = 'PLAYING';
     
-    // Start music — TODO: pass mapConfig.musicTrack do audio (potrzebny patch dla AudioSys.ts — patrz instrukcja niżej)
+    // Start music dla wybranej mapy (per-map pool z smart random within pool)
     audio.startMusic(selectedMapId);
 }
 

@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
+import type { ICollidable } from '../types/MapType';
 
 export class EnemyBullet {
     public x: number;
@@ -41,7 +42,7 @@ export class EnemyBullet {
         worldContainer.addChild(this.gfx);
     }
     
-    update(delta: number, buildings: CyberBuilding[], effects: EffectsManager): void {
+    update(delta: number, buildings: ICollidable[], effects: EffectsManager): void {
         if (!this.active) return;
         
         this.x += this.vx * delta;

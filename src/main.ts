@@ -16,6 +16,9 @@ import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
 import { Sphinx } from './maps/desert/Sphinx';
 import { DESERT_SPHINX_POSITION } from './maps/DesertMap';
+import { RiverNile } from './maps/desert/RiverNile';
+import { Bridge } from './maps/desert/Bridge';
+import { DESERT_RIVER_PATH, DESERT_RIVER_WIDTH, DESERT_BRIDGE_POSITIONS } from './maps/DesertMap';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -53,6 +56,8 @@ let gems: Gem[] = [];
 let magnets: Magnet[] = [];
 let mediPads: Array<HoverRepairPad | DesertHeartPad> = [];
 let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
+let river: RiverNile | null = null;
+let bridges: Bridge[] = [];
 // v0.14.0 FAZA 2a — typing rozszerzony na ICollidable[] (CyberBuilding z city + Pyramid z desert)
 let buildings: ICollidable[] = [];
 let effects: EffectsManager | null = null;
@@ -256,6 +261,17 @@ function startGame(): void {
             worldContainer
         );
         buildings.push(sphinx);
+        // Rzeka Nil z mostami — generuje collision segments które dodajemy do buildings
+        const bridgeAreas = DESERT_BRIDGE_POSITIONS.map(b => ({
+            x: b.x, y: b.y, width: b.width, height: b.height
+        }));
+        river = new RiverNile(DESERT_RIVER_PATH, DESERT_RIVER_WIDTH, bridgeAreas, worldContainer);
+        buildings.push(...river.getCollisionSegments());
+
+        // Mosty (visual only, bez collision — gracz przejdzie)
+        bridges = DESERT_BRIDGE_POSITIONS.map(b => 
+            new Bridge(b.x, b.y, b.width, b.height, worldContainer)
+);
         
         // TODO FAZA 2b: Sfinks z parallax + skarabeusze
         // TODO FAZA 2c: Kolumny (2 grupy po 3)

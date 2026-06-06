@@ -161,3 +161,21 @@ export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },   // power well z v4.48
     { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },   // bonus dla balansu
 ];
+// === NIL ROUTE ===
+// Diagonalna trasa z 2 meandrami (kolanami), omija wszystkie obiekty (sphinx + 3 piramidy).
+// Start NE → Meander #1 → Mid → Meander #2 → End SW.
+export const DESERT_RIVER_PATH = [
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },  // Start NE
+    { x: WORLD_W * 0.65, y: WORLD_H * 0.30 },  // Meander #1 (kolano)
+    { x: WORLD_W * 0.70, y: WORLD_H * 0.50 },  // Mid descent
+    { x: WORLD_W * 0.45, y: WORLD_H * 0.75 },  // Meander #2 (kolano)
+    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },  // End SW
+];
+
+export const DESERT_RIVER_WIDTH = 80;
+
+// Mosty — gracz może przejechać. Position blisko meandrów dla strategic crossings.
+export const DESERT_BRIDGE_POSITIONS = [
+    { x: WORLD_W * 0.67, y: WORLD_H * 0.30, width: 180, height: 36 },  // przy meander #1
+    { x: WORLD_W * 0.45, y: WORLD_H * 0.75, width: 180, height: 36 },  // przy meander #2
+];

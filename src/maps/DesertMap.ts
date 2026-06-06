@@ -194,3 +194,20 @@ export const DESERT_RIVER_WIDTH = 80;
 export const DESERT_BRIDGE_COUNT = 8;
 export const DESERT_BRIDGE_DECK_LENGTH = 180;   // X axis: across the river
 export const DESERT_BRIDGE_DECK_WIDTH = 125;    // Y axis: walking strip (1.25× tank)
+// === LARGE ROCKS (collidable cover) ===
+// 7 manual fixed positions — strategicznie rozmieszczone jako cover dla gracza.
+// Sprawdzone matematycznie — nie kolidują z piramidami (>300px), sphinx, river path.
+export const DESERT_LARGE_ROCKS_LAYOUT = [
+    { x: WORLD_W * 0.05, y: WORLD_H * 0.40, size: 90, seed: 11 },   // W brzeg, między pyramid #1 i N
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.30, size: 75, seed: 17 },   // N od pyramid #1
+    { x: WORLD_W * 0.38, y: WORLD_H * 0.18, size: 95, seed: 23 },   // N central
+    { x: WORLD_W * 0.32, y: WORLD_H * 0.55, size: 80, seed: 31 },   // między pyramid #1 i sphinx
+    { x: WORLD_W * 0.78, y: WORLD_H * 0.62, size: 100, seed: 37 },  // S od pyramid #3
+    { x: WORLD_W * 0.62, y: WORLD_H * 0.95, size: 75, seed: 43 },   // SE corner
+    { x: WORLD_W * 0.05, y: WORLD_H * 0.62, size: 85, seed: 47 },   // W brzeg, dalej niż pyramid #1
+];
+
+// Small rocks — generowane runtime procedural w main.ts (35 sztuk z constraints).
+export const DESERT_SMALL_ROCKS_COUNT = 35;
+export const DESERT_SMALL_ROCK_MIN_SIZE = 15;
+export const DESERT_SMALL_ROCK_MAX_SIZE = 35;

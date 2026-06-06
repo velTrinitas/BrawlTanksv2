@@ -13,6 +13,8 @@ import {
     DESERT_SPHINX_POSITION,
     DESERT_RIVER_PATH, DESERT_RIVER_WIDTH,
     DESERT_BRIDGE_COUNT, DESERT_BRIDGE_DECK_LENGTH, DESERT_BRIDGE_DECK_WIDTH,
+    DESERT_LARGE_ROCKS_LAYOUT, DESERT_SMALL_ROCKS_COUNT,
+    DESERT_SMALL_ROCK_MIN_SIZE, DESERT_SMALL_ROCK_MAX_SIZE,
 } from './maps/DesertMap';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -21,6 +23,7 @@ import { Sphinx } from './maps/desert/Sphinx';
 import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
 import { WaterLife } from './maps/desert/WaterLife';
+import { Rock } from './maps/desert/Rock';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -61,7 +64,9 @@ let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
-// v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments z desert)
+// v0.18.0 FAZA 4a — small rocks (visual decoration, no collision)
+let smallRocks: Rock[] = [];
+// v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments/Rocks z desert)
 let buildings: ICollidable[] = [];
 // v0.17.0-fix: solidBuildings = `buildings` BEZ river segments
 // Używane TYLKO przez bullets/enemyBullets — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty.
@@ -237,6 +242,7 @@ function startGame(): void {
     river = null;
     bridges = [];
     waterLife = null;
+    smallRocks = [];
     
     // v0.13.0 — map-specific initialization (city vs desert)
     if (selectedMapId === 'city') {
@@ -307,8 +313,57 @@ function startGame(): void {
             worldContainer,
         );
         
-        // TODO FAZA 3b: WaterFlora (lotusy + papirus) + Fish + birds
-        // TODO FAZA 4: rocks + quicksand + oasis stealth + caravan
+        // FAZA 4a ✅ — Wielowarstwowe skały (large = cover collision, small = decoracja)
+        // Large rocks (7 fixed positions) — pełna collision (ruch + pociski)
+        DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
+            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
+            buildings.push(rock);
+            solidBuildings.push(rock);
+        });
+        
+        // Small rocks (procedural 35) — visual only, avoid existing obiekty z constraints
+        const MIN_DIST_TO_BUILDINGS = 110;
+        const MIN_DIST_BETWEEN_SMALL = 45;
+        let smallRockAttempts = 0;
+        while (smallRocks.length < DESERT_SMALL_ROCKS_COUNT && smallRockAttempts < 250) {
+            smallRockAttempts++;
+            const rx = 100 + Math.random() * (WORLD_W - 200);
+            const ry = 100 + Math.random() * (WORLD_H - 200);
+            
+            // Check dist od buildings (pyramids, sphinx, river segments, large rocks)
+            let blocked = false;
+            for (const b of buildings) {
+                if (b.w === 0) continue;  // skip 0-size (small rocks już dodane są 0)
+                const bcx = b.x + b.w / 2;
+                const bcy = b.y + b.h / 2;
+                const dx = rx - bcx;
+                const dy = ry - bcy;
+                if (dx * dx + dy * dy < MIN_DIST_TO_BUILDINGS * MIN_DIST_TO_BUILDINGS) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) continue;
+            
+            // Check dist od already-placed small rocks
+            for (const sr of smallRocks) {
+                const dx = rx - sr.visualX;
+                const dy = ry - sr.visualY;
+                if (dx * dx + dy * dy < MIN_DIST_BETWEEN_SMALL * MIN_DIST_BETWEEN_SMALL) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) continue;
+            
+            const size = DESERT_SMALL_ROCK_MIN_SIZE + Math.random() * (DESERT_SMALL_ROCK_MAX_SIZE - DESERT_SMALL_ROCK_MIN_SIZE);
+            const seed = Math.floor(Math.random() * 1000);
+            smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
+        }
+        
+        // TODO FAZA 4b: quicksand (slowdown zones — wymaga zmiany w Player.update)
+        // TODO FAZA 4c: oasis stealth (enemy detection range -50%)
+        // TODO FAZA 4d: caravan (mobile pickup drops)
         // TODO FAZA 5: sandstorm + mirage + pharaoh-ghost + sand kick
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
@@ -514,7 +569,7 @@ app.ticker.add((delta) => {
     }
     
     // v0.17.0-fix: bullets/enemyBullets używają solidBuildings (BEZ river segments)
-    // — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty (pyramids, sphinx, city buildings).
+    // — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty (pyramids, sphinx, large rocks, city buildings).
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects);

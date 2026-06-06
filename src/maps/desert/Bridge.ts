@@ -1,9 +1,15 @@
 import * as PIXI from 'pixi.js';
 
 /**
- * Bridge — Kamienny most z papirusowymi balustradami.
- * Pass-through (NO collision) — gracz przejedzie po moście.
- * Visual: 4 kamienne płyty + 2 balustrady + cień na wodzie + erosion marks.
+ * Bridge — Kamienny most rotowany do osi rzeki (v0.17.0-fix).
+ * 
+ * Geometria w lokalnym układzie współrzędnych (PRZED container.rotation):
+ *   - X axis = deckLength = długi wymiar (przekrój rzeki)
+ *   - Y axis = deckWidth = pas, po którym jeździ czołg (1.25 × tank width)
+ *   - container.rotation = atan2(tangent) + π/2 → bridge X axis prostopadły do flow rzeki
+ * 
+ * Visual: 4 kamienne płyty + 2 balustrady papirusowe + cień na wodzie + erosion marks.
+ * Pass-through (BEZ collision) — gracz przejedzie po moście (river segments są skipped tu).
  */
 
 const PALETTE = {
@@ -20,21 +26,33 @@ const PALETTE = {
 export class Bridge {
     public x: number;
     public y: number;
-    public width: number;
-    public height: number;
+    public deckLength: number;
+    public deckWidth: number;
+    public rotation: number;
     
     private container: PIXI.Container;
     
-    constructor(x: number, y: number, width: number, height: number, worldContainer: PIXI.Container) {
+    constructor(
+        x: number,
+        y: number,
+        deckLength: number,
+        deckWidth: number,
+        rotation: number,
+        worldContainer: PIXI.Container,
+    ) {
         this.x = x;
         this.y = y;
-        this.width = width;
-        this.height = height;
+        this.deckLength = deckLength;
+        this.deckWidth = deckWidth;
+        this.rotation = rotation;
         
         this.container = new PIXI.Container();
         this.container.x = x;
         this.container.y = y;
-        this.container.zIndex = y + 5;  // above water, naturally Y-sorted vs player
+        this.container.rotation = rotation;
+        // v0.17.0-fix2: stałe zIndex (60, above river=50, below everything Y-based).
+        // Gracz/wrogi zawsze renderowani NAD mostem (player.zIndex = y+19 >> 60).
+        this.container.zIndex = 60;
         worldContainer.addChild(this.container);
         
         this.draw();
@@ -42,87 +60,87 @@ export class Bridge {
     
     private draw(): void {
         const g = new PIXI.Graphics();
-        const hw = this.width / 2;
-        const hh = this.height / 2;
+        const hL = this.deckLength / 2;
+        const hW = this.deckWidth / 2;
         
-        // Cień na wodzie (subtle dark patch under bridge)
+        // Cień na wodzie (offset SE)
         g.beginFill(PALETTE.waterShadow, 0.45);
-        g.drawRoundedRect(-hw - 3, -hh + 8, this.width + 6, this.height, 6);
+        g.drawRoundedRect(-hL + 3, -hW + 8, this.deckLength, this.deckWidth, 6);
         g.endFill();
         
         // Cień grubości pod base
         g.beginFill(PALETTE.stoneShadow, 0.7);
-        g.drawRoundedRect(-hw + 2, -hh + 3, this.width, this.height, 4);
+        g.drawRoundedRect(-hL + 2, -hW + 3, this.deckLength, this.deckWidth, 5);
         g.endFill();
         
         // Stone base (main slab)
         g.beginFill(PALETTE.stoneBase);
-        g.drawRoundedRect(-hw, -hh, this.width, this.height, 4);
+        g.drawRoundedRect(-hL, -hW, this.deckLength, this.deckWidth, 5);
         g.endFill();
         
         // Sunlit highlight (NW corner)
         g.beginFill(PALETTE.stoneLight, 0.5);
-        g.drawRoundedRect(-hw + 2, -hh + 2, this.width * 0.4, this.height * 0.3, 3);
+        g.drawRoundedRect(-hL + 2, -hW + 2, this.deckLength * 0.4, this.deckWidth * 0.3, 4);
         g.endFill();
         
-        // Stone slab divisions (4 panels)
+        // Stone slab divisions (4 panels — prostopadle do osi mostu)
         const slabCount = 4;
-        const slabWidth = this.width / slabCount;
-        g.lineStyle(1.5, PALETTE.stoneDeep, 0.7);
+        const slabWidth = this.deckLength / slabCount;
+        g.lineStyle(1.8, PALETTE.stoneDeep, 0.75);
         for (let i = 1; i < slabCount; i++) {
-            const xOff = -hw + i * slabWidth;
-            g.moveTo(xOff, -hh + 2);
-            g.lineTo(xOff, hh - 2);
+            const xOff = -hL + i * slabWidth;
+            g.moveTo(xOff, -hW + 3);
+            g.lineTo(xOff, hW - 3);
         }
         g.lineStyle(0);
         
         // Erosion marks (cracks, dirt)
-        for (let i = 0; i < 12; i++) {
-            const sx = -hw + 4 + Math.random() * (this.width - 8);
-            const sy = -hh + 3 + Math.random() * (this.height - 6);
+        for (let i = 0; i < 16; i++) {
+            const sx = -hL + 5 + Math.random() * (this.deckLength - 10);
+            const sy = -hW + 4 + Math.random() * (this.deckWidth - 8);
             g.beginFill(PALETTE.stoneDeep, 0.5 + Math.random() * 0.3);
-            g.drawCircle(sx, sy, 0.7 + Math.random() * 1.4);
+            g.drawCircle(sx, sy, 0.8 + Math.random() * 1.5);
             g.endFill();
         }
         
-        // Top railing (papyrus rope wrapped) — N edge
+        // Top railing (papyrus rope wrapped) — Y = -hW edge
         g.beginFill(PALETTE.railingDark);
-        g.drawRect(-hw, -hh - 5, this.width, 5);
+        g.drawRect(-hL, -hW - 6, this.deckLength, 6);
         g.endFill();
         g.beginFill(PALETTE.railingMid);
-        g.drawRect(-hw, -hh - 6, this.width, 3);
+        g.drawRect(-hL, -hW - 7, this.deckLength, 3);
         g.endFill();
         g.beginFill(PALETTE.railingLight);
-        g.drawRect(-hw, -hh - 6, this.width, 1.5);
+        g.drawRect(-hL, -hW - 7, this.deckLength, 1.5);
         g.endFill();
         
-        // Bottom railing — S edge
+        // Bottom railing — Y = +hW edge
         g.beginFill(PALETTE.railingDark);
-        g.drawRect(-hw, hh, this.width, 5);
+        g.drawRect(-hL, hW, this.deckLength, 6);
         g.endFill();
         g.beginFill(PALETTE.railingMid);
-        g.drawRect(-hw, hh + 3, this.width, 3);
+        g.drawRect(-hL, hW + 3, this.deckLength, 3);
         g.endFill();
         g.beginFill(PALETTE.railingLight);
-        g.drawRect(-hw, hh + 4.5, this.width, 1.5);
+        g.drawRect(-hL, hW + 4.5, this.deckLength, 1.5);
         g.endFill();
         
-        // Railing posts (pionowe pale)
+        // Railing posts (pionowe pale wzdłuż mostu)
+        const postCount = 7;
         g.beginFill(PALETTE.railingDark);
-        const postCount = 6;
         for (let i = 0; i <= postCount; i++) {
-            const px = -hw + (i / postCount) * this.width - 1.5;
-            g.drawRect(px, -hh - 6, 3, 6);
-            g.drawRect(px, hh, 3, 6);
+            const px = -hL + (i / postCount) * this.deckLength - 1.5;
+            g.drawRect(px, -hW - 7, 3, 7);
+            g.drawRect(px, hW, 3, 7);
         }
         g.endFill();
         
-        // Light highlight on top posts
+        // Light highlight on posts
         g.beginFill(PALETTE.railingLight, 0.6);
         for (let i = 0; i <= postCount; i++) {
-            const px = -hw + (i / postCount) * this.width - 1.5;
-            g.drawRect(px, -hh - 6, 1.2, 6);
-            g.drawRect(px, hh, 1.2, 6);
+            const px = -hL + (i / postCount) * this.deckLength - 1.5;
+            g.drawRect(px, -hW - 7, 1.2, 7);
+            g.drawRect(px, hW, 1.2, 7);
         }
         g.endFill();
         

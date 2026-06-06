@@ -2,43 +2,53 @@ import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
 
 /**
- * RiverNile — Diagonalna rzeka z 2 meandrami przez desert mapę.
+ * RiverNile — Diagonalna rzeka z 2 meandrami przez desert mapę (v0.17.0-fix2).
  * 
- * Architektura juiciness (v0.17.0):
- *   - 5 warstw wody (sand transition + 4 odcienie wody) z lineStyle stroke wzdłuż bezier path
- *   - Foam (40 sparkles) przy brzegach sand-water
- *   - 3-4 płynące streaky z BLEND_MODES.ADD (water flow illusion)
- *   - 10+ reflexes słońca z twinkle sin animation
- *   - Surface ripples spawn co 1.5-3s (concentric rings expanding)
- *   - Mist: ParticleContainer z 25 floating białych particles drifting up
- *   - Collision: ICollidable[] segments along path z padding +60 (mniejszy niż piramida bo rzeka NIE jest tank-blocker tylko boundary)
- *   - Bridges leave gaps in collision segments (gracz przejedzie po moście)
+ * Zmiany od pierwszej wersji:
+ *   - 25-warstwowy smooth gradient (10 color stops) zamiast 5 hard layers — bez "wyraźnego zarysowania"
+ *   - 16-punktowy polyline path (zamiast 5+bezier) — gładkie meandry + bridges land precyzyjnie
+ *   - getBridgeLayout(count, deckLength, deckWidth) — pozycje + rotacje obliczane z tangentów
+ *   - Distance-based collision skip (działa z rotowanymi mostami)
+ *   - Collision segments NIE blokują pocisków (osobna tablica `solidBuildings` w main.ts)
  * 
- * Path: tablica RiverPathPoint, smoothed quadratic curves dla meandrów.
+ * Fixy v0.17.0-fix2:
+ *   - Skip radius bazowany na deckLength + 80 (było deckWidth + 20) — gracz nie blokowany na moście
+ *   - Rozjaśniona paleta z U-shape gradientem (sun-reflex highlight w centrum) — bez czarnego środka
  */
 
-const PALETTE = {
-    sandTransition: 0xdcb878,   // brzeg piaskowy
-    waterShallow:   0x5fb8c9,   // płytkie wody (jasny cyan)
-    waterMid:       0x2d8a9e,   // główny kolor wody (teal-blue)
-    waterDeep:      0x1a5566,   // głęboka woda
-    waterDeepest:   0x0d3344,   // najgłębsza
-    streakLight:    0xa0e0f0,   // płynące streaky
-    sunReflex:      0xffffff,
-    sunGlow:        0xfff8c0,
-    foamWhite:      0xffffff,
-};
+// v0.17.0-fix2: rozjaśniona paleta z U-shape gradientem.
+// Max depth = 0x155f7d (medium teal, nie czerń). Środek t=0.92-1.0 = sun-reflex highlight 
+// (jaśniejszy niż okolice 0.75-0.85), symulujący odbicie słońca z najgłębszej wody.
+const RIVER_PALETTE_STOPS = [
+    { t: 0.00, color: 0xdcb878, alpha: 0.40 },   // sand transition (outer halo)
+    { t: 0.12, color: 0xcab390, alpha: 0.60 },   // sand fade
+    { t: 0.22, color: 0xa5c3b0, alpha: 0.75 },   // sand-water blend (greenish)
+    { t: 0.32, color: 0x76c7cf, alpha: 0.90 },   // very shallow (bright light cyan)
+    { t: 0.45, color: 0x4bb0c2, alpha: 1.0 },    // shallow water
+    { t: 0.58, color: 0x2a92ad, alpha: 1.0 },    // MAIN water (bright teal-blue)
+    { t: 0.72, color: 0x1c7693, alpha: 1.0 },    // deeper teal
+    { t: 0.84, color: 0x155f7d, alpha: 1.0 },    // mid-deep (NIE granatowy/czerń!)
+    { t: 0.92, color: 0x186b8a, alpha: 0.95 },   // pre-highlight (subtle brightening)
+    { t: 1.00, color: 0x2789a8, alpha: 0.85 },   // BRIGHT CENTER (sun-reflex highlight)
+];
 
 export interface RiverPathPoint {
     x: number;
     y: number;
 }
 
-export interface BridgeArea {
+interface BridgeSkipArea {
     x: number;
     y: number;
-    width: number;
-    height: number;
+    deckLength: number;
+}
+
+export interface BridgeLayout {
+    x: number;
+    y: number;
+    rotation: number;       // radians, prostopadła do flow rzeki
+    deckLength: number;     // X axis = across river
+    deckWidth: number;      // Y axis = walking strip (1.25× tank)
 }
 
 interface MistParticle {
@@ -67,6 +77,7 @@ export class RiverNile {
     private path: RiverPathPoint[];
     private width: number;
     private pathLength: number;
+    private bridgeLayout: BridgeLayout[];
     
     private container: PIXI.Container;
     private gfxStatic: PIXI.Graphics;
@@ -86,14 +97,19 @@ export class RiverNile {
     constructor(
         path: RiverPathPoint[],
         width: number,
-        bridges: BridgeArea[],
-        worldContainer: PIXI.Container
+        bridgeCount: number,
+        bridgeDeckLength: number,
+        bridgeDeckWidth: number,
+        worldContainer: PIXI.Container,
     ) {
         this.path = path;
         this.width = width;
         this.pathLength = this.computePathLength();
         
-        // Container — z low zIndex (under buildings, above sand background)
+        // Generate bridge layout (positions + rotations from path tangents)
+        this.bridgeLayout = this.computeBridgeLayout(bridgeCount, bridgeDeckLength, bridgeDeckWidth);
+        
+        // Container, zIndex 50 (under buildings, above sand)
         this.container = new PIXI.Container();
         this.container.zIndex = 50;
         worldContainer.addChild(this.container);
@@ -113,15 +129,15 @@ export class RiverNile {
         this.container.addChild(this.mistContainer);
         this.mistParticles = [];
         
-        // Init reflex spots (rozsiane wzdłuż rzeki)
+        // Init reflex spots
         this.reflexSpots = [];
-        const reflexCount = Math.max(8, Math.floor(this.pathLength / 90));
+        const reflexCount = Math.max(10, Math.floor(this.pathLength / 80));
         for (let i = 0; i < reflexCount; i++) {
             const t = (i + 0.5) / reflexCount;
             const pt = this.getPointAt(t);
             this.reflexSpots.push({
-                x: pt.x + (Math.random() - 0.5) * (width * 0.5),
-                y: pt.y + (Math.random() - 0.5) * (width * 0.5),
+                x: pt.x + (Math.random() - 0.5) * (width * 0.55),
+                y: pt.y + (Math.random() - 0.5) * (width * 0.55),
                 phase: Math.random() * Math.PI * 2,
                 size: 1.8 + Math.random() * 2.5,
             });
@@ -130,18 +146,23 @@ export class RiverNile {
         this.rippleSpawnTimer = Date.now();
         this.activeRipples = [];
         
-        // Generate collision segments (avoid bridges)
-        this.collisionSegments = this.buildCollisionSegments(bridges);
+        // Build collision segments (skipping bridge areas)
+        // v0.17.0-fix2: skip area używa deckLength (dłuższy wymiar mostu)
+        const bridgeSkipAreas: BridgeSkipArea[] = this.bridgeLayout.map(b => ({
+            x: b.x, y: b.y, deckLength: b.deckLength,
+        }));
+        this.collisionSegments = this.buildCollisionSegments(bridgeSkipAreas);
         
-        // Draw static base
+        // Draw static water (25-layer smooth gradient + foam)
         this.drawWaterBase();
     }
     
-    /**
-     * Zwraca collision segments do dodania do `buildings` array w main.ts.
-     */
     public getCollisionSegments(): ICollidable[] {
         return this.collisionSegments;
+    }
+    
+    public getBridgeLayout(): BridgeLayout[] {
+        return this.bridgeLayout;
     }
     
     private computePathLength(): number {
@@ -154,9 +175,7 @@ export class RiverNile {
         return length;
     }
     
-    /**
-     * Sample point along path at parameter t in [0, 1].
-     */
+    /** Point along path at parameter t in [0,1] (linear interpolation between polyline vertices). */
     private getPointAt(t: number): RiverPathPoint {
         const targetDist = this.pathLength * Math.max(0, Math.min(1, t));
         let accDist = 0;
@@ -176,24 +195,68 @@ export class RiverNile {
         return this.path[this.path.length - 1];
     }
     
-    /**
-     * Build collision rects along path, omit areas near bridges.
-     */
-    private buildCollisionSegments(bridges: BridgeArea[]): ICollidable[] {
+    /** Tangent direction (normalized) at parameter t. */
+    private getTangentAt(t: number): { x: number; y: number } {
+        const targetDist = this.pathLength * Math.max(0, Math.min(1, t));
+        let accDist = 0;
+        for (let i = 0; i < this.path.length - 1; i++) {
+            const p1 = this.path[i];
+            const p2 = this.path[i + 1];
+            const segDist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+            if (accDist + segDist >= targetDist) {
+                return { x: (p2.x - p1.x) / segDist, y: (p2.y - p1.y) / segDist };
+            }
+            accDist += segDist;
+        }
+        const last = this.path[this.path.length - 1];
+        const prev = this.path[this.path.length - 2];
+        const dx = last.x - prev.x;
+        const dy = last.y - prev.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        return { x: dx / len, y: dy / len };
+    }
+    
+    /** Generate evenly-spaced bridge layout with rotations perpendicular to flow. */
+    private computeBridgeLayout(count: number, deckLength: number, deckWidth: number): BridgeLayout[] {
+        const result: BridgeLayout[] = [];
+        for (let i = 0; i < count; i++) {
+            const t = (i + 1) / (count + 1); // evenly spaced, excluding endpoints
+            const pt = this.getPointAt(t);
+            const tangent = this.getTangentAt(t);
+            // Bridge X axis = perpendicular to flow → rotation = tangent angle + π/2
+            const rotation = Math.atan2(tangent.y, tangent.x) + Math.PI / 2;
+            result.push({
+                x: pt.x,
+                y: pt.y,
+                rotation,
+                deckLength,
+                deckWidth,
+            });
+        }
+        return result;
+    }
+    
+    /** Collision segments along path, omitting bridge areas (distance-based skip). */
+    private buildCollisionSegments(bridges: BridgeSkipArea[]): ICollidable[] {
         const segments: ICollidable[] = [];
-        const stepDist = 50;
+        const stepDist = 40;
         const segCount = Math.ceil(this.pathLength / stepDist);
-        const hitboxSize = this.width + 60;  // padding mniejszy niż building (rzeka jest "boundary", nie obstacle)
+        const hitboxSize = this.width + 60;
         
         for (let i = 0; i <= segCount; i++) {
             const t = i / segCount;
             const pt = this.getPointAt(t);
             
-            // Skip if too close to bridge (gracz przejedzie po moście)
-            const blocked = bridges.some(b => 
-                Math.abs(b.x - pt.x) < b.width / 2 + 20 &&
-                Math.abs(b.y - pt.y) < b.height / 2 + 20
-            );
+            // v0.17.0-fix2: skip radius oparty na deckLength (dłuższy wymiar mostu) + margines 80.
+            // Player na brzegu mostu (deckWidth/2 = 62.5 od centrum) NIE może być w zasięgu
+            // river hitbox (140/2 = 70) → potrzebny clearance: 62.5 + 20 (player) + 70 = 152.5.
+            // deckLength/2 + 80 = 170 — bezpieczny margin dla rotated bridges przy meandrach.
+            const blocked = bridges.some(b => {
+                const dx = b.x - pt.x;
+                const dy = b.y - pt.y;
+                const skipR = b.deckLength / 2 + 80;
+                return dx * dx + dy * dy < skipR * skipR;
+            });
             if (blocked) continue;
             
             segments.push({
@@ -204,116 +267,114 @@ export class RiverNile {
                 update: () => {},
             });
         }
-        
         return segments;
     }
     
-    /**
-     * Draw smooth path with PIXI lineStyle along bezier-smoothed path.
-     */
-    private drawSmoothedPath(g: PIXI.Graphics, lineWidth: number, color: number, alpha: number): void {
+    /** Smooth color interpolation between RIVER_PALETTE_STOPS at parameter t in [0,1]. */
+    private interpolateColor(t: number): { color: number; alpha: number } {
+        const stops = RIVER_PALETTE_STOPS;
+        for (let i = 0; i < stops.length - 1; i++) {
+            const s1 = stops[i];
+            const s2 = stops[i + 1];
+            if (t >= s1.t && t <= s2.t) {
+                const range = s2.t - s1.t;
+                const localT = range === 0 ? 0 : (t - s1.t) / range;
+                const r1 = (s1.color >> 16) & 0xff;
+                const g1 = (s1.color >> 8) & 0xff;
+                const b1 = s1.color & 0xff;
+                const r2 = (s2.color >> 16) & 0xff;
+                const g2 = (s2.color >> 8) & 0xff;
+                const b2 = s2.color & 0xff;
+                const r = Math.round(r1 + (r2 - r1) * localT);
+                const g = Math.round(g1 + (g2 - g1) * localT);
+                const b = Math.round(b1 + (b2 - b1) * localT);
+                const alpha = s1.alpha + (s2.alpha - s1.alpha) * localT;
+                return { color: (r << 16) | (g << 8) | b, alpha };
+            }
+        }
+        const last = stops[stops.length - 1];
+        return { color: last.color, alpha: last.alpha };
+    }
+    
+    /** Draw polyline path (lineTo only, round join) — bridges land precisely on visual path. */
+    private drawPolylinePath(g: PIXI.Graphics, lineWidth: number, color: number, alpha: number): void {
         g.lineStyle({
             width: lineWidth,
-            color: color,
-            alpha: alpha,
+            color,
+            alpha,
             cap: PIXI.LINE_CAP.ROUND,
             join: PIXI.LINE_JOIN.ROUND,
         });
-        
         g.moveTo(this.path[0].x, this.path[0].y);
-        
-        // Quadratic curves through midpoints dla smooth meandry
-        for (let i = 0; i < this.path.length - 1; i++) {
-            if (i === this.path.length - 2) {
-                g.lineTo(this.path[i + 1].x, this.path[i + 1].y);
-            } else {
-                const p1 = this.path[i + 1];
-                const p2 = this.path[i + 2];
-                const midX = (p1.x + p2.x) / 2;
-                const midY = (p1.y + p2.y) / 2;
-                g.quadraticCurveTo(p1.x, p1.y, midX, midY);
-            }
+        for (let i = 1; i < this.path.length; i++) {
+            g.lineTo(this.path[i].x, this.path[i].y);
         }
     }
     
-    /**
-     * Statyczna warstwa: 5 warstw wody + foam.
-     */
+    /** 25-layer smooth gradient + foam at edges. */
     private drawWaterBase(): void {
         const g = this.gfxStatic;
         
-        // Layer 1: sand transition (najszersza, kolor brzegu)
-        this.drawSmoothedPath(g, this.width + 60, PALETTE.sandTransition, 0.45);
-        // Layer 2: shallow water (cyan)
-        this.drawSmoothedPath(g, this.width + 20, PALETTE.waterShallow, 0.85);
-        // Layer 3: main water (teal-blue)
-        this.drawSmoothedPath(g, this.width, PALETTE.waterMid, 1.0);
-        // Layer 4: deep water (darker)
-        this.drawSmoothedPath(g, this.width - 30, PALETTE.waterDeep, 0.6);
-        // Layer 5: deepest highlight
-        this.drawSmoothedPath(g, Math.max(10, this.width - 55), PALETTE.waterDeepest, 0.35);
+        const layers = 25;
+        const outerWidth = this.width + 60;          // 140 dla width=80
+        const innerWidth = Math.max(15, this.width - 50);  // 30
         
-        // Reset line style
+        for (let i = 0; i < layers; i++) {
+            const t = i / (layers - 1);
+            const w = outerWidth + (innerWidth - outerWidth) * t;
+            const { color, alpha } = this.interpolateColor(t);
+            this.drawPolylinePath(g, w, color, alpha);
+        }
+        
+        // Foam — 50 białych iskier przy styku sand-water
         g.lineStyle(0);
-        
-        // Foam at edges (40 białych sparkles)
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 50; i++) {
             const t = Math.random();
             const pt = this.getPointAt(t);
             const angle = Math.random() * Math.PI * 2;
             const dist = (this.width / 2) + (Math.random() * 18);
-            g.beginFill(PALETTE.foamWhite, 0.55 + Math.random() * 0.3);
+            g.beginFill(0xffffff, 0.55 + Math.random() * 0.3);
             g.drawCircle(
                 pt.x + Math.cos(angle) * dist,
                 pt.y + Math.sin(angle) * dist,
-                0.7 + Math.random() * 1.3
+                0.7 + Math.random() * 1.3,
             );
             g.endFill();
         }
     }
     
-    /**
-     * Per-frame update — flow streaks, reflexes, ripples, mist.
-     */
     public update(): void {
         const time = Date.now();
-        
         this.drawFlowStreaks(time);
         this.drawReflexes(time);
         this.updateRipples(time);
         this.updateMist(time);
     }
     
-    /**
-     * Płynące jasne smugi (water flow illusion). 4 streaki w cyklu.
-     */
     private drawFlowStreaks(time: number): void {
         const g = this.gfxFlow;
         g.clear();
         
         const streakCount = 4;
         const cycleDuration = 6000;
-        const streakLength = 0.12;  // 12% of path length
+        const streakLength = 0.12;
         
         for (let i = 0; i < streakCount; i++) {
             const offset = i / streakCount;
             const phase = ((time / cycleDuration) + offset) % 1;
-            
             const headT = phase;
             const tailT = Math.max(0, phase - streakLength);
-            
-            // Multiple segments dla smooth streak
             const fadeInOut = Math.sin(phase * Math.PI);
-            const alpha = 0.35 * fadeInOut;
+            const alpha = 0.32 * fadeInOut;
             
             g.lineStyle({
                 width: 4,
-                color: PALETTE.streakLight,
-                alpha: alpha,
+                color: 0xa0e0f0,
+                alpha,
                 cap: PIXI.LINE_CAP.ROUND,
             });
             
-            const steps = 5;
+            const steps = 6;
             for (let s = 0; s < steps; s++) {
                 const t1 = tailT + (headT - tailT) * (s / steps);
                 const t2 = tailT + (headT - tailT) * ((s + 1) / steps);
@@ -323,46 +384,31 @@ export class RiverNile {
                 g.lineTo(p2.x, p2.y);
             }
         }
-        
         g.lineStyle(0);
     }
     
-    /**
-     * Reflexes słońca — białe kropki z twinkle.
-     */
     private drawReflexes(time: number): void {
         const g = this.gfxReflexes;
         g.clear();
         
         for (const spot of this.reflexSpots) {
-            const twinkle = 0.35 + Math.sin(time / 350 + spot.phase) * 0.5;
-            const clampedTwinkle = Math.max(0, twinkle);
-            
-            // Outer soft glow
-            g.beginFill(PALETTE.sunGlow, 0.15 * clampedTwinkle);
+            const twinkle = Math.max(0, 0.35 + Math.sin(time / 350 + spot.phase) * 0.5);
+            g.beginFill(0xfff8c0, 0.15 * twinkle);
             g.drawCircle(spot.x, spot.y, spot.size * 2.8);
             g.endFill();
-            
-            // Mid glow
-            g.beginFill(PALETTE.sunGlow, 0.35 * clampedTwinkle);
+            g.beginFill(0xfff8c0, 0.35 * twinkle);
             g.drawCircle(spot.x, spot.y, spot.size * 1.5);
             g.endFill();
-            
-            // Bright center
-            g.beginFill(PALETTE.sunReflex, 0.9 * clampedTwinkle);
+            g.beginFill(0xffffff, 0.9 * twinkle);
             g.drawCircle(spot.x, spot.y, spot.size);
             g.endFill();
         }
     }
     
-    /**
-     * Surface ripples — concentric rings spawn random co 1.5-3s.
-     */
     private updateRipples(time: number): void {
         const g = this.gfxRipples;
         g.clear();
         
-        // Spawn new ripple
         if (time - this.rippleSpawnTimer > 1500 + Math.random() * 1500) {
             this.rippleSpawnTimer = time;
             const t = Math.random();
@@ -375,7 +421,6 @@ export class RiverNile {
             });
         }
         
-        // Update + cleanup
         const RIPPLE_DURATION = 2200;
         this.activeRipples = this.activeRipples.filter(r => time - r.startTime < RIPPLE_DURATION);
         
@@ -384,29 +429,21 @@ export class RiverNile {
             const radius = ripple.maxRadius * age;
             const alpha = (1 - age) * 0.55;
             
-            // Outer ring
-            g.lineStyle(1.5, PALETTE.foamWhite, alpha);
+            g.lineStyle(1.5, 0xffffff, alpha);
             g.drawCircle(ripple.x, ripple.y, radius);
-            
-            // Inner subtle ring (jeśli starsze)
             if (age > 0.3) {
-                g.lineStyle(0.8, PALETTE.foamWhite, alpha * 0.7);
+                g.lineStyle(0.8, 0xffffff, alpha * 0.7);
                 g.drawCircle(ripple.x, ripple.y, radius * 0.6);
             }
         }
-        
         g.lineStyle(0);
     }
     
-    /**
-     * Mgła — ParticleContainer z floating particles drifting up + fade.
-     */
     private updateMist(time: number): void {
         const MIST_MAX = 25;
         const MIST_SPAWN_RATE = 0.4;
         const MIST_LIFETIME = 4000;
         
-        // Spawn
         if (this.mistParticles.length < MIST_MAX && Math.random() < MIST_SPAWN_RATE) {
             const t = Math.random();
             const pt = this.getPointAt(t);
@@ -426,7 +463,6 @@ export class RiverNile {
             });
         }
         
-        // Update + remove dead
         for (let i = this.mistParticles.length - 1; i >= 0; i--) {
             const p = this.mistParticles[i];
             const age = (time - p.startTime) / p.lifetime;
@@ -441,7 +477,6 @@ export class RiverNile {
             p.sprite.x += p.driftX;
             p.sprite.y += p.driftY;
             
-            // Fade in then out
             if (age < 0.25) {
                 p.sprite.alpha = (age / 0.25) * 0.55;
             } else {

@@ -164,18 +164,33 @@ export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
 // === NIL ROUTE ===
 // Diagonalna trasa z 2 meandrami (kolanami), omija wszystkie obiekty (sphinx + 3 piramidy).
 // Start NE → Meander #1 → Mid → Meander #2 → End SW.
+// 16-punktowy polyline path — gładkie meandry bez bezier curves.
+// Bridges land precyzyjnie na ścieżce (visual = collision path).
 export const DESERT_RIVER_PATH = [
-    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },  // Start NE
-    { x: WORLD_W * 0.65, y: WORLD_H * 0.30 },  // Meander #1 (kolano)
-    { x: WORLD_W * 0.70, y: WORLD_H * 0.50 },  // Mid descent
-    { x: WORLD_W * 0.45, y: WORLD_H * 0.75 },  // Meander #2 (kolano)
-    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },  // End SW
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },   //  1. Start NE
+    { x: WORLD_W * 0.79, y: WORLD_H * 0.13 },   //  2.
+    { x: WORLD_W * 0.72, y: WORLD_H * 0.22 },   //  3.
+    { x: WORLD_W * 0.66, y: WORLD_H * 0.28 },   //  4. Just before Meander #1
+    { x: WORLD_W * 0.65, y: WORLD_H * 0.33 },   //  5. Past Meander #1
+    { x: WORLD_W * 0.66, y: WORLD_H * 0.40 },   //  6.
+    { x: WORLD_W * 0.69, y: WORLD_H * 0.46 },   //  7. Approach mid
+    { x: WORLD_W * 0.70, y: WORLD_H * 0.52 },   //  8. Past mid
+    { x: WORLD_W * 0.66, y: WORLD_H * 0.59 },   //  9.
+    { x: WORLD_W * 0.58, y: WORLD_H * 0.66 },   // 10. Approach Meander #2
+    { x: WORLD_W * 0.50, y: WORLD_H * 0.72 },   // 11. Just before Meander #2
+    { x: WORLD_W * 0.45, y: WORLD_H * 0.77 },   // 12. Past Meander #2
+    { x: WORLD_W * 0.37, y: WORLD_H * 0.83 },   // 13.
+    { x: WORLD_W * 0.27, y: WORLD_H * 0.88 },   // 14.
+    { x: WORLD_W * 0.18, y: WORLD_H * 0.92 },   // 15.
+    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },   // 16. End SW
 ];
 
 export const DESERT_RIVER_WIDTH = 80;
 
 // Mosty — gracz może przejechać. Position blisko meandrów dla strategic crossings.
-export const DESERT_BRIDGE_POSITIONS = [
-    { x: WORLD_W * 0.67, y: WORLD_H * 0.30, width: 180, height: 36 },  // przy meander #1
-    { x: WORLD_W * 0.45, y: WORLD_H * 0.75, width: 180, height: 36 },  // przy meander #2
-];
+// 8 mostów równomiernie wzdłuż rzeki (pozycje + rotacje obliczane runtime z river.getBridgeLayout()).
+// deckWidth = 1.25 × tank size (~100 px) → 125 px walking strip.
+// deckLength musi przykryć water (80) + sand transition (60) + margines → 180 px.
+export const DESERT_BRIDGE_COUNT = 8;
+export const DESERT_BRIDGE_DECK_LENGTH = 180;   // X axis: across the river
+export const DESERT_BRIDGE_DECK_WIDTH = 125;    // Y axis: walking strip (1.25× tank)

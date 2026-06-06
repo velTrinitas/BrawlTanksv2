@@ -10,15 +10,16 @@ import {
     buildDesertTexture,
     DESERT_PYRAMID_LAYOUT,
     DESERT_MEDI_PAD_POSITIONS, DESERT_POWER_PAD_POSITIONS,
+    DESERT_SPHINX_POSITION,
+    DESERT_RIVER_PATH, DESERT_RIVER_WIDTH,
+    DESERT_BRIDGE_COUNT, DESERT_BRIDGE_DECK_LENGTH, DESERT_BRIDGE_DECK_WIDTH,
 } from './maps/DesertMap';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
 import { Sphinx } from './maps/desert/Sphinx';
-import { DESERT_SPHINX_POSITION } from './maps/DesertMap';
 import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
-import { DESERT_RIVER_PATH, DESERT_RIVER_WIDTH, DESERT_BRIDGE_POSITIONS } from './maps/DesertMap';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -58,8 +59,12 @@ let mediPads: Array<HoverRepairPad | DesertHeartPad> = [];
 let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
-// v0.14.0 FAZA 2a — typing rozszerzony na ICollidable[] (CyberBuilding z city + Pyramid z desert)
+// v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments z desert)
 let buildings: ICollidable[] = [];
+// v0.17.0-fix: solidBuildings = `buildings` BEZ river segments
+// Używane TYLKO przez bullets/enemyBullets — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty.
+// Player/enemies wciąż używają `buildings` (rzeka blokuje ruch — tylko mosty pozwalają przejść).
+let solidBuildings: ICollidable[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
 let powerSystem: PowerSystem | null = null;
@@ -119,7 +124,6 @@ mapBadge.style.cssText = 'position:fixed;bottom:14px;right:14px;padding:6px 12px
 mapBadge.innerHTML = `🗺️ Mapa: <b style="color:${MAP_CONFIGS[selectedMapId].badge}">${MAP_CONFIGS[selectedMapId].name}</b>`;
 document.body.appendChild(mapBadge);
 
-// Auto-hide po 10s z fade
 setTimeout(() => {
     mapBadge.style.opacity = '0';
     setTimeout(() => mapBadge.remove(), 700);
@@ -208,7 +212,7 @@ function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
             : 0;
         enemyBullets.push(new EnemyBullet(
             shot.x, shot.y, shot.angle + offsetAngle,
-            shot.speed, shot.dmg, shot.color, worldContainer
+            shot.speed, shot.dmg, shot.color, worldContainer,
         ));
     }
 }
@@ -227,6 +231,9 @@ function startGame(): void {
     
     worldContainer.removeChildren();
     buildings = [];
+    solidBuildings = [];
+    river = null;
+    bridges = [];
     
     // v0.13.0 — map-specific initialization (city vs desert)
     if (selectedMapId === 'city') {
@@ -236,7 +243,9 @@ function startGame(): void {
         worldContainer.addChild(citySprite);
         
         CITY_BUILDINGS_LAYOUT.forEach(b => {
-            buildings.push(new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer));
+            const cb = new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer);
+            buildings.push(cb);
+            solidBuildings.push(cb);  // city buildings blokują też pociski
         });
         
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
@@ -247,36 +256,49 @@ function startGame(): void {
         desertSprite.zIndex = -100;
         worldContainer.addChild(desertSprite);
         
-        // FAZA 2a: Piramidy z parallax 3-warstwowym (3 sztuki, collidable)
+        // FAZA 2a ✅ — Piramidy z 2.5D parallax (3 sztuki, collidable + blokują pociski)
         DESERT_PYRAMID_LAYOUT.forEach(p => {
-            buildings.push(new Pyramid(p.x, p.y, p.size, p.seed, worldContainer));
+            const pyramid = new Pyramid(p.x, p.y, p.size, p.seed, worldContainer);
+            buildings.push(pyramid);
+            solidBuildings.push(pyramid);
         });
-        // Sphinx — centralny landmark mapy
+        
+        // FAZA 2b ✅ — Sphinx (3-layer parallax, nemes stripes, eye blink, scarabs)
         const sphinx = new Sphinx(
             DESERT_SPHINX_POSITION.x,
             DESERT_SPHINX_POSITION.y,
             DESERT_SPHINX_POSITION.sizeX,
             DESERT_SPHINX_POSITION.sizeY,
             DESERT_SPHINX_POSITION.seed,
-            worldContainer
+            worldContainer,
         );
         buildings.push(sphinx);
-        // Rzeka Nil z mostami — generuje collision segments które dodajemy do buildings
-        const bridgeAreas = DESERT_BRIDGE_POSITIONS.map(b => ({
-            x: b.x, y: b.y, width: b.width, height: b.height
-        }));
-        river = new RiverNile(DESERT_RIVER_PATH, DESERT_RIVER_WIDTH, bridgeAreas, worldContainer);
-        buildings.push(...river.getCollisionSegments());
-
-        // Mosty (visual only, bez collision — gracz przejdzie)
-        bridges = DESERT_BRIDGE_POSITIONS.map(b => 
-            new Bridge(b.x, b.y, b.width, b.height, worldContainer)
-);
+        solidBuildings.push(sphinx);
         
-        // TODO FAZA 2b: Sfinks z parallax + skarabeusze
-        // TODO FAZA 2c: Kolumny (2 grupy po 3)
-        // TODO FAZA 3: river collision (isBlockedByRiver)
-        // TODO FAZA 4: rocks + quicksand + oasis
+        // FAZA 2c skip (user decision)
+        
+        // FAZA 3a ✅ — Rzeka Nil z 8 rotowanymi mostami.
+        // Bridges layout (pozycje + rotacje) generowane przez river z tangentów ścieżki.
+        // River segments dodawane TYLKO do `buildings` (player/enemy collision), NIE do `solidBuildings`
+        // — pociski przelatują nad rzeką.
+        river = new RiverNile(
+            DESERT_RIVER_PATH,
+            DESERT_RIVER_WIDTH,
+            DESERT_BRIDGE_COUNT,
+            DESERT_BRIDGE_DECK_LENGTH,
+            DESERT_BRIDGE_DECK_WIDTH,
+            worldContainer,
+        );
+        buildings.push(...river.getCollisionSegments());
+        
+        // Mosty (visual only, bez collision — gracz przejedzie po moście)
+        bridges = river.getBridgeLayout().map(b =>
+            new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer),
+        );
+        
+        // TODO FAZA 3b: WaterFlora (lotusy + papirus) + Fish + birds
+        // TODO FAZA 4: rocks + quicksand + oasis stealth + caravan
+        // TODO FAZA 5: sandstorm + mirage + pharaoh-ghost + sand kick
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -362,6 +384,9 @@ app.ticker.add((delta) => {
     
     const mouseWorldX = mouse.screenX + camera.x;
     const mouseWorldY = mouse.screenY + camera.y;
+    
+    // v0.17.0 FAZA 3a — River animations (flow streaks, reflexes, ripples, mist)
+    if (river) river.update();
     
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
@@ -475,15 +500,17 @@ app.ticker.add((delta) => {
         lastShotTime = now;
     }
     
+    // v0.17.0-fix: bullets/enemyBullets używają solidBuildings (BEZ river segments)
+    // — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty (pyramids, sphinx, city buildings).
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.update(delta, buildings, effects);
+        b.update(delta, solidBuildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
     
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
-        eb.update(delta, buildings, effects);
+        eb.update(delta, solidBuildings, effects);
         if (!eb.active) { enemyBullets.splice(i, 1); continue; }
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {

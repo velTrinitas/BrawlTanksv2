@@ -20,6 +20,7 @@ import { DesertStormPad } from './maps/desert/DesertStormPad';
 import { Sphinx } from './maps/desert/Sphinx';
 import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
+import { WaterLife } from './maps/desert/WaterLife';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -59,6 +60,7 @@ let mediPads: Array<HoverRepairPad | DesertHeartPad> = [];
 let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
+let waterLife: WaterLife | null = null;
 // v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments z desert)
 let buildings: ICollidable[] = [];
 // v0.17.0-fix: solidBuildings = `buildings` BEZ river segments
@@ -234,6 +236,7 @@ function startGame(): void {
     solidBuildings = [];
     river = null;
     bridges = [];
+    waterLife = null;
     
     // v0.13.0 — map-specific initialization (city vs desert)
     if (selectedMapId === 'city') {
@@ -294,6 +297,14 @@ function startGame(): void {
         // Mosty (visual only, bez collision — gracz przejedzie po moście)
         bridges = river.getBridgeLayout().map(b =>
             new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer),
+        );
+        
+        // FAZA 3b ✅ — Lotusy + papirus + ryby + ptaki (życie wokół rzeki)
+        waterLife = new WaterLife(
+            DESERT_RIVER_PATH,
+            DESERT_RIVER_WIDTH,
+            river.getBridgeLayout(),
+            worldContainer,
         );
         
         // TODO FAZA 3b: WaterFlora (lotusy + papirus) + Fish + birds
@@ -387,6 +398,8 @@ app.ticker.add((delta) => {
     
     // v0.17.0 FAZA 3a — River animations (flow streaks, reflexes, ripples, mist)
     if (river) river.update();
+    // v0.17.1 FAZA 3b — Water life animations (lotusy bob, reeds sway, fish swim, birds fly)
+    if (waterLife) waterLife.update();
     
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     

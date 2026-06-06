@@ -208,29 +208,41 @@ export class WaterLife {
     // PAPIRUS spawn — trzciny na brzegach rzeki
     // ============================================
     
-    private spawnReeds(): void {
-        const reedCount = 50;
+        private spawnReeds(): void {
+        // v0.17.1-fix1: 50 → 75 spawn points + clusters (40% szans na grupę 2-3 trzcin).
+        // Daje ~100-130 trzcin total, z naturalnymi skupiskami gdzieniegdzie.
+        const reedCount = 75;
         for (let i = 0; i < reedCount; i++) {
             const t = i / reedCount;
             const pt = this.getPointAt(t);
             const tangent = this.getTangentAt(t);
-            // Perpendicular to flow direction
             const perpX = -tangent.y;
             const perpY = tangent.x;
             
-            // Random side (left or right of river)
             const side = Math.random() < 0.5 ? 1 : -1;
-            // Distance from center: between riverWidth/2 + 5 (right at edge) and riverWidth/2 + 30 (further on sand)
             const distFromCenter = (this.riverWidth / 2) + 5 + Math.random() * 25;
             
             const x = pt.x + perpX * distFromCenter * side;
             const y = pt.y + perpY * distFromCenter * side;
             
-            // Random jitter dla naturalności
             const jitterX = (Math.random() - 0.5) * 12;
             const jitterY = (Math.random() - 0.5) * 12;
             
+            // Główna trzcina w tej pozycji
             this.createReed(x + jitterX, y + jitterY);
+            
+            // Cluster: 40% szans na 1-2 dodatkowe trzciny blisko głównej (skupisko)
+            if (Math.random() < 0.4) {
+                const clusterSize = Math.random() < 0.6 ? 1 : 2;  // 60% = 2 total, 40% = 3 total
+                for (let c = 0; c < clusterSize; c++) {
+                    // Bliskie pozycje: 8-18px od głównej trzciny w random direction
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 8 + Math.random() * 10;
+                    const cx = x + jitterX + Math.cos(angle) * dist;
+                    const cy = y + jitterY + Math.sin(angle) * dist;
+                    this.createReed(cx, cy);
+                }
+            }
         }
     }
     
@@ -577,23 +589,26 @@ export class WaterLife {
         const g = bird.bodyGfx;
         g.clear();
         
+        // v0.17.1-fix1: ptaki większe o 50% (wszystkie rozmiary × 1.5)
+        const SIZE = 1.5;
+        
         // V-shape z animowanym wingbeat
         const wingbeat = Math.sin(time / 200 + bird.wingPhase);
-        const wingY = wingbeat * 1.2;
+        const wingY = wingbeat * 1.2 * SIZE;
         
         // Cień (przesunięty SE, symuluje cień na ziemi)
         g.beginFill(PALETTE.birdShadow, 0.25);
-        const shadowOffset = 18;
-        g.moveTo(-7 + shadowOffset, wingY * 0.5 + shadowOffset);
-        g.lineTo(0 + shadowOffset, -1 + shadowOffset);
-        g.lineTo(7 + shadowOffset, wingY * 0.5 + shadowOffset);
+        const shadowOffset = 18 * SIZE;
+        g.moveTo(-7 * SIZE + shadowOffset, wingY * 0.5 + shadowOffset);
+        g.lineTo(0 + shadowOffset, -1 * SIZE + shadowOffset);
+        g.lineTo(7 * SIZE + shadowOffset, wingY * 0.5 + shadowOffset);
         g.endFill();
         
-        // Body V
-        g.lineStyle(2.2, PALETTE.birdSilhouette, 1);
-        g.moveTo(-7, wingY);
-        g.lineTo(0, -1);
-        g.lineTo(7, wingY);
+        // Body V (grubsza linia dla większego ptaka)
+        g.lineStyle(2.2 * SIZE, PALETTE.birdSilhouette, 1);
+        g.moveTo(-7 * SIZE, wingY);
+        g.lineTo(0, -1 * SIZE);
+        g.lineTo(7 * SIZE, wingY);
         g.lineStyle(0);
     }
     

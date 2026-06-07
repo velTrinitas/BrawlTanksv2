@@ -36,10 +36,12 @@ export class Enemy {
     // v0.18.1 FAZA 4b — speed modifier (set externally per-frame by main.ts: quicksand = 0.5, normal = 1.0)
     public speedModifier: number = 1.0;
     
-    // v0.18.3 FAZA 4c — detection range modifier (set externally per-frame by main.ts).
-    // 0.5 gdy GRACZ jest w oazie (640px shooting range → 320px), 1.0 normalnie.
-    // Aplikowane do `dist < 640 * this.detectionRangeModifier` w shooting check poniżej.
-    public detectionRangeModifier: number = 1.0;
+    // v0.18.3-fix1 FAZA 4c — STEALTH FLAG (set externally per-frame by main.ts).
+    // true = gracz jest w oazie i jeszcze nie minął 10s window → wróg nie wie gdzie jest gracz,
+    // kręci się wokół własnej osi (confused idle), NIE chase, NIE shoot.
+    // false = normalna AI (chase + shoot).
+    public playerStealthed: boolean = false;
+    private confusedRotation: number = 0;  // accumulated angle dla idle spin animation
     
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
@@ -68,7 +70,6 @@ export class Enemy {
     private megaShieldEndTime: number = 0;
     
     private static readonly MIN_DIST_TO_PLAYER = 60;
-    private static readonly BASE_SHOOTING_RANGE = 640;
     
     constructor(
         x: number, y: number,
@@ -110,13 +111,15 @@ export class Enemy {
             this.megaShieldNextTime = Date.now() + 12000;
         }
         
+        // Startowa rotacja idle spin (random offset żeby wszystkie wrogi nie kręciły się synchronicznie)
+        this.confusedRotation = Math.random() * Math.PI * 2;
+        
         this.container = new PIXI.Container();
         this.container.x = this.x;
         this.container.y = this.y;
         this.container.scale.set(config.scale);
         
         // v0.12.2 fix — getEnemyTextures wymusza PIERWOTNY v4.48 look (generic drawTankHull/Turret)
-        // niezależnie od BRAWLERS[1].id ('heavy'). Brawler używany TYLKO dla colorMain (potem nadpisane tintem).
         const tex = getEnemyTextures(BRAWLERS[1]);
         
         this.hull = new PIXI.Sprite(tex.hull);
@@ -183,7 +186,6 @@ export class Enemy {
             this.turret.tint = 0x66ddff;
             return null;
         } else if (this.hull.tint === 0x66ddff) {
-            // Freeze wygasł — przywróć normalny tint
             this.hull.tint = this.tintHex;
             this.turret.tint = this.tintHex;
         }
@@ -194,6 +196,29 @@ export class Enemy {
                 this.hull.tint = this.tintHex;
                 this.turret.tint = this.tintHex;
             }
+        }
+        
+        // v0.18.3-fix1 FAZA 4c — STEALTH: gdy gracz ukryty w oazie, wróg nie wie gdzie on jest.
+        // Kręci się wokół własnej osi (confused idle): hull rotuje wolno, turret oscyluje (scanowanie).
+        // Brak movement, brak strzału, brak shield decisions (megaboss też zdezorientowany).
+        if (this.playerStealthed) {
+            this.confusedRotation += 0.045 * delta;
+            this.hull.rotation = this.confusedRotation;
+            // Turret skanuje niezależnie — sinusoidalny "looking around"
+            this.turret.rotation = this.confusedRotation + Math.sin(Date.now() / 280) * 0.65;
+            
+            this.container.x = this.x;
+            this.container.y = this.y;
+            this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : 19);
+            
+            // Megaboss shield zachowuje stan ale nie zmienia (czas się "zatrzymał" dla zdezorientowanego wroga)
+            if (this.isMegaBoss && this.megaShieldActive) {
+                this.drawShield();
+            } else if (this.isMegaBoss && this.shieldGfx) {
+                this.shieldGfx.visible = false;
+            }
+            
+            return null;
         }
         
         const dx = targetX - this.x;
@@ -279,15 +304,16 @@ export class Enemy {
         
         this.hull.rotation = angleToTarget;
         this.turret.rotation = angleToTarget;
+        // Sync confusedRotation z aktualną rotacją żeby przy następnym stealth start
+        // nie było gwałtownego "skoku" kierunku
+        this.confusedRotation = angleToTarget;
+        
         this.container.x = this.x;
         this.container.y = this.y;
         this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : 19);
         
         const now = Date.now();
-        // v0.18.3 FAZA 4c — shooting range scaled by detectionRangeModifier
-        // (gdy gracz w oazie: 640 × 0.5 = 320px effective range).
-        const effectiveRange = Enemy.BASE_SHOOTING_RANGE * this.detectionRangeModifier;
-        if (now - this.lastShotTime >= this.shootIntervalMs && dist < effectiveRange) {
+        if (now - this.lastShotTime >= this.shootIntervalMs && dist < 640) {
             this.lastShotTime = now;
             const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : 40;
             return {

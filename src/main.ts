@@ -50,8 +50,10 @@ import { AudioSys } from './audio/AudioSys';
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 
+// v0.18.3-fix1 FAZA 4c — OASIS STEALTH timer constants
+const OASIS_STEALTH_DURATION_MS = 10000;  // 10s niewidzialności po wejściu do oazy
+
 let selectedBrawler: Brawler = BRAWLERS[0];
-// v0.13.0 FAZA 1 — map selection (URL param ?map=desert dla testowania, finalnie menu w FAZIE 6)
 let selectedMapId: MapId = getMapIdFromUrl();
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
@@ -70,17 +72,17 @@ let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
-// v0.18.0 FAZA 4a — small rocks (visual decoration, no collision)
 let smallRocks: Rock[] = [];
-// v0.18.0-fix — sandstorm map boundary (visual + collision)
 let sandstormBorder: SandstormBorder | null = null;
-// v0.18.1 FAZA 4b — quicksand zones (slowdown 50%, no collision, per-frame isPointInside check)
 let quicksands: Quicksand[] = [];
-// v0.18.3 FAZA 4c — oasis stealth zones (enemy detection range -50%, no collision, per-frame isPointInside check)
 let oases: Oasis[] = [];
-// v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments/Rocks/SandstormBorder z desert)
+
+// v0.18.3-fix1 — Oasis stealth state machine (game-level, reset per startGame)
+let oasisStealthEndTime: number = 0;       // Date.now() po którym stealth wygasa (gdy gracz w oazie)
+let wasInOasisLastFrame: boolean = false;  // do detekcji fresh entry (false→true transition)
+let wasStealthActiveLastFrame: boolean = false;  // do detekcji końca stealth (notif "zauważony")
+
 let buildings: ICollidable[] = [];
-// v0.17.0-fix: solidBuildings = `buildings` BEZ river segments
 let solidBuildings: ICollidable[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
@@ -135,7 +137,6 @@ BRAWLERS.forEach(b => {
     charGrid.appendChild(div);
 });
 
-// v0.14.0 — Map info badge (dolny prawy róg, auto-hide po 10s z fade)
 const mapBadge = document.createElement('div');
 mapBadge.style.cssText = 'position:fixed;bottom:14px;right:14px;padding:6px 12px;background:rgba(0,0,0,0.65);color:#fff;border-radius:8px;font-family:sans-serif;font-size:13px;z-index:100;pointer-events:none;transition:opacity 0.6s ease-out;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
 mapBadge.innerHTML = `🗺️ Mapa: <b style="color:${MAP_CONFIGS[selectedMapId].badge}">${MAP_CONFIGS[selectedMapId].name}</b>`;
@@ -257,7 +258,11 @@ function startGame(): void {
     quicksands = [];
     oases = [];
     
-    // v0.13.0 — map-specific initialization (city vs desert)
+    // v0.18.3-fix1 — reset stealth state machine na każdy nowy game
+    oasisStealthEndTime = 0;
+    wasInOasisLastFrame = false;
+    wasStealthActiveLastFrame = false;
+    
     if (selectedMapId === 'city') {
         const cityTex = buildCityTexture();
         const citySprite = new PIXI.Sprite(cityTex);
@@ -267,7 +272,7 @@ function startGame(): void {
         CITY_BUILDINGS_LAYOUT.forEach(b => {
             const cb = new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer);
             buildings.push(cb);
-            solidBuildings.push(cb);  // city buildings blokują też pociski
+            solidBuildings.push(cb);
         });
         
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
@@ -278,14 +283,12 @@ function startGame(): void {
         desertSprite.zIndex = -100;
         worldContainer.addChild(desertSprite);
         
-        // FAZA 2a ✅ — Piramidy z 2.5D parallax (3 sztuki, collidable + blokują pociski)
         DESERT_PYRAMID_LAYOUT.forEach(p => {
             const pyramid = new Pyramid(p.x, p.y, p.size, p.seed, worldContainer);
             buildings.push(pyramid);
             solidBuildings.push(pyramid);
         });
         
-        // FAZA 2b ✅ — Sphinx (3-layer parallax, nemes stripes, eye blink, scarabs)
         const sphinx = new Sphinx(
             DESERT_SPHINX_POSITION.x,
             DESERT_SPHINX_POSITION.y,
@@ -297,7 +300,6 @@ function startGame(): void {
         buildings.push(sphinx);
         solidBuildings.push(sphinx);
         
-        // FAZA 3a ✅ — Rzeka Nil z 8 rotowanymi mostami.
         river = new RiverNile(
             DESERT_RIVER_PATH,
             DESERT_RIVER_WIDTH,
@@ -308,12 +310,10 @@ function startGame(): void {
         );
         buildings.push(...river.getCollisionSegments());
         
-        // Mosty (visual only, bez collision)
         bridges = river.getBridgeLayout().map(b =>
             new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer),
         );
         
-        // FAZA 3b ✅ — Lotusy + papirus + ryby + ptaki
         waterLife = new WaterLife(
             DESERT_RIVER_PATH,
             DESERT_RIVER_WIDTH,
@@ -321,21 +321,18 @@ function startGame(): void {
             worldContainer,
         );
         
-        // FAZA 4a ✅ — Large rocks (collision)
         DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
         
-        // v0.18.2 ✅ — KATARAKTY NILU
         DESERT_RIVER_CATARACT_ROCKS.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
         
-        // Small rocks (procedural)
         const MIN_DIST_TO_BUILDINGS = 110;
         const MIN_DIST_BETWEEN_SMALL = 45;
         let smallRockAttempts = 0;
@@ -373,25 +370,18 @@ function startGame(): void {
             smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
         }
         
-        // FAZA 4a (boundary) ✅ — Burza piaskowa
         sandstormBorder = new SandstormBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...sandstormBorder.getCollisionRects());
         solidBuildings.push(...sandstormBorder.getCollisionRects());
         
-        // FAZA 4b ✅ — Quicksand (slowdown zones)
         quicksands = DESERT_QUICKSAND_LAYOUT.map(q =>
             new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer),
         );
         
-        // v0.18.3 FAZA 4c ✅ — OASIS STEALTH ZONES
-        // 3 oazy: gdy gracz w środku, enemies.detectionRangeModifier = 0.5 (640px → 320px shoot range).
-        // No collision — tank wjeżdża swobodnie. Per-frame check w gameLoop.
+        // v0.18.3 FAZA 4c — OASIS STEALTH ZONES
         oases = DESERT_OASIS_LAYOUT.map(o =>
             new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
         );
-        
-        // TODO FAZA 4d: caravan (mobile pickup drops)
-        // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary już zrobione)
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -498,9 +488,8 @@ app.ticker.add((delta) => {
         enemy.speedModifier = enemyInQuicksand ? 0.5 : 1.0;
     }
     
-    // v0.18.3 FAZA 4c — Oasis stealth: per-frame check.
-    // Modifier liczony RAZ (gracz JEST lub NIE JEST w oazie), aplikowany do WSZYSTKICH enemies
-    // — bo stealth wpływa na całą sytuację, niezależnie od tego gdzie stoi każdy wróg.
+    // v0.18.3-fix1 FAZA 4c — OASIS STEALTH state machine
+    // 1) Sprawdź czy gracz jest w jakiejkolwiek oazie
     let playerInOasis = false;
     for (const oasis of oases) {
         oasis.update();
@@ -508,16 +497,39 @@ app.ticker.add((delta) => {
             playerInOasis = true;
         }
     }
-    const detectionMod = playerInOasis ? 0.5 : 1.0;
-    for (const enemy of enemies) {
-        enemy.detectionRangeModifier = detectionMod;
+    
+    const nowMs = Date.now();
+    
+    // 2) FRESH ENTRY: gracz wszedł do oazy (false→true transition) → reset timera
+    if (playerInOasis && !wasInOasisLastFrame) {
+        oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
     }
     
-    // v0.17.0 FAZA 3a — River animations
+    // 3) Stealth aktywny TYLKO gdy gracz JEST w oazie AND timer jeszcze nie wygasł
+    const isStealthActive = playerInOasis && nowMs < oasisStealthEndTime;
+    
+    // 4) Transitions → notyfikacje
+    if (isStealthActive && !wasStealthActiveLastFrame) {
+        // Stealth START — wszedł do oazy
+        hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
+        audio.playMagnetPickup();  // reusing magnet sound dla "stealth on" feel
+    } else if (!isStealthActive && wasStealthActiveLastFrame && playerInOasis) {
+        // Stealth END (jeszcze w oazie, timer expired) — został zauważony
+        hud.addNotif('👁️ ZOSTAŁEŚ ZAUWAŻONY!', '#ff8855');
+        effects.shake(3, 8);
+    }
+    
+    // 5) Aplikuj flag do wszystkich enemies
+    for (const enemy of enemies) {
+        enemy.playerStealthed = isStealthActive;
+    }
+    
+    // 6) Update history vars na koniec
+    wasInOasisLastFrame = playerInOasis;
+    wasStealthActiveLastFrame = isStealthActive;
+    
     if (river) river.update();
-    // v0.17.1 FAZA 3b — Water life animations
     if (waterLife) waterLife.update();
-    // v0.18.0-fix FAZA 4a — Sandstorm boundary animations
     if (sandstormBorder) sandstormBorder.update();
     
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
@@ -672,9 +684,11 @@ app.ticker.add((delta) => {
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
         if (shotInfo) spawnEnemyShot(shotInfo);
         
+        // v0.18.3-fix1: collision damage TYLKO gdy enemy NIE jest stealthed
+        // (zdezorientowany wróg nie atakuje, nawet jeśli gracz wpadnie mu pod gąsienice)
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
-        if (dP < collisionDist * collisionDist) {
+        if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
             const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable);
             
             if (!enemy.isBoss && !enemy.isMegaBoss) {

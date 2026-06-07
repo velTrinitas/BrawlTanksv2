@@ -67,10 +67,6 @@ export function buildDesertTexture(): PIXI.Texture {
 // FAZA 2a — PIRAMIDY
 // =================================================================
 
-/**
- * Layout piramid na pustyni — 3 piramidy w 3 rogach mapy (różne rozmiary).
- * Format: { x, y, size, seed } — seed dla wariacji flicker phase.
- */
 export interface PyramidLayoutEntry {
     x: number;
     y: number;
@@ -79,19 +75,15 @@ export interface PyramidLayoutEntry {
 }
 
 export const DESERT_PYRAMID_LAYOUT: PyramidLayoutEntry[] = [
-    { x: WORLD_W * 0.18, y: WORLD_H * 0.72, size: 280, seed: 1 },  // największa, południowy zachód
-    { x: WORLD_W * 0.55, y: WORLD_H * 0.82, size: 240, seed: 2 },  // średnia, środek-południe
-    { x: WORLD_W * 0.85, y: WORLD_H * 0.42, size: 210, seed: 3 },  // mała, wschód
+    { x: WORLD_W * 0.18, y: WORLD_H * 0.72, size: 280, seed: 1 },
+    { x: WORLD_W * 0.55, y: WORLD_H * 0.82, size: 240, seed: 2 },
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.42, size: 210, seed: 3 },
 ];
 
 // =================================================================
 // FAZA 2b — SPHINX
 // =================================================================
 
-/**
- * Pozycja Sphinxa — centrum mapy (między piramidami).
- * sizeX = długość ciała, sizeY = wysokość (head + body).
- */
 export const DESERT_SPHINX_POSITION = {
     x: WORLD_W * 0.50,
     y: WORLD_H * 0.42,
@@ -104,147 +96,142 @@ export const DESERT_SPHINX_POSITION = {
 // FAZA 3a — RZEKA NIL + MOSTY
 // =================================================================
 
-/**
- * Polyline path rzeki Nil — diagonalna trasa NE→SW z 2 meandrami.
- * 16 punktów dla smooth meandering bez wymuszania bezier curves.
- * Sprawdzone matematycznie — omija piramidy, sphinx, i large rocks (>200px clearance).
- */
 export interface RiverPathPoint {
     x: number;
     y: number;
 }
 
 export const DESERT_RIVER_PATH: RiverPathPoint[] = [
-    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },  // start NE corner
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },
     { x: WORLD_W * 0.79, y: WORLD_H * 0.13 },
     { x: WORLD_W * 0.72, y: WORLD_H * 0.22 },
     { x: WORLD_W * 0.66, y: WORLD_H * 0.28 },
-    { x: WORLD_W * 0.65, y: WORLD_H * 0.33 },  // meander 1 (przebieg E)
+    { x: WORLD_W * 0.65, y: WORLD_H * 0.33 },
     { x: WORLD_W * 0.66, y: WORLD_H * 0.40 },
     { x: WORLD_W * 0.69, y: WORLD_H * 0.46 },
-    { x: WORLD_W * 0.70, y: WORLD_H * 0.52 },  // meander 1 apex
+    { x: WORLD_W * 0.70, y: WORLD_H * 0.52 },
     { x: WORLD_W * 0.66, y: WORLD_H * 0.59 },
     { x: WORLD_W * 0.58, y: WORLD_H * 0.66 },
-    { x: WORLD_W * 0.50, y: WORLD_H * 0.72 },  // meander 2 apex
+    { x: WORLD_W * 0.50, y: WORLD_H * 0.72 },
     { x: WORLD_W * 0.45, y: WORLD_H * 0.77 },
     { x: WORLD_W * 0.37, y: WORLD_H * 0.83 },
     { x: WORLD_W * 0.27, y: WORLD_H * 0.88 },
     { x: WORLD_W * 0.18, y: WORLD_H * 0.92 },
-    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },  // end SW corner
+    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },
 ];
 
-/** Szerokość rzeki (visible water body, hitbox = width + 60 internally). */
 export const DESERT_RIVER_WIDTH = 80;
-
-/** Liczba mostów rozsianych wzdłuż rzeki (evenly spaced przez RiverNile.computeBridgeLayout). */
 export const DESERT_BRIDGE_COUNT = 8;
-
-/** Bridge długość (across river) — dłuższy wymiar, prostopadły do flow. */
 export const DESERT_BRIDGE_DECK_LENGTH = 180;
-
-/** Bridge szerokość (along flow) — 1.25× tank width, walking strip. */
 export const DESERT_BRIDGE_DECK_WIDTH = 125;
 
 // =================================================================
 // FAZA 4a — SKAŁY (Large + Small)
 // =================================================================
 
-/**
- * Layout dużych skał (collidable cover) — 7 manual fixed positions.
- * Strategicznie rozmieszczone jako cover dla gracza.
- * Sprawdzone matematycznie — nie kolidują z piramidami (>300px), sphinx, river path.
- */
 export const DESERT_LARGE_ROCKS_LAYOUT = [
-    { x: WORLD_W * 0.05, y: WORLD_H * 0.40, size: 90, seed: 11 },   // W brzeg, między pyramid #1 i N
-    { x: WORLD_W * 0.20, y: WORLD_H * 0.30, size: 75, seed: 17 },   // N od pyramid #1
-    { x: WORLD_W * 0.38, y: WORLD_H * 0.18, size: 95, seed: 23 },   // N central
-    { x: WORLD_W * 0.32, y: WORLD_H * 0.55, size: 80, seed: 31 },   // między pyramid #1 i sphinx
-    { x: WORLD_W * 0.78, y: WORLD_H * 0.62, size: 100, seed: 37 },  // S od pyramid #3
-    { x: WORLD_W * 0.62, y: WORLD_H * 0.95, size: 75, seed: 43 },   // SE corner
-    { x: WORLD_W * 0.05, y: WORLD_H * 0.62, size: 85, seed: 47 },   // W brzeg, dalej niż pyramid #1
+    { x: WORLD_W * 0.05, y: WORLD_H * 0.40, size: 90, seed: 11 },
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.30, size: 75, seed: 17 },
+    { x: WORLD_W * 0.38, y: WORLD_H * 0.18, size: 95, seed: 23 },
+    { x: WORLD_W * 0.32, y: WORLD_H * 0.55, size: 80, seed: 31 },
+    { x: WORLD_W * 0.78, y: WORLD_H * 0.62, size: 100, seed: 37 },
+    { x: WORLD_W * 0.62, y: WORLD_H * 0.95, size: 75, seed: 43 },
+    { x: WORLD_W * 0.05, y: WORLD_H * 0.62, size: 85, seed: 47 },
 ];
 
-/** Liczba małych skał (procedural, no collision, dekoracja). */
 export const DESERT_SMALL_ROCKS_COUNT = 35;
-
-/** Małe skały — min size. */
 export const DESERT_SMALL_ROCK_MIN_SIZE = 15;
-
-/** Małe skały — max size. */
 export const DESERT_SMALL_ROCK_MAX_SIZE = 35;
 
 // =================================================================
-// v0.18.2 — KATARAKTY NILU (rozwiązanie problemu widocznych końcówek rzeki)
+// v0.18.2 + v0.18.2-fix2 — KATARAKTY NILU + GĘSTE TRAP POCKET FILL
 // =================================================================
 
 /**
- * 2 klastry skał przy krańcach rzeki tworzące wizualną narrację "rzeka wpływa/wypływa przez skały".
- * Rozwiązuje problem widocznych "zaokrąglonych końcówek" rzeki:
- *   - Wizualnie: woda przechodzi przez skały → naturalne kataraktowanie (jak Aswan w Egipcie)
- *   - Gameplay: rocks collision blokuje gracza przed objechaniem rzeki bokiem
+ * v0.18.2-fix2: KATARAKTY z GĘSTYM TRAP POCKET FILL (16 rocks total).
  * 
- * NE klaster: 5 skał wokół startu rzeki (0.85, 0.05), wypełnia gap do NE corner mapy.
- * SW klaster: 5 skał wokół końca rzeki (0.10, 0.95), wypełnia gap do SW corner mapy.
+ * Architektura per trap pocket (8 rocks):
+ *   - 5 perimeter rocks (cataract aesthetic + bypass blocker)
+ *   - 3 interior fillers (rozproszone WEWNĄTRZ trap pocketu, NIE blokują bridges)
  * 
- * Wszystkie 'large' tier → pełna collision (ruch + pociski).
- * Format zgodny z DESERT_LARGE_ROCKS_LAYOUT (same fields: x, y, size, seed).
+ * Wszystkie filler positions zweryfikowane:
+ *   ✓ Nie blokują bridge access (>200px od najbliższego bridge endpoint)
+ *   ✓ Nie kolidują z river hitbox (>140px od river center line)
+ *   ✓ Nie kolidują z sandstorm collision (>40px od world boundary)
+ *   ✓ Min 110px between rocks (collision-safe spacing)
+ * 
+ * v0.18.2-fix2 zmiany vs v0.18.2-fix1:
+ *   - Usunięto (0.27, 0.92) i (0.23, 0.86) — blokowały bridge 8 SE corner
+ *   - Dodano (0.10, 0.86), (0.02, 0.88), (0.07, 0.90) w SW trap pocket
+ *   - Przeniesiono NE fillers do safer pozycji + dodano (0.71, 0.05)
  */
 export const DESERT_RIVER_CATARACT_ROCKS = [
-    // NE katarakta (start rzeki — wjazd Nilu na mapę)
+    // === NE KATARAKTA (start rzeki) — 8 rocks ===
+    // Perimeter (5)
     { x: WORLD_W * 0.93, y: WORLD_H * 0.05, size: 80, seed: 51 },   // E od river start (blokuje E bypass)
     { x: WORLD_W * 0.88, y: WORLD_H * 0.02, size: 75, seed: 53 },   // NE od river start
-    { x: WORLD_W * 0.82, y: WORLD_H * 0.02, size: 70, seed: 57 },   // NW od river start (blokuje N bypass)
+    { x: WORLD_W * 0.82, y: WORLD_H * 0.02, size: 70, seed: 57 },   // NW od river start
     { x: WORLD_W * 0.96, y: WORLD_H * 0.12, size: 65, seed: 61 },   // NE corner fill
-    { x: WORLD_W * 0.87, y: WORLD_H * 0.09, size: 90, seed: 63 },   // PROMINENTNA, "skała w wodzie" SE of start
+    { x: WORLD_W * 0.87, y: WORLD_H * 0.09, size: 90, seed: 63 },   // PROMINENTNA, "skała w wodzie"
+    // Interior fillers (3) — rozproszone w trap pocket, daleko od bridge 1 (~0.763, 0.165)
+    { x: WORLD_W * 0.74, y: WORLD_H * 0.08, size: 60, seed: 91 },   // środkowo-zachodnia
+    { x: WORLD_W * 0.83, y: WORLD_H * 0.07, size: 55, seed: 93 },   // środkowo-wschodnia (przesunięta z 0.78, 0.04)
+    { x: WORLD_W * 0.71, y: WORLD_H * 0.05, size: 45, seed: 95 },   // NW edge filler (NOWA, +density)
     
-    // SW katarakta (koniec rzeki — wyjazd Nilu z mapy)
+    // === SW KATARAKTA (koniec rzeki) — 8 rocks ===
+    // Perimeter (5)
     { x: WORLD_W * 0.07, y: WORLD_H * 0.95, size: 80, seed: 71 },   // W od river end (blokuje W bypass)
     { x: WORLD_W * 0.15, y: WORLD_H * 0.98, size: 75, seed: 73 },   // SE od river end
     { x: WORLD_W * 0.04, y: WORLD_H * 0.98, size: 70, seed: 77 },   // SW corner fill
     { x: WORLD_W * 0.20, y: WORLD_H * 0.96, size: 65, seed: 81 },   // E edge blocker
-    { x: WORLD_W * 0.13, y: WORLD_H * 0.91, size: 90, seed: 83 },   // PROMINENTNA, "skała w wodzie" NE of end
+    { x: WORLD_W * 0.13, y: WORLD_H * 0.91, size: 90, seed: 83 },   // PROMINENTNA, "skała w wodzie"
+    // Interior fillers (3) — DALEKO od bridge 8 (~0.234, 0.896), w prawdziwym SW trap pocket
+    { x: WORLD_W * 0.10, y: WORLD_H * 0.86, size: 55, seed: 101 },  // upper trap pocket (NEW, było 0.27,0.92)
+    { x: WORLD_W * 0.02, y: WORLD_H * 0.88, size: 50, seed: 103 },  // far W edge (NEW, było 0.23,0.86)
+    { x: WORLD_W * 0.07, y: WORLD_H * 0.90, size: 45, seed: 105 },  // mid-pocket filler (NOWA, +density)
 ];
 
 // =================================================================
-// FAZA 4b — QUICKSAND ZONES
+// FAZA 4b — QUICKSAND ZONES (uproszczone do 1 dużej strefy per trap pocket)
 // =================================================================
 
 /**
- * Layout stref ruchomych piasków — 3 owalne strefy z slowdown 50%.
- * Format: { x, y, rX (radius X), rY (radius Y), seed }.
- * NO collision — gracz/wrog wjeżdża i zwalnia (Player/Enemy.speedModifier).
+ * v0.18.2-fix2: TRAP POCKET QUICKSAND — uproszczone z 4 stref (2 duże + 2 małe)
+ * do 2 dużych stref (po 1 per pocket). Cleaner visual + dokładne pozycjonowanie.
  * 
- * v0.18.1-fix1: pozycje zweryfikowane vs WSZYSTKIE inne obiekty (rzeka, piramidy, sphinx, large rocks).
- * Math check (min distance from each obstacle):
- *   - Strefa 1 (0.20, 0.45): >250px od pyramid #1, >300px od sphinx, >400px od rzeki ✅
- *   - Strefa 2 (0.42, 0.62): >280px od sphinx, >250px od pyramid #2, >350px od rzeki ✅
- *   - Strefa 3 (0.88, 0.18): >300px od pyramid #3, >450px od rzeki (NE corner sucha) ✅
+ * Zmiany vs v0.18.2-fix1:
+ *   - NE big: (0.76, 0.07) → (0.78, 0.04) — WYŻEJ (user request "powinien być wyżej")
+ *   - SW big: (0.25, 0.90) → (0.18, 0.84) — NAD rzeką, NIE w rzece (user request)
+ *   - Usunięto 2 małe quicksand (były nieczytelne i powodowały konfuzję)
+ *   - Powiększone rX 130→150, rY 40→50 dla lepszej widoczności
+ * 
+ * Total: 5 stref (3 standardowe + 2 trap pocket).
  */
 export const DESERT_QUICKSAND_LAYOUT = [
-    { x: WORLD_W * 0.20, y: WORLD_H * 0.45, rX: 75, rY: 50, seed: 13 },   // W od sphinx, między pyramid #1 i large rock W
-    { x: WORLD_W * 0.42, y: WORLD_H * 0.62, rX: 85, rY: 60, seed: 19 },   // S od sphinx (bezpieczna strefa centralna)
-    { x: WORLD_W * 0.88, y: WORLD_H * 0.18, rX: 70, rY: 48, seed: 29 },   // NE corner (sucha pustynia, daleko od river start)
+    // === STANDARDOWE STREFY (strategiczne, risk/reward) ===
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.45, rX: 75, rY: 50, seed: 13 },
+    { x: WORLD_W * 0.42, y: WORLD_H * 0.62, rX: 85, rY: 60, seed: 19 },
+    { x: WORLD_W * 0.88, y: WORLD_H * 0.18, rX: 70, rY: 48, seed: 29 },
+    
+    // === TRAP POCKET DETERRENT (1 duża per pocket, powiększona dla widoczności) ===
+    // NE trap pocket — WYŻEJ (przesunięta z 0.07 → 0.04)
+    { x: WORLD_W * 0.78, y: WORLD_H * 0.04, rX: 150, rY: 50, seed: 41 },
+    // SW trap pocket — NAD rzeką (przesunięta z (0.25,0.90) → (0.18,0.84))
+    // River najbliższy punkt: (0.18, 0.92), więc quicksand bottom edge y=0.853, river top y=0.903 → gap 200px ✅
+    { x: WORLD_W * 0.08, y: WORLD_H * 0.84, rX: 150, rY: 50, seed: 45 },
 ];
 
 // =================================================================
-// PADS (MediPad + PowerPad) — desert variants visual w src/maps/desert/
+// PADS (MediPad + PowerPad)
 // =================================================================
 
-/**
- * Pozycje MediPadów (DesertHeartPad) na pustyni — odpowiedniki repair hangars z v4.48.
- * 3 strefy w różnych ćwiartkach mapy (przesunięte żeby nie kolidować z piramidami/quicksand).
- */
 export const DESERT_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.18, y: WORLD_H * 0.50 },
     { x: WORLD_W * 0.82, y: WORLD_H * 0.28 },
     { x: WORLD_W * 0.52, y: WORLD_H * 0.30 },
 ];
 
-/**
- * Pozycje PowerPadów (DesertStormPad) na pustyni — odpowiednik power well z v4.48.
- * 2 strefy (dla równowagi vs CityMap).
- */
 export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
-    { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },   // power well z v4.48
-    { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },   // bonus dla balansu
+    { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },
+    { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },
 ];

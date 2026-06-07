@@ -17,6 +17,7 @@ import {
     DESERT_SMALL_ROCK_MIN_SIZE, DESERT_SMALL_ROCK_MAX_SIZE,
     DESERT_QUICKSAND_LAYOUT,
     DESERT_RIVER_CATARACT_ROCKS,
+    DESERT_OASIS_LAYOUT,
 } from './maps/DesertMap';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -28,6 +29,7 @@ import { WaterLife } from './maps/desert/WaterLife';
 import { Rock } from './maps/desert/Rock';
 import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { Quicksand } from './maps/desert/Quicksand';
+import { Oasis } from './maps/desert/Oasis';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -74,6 +76,8 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 // v0.18.1 FAZA 4b — quicksand zones (slowdown 50%, no collision, per-frame isPointInside check)
 let quicksands: Quicksand[] = [];
+// v0.18.3 FAZA 4c — oasis stealth zones (enemy detection range -50%, no collision, per-frame isPointInside check)
+let oases: Oasis[] = [];
 // v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments/Rocks/SandstormBorder z desert)
 let buildings: ICollidable[] = [];
 // v0.17.0-fix: solidBuildings = `buildings` BEZ river segments
@@ -251,6 +255,7 @@ function startGame(): void {
     smallRocks = [];
     sandstormBorder = null;
     quicksands = [];
+    oases = [];
     
     // v0.13.0 — map-specific initialization (city vs desert)
     if (selectedMapId === 'city') {
@@ -293,8 +298,6 @@ function startGame(): void {
         solidBuildings.push(sphinx);
         
         // FAZA 3a ✅ — Rzeka Nil z 8 rotowanymi mostami.
-        // River segments dodawane TYLKO do `buildings` (player/enemy collision), NIE do `solidBuildings`
-        // — pociski przelatują nad rzeką.
         river = new RiverNile(
             DESERT_RIVER_PATH,
             DESERT_RIVER_WIDTH,
@@ -305,12 +308,12 @@ function startGame(): void {
         );
         buildings.push(...river.getCollisionSegments());
         
-        // Mosty (visual only, bez collision — gracz przejedzie po moście)
+        // Mosty (visual only, bez collision)
         bridges = river.getBridgeLayout().map(b =>
             new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer),
         );
         
-        // FAZA 3b ✅ — Lotusy + papirus + ryby + ptaki (życie wokół rzeki)
+        // FAZA 3b ✅ — Lotusy + papirus + ryby + ptaki
         waterLife = new WaterLife(
             DESERT_RIVER_PATH,
             DESERT_RIVER_WIDTH,
@@ -318,25 +321,21 @@ function startGame(): void {
             worldContainer,
         );
         
-        // FAZA 4a ✅ — Wielowarstwowe skały (large = cover collision, small = decoracja)
-        // Large rocks (7 fixed positions) — pełna collision (ruch + pociski)
+        // FAZA 4a ✅ — Large rocks (collision)
         DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
         
-        // v0.18.2 ✅ — KATARAKTY NILU (2 klastry skał przy krańcach rzeki)
-        // Rozwiązuje wizualny problem "zaokrąglonych końcówek" + blokuje objazd rzeki bokiem.
-        // 10 skał total (5 NE + 5 SW), wszystkie 'large' tier z pełną collision.
-        // Spawn PRZED small rocks żeby procedural avoidance (MIN_DIST 110) działało.
+        // v0.18.2 ✅ — KATARAKTY NILU
         DESERT_RIVER_CATARACT_ROCKS.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
         
-        // Small rocks (procedural 35) — visual only, avoid existing obiekty z constraints
+        // Small rocks (procedural)
         const MIN_DIST_TO_BUILDINGS = 110;
         const MIN_DIST_BETWEEN_SMALL = 45;
         let smallRockAttempts = 0;
@@ -374,19 +373,23 @@ function startGame(): void {
             smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
         }
         
-        // FAZA 4a (boundary) ✅ — Burza piaskowa jako map boundary (visual + collision)
+        // FAZA 4a (boundary) ✅ — Burza piaskowa
         sandstormBorder = new SandstormBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...sandstormBorder.getCollisionRects());
         solidBuildings.push(...sandstormBorder.getCollisionRects());
         
-        // FAZA 4b ✅ — Quicksand (slowdown zones, NO collision)
-        // 3 owalne strefy: speed × 0.5 dla gracza/wrogów wewnątrz (Player/Enemy.speedModifier).
-        // Per-frame check w gameLoop poniżej (isPointInside ellipse).
+        // FAZA 4b ✅ — Quicksand (slowdown zones)
         quicksands = DESERT_QUICKSAND_LAYOUT.map(q =>
             new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer),
         );
         
-        // TODO FAZA 4c: oasis stealth (enemy detection range -50%)
+        // v0.18.3 FAZA 4c ✅ — OASIS STEALTH ZONES
+        // 3 oazy: gdy gracz w środku, enemies.detectionRangeModifier = 0.5 (640px → 320px shoot range).
+        // No collision — tank wjeżdża swobodnie. Per-frame check w gameLoop.
+        oases = DESERT_OASIS_LAYOUT.map(o =>
+            new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
+        );
+        
         // TODO FAZA 4d: caravan (mobile pickup drops)
         // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary już zrobione)
         
@@ -475,10 +478,9 @@ app.ticker.add((delta) => {
     const mouseWorldY = mouse.screenY + camera.y;
     
     // v0.18.1 FAZA 4b — Quicksand: per-frame check + slowdown application
-    // Aplikujemy speedModifier PRZED player.update() / enemy.update() — w tym samym ticku quicksand zwalnia.
     let playerInQuicksand = false;
     for (const qs of quicksands) {
-        qs.update();  // swirl particles, bubbles, warning rim pulse
+        qs.update();
         if (qs.isPointInside(player.x, player.y)) {
             playerInQuicksand = true;
         }
@@ -496,11 +498,26 @@ app.ticker.add((delta) => {
         enemy.speedModifier = enemyInQuicksand ? 0.5 : 1.0;
     }
     
-    // v0.17.0 FAZA 3a — River animations (flow streaks, reflexes, ripples, mist)
+    // v0.18.3 FAZA 4c — Oasis stealth: per-frame check.
+    // Modifier liczony RAZ (gracz JEST lub NIE JEST w oazie), aplikowany do WSZYSTKICH enemies
+    // — bo stealth wpływa na całą sytuację, niezależnie od tego gdzie stoi każdy wróg.
+    let playerInOasis = false;
+    for (const oasis of oases) {
+        oasis.update();
+        if (oasis.isPointInside(player.x, player.y)) {
+            playerInOasis = true;
+        }
+    }
+    const detectionMod = playerInOasis ? 0.5 : 1.0;
+    for (const enemy of enemies) {
+        enemy.detectionRangeModifier = detectionMod;
+    }
+    
+    // v0.17.0 FAZA 3a — River animations
     if (river) river.update();
-    // v0.17.1 FAZA 3b — Water life animations (lotusy bob, reeds sway, fish swim, birds fly)
+    // v0.17.1 FAZA 3b — Water life animations
     if (waterLife) waterLife.update();
-    // v0.18.0-fix FAZA 4a — Sandstorm boundary animations (swirling particles, edge ripples)
+    // v0.18.0-fix FAZA 4a — Sandstorm boundary animations
     if (sandstormBorder) sandstormBorder.update();
     
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
@@ -615,7 +632,6 @@ app.ticker.add((delta) => {
         lastShotTime = now;
     }
     
-    // v0.17.0-fix: bullets/enemyBullets używają solidBuildings (BEZ river segments)
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects);

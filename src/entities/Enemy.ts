@@ -36,6 +36,11 @@ export class Enemy {
     // v0.18.1 FAZA 4b — speed modifier (set externally per-frame by main.ts: quicksand = 0.5, normal = 1.0)
     public speedModifier: number = 1.0;
     
+    // v0.18.3 FAZA 4c — detection range modifier (set externally per-frame by main.ts).
+    // 0.5 gdy GRACZ jest w oazie (640px shooting range → 320px), 1.0 normalnie.
+    // Aplikowane do `dist < 640 * this.detectionRangeModifier` w shooting check poniżej.
+    public detectionRangeModifier: number = 1.0;
+    
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
@@ -63,6 +68,7 @@ export class Enemy {
     private megaShieldEndTime: number = 0;
     
     private static readonly MIN_DIST_TO_PLAYER = 60;
+    private static readonly BASE_SHOOTING_RANGE = 640;
     
     constructor(
         x: number, y: number,
@@ -278,7 +284,10 @@ export class Enemy {
         this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : 19);
         
         const now = Date.now();
-        if (now - this.lastShotTime >= this.shootIntervalMs && dist < 640) {
+        // v0.18.3 FAZA 4c — shooting range scaled by detectionRangeModifier
+        // (gdy gracz w oazie: 640 × 0.5 = 320px effective range).
+        const effectiveRange = Enemy.BASE_SHOOTING_RANGE * this.detectionRangeModifier;
+        if (now - this.lastShotTime >= this.shootIntervalMs && dist < effectiveRange) {
             this.lastShotTime = now;
             const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : 40;
             return {

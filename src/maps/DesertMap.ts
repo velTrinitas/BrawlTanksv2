@@ -159,54 +159,37 @@ export const DESERT_SMALL_ROCK_MAX_SIZE = 35;
  *   ✓ Nie kolidują z river hitbox (>140px od river center line)
  *   ✓ Nie kolidują z sandstorm collision (>40px od world boundary)
  *   ✓ Min 110px between rocks (collision-safe spacing)
- * 
- * v0.18.2-fix2 zmiany vs v0.18.2-fix1:
- *   - Usunięto (0.27, 0.92) i (0.23, 0.86) — blokowały bridge 8 SE corner
- *   - Dodano (0.10, 0.86), (0.02, 0.88), (0.07, 0.90) w SW trap pocket
- *   - Przeniesiono NE fillers do safer pozycji + dodano (0.71, 0.05)
  */
 export const DESERT_RIVER_CATARACT_ROCKS = [
     // === NE KATARAKTA (start rzeki) — 8 rocks ===
     // Perimeter (5)
-    { x: WORLD_W * 0.93, y: WORLD_H * 0.05, size: 80, seed: 51 },   // E od river start (blokuje E bypass)
-    { x: WORLD_W * 0.88, y: WORLD_H * 0.02, size: 75, seed: 53 },   // NE od river start
-    { x: WORLD_W * 0.82, y: WORLD_H * 0.02, size: 70, seed: 57 },   // NW od river start
-    { x: WORLD_W * 0.96, y: WORLD_H * 0.12, size: 65, seed: 61 },   // NE corner fill
-    { x: WORLD_W * 0.87, y: WORLD_H * 0.09, size: 90, seed: 63 },   // PROMINENTNA, "skała w wodzie"
-    // Interior fillers (3) — rozproszone w trap pocket, daleko od bridge 1 (~0.763, 0.165)
-    { x: WORLD_W * 0.74, y: WORLD_H * 0.08, size: 60, seed: 91 },   // środkowo-zachodnia
-    { x: WORLD_W * 0.83, y: WORLD_H * 0.07, size: 55, seed: 93 },   // środkowo-wschodnia (przesunięta z 0.78, 0.04)
-    { x: WORLD_W * 0.71, y: WORLD_H * 0.05, size: 45, seed: 95 },   // NW edge filler (NOWA, +density)
+    { x: WORLD_W * 0.93, y: WORLD_H * 0.05, size: 80, seed: 51 },
+    { x: WORLD_W * 0.88, y: WORLD_H * 0.02, size: 75, seed: 53 },
+    { x: WORLD_W * 0.82, y: WORLD_H * 0.02, size: 70, seed: 57 },
+    { x: WORLD_W * 0.96, y: WORLD_H * 0.12, size: 65, seed: 61 },
+    { x: WORLD_W * 0.87, y: WORLD_H * 0.09, size: 90, seed: 63 },
+    // Interior fillers (3)
+    { x: WORLD_W * 0.74, y: WORLD_H * 0.08, size: 60, seed: 91 },
+    { x: WORLD_W * 0.83, y: WORLD_H * 0.07, size: 55, seed: 93 },
+    { x: WORLD_W * 0.71, y: WORLD_H * 0.05, size: 45, seed: 95 },
     
     // === SW KATARAKTA (koniec rzeki) — 8 rocks ===
     // Perimeter (5)
-    { x: WORLD_W * 0.07, y: WORLD_H * 0.95, size: 80, seed: 71 },   // W od river end (blokuje W bypass)
-    { x: WORLD_W * 0.15, y: WORLD_H * 0.98, size: 75, seed: 73 },   // SE od river end
-    { x: WORLD_W * 0.04, y: WORLD_H * 0.98, size: 70, seed: 77 },   // SW corner fill
-    { x: WORLD_W * 0.20, y: WORLD_H * 0.96, size: 65, seed: 81 },   // E edge blocker
-    { x: WORLD_W * 0.13, y: WORLD_H * 0.91, size: 90, seed: 83 },   // PROMINENTNA, "skała w wodzie"
-    // Interior fillers (3) — DALEKO od bridge 8 (~0.234, 0.896), w prawdziwym SW trap pocket
-    { x: WORLD_W * 0.10, y: WORLD_H * 0.86, size: 55, seed: 101 },  // upper trap pocket (NEW, było 0.27,0.92)
-    { x: WORLD_W * 0.02, y: WORLD_H * 0.88, size: 50, seed: 103 },  // far W edge (NEW, było 0.23,0.86)
-    { x: WORLD_W * 0.07, y: WORLD_H * 0.90, size: 45, seed: 105 },  // mid-pocket filler (NOWA, +density)
+    { x: WORLD_W * 0.07, y: WORLD_H * 0.95, size: 80, seed: 71 },
+    { x: WORLD_W * 0.15, y: WORLD_H * 0.98, size: 75, seed: 73 },
+    { x: WORLD_W * 0.04, y: WORLD_H * 0.98, size: 70, seed: 77 },
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.96, size: 65, seed: 81 },
+    { x: WORLD_W * 0.13, y: WORLD_H * 0.91, size: 90, seed: 83 },
+    // Interior fillers (3)
+    { x: WORLD_W * 0.10, y: WORLD_H * 0.86, size: 55, seed: 101 },
+    { x: WORLD_W * 0.02, y: WORLD_H * 0.88, size: 50, seed: 103 },
+    { x: WORLD_W * 0.07, y: WORLD_H * 0.90, size: 45, seed: 105 },
 ];
 
 // =================================================================
 // FAZA 4b — QUICKSAND ZONES (uproszczone do 1 dużej strefy per trap pocket)
 // =================================================================
 
-/**
- * v0.18.2-fix2: TRAP POCKET QUICKSAND — uproszczone z 4 stref (2 duże + 2 małe)
- * do 2 dużych stref (po 1 per pocket). Cleaner visual + dokładne pozycjonowanie.
- * 
- * Zmiany vs v0.18.2-fix1:
- *   - NE big: (0.76, 0.07) → (0.78, 0.04) — WYŻEJ (user request "powinien być wyżej")
- *   - SW big: (0.25, 0.90) → (0.18, 0.84) — NAD rzeką, NIE w rzece (user request)
- *   - Usunięto 2 małe quicksand (były nieczytelne i powodowały konfuzję)
- *   - Powiększone rX 130→150, rY 40→50 dla lepszej widoczności
- * 
- * Total: 5 stref (3 standardowe + 2 trap pocket).
- */
 export const DESERT_QUICKSAND_LAYOUT = [
     // === STANDARDOWE STREFY (strategiczne, risk/reward) ===
     { x: WORLD_W * 0.20, y: WORLD_H * 0.45, rX: 75, rY: 50, seed: 13 },
@@ -214,11 +197,42 @@ export const DESERT_QUICKSAND_LAYOUT = [
     { x: WORLD_W * 0.88, y: WORLD_H * 0.18, rX: 70, rY: 48, seed: 29 },
     
     // === TRAP POCKET DETERRENT (1 duża per pocket, powiększona dla widoczności) ===
-    // NE trap pocket — WYŻEJ (przesunięta z 0.07 → 0.04)
     { x: WORLD_W * 0.78, y: WORLD_H * 0.04, rX: 150, rY: 50, seed: 41 },
-    // SW trap pocket — NAD rzeką (przesunięta z (0.25,0.90) → (0.18,0.84))
-    // River najbliższy punkt: (0.18, 0.92), więc quicksand bottom edge y=0.853, river top y=0.903 → gap 200px ✅
     { x: WORLD_W * 0.08, y: WORLD_H * 0.84, rX: 150, rY: 50, seed: 45 },
+];
+
+// =================================================================
+// v0.18.3 FAZA 4c — OASIS STEALTH ZONES
+// =================================================================
+
+/**
+ * v0.18.3 FAZA 4c: 3 oazy rozsiane na pustyni.
+ * 
+ * Każda oaza redukuje enemy detection range o 50% (640px → 320px)
+ * gdy GRACZ jest w jej zasięgu. Implementacja analogiczna do Quicksand
+ * (visual + isPointInside) ale modyfikuje Enemy.detectionRangeModifier
+ * zamiast Player/Enemy.speedModifier.
+ * 
+ * Math verification (WORLD_W=1600, WORLD_H=1200, rX=95, rY=75):
+ * - O1 (0.12, 0.20) = (192, 240):
+ *     • Power pad (0.25, 0.18): 209px ✓
+ *     • Large rock (0.20, 0.30) size 75: 175px ✓ (need 170)
+ *     • Sandstorm left/top: 97px / 165px clearance ✓
+ * - O2 (0.88, 0.75) = (1408, 900):
+ *     • Large rock (0.78, 0.62) size 100: 224px ✓ (need 195)
+ *     • Pyramid (0.85, 0.42): 399px ✓
+ *     • Sandstorm right/bottom: 97px / 300px clearance ✓
+ * - O3 (0.35, 0.40) = (560, 480):
+ *     • Sphinx (0.50, 0.42): 241px ✓
+ *     • Large rock (0.32, 0.55) size 80: 186px ✓ (need 175)
+ *     • Quicksand (0.20, 0.45) rX=75: 247px ✓
+ *     • Quicksand (0.42, 0.62) rX=85: 287px ✓
+ *     • Large rock (0.20, 0.30) size 75: 268px ✓
+ */
+export const DESERT_OASIS_LAYOUT = [
+    { x: WORLD_W * 0.12, y: WORLD_H * 0.20, rX: 95, rY: 75, seed: 113 },
+    { x: WORLD_W * 0.88, y: WORLD_H * 0.75, rX: 95, rY: 75, seed: 127 },
+    { x: WORLD_W * 0.35, y: WORLD_H * 0.40, rX: 95, rY: 75, seed: 131 },
 ];
 
 // =================================================================

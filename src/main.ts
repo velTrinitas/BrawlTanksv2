@@ -82,9 +82,13 @@ let oases: Oasis[] = [];
 let caravan: Caravan | null = null;
 
 // v0.18.3-fix1 — Oasis stealth state machine (game-level, reset per startGame)
+// v0.18.3-fix1 — Oasis stealth state machine (game-level, reset per startGame)
 let oasisStealthEndTime: number = 0;       // Date.now() po którym stealth wygasa (gdy gracz w oazie)
 let wasInOasisLastFrame: boolean = false;  // do detekcji fresh entry (false→true transition)
 let wasStealthActiveLastFrame: boolean = false;  // do detekcji końca stealth (notif "zauważony")
+
+// v0.18.5 FAZA 5a — Sand kick frame counter (tylko desert, tylko gdy player.isMoving)
+let sandKickFrameCounter: number = 0;
 
 let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
@@ -263,10 +267,12 @@ function startGame(): void {
     oases = [];
     caravan = null;
     
-    // v0.18.3-fix1 — reset stealth state machine na każdy nowy game
+// v0.18.3-fix1 — reset stealth state machine na każdy nowy game
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
     wasStealthActiveLastFrame = false;
+    // v0.18.5 — reset sand kick counter
+    sandKickFrameCounter = 0;
     
     if (selectedMapId === 'city') {
         const cityTex = buildCityTexture();
@@ -560,9 +566,23 @@ app.ticker.add((delta) => {
         }
     }
     
-    buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
+buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
+    
+    // v0.18.5 FAZA 5a — Sand kick particles (tylko desert, tylko podczas jazdy)
+    // Spawn co 3 frame'y (normal) lub co 2 (turbo) żeby było widać sznurek piasku.
+    if (selectedMapId === 'desert' && player.isMoving) {
+        sandKickFrameCounter++;
+        const interval = player.hasSpeedBoost ? 2 : 3;
+        if (sandKickFrameCounter >= interval) {
+            sandKickFrameCounter = 0;
+            const intensity = player.hasSpeedBoost ? 1.6 : 1.0;
+            effects.spawnSandKick(player.x, player.y, player.hull.rotation, intensity);
+        }
+    } else {
+        sandKickFrameCounter = 0;
+    }
     
     const time = Date.now() / 1000;
     for (const pad of mediPads) {

@@ -12,6 +12,7 @@ import * as PIXI from 'pixi.js';
  * Pool size: ~500 particles, ~100 track marks aktywnych jednocześnie.
  * 
  * v0.5 Etap 1: dodane spawnMegaBomb + spawnFreezeOverlay dla super powers.
+ * v0.18.5 FAZA 5a: dodane spawnSandKick dla pustyni (cząstki piasku za gąsienicami).
  */
 
 interface Particle {
@@ -87,6 +88,9 @@ function getWreckTexture(): PIXI.Texture {
     return _wreckTexture;
 }
 
+// v0.18.5 FAZA 5a — Sand particle color palette (piaskowe odcienie z desert texture)
+const SAND_KICK_COLORS = [0xd4ab6e, 0xc8a870, 0xb88858, 0xe5b878, 0xa87848, 0xeecf90];
+
 export class EffectsManager {
     // Containers
     public particleContainer: PIXI.ParticleContainer;
@@ -108,7 +112,7 @@ export class EffectsManager {
     public shakeOffsetY: number = 0;
     
     constructor(worldContainer: PIXI.Container) {
-        this.worldContainer = worldContainer; // v0.5 Etap 1: zapisz dla mega bomb / freeze
+        this.worldContainer = worldContainer;
         
         this.particleContainer = new PIXI.ParticleContainer(1000, {
             scale: true,
@@ -319,12 +323,7 @@ export class EffectsManager {
     // v0.5 Etap 1 — NOWE METODY (Super Powers)
     // ==========================================
     
-    /**
-     * Mega Bomb effect — expanding ring + flash + 40 particles + big screen shake.
-     * Wykorzystuje istniejący pool particles (spawnParticles) + PIXI.Graphics dla ringa.
-     */
     spawnMegaBomb(x: number, y: number): void {
-        // 1) Flash central — wykorzystaj pool particle (efektywne)
         const flash = this.getParticle();
         flash.sprite.x = x;
         flash.sprite.y = y;
@@ -337,14 +336,12 @@ export class EffectsManager {
         flash.decay = 0.06;
         flash.scaleDecay = 0.45;
         
-        // 2) Expanding ring (Graphics nad worldContainer, animowany przez requestAnimationFrame)
         const ring = new PIXI.Graphics();
         ring.x = x;
         ring.y = y;
         ring.zIndex = 499;
         this.worldContainer.addChild(ring);
         
-        // 3) 40 cząsteczek burstu (pomarańczowe + żółte) — pełen okrąg
         this.spawnParticles(x, y, 0xff4400, 20, {
             speed: 7, size: 4, decay: 0.05,
             scaleDecay: 0.02,
@@ -354,10 +351,8 @@ export class EffectsManager {
             scaleDecay: 0.03,
         });
         
-        // 4) Big screen shake
         this.shake(15, 25);
         
-        // 5) Animacja expanding ring (30 frames = 0.5s)
         let frame = 0;
         const animate = () => {
             frame++;
@@ -381,14 +376,9 @@ export class EffectsManager {
         animate();
     }
     
-    /**
-     * Freeze overlay — globalny niebieski filtr screen-wide podczas Mroźnej Mocy.
-     * @param durationFrames czas trwania w klatkach (60fps = 1s)
-     */
     spawnFreezeOverlay(durationFrames: number): void {
         const overlay = new PIXI.Graphics();
         overlay.beginFill(0x66ddff, 0.18);
-        // Pokrywa cały świat z dużym marginesem (bezpieczne dla każdej kamery)
         overlay.drawRect(-2000, -2000, 5000, 5000);
         overlay.endFill();
         overlay.zIndex = 9999;
@@ -402,7 +392,6 @@ export class EffectsManager {
                 overlay.destroy();
                 return;
             }
-            // Pulsacja + fade out w ostatnich 30% czasu
             const t = frame / durationFrames;
             const pulse = 0.85 + Math.sin(frame / 10) * 0.15;
             const fadeOut = t > 0.7 ? 1 - ((t - 0.7) / 0.3) : 1;
@@ -410,6 +399,78 @@ export class EffectsManager {
             requestAnimationFrame(animate);
         };
         animate();
+    }
+    
+    // ==========================================
+    // v0.18.5 FAZA 5a — SAND KICK PARTICLES (DESERT MAP)
+    // ==========================================
+    
+    /**
+     * Cząstki piasku rozlatujące się za gąsienicami czołgu podczas jazdy po pustyni.
+     * 
+     * @param x — Player.x (center czołgu)
+     * @param y — Player.y
+     * @param tankAngle — Player.hull.rotation (kierunek jazdy, +X = right)
+     * @param intensity — multiplier (1.0 normal, 1.6 turbo boost) — wpływa na count + speed
+     * 
+     * Implementacja:
+     * - 2 spawn point'y za tankiem (lewa + prawa gąsienica), offset 28px wstecz + ±10px sideways
+     * - 2-3 cząstki per gąsienica (× intensity) = 4-6 (normal) lub 6-10 (turbo) total
+     * - Velocity outward "do tyłu" względem kierunku jazdy + lekki spread sideways
+     * - Random tint z piaskowej palety (6 odcieni)
+     * - Drag system (vx*=0.92 per frame) → naturalne wytracanie pędu
+     * - decay 0.04 → ~25 frame lifetime
+     * - scaleDecay 0.04 → cząstki kurczą się wraz z fade
+     */
+    spawnSandKick(x: number, y: number, tankAngle: number, intensity: number = 1.0): void {
+        // Kierunek "do tyłu" (przeciwnie do kierunku jazdy)
+        const rearDirX = -Math.cos(tankAngle);
+        const rearDirY = -Math.sin(tankAngle);
+        // Prostopadle do kierunku (dla left/right track separation)
+        const perpX = -Math.sin(tankAngle);
+        const perpY = Math.cos(tankAngle);
+        
+        const REAR_OFFSET = 28;      // ile px za centrum tankiem
+        const TRACK_SEPARATION = 10; // ile px sideways między lewym a prawym track
+        
+        // Velocity points "do tyłu" względem ruchu (~PI radians od tankAngle)
+        const baseRearAngle = tankAngle + Math.PI;
+        
+        // Per-track spawn: 2 cząstki normal, 3 cząstki w turbo (per track)
+        const particlesPerTrack = intensity > 1.2 ? 3 : 2;
+        
+        for (const trackSide of [-1, 1]) {
+            const spawnX = x + rearDirX * REAR_OFFSET + perpX * trackSide * TRACK_SEPARATION;
+            const spawnY = y + rearDirY * REAR_OFFSET + perpY * trackSide * TRACK_SEPARATION;
+            
+            for (let i = 0; i < particlesPerTrack; i++) {
+                const p = this.getParticle();
+                
+                // Random color z palette
+                const color = SAND_KICK_COLORS[Math.floor(Math.random() * SAND_KICK_COLORS.length)];
+                
+                // Velocity: kierunek "do tyłu" + spread ±0.5 rad (~30°)
+                // + side bias: cząstki z lewego tracku lecą lekko bardziej w lewo, prawego — w prawo
+                const sideBias = trackSide * 0.3;
+                const angle = baseRearAngle + (Math.random() - 0.5) * 1.0 + sideBias;
+                const speed = (2.0 + Math.random() * 2.0) * intensity;
+                
+                // Random initial position jitter (±3px wokół spawn point — symuluje "kop" całej gąsienicy nie pojedynczego punktu)
+                const jitterX = (Math.random() - 0.5) * 6;
+                const jitterY = (Math.random() - 0.5) * 6;
+                
+                p.sprite.x = spawnX + jitterX;
+                p.sprite.y = spawnY + jitterY;
+                p.sprite.tint = color;
+                p.sprite.scale.set(1.5 + Math.random() * 1.0);  // 1.5-2.5
+                p.sprite.alpha = 0.85 + Math.random() * 0.15;
+                p.vx = Math.cos(angle) * speed;
+                p.vy = Math.sin(angle) * speed;
+                p.life = 1.0;
+                p.decay = 0.04;       // ~25 frames lifetime
+                p.scaleDecay = 0.04;  // kurczy się
+            }
+        }
     }
     
     // ==========================================

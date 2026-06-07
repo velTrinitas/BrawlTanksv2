@@ -3,10 +3,13 @@ import { WORLD_W, WORLD_H } from '../config/constants';
 
 /**
  * Statyczna tekstura pustyni — bake'owana raz z Canvas 2D.
- * Zawiera: base sand + 7000 mikrotekstur (2 warstwy: chłodne beżowe + cieplejsze brązy) + 12 formacji wydm.
+ * Zawiera: base sand + 7000 mikrotekstur (2 warstwy: chłodne beżowe + cieplejsze brązy).
+ * 
+ * v0.18.1-fix2: wydmy USUNIĘTE (user feedback — wyglądały jak "dziwne eliptyczne bryły").
+ * Pustynia teraz jest jednolitym piaskiem z naturalną fakturą mikrotekstur.
+ * Wizualne urozmaicenie zapewniają: piramidy, sphinx, skały, rzeka, lotusy, papirus, ptaki.
  * 
  * WYDAJNOŚĆ: 1 PIXI.Texture → 1 PIXI.Sprite → 1 draw call dla całego tła.
- * Kopia z v4.48 _buildDesertOffscreen() + wzbogacone wydmy (gradient + windripples + sun highlight).
  */
 export function buildDesertTexture(): PIXI.Texture {
     const cv = document.createElement('canvas');
@@ -57,66 +60,12 @@ export function buildDesertTexture(): PIXI.Texture {
         c.restore();
     }
     
-    // 4. Wydmy — 12 formacji radialnie wokół centrum mapy
-    const cx = WORLD_W / 2;
-    const cy = WORLD_H / 2;
-    for (let i = 0; i < 12; i++) {
-        const a = i * (Math.PI * 2 / 12) + (Math.random() - 0.5) * 0.5;
-        const r = 400 + Math.random() * 600;
-        const dx = cx + Math.cos(a) * r;
-        const dy = cy + Math.sin(a) * r;
-        const w = 180 + Math.random() * 200;
-        const h = 28 + Math.random() * 40;
-        const col1 = sandCols1[Math.floor(Math.random() * sandCols1.length)];
-        drawDune(c, dx, dy, w, h, col1);
-    }
-    
     return PIXI.Texture.from(cv);
 }
 
-/**
- * Pojedyncza wydma — eliptyczny kształt z gradientem cieniowania (sun from upper-left).
- * Wzbogacona vs v4.48: dodany sun highlight + wind ripples na grzbiecie.
- */
-function drawDune(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col1: string): void {
-    c.save();
-    c.translate(x, y);
-    
-    // Cień pod wydmą
-    c.fillStyle = 'rgba(80, 50, 20, 0.18)';
-    c.beginPath();
-    c.ellipse(4, h * 0.5, w * 0.55, h * 0.35, 0, 0, Math.PI * 2);
-    c.fill();
-    
-    // Bryła wydmy — eliptyczny gradient
-    const grad = c.createLinearGradient(0, -h / 2, 0, h / 2);
-    grad.addColorStop(0, col1);
-    grad.addColorStop(0.55, '#c49040');
-    grad.addColorStop(1, '#9a7030');
-    c.fillStyle = grad;
-    c.beginPath();
-    c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
-    c.fill();
-    
-    // Highlight na grzbiecie (sun glow)
-    c.fillStyle = 'rgba(255, 240, 200, 0.32)';
-    c.beginPath();
-    c.ellipse(-w * 0.1, -h * 0.2, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
-    c.fill();
-    
-    // Subtle wind ripples na grzbiecie
-    c.strokeStyle = 'rgba(140, 100, 50, 0.22)';
-    c.lineWidth = 1.2;
-    for (let r = -2; r <= 2; r++) {
-        const ry = r * h * 0.15;
-        c.beginPath();
-        c.moveTo(-w / 2 + 8, ry);
-        c.quadraticCurveTo(0, ry - 2, w / 2 - 8, ry);
-        c.stroke();
-    }
-    
-    c.restore();
-}
+// =================================================================
+// FAZA 2a — PIRAMIDY
+// =================================================================
 
 /**
  * Layout piramid na pustyni — 3 piramidy w 3 rogach mapy (różne rozmiary).
@@ -135,6 +84,14 @@ export const DESERT_PYRAMID_LAYOUT: PyramidLayoutEntry[] = [
     { x: WORLD_W * 0.85, y: WORLD_H * 0.42, size: 210, seed: 3 },  // mała, wschód
 ];
 
+// =================================================================
+// FAZA 2b — SPHINX
+// =================================================================
+
+/**
+ * Pozycja Sphinxa — centrum mapy (między piramidami).
+ * sizeX = długość ciała, sizeY = wysokość (head + body).
+ */
 export const DESERT_SPHINX_POSITION = {
     x: WORLD_W * 0.50,
     y: WORLD_H * 0.42,
@@ -143,60 +100,60 @@ export const DESERT_SPHINX_POSITION = {
     seed: 7,
 };
 
-/**
- * Pozycje MediPadów (HoverRepairPad) na pustyni — odpowiedniki repair hangars z v4.48.
- * 3 strefy w różnych ćwiartkach mapy (przesunięte żeby nie kolidować z piramidami).
- */
-export const DESERT_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
-    { x: WORLD_W * 0.18, y: WORLD_H * 0.50 },
-    { x: WORLD_W * 0.82, y: WORLD_H * 0.28 },
-    { x: WORLD_W * 0.52, y: WORLD_H * 0.30 },
-];
+// =================================================================
+// FAZA 3a — RZEKA NIL + MOSTY
+// =================================================================
 
 /**
- * Pozycje PowerPadów (PowerHoverPad) na pustyni — odpowiednik power well z v4.48.
- * 2 strefy (dla równowagi vs CityMap).
+ * Polyline path rzeki Nil — diagonalna trasa NE→SW z 2 meandrami.
+ * 16 punktów dla smooth meandering bez wymuszania bezier curves.
+ * Sprawdzone matematycznie — omija piramidy, sphinx, i large rocks (>200px clearance).
  */
-export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
-    { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },   // power well z v4.48
-    { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },   // bonus dla balansu
-];
-// === NIL ROUTE ===
-// Diagonalna trasa z 2 meandrami (kolanami), omija wszystkie obiekty (sphinx + 3 piramidy).
-// Start NE → Meander #1 → Mid → Meander #2 → End SW.
-// 16-punktowy polyline path — gładkie meandry bez bezier curves.
-// Bridges land precyzyjnie na ścieżce (visual = collision path).
-export const DESERT_RIVER_PATH = [
-    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },   //  1. Start NE
-    { x: WORLD_W * 0.79, y: WORLD_H * 0.13 },   //  2.
-    { x: WORLD_W * 0.72, y: WORLD_H * 0.22 },   //  3.
-    { x: WORLD_W * 0.66, y: WORLD_H * 0.28 },   //  4. Just before Meander #1
-    { x: WORLD_W * 0.65, y: WORLD_H * 0.33 },   //  5. Past Meander #1
-    { x: WORLD_W * 0.66, y: WORLD_H * 0.40 },   //  6.
-    { x: WORLD_W * 0.69, y: WORLD_H * 0.46 },   //  7. Approach mid
-    { x: WORLD_W * 0.70, y: WORLD_H * 0.52 },   //  8. Past mid
-    { x: WORLD_W * 0.66, y: WORLD_H * 0.59 },   //  9.
-    { x: WORLD_W * 0.58, y: WORLD_H * 0.66 },   // 10. Approach Meander #2
-    { x: WORLD_W * 0.50, y: WORLD_H * 0.72 },   // 11. Just before Meander #2
-    { x: WORLD_W * 0.45, y: WORLD_H * 0.77 },   // 12. Past Meander #2
-    { x: WORLD_W * 0.37, y: WORLD_H * 0.83 },   // 13.
-    { x: WORLD_W * 0.27, y: WORLD_H * 0.88 },   // 14.
-    { x: WORLD_W * 0.18, y: WORLD_H * 0.92 },   // 15.
-    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },   // 16. End SW
+export interface RiverPathPoint {
+    x: number;
+    y: number;
+}
+
+export const DESERT_RIVER_PATH: RiverPathPoint[] = [
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.05 },  // start NE corner
+    { x: WORLD_W * 0.79, y: WORLD_H * 0.13 },
+    { x: WORLD_W * 0.72, y: WORLD_H * 0.22 },
+    { x: WORLD_W * 0.66, y: WORLD_H * 0.28 },
+    { x: WORLD_W * 0.65, y: WORLD_H * 0.33 },  // meander 1 (przebieg E)
+    { x: WORLD_W * 0.66, y: WORLD_H * 0.40 },
+    { x: WORLD_W * 0.69, y: WORLD_H * 0.46 },
+    { x: WORLD_W * 0.70, y: WORLD_H * 0.52 },  // meander 1 apex
+    { x: WORLD_W * 0.66, y: WORLD_H * 0.59 },
+    { x: WORLD_W * 0.58, y: WORLD_H * 0.66 },
+    { x: WORLD_W * 0.50, y: WORLD_H * 0.72 },  // meander 2 apex
+    { x: WORLD_W * 0.45, y: WORLD_H * 0.77 },
+    { x: WORLD_W * 0.37, y: WORLD_H * 0.83 },
+    { x: WORLD_W * 0.27, y: WORLD_H * 0.88 },
+    { x: WORLD_W * 0.18, y: WORLD_H * 0.92 },
+    { x: WORLD_W * 0.10, y: WORLD_H * 0.95 },  // end SW corner
 ];
 
+/** Szerokość rzeki (visible water body, hitbox = width + 60 internally). */
 export const DESERT_RIVER_WIDTH = 80;
 
-// Mosty — gracz może przejechać. Position blisko meandrów dla strategic crossings.
-// 8 mostów równomiernie wzdłuż rzeki (pozycje + rotacje obliczane runtime z river.getBridgeLayout()).
-// deckWidth = 1.25 × tank size (~100 px) → 125 px walking strip.
-// deckLength musi przykryć water (80) + sand transition (60) + margines → 180 px.
+/** Liczba mostów rozsianych wzdłuż rzeki (evenly spaced przez RiverNile.computeBridgeLayout). */
 export const DESERT_BRIDGE_COUNT = 8;
-export const DESERT_BRIDGE_DECK_LENGTH = 180;   // X axis: across the river
-export const DESERT_BRIDGE_DECK_WIDTH = 125;    // Y axis: walking strip (1.25× tank)
-// === LARGE ROCKS (collidable cover) ===
-// 7 manual fixed positions — strategicznie rozmieszczone jako cover dla gracza.
-// Sprawdzone matematycznie — nie kolidują z piramidami (>300px), sphinx, river path.
+
+/** Bridge długość (across river) — dłuższy wymiar, prostopadły do flow. */
+export const DESERT_BRIDGE_DECK_LENGTH = 180;
+
+/** Bridge szerokość (along flow) — 1.25× tank width, walking strip. */
+export const DESERT_BRIDGE_DECK_WIDTH = 125;
+
+// =================================================================
+// FAZA 4a — SKAŁY (Large + Small)
+// =================================================================
+
+/**
+ * Layout dużych skał (collidable cover) — 7 manual fixed positions.
+ * Strategicznie rozmieszczone jako cover dla gracza.
+ * Sprawdzone matematycznie — nie kolidują z piramidami (>300px), sphinx, river path.
+ */
 export const DESERT_LARGE_ROCKS_LAYOUT = [
     { x: WORLD_W * 0.05, y: WORLD_H * 0.40, size: 90, seed: 11 },   // W brzeg, między pyramid #1 i N
     { x: WORLD_W * 0.20, y: WORLD_H * 0.30, size: 75, seed: 17 },   // N od pyramid #1
@@ -207,7 +164,55 @@ export const DESERT_LARGE_ROCKS_LAYOUT = [
     { x: WORLD_W * 0.05, y: WORLD_H * 0.62, size: 85, seed: 47 },   // W brzeg, dalej niż pyramid #1
 ];
 
-// Small rocks — generowane runtime procedural w main.ts (35 sztuk z constraints).
+/** Liczba małych skał (procedural, no collision, dekoracja). */
 export const DESERT_SMALL_ROCKS_COUNT = 35;
+
+/** Małe skały — min size. */
 export const DESERT_SMALL_ROCK_MIN_SIZE = 15;
+
+/** Małe skały — max size. */
 export const DESERT_SMALL_ROCK_MAX_SIZE = 35;
+
+// =================================================================
+// FAZA 4b — QUICKSAND ZONES
+// =================================================================
+
+/**
+ * Layout stref ruchomych piasków — 3 owalne strefy z slowdown 50%.
+ * Format: { x, y, rX (radius X), rY (radius Y), seed }.
+ * NO collision — gracz/wrog wjeżdża i zwalnia (Player/Enemy.speedModifier).
+ * 
+ * v0.18.1-fix1: pozycje zweryfikowane vs WSZYSTKIE inne obiekty (rzeka, piramidy, sphinx, large rocks).
+ * Math check (min distance from each obstacle):
+ *   - Strefa 1 (0.20, 0.45): >250px od pyramid #1, >300px od sphinx, >400px od rzeki ✅
+ *   - Strefa 2 (0.42, 0.62): >280px od sphinx, >250px od pyramid #2, >350px od rzeki ✅
+ *   - Strefa 3 (0.88, 0.18): >300px od pyramid #3, >450px od rzeki (NE corner sucha) ✅
+ */
+export const DESERT_QUICKSAND_LAYOUT = [
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.45, rX: 75, rY: 50, seed: 13 },   // W od sphinx, między pyramid #1 i large rock W
+    { x: WORLD_W * 0.42, y: WORLD_H * 0.62, rX: 85, rY: 60, seed: 19 },   // S od sphinx (bezpieczna strefa centralna)
+    { x: WORLD_W * 0.88, y: WORLD_H * 0.18, rX: 70, rY: 48, seed: 29 },   // NE corner (sucha pustynia, daleko od river start)
+];
+
+// =================================================================
+// PADS (MediPad + PowerPad) — desert variants visual w src/maps/desert/
+// =================================================================
+
+/**
+ * Pozycje MediPadów (DesertHeartPad) na pustyni — odpowiedniki repair hangars z v4.48.
+ * 3 strefy w różnych ćwiartkach mapy (przesunięte żeby nie kolidować z piramidami/quicksand).
+ */
+export const DESERT_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
+    { x: WORLD_W * 0.18, y: WORLD_H * 0.50 },
+    { x: WORLD_W * 0.82, y: WORLD_H * 0.28 },
+    { x: WORLD_W * 0.52, y: WORLD_H * 0.30 },
+];
+
+/**
+ * Pozycje PowerPadów (DesertStormPad) na pustyni — odpowiednik power well z v4.48.
+ * 2 strefy (dla równowagi vs CityMap).
+ */
+export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
+    { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },   // power well z v4.48
+    { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },   // bonus dla balansu
+];

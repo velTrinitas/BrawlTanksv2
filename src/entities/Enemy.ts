@@ -32,6 +32,10 @@ export class Enemy {
     public isMegaBoss: boolean;
     public scoreValue: number;
     public collisionDmg: number;
+    
+    // v0.18.1 FAZA 4b — speed modifier (set externally per-frame by main.ts: quicksand = 0.5, normal = 1.0)
+    public speedModifier: number = 1.0;
+    
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
@@ -191,6 +195,9 @@ export class Enemy {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const angleToTarget = Math.atan2(dy, dx);
         
+        // v0.18.1 FAZA 4b — effective speed z quicksand modifier (1.0 normal, 0.5 w strefie)
+        const effectiveSpeed = this.speed * this.speedModifier;
+        
         if (this.isMegaBoss) {
             const hpPct = this.hp / this.maxHp;
             if (hpPct > 0.6) this.megaPhase = 'rush';
@@ -213,8 +220,8 @@ export class Enemy {
                 this.burstCount = 1;
                 this.burstSpread = 0;
                 if (dist > Enemy.MIN_DIST_TO_PLAYER) {
-                    moveX = (dx / dist) * this.speed;
-                    moveY = (dy / dist) * this.speed;
+                    moveX = (dx / dist) * effectiveSpeed;
+                    moveY = (dy / dist) * effectiveSpeed;
                 }
             } else if (this.megaPhase === 'strafe') {
                 this.burstCount = 1;
@@ -225,18 +232,18 @@ export class Enemy {
                 
                 if (Math.abs(dist - idealDist) > 30) {
                     const radialDir = dist > idealDist ? 1 : -1;
-                    moveX = (dx / dist) * this.speed * radialDir * 0.7;
-                    moveY = (dy / dist) * this.speed * radialDir * 0.7;
+                    moveX = (dx / dist) * effectiveSpeed * radialDir * 0.7;
+                    moveY = (dy / dist) * effectiveSpeed * radialDir * 0.7;
                 } else {
-                    moveX = -(dy / dist) * this.speed * this.megaStrafeDir;
-                    moveY = (dx / dist) * this.speed * this.megaStrafeDir;
+                    moveX = -(dy / dist) * effectiveSpeed * this.megaStrafeDir;
+                    moveY = (dx / dist) * effectiveSpeed * this.megaStrafeDir;
                 }
             } else {
                 this.burstCount = 3;
                 this.burstSpread = 0.40;
                 if (dist < 500) {
-                    moveX = -(dx / dist) * this.speed * 1.3;
-                    moveY = -(dy / dist) * this.speed * 1.3;
+                    moveX = -(dx / dist) * effectiveSpeed * 1.3;
+                    moveY = -(dy / dist) * effectiveSpeed * 1.3;
                 }
             }
             
@@ -251,8 +258,8 @@ export class Enemy {
             if (canMoveY) this.y = ny;
         } else {
             if (dist > Enemy.MIN_DIST_TO_PLAYER) {
-                const nx = this.x + (dx / dist) * this.speed * delta;
-                const ny = this.y + (dy / dist) * this.speed * delta;
+                const nx = this.x + (dx / dist) * effectiveSpeed * delta;
+                const ny = this.y + (dy / dist) * effectiveSpeed * delta;
                 
                 let canMoveX = true, canMoveY = true;
                 for (const b of buildings) {

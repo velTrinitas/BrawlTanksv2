@@ -32,6 +32,11 @@ export class Player {
     
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
+    
+    // v0.18.1 FAZA 4b — speed modifier (set externally per-frame by main.ts: quicksand = 0.5, normal = 1.0)
+    // Aplikowane w currentSpeed getter → propaguje też na tracksGfx (track animation zwalnia w quicksand)
+    public speedModifier: number = 1.0;
+    
     public superCharges: number = 0;
     public superActive: boolean = false;
     public superEndTime: number = 0;
@@ -156,7 +161,8 @@ export class Player {
     
     get currentSpeed(): number {
         if (Date.now() > this.speedBoostEnd) this.speedBoostMult = 1;
-        return this.baseSpeed * this.speedBoostMult;
+        // v0.18.1: speedModifier applied here → propaguje też na tracksGfx animation
+        return this.baseSpeed * this.speedBoostMult * this.speedModifier;
     }
     
     get hasSpeedBoost(): boolean {

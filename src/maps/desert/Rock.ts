@@ -69,7 +69,9 @@ export class Rock implements ICollidable {
         this.container.x = x;
         this.container.y = y;
         // Large rock: above small rocks/tracks; Small rock: low priority
-        this.container.zIndex = y + (tier === 'large' ? 8 : 3);
+        // v0.18.0-fix: small rocks zawsze pod player (zIndex 4 stałe, niezależne od y).
+        // Large rocks Y-based dla naturalnego sortowania względem player/wrogów.
+        this.container.zIndex = tier === 'large' ? y + 8 : 4;
         worldContainer.addChild(this.container);
         
         this.draw();

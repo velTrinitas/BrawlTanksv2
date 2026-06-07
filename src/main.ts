@@ -24,6 +24,7 @@ import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
 import { WaterLife } from './maps/desert/WaterLife';
 import { Rock } from './maps/desert/Rock';
+import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -66,7 +67,9 @@ let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
 // v0.18.0 FAZA 4a — small rocks (visual decoration, no collision)
 let smallRocks: Rock[] = [];
-// v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments/Rocks z desert)
+// v0.18.0-fix — sandstorm map boundary (visual + collision)
+let sandstormBorder: SandstormBorder | null = null;
+// v0.14.0 FAZA 2a — ICollidable[] (CyberBuilding z city + Pyramid/Sphinx/RiverSegments/Rocks/SandstormBorder z desert)
 let buildings: ICollidable[] = [];
 // v0.17.0-fix: solidBuildings = `buildings` BEZ river segments
 // Używane TYLKO przez bullets/enemyBullets — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty.
@@ -243,6 +246,7 @@ function startGame(): void {
     bridges = [];
     waterLife = null;
     smallRocks = [];
+    sandstormBorder = null;
     
     // v0.13.0 — map-specific initialization (city vs desert)
     if (selectedMapId === 'city') {
@@ -361,10 +365,17 @@ function startGame(): void {
             smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
         }
         
+        // FAZA 4a (boundary) ✅ — Burza piaskowa jako map boundary (visual + collision)
+        // 4 collision walls (top/bottom/left/right) dodawane do BOTH buildings i solidBuildings
+        // — gracz, wrogi i pociski wszystkie respektują boundary.
+        sandstormBorder = new SandstormBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...sandstormBorder.getCollisionRects());
+        solidBuildings.push(...sandstormBorder.getCollisionRects());
+        
         // TODO FAZA 4b: quicksand (slowdown zones — wymaga zmiany w Player.update)
         // TODO FAZA 4c: oasis stealth (enemy detection range -50%)
         // TODO FAZA 4d: caravan (mobile pickup drops)
-        // TODO FAZA 5: sandstorm + mirage + pharaoh-ghost + sand kick
+        // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary już zrobione)
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -455,6 +466,8 @@ app.ticker.add((delta) => {
     if (river) river.update();
     // v0.17.1 FAZA 3b — Water life animations (lotusy bob, reeds sway, fish swim, birds fly)
     if (waterLife) waterLife.update();
+    // v0.18.0-fix FAZA 4a — Sandstorm boundary animations (swirling particles, edge ripples)
+    if (sandstormBorder) sandstormBorder.update();
     
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
@@ -569,7 +582,7 @@ app.ticker.add((delta) => {
     }
     
     // v0.17.0-fix: bullets/enemyBullets używają solidBuildings (BEZ river segments)
-    // — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty (pyramids, sphinx, large rocks, city buildings).
+    // — pociski przelatują nad rzeką, ale są blokowane przez stałe obiekty (pyramids, sphinx, large rocks, sandstorm border, city buildings).
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects);

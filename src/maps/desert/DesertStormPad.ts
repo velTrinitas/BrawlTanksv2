@@ -2,30 +2,34 @@ import * as PIXI from 'pixi.js';
 
 /**
  * DesertStormPad — desert wariant PowerHoverPad ("Ołtarz Burzy").
- * Visual: czarny bazalt + złota zygzakowata błyskawica + niebieskie elektryczne wyładowania.
- * Mechanika: IDENTYCZNA z PowerHoverPad (city) — TYLKO wygląd różni się.
  * 
- * Game balance: 5s turbo / 45s CD / range 50 / mult 2.0 — match city pads.
- * Jeśli zmienisz wartości w city PowerHoverPad, ZMIEŃ TEŻ TUTAJ żeby balans był spójny.
+ * v0.18.6 FIX 2:
+ *  - Tło UJEDNOLICONE z DesertHeartPad: wapno-piaskowiec roundedRect 
+ *    zamiast czarnego bazaltu / ośmiokąta
+ *  - Usunięte: niebieskie elektryczne arcs (wyładowania), neonowe pomarańczowe krawędzie
+ *  - Lightning bolt PULSUJE (scale 1.0 → 1.15) gdy aktywny — animowane "życie" symbolu
+ *  - Piaszczysta podsypka (jak HeartPad) zamiast czarnego "przypalonego" piasku
  */
 
 const PAD_SIZE = 100;
-const ACTIVATE_RANGE = 50;          // MATCH city PowerHoverPad
-const TURBO_DURATION_MS = 5000;     // MATCH city PowerHoverPad
-const COOLDOWN_MS = 20000;          // MATCH city PowerHoverPad
-const TURBO_MULT = 2.0;             // MATCH city PowerHoverPad
+const ACTIVATE_RANGE = 50;
+const TURBO_DURATION_MS = 5000;
+const COOLDOWN_MS = 20000;
+const TURBO_MULT = 2.0;
 
 let _stormGlowTexture: PIXI.Texture | null = null;
 function getStormGlowTexture(): PIXI.Texture {
     if (_stormGlowTexture) return _stormGlowTexture;
-    const size = 240;
+    // v0.18.6 FIX 2: powiększony 240 → 260px + wzmocniony alpha (match HeartPad strength)
+    const size = 260;
     const cv = document.createElement('canvas');
     cv.width = size; cv.height = size;
     const ctx = cv.getContext('2d')!;
-    const grad = ctx.createRadialGradient(size/2, size/2, 10, size/2, size/2, size/2);
-    grad.addColorStop(0, 'rgba(255,200,0,0.5)');
-    grad.addColorStop(0.5, 'rgba(255,150,0,0.2)');
-    grad.addColorStop(1, 'rgba(255,100,0,0)');
+    const grad = ctx.createRadialGradient(size/2, size/2, 8, size/2, size/2, size/2);
+    grad.addColorStop(0, 'rgba(255,210,0,0.7)');       // jasny złoto-żółty core
+    grad.addColorStop(0.35, 'rgba(255,170,0,0.42)');   // mid yellow-orange
+    grad.addColorStop(0.7, 'rgba(180,110,0,0.18)');    // dark fade
+    grad.addColorStop(1, 'rgba(120,70,0,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
     _stormGlowTexture = PIXI.Texture.from(cv);
@@ -49,7 +53,8 @@ export class DesertStormPad {
     private platformBase: PIXI.Container;
     private wallGfx: PIXI.Graphics;
     private surfaceGfx: PIXI.Graphics;
-    private arcsGfx: PIXI.Graphics;
+    /** v0.18.6 FIX 2: lightning bolt jako osobny gfx żeby móc go skalować (pulsowanie) */
+    private boltGfx: PIXI.Graphics;
     private cooldownLabel: PIXI.Text;
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
@@ -62,10 +67,10 @@ export class DesertStormPad {
         this.container.zIndex = y + 5;
         worldContainer.addChild(this.container);
         
-        // Poczerniały piasek pod ołtarzem (przypalony)
+        // v0.18.6 FIX 2 — piaszczysta podsypka (match HeartPad, zamiast czarnego przypalonego)
         this.floorShadow = new PIXI.Graphics();
-        this.floorShadow.beginFill(0x1a0d00, 0.7);
-        this.floorShadow.drawCircle(PAD_SIZE / 2, PAD_SIZE / 2, PAD_SIZE * 0.55);
+        this.floorShadow.beginFill(0x8a6a42, 0.4);
+        this.floorShadow.drawRoundedRect(-5, -5, PAD_SIZE + 10, PAD_SIZE + 10, 8);
         this.floorShadow.endFill();
         this.container.addChild(this.floorShadow);
         
@@ -85,14 +90,18 @@ export class DesertStormPad {
         this.surfaceGfx = new PIXI.Graphics();
         this.platformBase.addChild(this.surfaceGfx);
         
-        this.arcsGfx = new PIXI.Graphics();
-        this.platformBase.addChild(this.arcsGfx);
+        // v0.18.6 FIX 2: bolt rysowany w lokalnym układzie (0,0) z pivotem w środku
+        // — pozycjonowany przez container x/y, skalowany dla pulsowania.
+        this.boltGfx = new PIXI.Graphics();
+        this.boltGfx.x = PAD_SIZE / 2;
+        this.boltGfx.y = PAD_SIZE / 2;
+        this.platformBase.addChild(this.boltGfx);
         
         this.cooldownLabel = new PIXI.Text('', {
             fontFamily: 'Arial',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 'bold',
-            fill: 0x887766,
+            fill: 0x5a3a10,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;
@@ -128,106 +137,96 @@ export class DesertStormPad {
     }
     
     private drawVisuals(isActive: boolean, time: number): void {
-        const elevation = isActive ? 5 : 2;
+        const elevation = isActive ? 4 : 2;
         
+        // v0.18.6 FIX 2 — Glow analog do HeartPad: idle breath + active strong
         if (isActive) {
             this.glowSprite.visible = true;
-            this.glowSprite.alpha = 0.6 + Math.sin(time * 8) * 0.2;
+            // Subtle pulse w sync z bolt scale dla unified visual
+            this.glowSprite.alpha = 0.72 + Math.sin(time * 4) * 0.13;
+            const breathScale = 1.0 + Math.sin(time * 4) * 0.06;
+            this.glowSprite.scale.set(breathScale);
         } else {
             this.glowSprite.visible = false;
         }
         
         this.platformBase.y = -elevation;
         
-        const chamfer = 22; // octagon shape
-        const w = PAD_SIZE;
-        const h = PAD_SIZE;
-        
-        // Bazalt — grubość płyty (ekstruzja w dół)
-        const wallColor = isActive ? 0x1f1f22 : 0x0f0f12;
+        // v0.18.6 FIX 2 — Wapno-piaskowiec roundedRect (IDENTYCZNE z HeartPad)
+        const wallColor = isActive ? 0xc8aa80 : 0x8a7a60;
         this.wallGfx.clear();
         this.wallGfx.beginFill(wallColor);
-        for (let i = 1; i <= elevation; i++) {
-            this.wallGfx.drawPolygon([
-                chamfer, i,  w - chamfer, i,
-                w, chamfer + i,  w, h - chamfer + i,
-                w - chamfer, h + i,  chamfer, h + i,
-                0, h - chamfer + i,  0, chamfer + i
-            ]);
-        }
+        this.wallGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 6);
+        this.wallGfx.moveTo(6, elevation);
+        this.wallGfx.lineTo(6, 0);
+        this.wallGfx.lineTo(PAD_SIZE - 6, 0);
+        this.wallGfx.lineTo(PAD_SIZE - 6, elevation);
         this.wallGfx.endFill();
         
-        // Powierzchnia ołtarza (ośmiokąt)
-        const surfaceColor = isActive ? 0x2a2a2e : 0x151518;
+        // Powierzchnia ołtarza (IDENTYCZNE z HeartPad — wizualna spójność)
         this.surfaceGfx.clear();
-        this.surfaceGfx.beginFill(surfaceColor);
-        this.surfaceGfx.drawPolygon([
-            chamfer, 0,  w - chamfer, 0,
-            w, chamfer,  w, h - chamfer,
-            w - chamfer, h,  chamfer, h,
-            0, h - chamfer,  0, chamfer
-        ]);
+        this.surfaceGfx.beginFill(isActive ? 0xebd2a8 : 0x9a8a70);
+        this.surfaceGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 6);
         this.surfaceGfx.endFill();
         
-        // Zdobienia krawędzi
-        this.surfaceGfx.lineStyle(2, isActive ? 0x111111 : 0x050505, 1);
-        const c2 = chamfer + 2;
-        this.surfaceGfx.drawPolygon([
-            c2, 6,  w - c2, 6,
-            w - 6, c2,  w - 6, h - c2,
-            w - c2, h - 6,  c2, h - 6,
-            6, h - c2,  6, c2
-        ]);
+        // Wykute rowki (identyczne z HeartPad)
+        this.surfaceGfx.lineStyle(2, isActive ? 0xb09260 : 0x706040, 1);
+        this.surfaceGfx.drawRoundedRect(4, 4, PAD_SIZE - 8, PAD_SIZE - 8, 4);
         
-        // Cień symbolu
-        this.surfaceGfx.lineStyle(0);
-        this.surfaceGfx.beginFill(0x110d00, 0.8);
-        this.drawLightningPath(this.surfaceGfx, PAD_SIZE / 2, (PAD_SIZE / 2) + 2, 1.8);
-        this.surfaceGfx.endFill();
+        // v0.18.6 FIX 2 — LIGHTNING BOLT (animowany scale pulse)
+        this.boltGfx.clear();
         
-        // Złota zygzakowata błyskawica
-        this.surfaceGfx.beginFill(isActive ? 0xffcc00 : 0x443300);
+        // Bolt rysowany w lokalnym układzie (0, 0) z pivotem center
+        // dla idealnego pulse scale wokół środka.
+        const boltScale = 0.9;  // v0.18.6-fix1: 50% mniejsze (było 1.8, przytłaczało pad)
+        
         if (isActive) {
-            this.surfaceGfx.lineStyle(1.5, 0xffffff, 0.8);
-        }
-        this.drawLightningPath(this.surfaceGfx, PAD_SIZE / 2, PAD_SIZE / 2, 1.8);
-        this.surfaceGfx.endFill();
-        
-        // Niebieskawe elektryczne wyładowania
-        this.arcsGfx.clear();
-        if (isActive) {
-            for (let i = 0; i < 3; i++) {
-                if (Math.random() > 0.4) {
-                    const startX = PAD_SIZE / 2 + (Math.random() - 0.5) * PAD_SIZE * 0.7;
-                    const startY = PAD_SIZE / 2 + (Math.random() - 0.5) * PAD_SIZE * 0.7;
-                    
-                    this.arcsGfx.lineStyle(1 + Math.random(), 0x00e5ff, 0.9);
-                    this.arcsGfx.moveTo(startX, startY);
-                    
-                    const midX = startX + (Math.random() - 0.5) * 20;
-                    const midY = startY + (Math.random() - 0.5) * 20;
-                    this.arcsGfx.lineTo(midX, midY);
-                    
-                    const endX = midX + (Math.random() - 0.5) * 25;
-                    const endY = midY + (Math.random() - 0.5) * 25;
-                    this.arcsGfx.lineTo(endX, endY);
-                }
-            }
+            // Cień (offset +2 w y dla 3D feel)
+            this.boltGfx.beginFill(0x110d00, 0.7);
+            this.drawLightningPathLocal(this.boltGfx, 0, 2, boltScale);
+            this.boltGfx.endFill();
+            
+            // Złota błyskawica z highlight
+            this.boltGfx.lineStyle(1.8, 0xffffff, 0.85);
+            this.boltGfx.beginFill(0xffcc00);
+            this.drawLightningPathLocal(this.boltGfx, 0, 0, boltScale);
+            this.boltGfx.endFill();
+            
+            // Inner highlight (jaśniejszy strzał wzdłuż osi)
+            this.boltGfx.lineStyle(0);
+            this.boltGfx.beginFill(0xffee88, 0.6);
+            this.drawLightningPathLocal(this.boltGfx, 0, 0, boltScale * 0.6);
+            this.boltGfx.endFill();
+            
+            // PULSING SCALE: 1.0 → 1.15 (fast pulse, dynamic "życie")
+            const pulse = 1.0 + Math.sin(time * 6) * 0.075 + 0.075;  // baseline 1.075 ± 0.075 = 1.0-1.15
+            this.boltGfx.scale.set(pulse);
+        } else {
+            // Inactive: przygaszone, statyczne
+            this.boltGfx.lineStyle(1.5, 0x2a1d00, 1);
+            this.boltGfx.beginFill(0x554400);
+            this.drawLightningPathLocal(this.boltGfx, 0, 0, boltScale);
+            this.boltGfx.endFill();
+            this.boltGfx.scale.set(1.0);
         }
         
-        // Cooldown timer w środku wygasłego symbolu
+        // Cooldown
         if (!isActive) {
             this.cooldownLabel.visible = true;
             const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
             this.cooldownLabel.text = `${cdLeft}s`;
             this.cooldownLabel.x = PAD_SIZE / 2;
-            this.cooldownLabel.y = PAD_SIZE / 2;
+            this.cooldownLabel.y = PAD_SIZE / 2 + 14;  // pod błyskawicą (zmniejszone z 22)
         } else {
             this.cooldownLabel.visible = false;
         }
     }
     
-    private drawLightningPath(gfx: PIXI.Graphics, cx: number, cy: number, scale: number): void {
+    /**
+     * v0.18.6 FIX 2: rysuje błyskawicę w lokalnym układzie (cx, cy) — używane
+     * z boltGfx pozycjonowanym do centrum padu. Pivot środkowy = scale wokół środka.
+     */
+    private drawLightningPathLocal(gfx: PIXI.Graphics, cx: number, cy: number, scale: number): void {
         gfx.moveTo(cx + 4 * scale, cy - 14 * scale);
         gfx.lineTo(cx - 9 * scale, cy + 2 * scale);
         gfx.lineTo(cx - 2 * scale, cy + 2 * scale);

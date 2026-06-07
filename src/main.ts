@@ -16,6 +16,7 @@ import {
     DESERT_LARGE_ROCKS_LAYOUT, DESERT_SMALL_ROCKS_COUNT,
     DESERT_SMALL_ROCK_MIN_SIZE, DESERT_SMALL_ROCK_MAX_SIZE,
     DESERT_QUICKSAND_LAYOUT,
+    DESERT_RIVER_CATARACT_ROCKS,
 } from './maps/DesertMap';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -318,7 +319,18 @@ function startGame(): void {
         );
         
         // FAZA 4a ✅ — Wielowarstwowe skały (large = cover collision, small = decoracja)
+        // Large rocks (7 fixed positions) — pełna collision (ruch + pociski)
         DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
+            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
+            buildings.push(rock);
+            solidBuildings.push(rock);
+        });
+        
+        // v0.18.2 ✅ — KATARAKTY NILU (2 klastry skał przy krańcach rzeki)
+        // Rozwiązuje wizualny problem "zaokrąglonych końcówek" + blokuje objazd rzeki bokiem.
+        // 10 skał total (5 NE + 5 SW), wszystkie 'large' tier z pełną collision.
+        // Spawn PRZED small rocks żeby procedural avoidance (MIN_DIST 110) działało.
+        DESERT_RIVER_CATARACT_ROCKS.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);

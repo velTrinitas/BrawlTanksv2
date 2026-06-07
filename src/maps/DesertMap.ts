@@ -174,6 +174,38 @@ export const DESERT_SMALL_ROCK_MIN_SIZE = 15;
 export const DESERT_SMALL_ROCK_MAX_SIZE = 35;
 
 // =================================================================
+// v0.18.2 — KATARAKTY NILU (rozwiązanie problemu widocznych końcówek rzeki)
+// =================================================================
+
+/**
+ * 2 klastry skał przy krańcach rzeki tworzące wizualną narrację "rzeka wpływa/wypływa przez skały".
+ * Rozwiązuje problem widocznych "zaokrąglonych końcówek" rzeki:
+ *   - Wizualnie: woda przechodzi przez skały → naturalne kataraktowanie (jak Aswan w Egipcie)
+ *   - Gameplay: rocks collision blokuje gracza przed objechaniem rzeki bokiem
+ * 
+ * NE klaster: 5 skał wokół startu rzeki (0.85, 0.05), wypełnia gap do NE corner mapy.
+ * SW klaster: 5 skał wokół końca rzeki (0.10, 0.95), wypełnia gap do SW corner mapy.
+ * 
+ * Wszystkie 'large' tier → pełna collision (ruch + pociski).
+ * Format zgodny z DESERT_LARGE_ROCKS_LAYOUT (same fields: x, y, size, seed).
+ */
+export const DESERT_RIVER_CATARACT_ROCKS = [
+    // NE katarakta (start rzeki — wjazd Nilu na mapę)
+    { x: WORLD_W * 0.93, y: WORLD_H * 0.05, size: 80, seed: 51 },   // E od river start (blokuje E bypass)
+    { x: WORLD_W * 0.88, y: WORLD_H * 0.02, size: 75, seed: 53 },   // NE od river start
+    { x: WORLD_W * 0.82, y: WORLD_H * 0.02, size: 70, seed: 57 },   // NW od river start (blokuje N bypass)
+    { x: WORLD_W * 0.96, y: WORLD_H * 0.12, size: 65, seed: 61 },   // NE corner fill
+    { x: WORLD_W * 0.87, y: WORLD_H * 0.09, size: 90, seed: 63 },   // PROMINENTNA, "skała w wodzie" SE of start
+    
+    // SW katarakta (koniec rzeki — wyjazd Nilu z mapy)
+    { x: WORLD_W * 0.07, y: WORLD_H * 0.95, size: 80, seed: 71 },   // W od river end (blokuje W bypass)
+    { x: WORLD_W * 0.15, y: WORLD_H * 0.98, size: 75, seed: 73 },   // SE od river end
+    { x: WORLD_W * 0.04, y: WORLD_H * 0.98, size: 70, seed: 77 },   // SW corner fill
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.96, size: 65, seed: 81 },   // E edge blocker
+    { x: WORLD_W * 0.13, y: WORLD_H * 0.91, size: 90, seed: 83 },   // PROMINENTNA, "skała w wodzie" NE of end
+];
+
+// =================================================================
 // FAZA 4b — QUICKSAND ZONES
 // =================================================================
 

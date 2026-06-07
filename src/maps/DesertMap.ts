@@ -249,3 +249,33 @@ export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },
     { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },
 ];
+// =================================================================
+// v0.18.4 FAZA 4d — CARAVAN (5 wielbłądów, mobile pickup drops)
+// =================================================================
+
+/**
+ * v0.18.4 FAZA 4d: Karawana 5 wielbłądów porusza się linear back-and-forth
+ * po N stripie pustyni. Path zostaje y < 210 (clearance od rzędu rocks at y=216)
+ * + omija sphinx (x in 710-890) trzymając się x < 700 lub x > 920.
+ * 
+ * Math-verified clearances (centers, build hitboxes):
+ * - WP (250, 150): rock (320,216) 96px ✓; oasis1 (192,240) ellipse 1.82 outside ✓; sandstorm top 95px ✓
+ * - WP (500, 130): rock (608,216) 104px ✓; power pad far ✓
+ * - WP (700, 130): rock (608,216) 126px ✓; sphinx top y=304 dy=174px ✓
+ * - WP (950, 200): sphinx right x=890 dx=60px ✓; river (1152,264) 212px ✓
+ * 
+ * Wszystkie odcinki między WP nie przecinają żadnego buildingu.
+ * Karawana nie jest collidable — gracz może przejechać przez nią
+ * (zgodnie z user spec: "nie jest zniszczalna", "wrogowie nie atakują").
+ */
+export const DESERT_CARAVAN_PATH = [
+    { x: 250, y: 150 },   // A — NW
+    { x: 500, y: 130 },   // B — N
+    { x: 700, y: 130 },   // C — N-mid (powyżej sphinxa)
+    { x: 950, y: 200 },   // D — N-E (przed rzeką, na E od sphinxa)
+];
+
+export const DESERT_CARAVAN_CAMEL_COUNT = 5;
+export const DESERT_CARAVAN_SPEED = 0.45;             // pixels per frame (powolnie)
+export const DESERT_CARAVAN_SPACING = 50;             // dist między wielbłądami
+export const DESERT_CARAVAN_DROP_INTERVAL_MS = 15000; // 15s

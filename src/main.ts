@@ -30,6 +30,7 @@ import { Rock } from './maps/desert/Rock';
 import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { Quicksand } from './maps/desert/Quicksand';
 import { Oasis } from './maps/desert/Oasis';
+import { Caravan } from './maps/desert/Caravan';
 import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
@@ -75,7 +76,10 @@ let waterLife: WaterLife | null = null;
 let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let quicksands: Quicksand[] = [];
+// v0.18.3 FAZA 4c — oasis stealth zones (enemy detection range -50%, no collision, per-frame isPointInside check)
 let oases: Oasis[] = [];
+// v0.18.4 FAZA 4d — caravan (5 camels back-and-forth, drop pickup co 15s)
+let caravan: Caravan | null = null;
 
 // v0.18.3-fix1 — Oasis stealth state machine (game-level, reset per startGame)
 let oasisStealthEndTime: number = 0;       // Date.now() po którym stealth wygasa (gdy gracz w oazie)
@@ -257,6 +261,7 @@ function startGame(): void {
     sandstormBorder = null;
     quicksands = [];
     oases = [];
+    caravan = null;
     
     // v0.18.3-fix1 — reset stealth state machine na każdy nowy game
     oasisStealthEndTime = 0;
@@ -378,10 +383,15 @@ function startGame(): void {
             new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer),
         );
         
-        // v0.18.3 FAZA 4c — OASIS STEALTH ZONES
+        // v0.18.3 FAZA 4c ✅ — OASIS STEALTH ZONES
         oases = DESERT_OASIS_LAYOUT.map(o =>
             new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
         );
+        
+        // v0.18.4 FAZA 4d ✅ — CARAVAN (5 wielbłądów, drop gem/heart/magnet co 15s)
+        caravan = new Caravan(worldContainer);
+        
+        // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary już zrobione)
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -531,6 +541,24 @@ app.ticker.add((delta) => {
     if (river) river.update();
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
+    
+    // v0.18.4 FAZA 4d — Caravan update + drop spawning
+    if (caravan) {
+        const drop = caravan.update(delta);
+        if (drop) {
+            if (drop.type === 'gem') {
+                gems.push(new Gem(drop.x, drop.y, worldContainer));
+                hud.addNotif('🐪 Karawana dropiła 💎', '#d97e3a');
+            } else if (drop.type === 'heart') {
+                hearts.push(new Heart(drop.x, drop.y, worldContainer));
+                hud.addNotif('🐪 Karawana dropiła ❤️', '#d97e3a');
+            } else if (drop.type === 'magnet') {
+                magnets.push(new Magnet(drop.x, drop.y, worldContainer));
+                hud.addNotif('🐪 Karawana dropiła 🧲', '#d97e3a');
+            }
+            audio.playGemPickup();  // subtle "drop sound"
+        }
+    }
     
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     

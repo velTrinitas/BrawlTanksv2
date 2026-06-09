@@ -77,6 +77,9 @@ const SOUND_LIST: SoundDef[] = [
     
     { key: 'victory',  file: 'victory.mp3',  volume: VOLUMES.endgame },
     { key: 'gameover', file: 'gameover.mp3', volume: VOLUMES.endgame },
+
+    // UI feedback (FAZA 6d)
+    { key: 'menu_click', file: 'menu_click.mp3', volume: 0.35 },
 ];
 
 export class AudioSys {
@@ -206,6 +209,18 @@ export class AudioSys {
     playGameOver(): void {
         this.stopMusic();
         this.safePlay('gameover');
+    }
+
+    /**
+     * UI menu click feedback (FAZA 6d).
+     * Throttle 60ms — anty-spam przy szybkich klikach.
+     */
+    private menuClickTimer: number = 0;
+    playMenuClick(): void {
+        const now = Date.now();
+        if (now - this.menuClickTimer < 60) return;
+        this.menuClickTimer = now;
+        this.safePlay('menu_click');
     }
     
     /**

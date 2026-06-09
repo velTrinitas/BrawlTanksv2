@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BT — Full Menu Flow Test (FAZA 6d)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/ui/menu-styles.css">
+    <style>
+        html, body {
+            margin: 0; padding: 0;
+            background: #000;
+            font-family: 'Lilita One', cursive, sans-serif;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Test controls (top-LEFT floating panel, collapsed by default — Runda 1.7) */
+        #test-controls {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 0, 0, 0.88);
+            border: 2px solid rgba(241, 196, 15, 0.4);
+            border-radius: 12px;
+            padding: 10px 12px;
+            z-index: 9999;
+            font-family: system-ui, sans-serif;
+            font-size: 0.78rem;
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+            max-width: 220px;
+        }
+        #test-controls h3 {
+            margin: 0 0 8px;
+            font-family: 'Lilita One', cursive;
+            color: #f1c40f;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        #test-controls .body { transition: max-height 0.2s ease, opacity 0.2s ease; }
+        #test-controls.is-collapsed .body { max-height: 0; opacity: 0; overflow: hidden; }
+        #test-controls button {
+            display: block;
+            margin: 4px 0;
+            padding: 5px 10px;
+            background: rgba(241, 196, 15, 0.15);
+            border: 1px solid rgba(241, 196, 15, 0.4);
+            border-radius: 6px;
+            color: #f1c40f;
+            font-family: 'Lilita One', cursive;
+            font-size: 0.72rem;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: background 0.15s;
+            letter-spacing: 0.5px;
+        }
+        #test-controls button:hover { background: rgba(241, 196, 15, 0.3); }
+        #test-controls .status {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.5;
+        }
+        #test-controls .status b { color: #f1c40f; }
+    </style>
+</head>
+<body>
+
+    <!-- Test controls panel (collapsed by default — Runda 1.7) -->
+    <div id="test-controls" class="is-collapsed">
+        <h3 data-action="toggle-panel">
+            <span>🎮 FLOW TEST</span>
+            <span class="toggle-icon">▾</span>
+        </h3>
+        <div class="body">
+            <button data-action="goto-intro">⏮ Intro</button>
+            <button data-action="goto-hub">🏠 Hub</button>
+            <button data-action="goto-scenario">🎯 Scenario Picker</button>
+            <button data-action="goto-brawler">🛡 Brawler Picker</button>
+            <button data-action="toggle-continue">🔁 Toggle Continue</button>
+            <button data-action="toggle-lang">🌐 PL/EN</button>
+            <button data-action="reset-state">♻️ Reset state</button>
+            <div class="status">
+                Screen: <b id="status-screen">-</b><br>
+                Lang: <b id="status-lang">-</b><br>
+                Continue: <b id="status-continue">-</b>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main menu mount point -->
+    <div id="bt-menu-root"></div>
+
+    <script type="module">
+        import { MainMenu } from '/src/ui/MainMenu.ts';
+        import { sessionService } from '/src/services/SessionService.ts';
+        import { i18n } from '/src/i18n/i18n.ts';
+        import { showToast } from '/src/ui/toast.ts';
+
+        // === Mock last session helper ===
+        function setMockLastSession() {
+            sessionService.saveLastSession({
+                brawlerId: 'shadow',
+                scenario: 'ktb',
+                map: 'desert',
+                difficulty: 'normal',
+                mode: 'solo',
+                lastPlayedAt: Date.now() - (60 * 60 * 1000),
+                brawlerName: 'Shadow',
+                mapName: 'PUSTYNIA',
+                scenarioName: 'Kill the Boss',
+            });
+        }
+
+        // === Boot MainMenu ===
+        const menu = new MainMenu('#bt-menu-root');
+
+        menu.onGameRequested = (config) => {
+            console.log('[Test] Game start requested with config:', config);
+            showToast(`Gra startuje: ${config.brawlerId} | ${config.map} | ${config.difficulty}`, 3000);
+        };
+
+        menu.onContinueRequested = (session) => {
+            console.log('[Test] Continue requested:', session);
+            showToast(`Kontynuacja: ${session.brawlerName} na ${session.mapName}`, 2500);
+        };
+
+        menu.onHowToPlayRequested = () => {
+            showToast('How To Play — integracja w FAZIE 6e', 2200);
+        };
+
+        menu.onSettingsRequested = () => {
+            showToast('Ustawienia — pelny UI w FAZIE 8', 2200);
+        };
+
+        await menu.start();
+
+        // === Status display ===
+        const statusScreen = document.getElementById('status-screen');
+        const statusLang = document.getElementById('status-lang');
+        const statusContinue = document.getElementById('status-continue');
+
+        function updateStatus() {
+            statusScreen.textContent = menu.getCurrentScreenId() || 'none';
+            statusLang.textContent = i18n.getLanguage();
+            statusContinue.textContent = sessionService.hasValidLastSession() ? 'YES' : 'NO';
+        }
+        updateStatus();
+        setInterval(updateStatus, 500);
+
+        // === Test controls wiring ===
+        document.getElementById('test-controls').addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+
+            switch (action) {
+                case 'toggle-panel':
+                    document.getElementById('test-controls').classList.toggle('is-collapsed');
+                    break;
+                case 'goto-intro':
+                    await menu.show('intro');
+                    break;
+                case 'goto-hub':
+                    await menu.show('hub');
+                    break;
+                case 'goto-scenario':
+                    await menu.show('scenarioPicker');
+                    break;
+                case 'goto-brawler':
+                    // Defensive — brawler picker wymaga scenario + map state
+                    if (menu.getCurrentScreenId() !== 'brawlerPicker') {
+                        // Quick path: select KTB + Desert, then go to brawler
+                        await menu.show('scenarioPicker');
+                        showToast('Najpierw wybierz scenariusz + mape, potem Dalej', 2500);
+                    }
+                    break;
+                case 'toggle-continue':
+                    if (sessionService.hasValidLastSession()) {
+                        sessionService.clearLastSession();
+                        showToast('Continue card schowana', 1500);
+                    } else {
+                        setMockLastSession();
+                        showToast('Continue card aktywna', 1500);
+                    }
+                    const cur = menu.getCurrentScreenId();
+                    if (cur === 'hub') {
+                        await menu.show('intro');
+                        await menu.show('hub');
+                    }
+                    break;
+                case 'toggle-lang':
+                    i18n.setLanguage(i18n.getLanguage() === 'pl' ? 'en' : 'pl');
+                    showToast(`Language: ${i18n.getLanguage().toUpperCase()}`, 1500);
+                    const c2 = menu.getCurrentScreenId();
+                    if (c2) {
+                        await menu.show(c2 === 'hub' ? 'intro' : 'hub');
+                        await menu.show(c2);
+                    }
+                    break;
+                case 'reset-state':
+                    menu.resetPickerState();
+                    showToast('Picker state reset', 1500);
+                    break;
+            }
+        });
+
+        console.log('[Test] Full menu flow ready. Click START → GRAJ → choose scenario/map → choose brawler+difficulty → CTA');
+    </script>
+</body>
+</html>

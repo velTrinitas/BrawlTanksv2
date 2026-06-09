@@ -1,0 +1,2132 @@
+/* =============================================================
+   BRAWL TANKS S2 — MENU STYLES (FAZA 6b)
+   ===============================================================
+   Mobile-first CSS. Bazowe style dla 375px (iPhone SE),
+   rozszerzane przez @media dla tablet (768px+) i desktop (1280px+).
+
+   Architektura:
+   1. Design tokens (CSS vars)         — globalne zmienne
+   2. Base & typography                — body, headings
+   3. Buttons                          — primary, secondary, ghost
+   4. Map card system                  — najwazniejszy element 6b
+   5. Map preview animations           — SVG keyframes
+   6. Lock overlay                     — dla locked map (Tropiki/Arktyka)
+   7. Responsive breakpoints           — tablet, desktop
+   ============================================================= */
+
+/* =============================================================
+   1. DESIGN TOKENS
+   ============================================================= */
+
+/* Global box-sizing dla wszystkich menu elementow (FAZA 6d polish 1.6).
+   Zapobiega visual width mismatches miedzy header/grid/sections. */
+.bt-menu *,
+.bt-menu *::before,
+.bt-menu *::after {
+    box-sizing: border-box;
+}
+
+:root {
+    /* === Brand colors === */
+    --bt-gold:        #f1c40f;
+    --bt-gold-dark:   #d35400;
+    --bt-navy:        #2c3e50;
+    --bt-navy-dark:   #1a2530;
+    --bt-orange:      #e67e22;
+    --bt-red:         #e74c3c;
+    --bt-green:       #27ae60;
+    --bt-blue:        #3498db;
+    --bt-purple:      #8e44ad;
+
+    /* === Map accent colors (referenced via JS --accent custom prop) === */
+    --map-desert:     #d4961f;
+    --map-cyberpunk:  #9b59b6;
+    --map-tropics:    #27ae60;
+    --map-arctic:     #5dade2;
+
+    /* === Surface colors === */
+    --surface-white:  #ffffff;
+    --surface-light:  #ecf0f1;
+    --surface-mid:    #bdc3c7;
+    --surface-dark:   #1a1a2e;
+    --text-primary:   #2c3e50;
+    --text-secondary: #7f8c8d;
+    --text-on-dark:   #ecf0f1;
+
+    /* === Spacing scale === */
+    --space-xs:  4px;
+    --space-sm:  8px;
+    --space-md:  16px;
+    --space-lg:  24px;
+    --space-xl:  32px;
+    --space-2xl: 48px;
+
+    /* === Border radius === */
+    --radius-sm:  8px;
+    --radius-md:  12px;
+    --radius-lg:  16px;
+    --radius-xl:  24px;
+    --radius-pill: 999px;
+
+    /* === Shadows (cartoon style — solid offset, no blur) === */
+    --shadow-card:     0 6px 0 var(--bt-navy);
+    --shadow-card-hover: 0 10px 0 var(--bt-navy);
+    --shadow-card-active: 0 0 0 var(--bt-navy);
+    --shadow-soft:     0 4px 16px rgba(0, 0, 0, 0.15);
+    --shadow-glow-gold: 0 0 24px rgba(241, 196, 15, 0.4);
+
+    /* === Typography === */
+    --font-display: 'Lilita One', cursive, sans-serif;
+    --font-body:    system-ui, -apple-system, sans-serif;
+
+    /* Mobile-first font sizes — overridden in @media queries */
+    --fs-h1:    2.4rem;
+    --fs-h2:    1.3rem;
+    --fs-h3:    1.05rem;
+    --fs-body:  0.92rem;
+    --fs-small: 0.78rem;
+    --fs-tiny:  0.68rem;
+
+    /* === Transitions === */
+    --transition-fast: 0.12s ease;
+    --transition-base: 0.18s ease;
+    --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* === Z-index scale === */
+    --z-bg:      0;
+    --z-content: 10;
+    --z-hud:     50;
+    --z-ui:      100;
+    --z-modal:   200;
+    --z-toast:   300;
+}
+
+/* =============================================================
+   2. BASE & TYPOGRAPHY
+   ============================================================= */
+.bt-menu * {
+    box-sizing: border-box;
+}
+
+.bt-menu {
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.bt-h1 {
+    font-family: var(--font-display);
+    font-size: var(--fs-h1);
+    line-height: 1.05;
+    margin: 0 0 var(--space-sm);
+    color: var(--bt-gold);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.bt-h2 {
+    font-family: var(--font-display);
+    font-size: var(--fs-h2);
+    line-height: 1.2;
+    margin: var(--space-md) 0 var(--space-sm);
+    color: #fff;
+    background: var(--bt-blue);
+    padding: 6px 22px;
+    border-radius: var(--radius-pill);
+    border: 3px solid var(--bt-navy);
+    box-shadow: 3px 3px 0 var(--bt-navy);
+    display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.bt-h3 {
+    font-family: var(--font-display);
+    font-size: var(--fs-h3);
+    margin: 0;
+    color: var(--text-primary);
+}
+
+/* =============================================================
+   3. BUTTONS
+   ============================================================= */
+
+/* Primary big button (GRAJ!, DALEJ, etc.) */
+.bt-btn-primary {
+    appearance: none;
+    border: 5px solid var(--bt-navy);
+    background: var(--bt-gold);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 12px 36px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    box-shadow: 0 8px 0 var(--bt-gold-dark), 0 14px 24px rgba(0, 0, 0, 0.35);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.bt-btn-primary:hover {
+    background: #f39c12;
+    transform: scale(1.03);
+}
+
+.bt-btn-primary:active {
+    transform: translateY(6px) scale(1);
+    box-shadow: 0 2px 0 var(--bt-gold-dark);
+}
+
+.bt-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Secondary button (Wroc, etc.) */
+.bt-btn-secondary {
+    appearance: none;
+    border: 4px solid var(--bt-navy);
+    background: var(--bt-blue);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 9px 22px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    box-shadow: 0 5px 0 #1a6090;
+    transition: all var(--transition-fast);
+}
+
+.bt-btn-secondary:hover { background: #2980b9; }
+.bt-btn-secondary:active {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 #1a6090;
+}
+
+/* Ghost button (low emphasis) */
+.bt-btn-ghost {
+    appearance: none;
+    border: 2px solid rgba(241, 196, 15, 0.45);
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--bt-gold);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    padding: 5px 14px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.bt-btn-ghost:hover { background: rgba(0, 0, 0, 0.55); }
+
+/* =============================================================
+   4. MAP CARD SYSTEM
+   =============================================================
+   Card structure:
+   <button class="bt-map-card" style="--accent: #d4961f;">
+     <div class="bt-map-preview-wrap">
+       <svg class="bt-map-preview-svg"> ... </svg>
+       <div class="bt-map-lock-overlay">  <-- only when locked -->
+         <span class="lock-icon">🔒</span>
+         <span class="lock-badge">WKROTCE</span>
+       </div>
+     </div>
+     <div class="bt-map-card-info">
+       <h3 class="bt-map-card-name">PUSTYNIA</h3>
+       <p class="bt-map-card-tagline">Egipska pustynia</p>
+     </div>
+   </button>
+   ============================================================= */
+
+.bt-map-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));  /* Mobile: 2 cols, minmax prevents grid item overflow past container right edge */
+    gap: 10px;
+    width: 100%;
+}
+
+.bt-map-card {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    /* Runda 1.14 unification: brawler styling tokens (Opcja A + X) */
+    background: rgba(15, 20, 35, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid var(--bt-navy);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    text-align: center;
+    font-family: inherit;
+}
+
+.bt-map-card.is-locked {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.bt-map-card:not(.is-locked):hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.5);
+    border-color: var(--bt-gold);
+}
+
+.bt-map-card.is-selected {
+    border-color: var(--bt-gold);
+    /* Runda 1.25: drop shadow color przywrocony do gold-dark (jak scenario card).
+       Powod historyczny: w Runda 1.15 zmienilem na dark bo preview-wrap mial accent (orange) bg,
+       co tworzylo "podwojny orange" effect. Po Runda 1.21 preview-wrap = surface-dark,
+       wiec orange drop ma teraz clean contrast z dark card body - pelna unifikacja ze scenario. */
+    box-shadow:
+        0 8px 0 var(--bt-gold-dark),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.5);
+    transform: translateY(-4px) scale(1.04);
+    z-index: 5;
+}
+
+.bt-map-card:not(.is-locked):active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.bt-map-card:focus-visible {
+    outline: 3px solid var(--bt-gold);
+    outline-offset: 4px;
+}
+
+.bt-map-preview-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 240 / 140;
+    /* Runda 1.15 fix: bg dark zamiast accent
+       Powod: preview SVG nie wypelnia 100% wrap (slight aspect mismatch viewBox vs 240/140).
+       Z accent (orange dla pustyni), letterbox area pokazywal pomaranczowy pasek na lewym
+       boku wygladajacy jak "obciety obraz". Z surface-dark, letterbox = dark navy = invisible. */
+    background: var(--surface-dark);
+    overflow: hidden;
+    /* Runda 1.14 polish: top corners rounded to match card border-radius
+       (eliminuje anti-aliasing artefakty na styku card border vs preview) */
+    border-top-left-radius: calc(var(--radius-md) - 3px);
+    border-top-right-radius: calc(var(--radius-md) - 3px);
+}
+
+.bt-map-preview-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.bt-map-card-info {
+    padding: 8px 6px 10px;
+    background: transparent;
+}
+
+.bt-map-card-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+    color: #fff;
+    background: var(--accent, var(--bt-navy));
+    padding: 3px 9px;
+    border-radius: 6px;
+    display: inline-block;
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.bt-map-card-tagline {
+    margin: 5px 0 0;
+    font-family: var(--font-display);
+    font-size: var(--fs-tiny);
+    color: rgba(255, 255, 255, 0.82);
+    line-height: 1.3;
+    letter-spacing: 0.3px;
+    font-weight: normal;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+/* =============================================================
+   5. SVG PREVIEW ANIMATIONS
+   =============================================================
+   Wszystkie animacje uzywaja transform/opacity (GPU-accelerated).
+   30fps target, smooth na mobile.
+   ============================================================= */
+
+/* --- Desert --- */
+.bt-mp-desert .mpd-sun {
+    transform-origin: 195px 28px;
+    transform-box: fill-box;
+    animation: bt-sun-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes bt-sun-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
+}
+
+.bt-mp-desert .mpd-particle {
+    animation: bt-sand-drift 9s linear infinite;
+    transform-origin: center;
+}
+
+.bt-mp-desert .mpd-p2 { animation-delay: -3s; }
+.bt-mp-desert .mpd-p3 { animation-delay: -6s; }
+
+@keyframes bt-sand-drift {
+    0%   { transform: translateX(-18px); opacity: 0; }
+    15%  { opacity: 0.85; }
+    85%  { opacity: 0.85; }
+    100% { transform: translateX(18px); opacity: 0; }
+}
+
+/* --- Cyberpunk --- */
+.bt-mp-cyberpunk .mpc-window {
+    animation: bt-window-flicker 4s ease-in-out infinite;
+}
+.bt-mp-cyberpunk .mpc-w2 { animation-duration: 5.5s; animation-delay: -0.6s; }
+.bt-mp-cyberpunk .mpc-w3 { animation-duration: 3.2s; animation-delay: -1.4s; }
+.bt-mp-cyberpunk .mpc-w4 { animation-duration: 6s;   animation-delay: -2.2s; }
+.bt-mp-cyberpunk .mpc-w5 { animation-duration: 4.5s; animation-delay: -3s; }
+.bt-mp-cyberpunk .mpc-w6 { animation-duration: 3.8s; animation-delay: -0.9s; }
+
+@keyframes bt-window-flicker {
+    0%, 92%, 100% { opacity: 1; }
+    94%           { opacity: 0.25; }
+    96%           { opacity: 0.85; }
+    98%           { opacity: 0.35; }
+}
+
+.bt-mp-cyberpunk .mpc-drone {
+    animation: bt-drone-fly 9s linear infinite;
+}
+
+@keyframes bt-drone-fly {
+    0%   { transform: translate(-12px, 32px); }
+    50%  { transform: translate(120px, 22px); }
+    100% { transform: translate(252px, 30px); }
+}
+
+.bt-mp-cyberpunk .mpc-antenna-light {
+    animation: bt-antenna-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes bt-antenna-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+}
+
+/* --- Tropics --- */
+.bt-mp-tropics .mpt-fall {
+    animation: bt-waterfall 1.4s linear infinite;
+}
+.bt-mp-tropics .mpt-fl2 { animation-delay: -0.45s; }
+.bt-mp-tropics .mpt-fl3 { animation-delay: -0.95s; }
+
+@keyframes bt-waterfall {
+    0%   { transform: translateY(-26px); opacity: 0; }
+    25%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { transform: translateY(0); opacity: 0; }
+}
+
+.bt-mp-tropics .mpt-palm {
+    transform-origin: bottom center;
+    animation: bt-palm-sway 5s ease-in-out infinite;
+}
+.bt-mp-tropics .mpt-palm-2 { animation-delay: -2.5s; }
+
+@keyframes bt-palm-sway {
+    0%, 100% { transform: rotate(-1.5deg); }
+    50%      { transform: rotate(1.5deg); }
+}
+
+/* --- Arctic --- */
+.bt-mp-arctic .mpa-snow {
+    animation: bt-snowfall 7s linear infinite;
+}
+.bt-mp-arctic .mpa-s1 { animation-delay: 0s; }
+.bt-mp-arctic .mpa-s2 { animation-delay: -0.9s; }
+.bt-mp-arctic .mpa-s3 { animation-delay: -1.8s; }
+.bt-mp-arctic .mpa-s4 { animation-delay: -2.7s; }
+.bt-mp-arctic .mpa-s5 { animation-delay: -3.6s; }
+.bt-mp-arctic .mpa-s6 { animation-delay: -4.5s; }
+.bt-mp-arctic .mpa-s7 { animation-delay: -5.4s; }
+.bt-mp-arctic .mpa-s8 { animation-delay: -6.3s; }
+
+@keyframes bt-snowfall {
+    0%   { transform: translateY(-15px); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(110px); opacity: 0; }
+}
+
+/* =============================================================
+   6. LOCK OVERLAY
+   ============================================================= */
+
+.bt-map-card.is-locked .bt-map-preview-wrap > svg {
+    /* Runda 1.14 polish: tune dla lepszej czytelnosci (poprzednio za ciemno: 0.4/0.65) */
+    filter: saturate(0.5) brightness(0.75);
+    transition: filter var(--transition-base);
+}
+
+.bt-map-lock-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15, 20, 35, 0.35) 0%, rgba(15, 20, 35, 0.7) 100%);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.bt-map-card.is-locked .bt-map-lock-overlay {
+    display: flex;
+}
+
+.bt-map-lock-overlay .lock-icon {
+    font-size: 1.7rem;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+    animation: bt-lock-pulse 2.6s ease-in-out infinite;
+}
+
+.bt-map-lock-overlay .lock-badge {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 1.5px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.72);
+    padding: 3px 10px;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+}
+
+@keyframes bt-lock-pulse {
+    0%, 100% { transform: scale(1);    opacity: 1; }
+    50%      { transform: scale(1.05); opacity: 0.9; }
+}
+
+/* =============================================================
+   7. RESPONSIVE BREAKPOINTS
+   ============================================================= */
+
+/* Tablet (768px+) — bigger cards, 4-column grid */
+@media (min-width: 768px) {
+    :root {
+        --fs-h1:    3.2rem;
+        --fs-h2:    1.55rem;
+        --fs-h3:    1.18rem;
+        --fs-body:  0.98rem;
+        --fs-small: 0.86rem;
+        --fs-tiny:  0.74rem;
+    }
+
+    .bt-map-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .bt-map-card-info {
+        padding: 10px 8px 13px;
+    }
+
+    .bt-map-card-name {
+        font-size: 1.08rem;
+        padding: 4px 11px;
+    }
+
+    .bt-map-lock-overlay .lock-icon { font-size: 2rem; }
+    .bt-map-lock-overlay .lock-badge { font-size: 0.85rem; padding: 4px 12px; }
+}
+
+/* Desktop (1280px+) — premium look, more breathing room */
+@media (min-width: 1280px) {
+    :root {
+        --fs-h1:    4.2rem;
+        --fs-h2:    1.85rem;
+        --fs-h3:    1.3rem;
+        --fs-body:  1.05rem;
+        --fs-small: 0.92rem;
+        --fs-tiny:  0.8rem;
+    }
+
+    .bt-map-grid {
+        gap: 18px;
+    }
+
+    .bt-map-card-info {
+        padding: 12px 10px 16px;
+    }
+
+    .bt-map-card-name {
+        font-size: 1.25rem;
+        padding: 5px 14px;
+        letter-spacing: 1.5px;
+    }
+
+    .bt-map-card-tagline {
+        margin-top: 7px;
+    }
+
+    .bt-map-lock-overlay .lock-icon { font-size: 2.4rem; }
+    .bt-map-lock-overlay .lock-badge { font-size: 0.95rem; padding: 5px 14px; }
+
+    /* Runda 1.24 fix: usuniety hover scale(1.05) na .bt-map-card-name.
+       Powod: per feedback Mariusza tekst PUSTYNIA/CYBERPUNK/etc nie powinien pulsowac
+       przy hover. Card jako calosc nadal robi translateY(-3px) (subtle lift),
+       ale text pill pozostaje statyczny w swoim rozmiarze. */
+}
+
+/* =============================================================
+   8. ACCESSIBILITY — reduce motion
+   ============================================================= */
+@media (prefers-reduced-motion: reduce) {
+    .bt-mp-desert .mpd-sun,
+    .bt-mp-desert .mpd-particle,
+    .bt-mp-cyberpunk .mpc-window,
+    .bt-mp-cyberpunk .mpc-drone,
+    .bt-mp-cyberpunk .mpc-antenna-light,
+    .bt-mp-tropics .mpt-fall,
+    .bt-mp-tropics .mpt-palm,
+    .bt-mp-arctic .mpa-snow,
+    .bt-map-lock-overlay .lock-icon {
+        animation: none !important;
+    }
+}
+
+/* =============================================================
+   9. SCREEN ORCHESTRATOR (FAZA 6c)
+   =============================================================
+   MainMenu renderuje screens do .bt-screen-container.
+   Transitions: fade out (180ms) → unmount old → mount new → fade in.
+   ============================================================= */
+
+.bt-menu-root {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-ui);
+    overflow: hidden;
+}
+
+.bt-screen-container {
+    position: absolute;
+    inset: 0;
+    opacity: 1;
+    transition: opacity 0.18s ease-in-out;
+}
+
+.bt-screen-container.is-fading-out {
+    opacity: 0;
+}
+
+.bt-screen-container.is-fading-in {
+    opacity: 0;
+}
+
+/* =============================================================
+   10. INTRO SCREEN (FAZA 6c)
+   =============================================================
+   Fullscreen splash z 4-image slideshow + Ken Burns + START.
+   ============================================================= */
+
+.bt-intro-screen {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding-bottom: 12vh;
+    box-sizing: border-box;
+}
+
+/* Slide layer (4x, cross-fade) */
+.bt-intro-slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center 35%;
+    background-repeat: no-repeat;
+    background-color: #1a1a2e;
+    opacity: 0;
+    transition: opacity 1.2s ease-in-out;
+    z-index: 0;
+}
+
+.bt-intro-slide.is-active {
+    opacity: 1;
+    z-index: 1;
+    /* Ken Burns slow zoom (cinematic) */
+    animation: bt-ken-burns 22s ease-in-out infinite;
+}
+
+@keyframes bt-ken-burns {
+    0%   { transform: scale(1)    translate(0, 0); }
+    50%  { transform: scale(1.08) translate(-1%, -1%); }
+    100% { transform: scale(1)    translate(0, 0); }
+}
+
+/* Dark gradient overlay — improves text legibility regardless of slide */
+.bt-intro-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg,
+                rgba(0, 0, 0, 0.45) 0%,
+                rgba(0, 0, 0, 0.15) 40%,
+                rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.bt-intro-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* BIG START button */
+.bt-intro-start {
+    appearance: none;
+    border: 5px solid var(--bt-navy);
+    background: linear-gradient(135deg, #f1c40f 0%, #f39c12 50%, #e67e22 100%);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 2.6rem;
+    letter-spacing: 3px;
+    padding: 14px 50px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    transition: transform var(--transition-fast);
+    animation: bt-start-pulse 2.4s ease-in-out infinite;
+}
+
+.bt-intro-start:hover {
+    transform: scale(1.05);
+}
+
+.bt-intro-start:active {
+    transform: translateY(6px) scale(1);
+    animation: none;
+    box-shadow: 0 4px 0 var(--bt-gold-dark);
+}
+
+@keyframes bt-start-pulse {
+    0%, 100% {
+        box-shadow:
+            0 10px 0 var(--bt-gold-dark),
+            0 18px 32px rgba(0, 0, 0, 0.45),
+            0 0 36px rgba(241, 196, 15, 0.45);
+    }
+    50% {
+        box-shadow:
+            0 10px 0 var(--bt-gold-dark),
+            0 18px 32px rgba(0, 0, 0, 0.45),
+            0 0 60px rgba(241, 196, 15, 0.75);
+    }
+}
+
+.bt-intro-hint {
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    animation: bt-hint-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes bt-hint-pulse {
+    0%, 100% { opacity: 0.65; }
+    50%      { opacity: 1; }
+}
+
+/* =============================================================
+   11. MAIN HUB (FAZA 6c)
+   =============================================================
+   Hero PLAY layout: welcome → continue → hero → secondary grid.
+   ============================================================= */
+
+.bt-hub-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    box-sizing: border-box;
+    background: #1a1a2e;
+    overflow: hidden;
+}
+
+/* === Background landscape (Vista B — narrative hub) === */
+.bt-hub-bg {
+    position: absolute;
+    inset: 0;
+    background-image: url('/BrawlTanksv2/intro/MainHub_Background.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    z-index: 0;
+    animation: bt-ken-burns 28s ease-in-out infinite;
+}
+
+.bt-hub-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg,
+                rgba(15, 20, 35, 0.25) 0%,
+                rgba(15, 20, 35, 0.55) 50%,
+                rgba(15, 20, 35, 0.78) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Children sit above bg + overlay */
+.bt-hub-screen > .bt-hub-welcome,
+.bt-hub-screen > .bt-hub-continue,
+.bt-hub-screen > .bt-hub-hero-play,
+.bt-hub-screen > .bt-hub-secondary-grid {
+    position: relative;
+    z-index: 2;
+}
+
+.bt-hub-inner {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* When hub screen is mounted directly, wrap children with inner class */
+.bt-hub-screen > .bt-hub-welcome,
+.bt-hub-screen > .bt-hub-continue,
+.bt-hub-screen > .bt-hub-hero-play,
+.bt-hub-screen > .bt-hub-secondary-grid {
+    width: 100%;
+    max-width: 480px;
+}
+
+/* === Welcome bar === */
+.bt-hub-welcome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: rgba(15, 20, 35, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(241, 196, 15, 0.45);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.bt-hub-welcome-text {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    color: var(--bt-gold);
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bt-hub-welcome-text .wave {
+    display: inline-block;
+    transform-origin: 70% 70%;
+    animation: bt-wave 2.5s ease-in-out infinite;
+}
+
+@keyframes bt-wave {
+    0%, 60%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(14deg); }
+    20% { transform: rotate(-8deg); }
+    30% { transform: rotate(14deg); }
+    40% { transform: rotate(-4deg); }
+    50% { transform: rotate(8deg); }
+}
+
+/* === Continue card (conditional) === */
+.bt-hub-continue {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #fff8dc 0%, #fff3b0 100%);
+    border: 3px solid var(--bt-gold);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 0 var(--bt-gold-dark), 0 0 18px rgba(241, 196, 15, 0.3);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    text-align: left;
+    font-family: inherit;
+    width: 100%;
+}
+
+.bt-hub-continue:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 var(--bt-gold-dark), 0 0 24px rgba(241, 196, 15, 0.55);
+}
+
+.bt-hub-continue:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--bt-gold-dark);
+}
+
+.bt-hub-continue-icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.bt-hub-continue-text {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: var(--bt-navy);
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+}
+
+.bt-hub-continue-arrow {
+    font-size: 1.3rem;
+    color: var(--bt-gold-dark);
+    flex-shrink: 0;
+}
+
+/* === Hero PLAY (dominujący CTA) === */
+.bt-hub-hero-play {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 76px;
+    padding: 14px 22px;
+    background: linear-gradient(135deg, #f1c40f 0%, #f39c12 50%, #e67e22 100%);
+    border: 5px solid var(--bt-navy);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: transform var(--transition-fast);
+    animation: bt-hero-glow 2.8s ease-in-out infinite;
+    font-family: inherit;
+}
+
+.bt-hub-hero-play:hover {
+    transform: translateY(-3px) scale(1.02);
+}
+
+.bt-hub-hero-play:active {
+    transform: translateY(6px) scale(1);
+    animation: none;
+}
+
+@keyframes bt-hero-glow {
+    0%, 100% {
+        box-shadow:
+            0 10px 0 var(--bt-gold-dark),
+            0 18px 36px rgba(0, 0, 0, 0.25),
+            0 0 40px rgba(241, 196, 15, 0.4);
+    }
+    50% {
+        box-shadow:
+            0 10px 0 var(--bt-gold-dark),
+            0 18px 36px rgba(0, 0, 0, 0.25),
+            0 0 60px rgba(241, 196, 15, 0.75);
+    }
+}
+
+.bt-hub-hero-play-icon {
+    font-size: 2rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.bt-hub-hero-play-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.bt-hub-hero-play-label {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: #fff;
+    letter-spacing: 2px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.bt-hub-hero-play-sub {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.95);
+    letter-spacing: 1px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+    font-weight: normal;
+}
+
+/* === Secondary grid (4 buttons, 2x2 mobile / 4x1 desktop) === */
+.bt-hub-secondary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+}
+
+.bt-hub-secondary-btn {
+    appearance: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 8px 16px;
+    background: rgba(15, 20, 35, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid rgba(241, 196, 15, 0.4);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    position: relative;
+    font-family: inherit;
+    min-height: 78px;
+}
+
+.bt-hub-secondary-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.35);
+    border-color: var(--bt-gold);
+}
+
+.bt-hub-secondary-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.bt-hub-secondary-btn .icon {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+    line-height: 1;
+}
+
+.bt-hub-secondary-btn .label {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    color: #fff;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    line-height: 1.1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* === Soon slots === */
+.bt-hub-secondary-btn.is-soon {
+    background: rgba(15, 20, 35, 0.5);
+    cursor: not-allowed;
+}
+
+.bt-hub-secondary-btn.is-soon .icon,
+.bt-hub-secondary-btn.is-soon .label {
+    opacity: 0.5;
+    filter: saturate(0.3);
+}
+
+.bt-hub-secondary-btn.is-soon::after {
+    content: '🔒';
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    font-size: 0.85rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.bt-hub-secondary-btn .soon-badge {
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    background: rgba(0, 0, 0, 0.78);
+    color: var(--bt-gold);
+    padding: 2px 8px;
+    border-radius: 6px;
+    letter-spacing: 1.5px;
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    white-space: nowrap;
+}
+
+/* =============================================================
+   12. TOAST (ephemeral notifications)
+   ============================================================= */
+
+.bt-toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(15, 20, 35, 0.95);
+    color: var(--bt-gold);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    padding: 12px 24px;
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--bt-gold);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: var(--z-toast);
+    pointer-events: none;
+    text-transform: uppercase;
+    max-width: 80vw;
+    text-align: center;
+}
+
+.bt-toast.is-visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* =============================================================
+   13. RESPONSIVE — Tablet / Desktop overrides for hub + intro
+   ============================================================= */
+
+@media (min-width: 768px) {
+    /* Intro */
+    .bt-intro-start {
+        font-size: 3.4rem;
+        padding: 16px 70px;
+        letter-spacing: 4px;
+    }
+
+    .bt-intro-hint {
+        font-size: 0.95rem;
+    }
+
+    /* Hub welcome */
+    .bt-hub-welcome-text {
+        font-size: 1.35rem;
+    }
+
+    /* Hub continue */
+    .bt-hub-continue {
+        padding: 12px 18px;
+    }
+    .bt-hub-continue-text {
+        font-size: 0.95rem;
+    }
+
+    /* Hub hero */
+    .bt-hub-hero-play {
+        min-height: 92px;
+        padding: 16px 24px;
+    }
+    .bt-hub-hero-play-icon {
+        font-size: 2.3rem;
+    }
+    .bt-hub-hero-play-label {
+        font-size: 2.4rem;
+        letter-spacing: 2.5px;
+    }
+    .bt-hub-hero-play-sub {
+        font-size: 0.82rem;
+    }
+
+    /* Secondary 4 in a row on tablet+ */
+    .bt-hub-secondary-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+    .bt-hub-secondary-btn {
+        min-height: 90px;
+        padding: 16px 8px 20px;
+    }
+    .bt-hub-secondary-btn .icon {
+        font-size: 2.2rem;
+    }
+    .bt-hub-secondary-btn .label {
+        font-size: 0.85rem;
+    }
+}
+
+@media (min-width: 1280px) {
+    .bt-hub-inner {
+        max-width: 560px;
+    }
+
+    .bt-hub-screen > .bt-hub-welcome,
+    .bt-hub-screen > .bt-hub-continue,
+    .bt-hub-screen > .bt-hub-hero-play,
+    .bt-hub-screen > .bt-hub-secondary-grid {
+        max-width: 560px;
+    }
+
+    .bt-intro-start {
+        font-size: 4rem;
+        padding: 20px 90px;
+    }
+
+    .bt-hub-hero-play {
+        min-height: 108px;
+    }
+    .bt-hub-hero-play-label {
+        font-size: 2.8rem;
+    }
+    .bt-hub-hero-play-icon {
+        font-size: 2.6rem;
+    }
+
+    .bt-hub-secondary-btn {
+        min-height: 110px;
+    }
+    .bt-hub-secondary-btn .icon {
+        font-size: 2.6rem;
+    }
+}
+
+/* =============================================================
+   14. REDUCED MOTION (accessibility)
+   ============================================================= */
+@media (prefers-reduced-motion: reduce) {
+    .bt-intro-slide.is-active,
+    .bt-intro-start,
+    .bt-intro-hint,
+    .bt-hub-welcome-text .wave,
+    .bt-hub-hero-play {
+        animation: none !important;
+    }
+}
+
+/* =============================================================
+   15. PICKER SCREENS (FAZA 6d)
+   =============================================================
+   Wspolne dla ScenarioPicker + BrawlerPicker:
+   - Background landscape (ten sam co MainHub — narrative continuity)
+   - Step indicator (kropki ● ○)
+   - Picker title + subtitle
+   - Footer z back + primary CTA
+   ============================================================= */
+
+.bt-picker-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #1a1a2e;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Bulletproof centering (Runda 1.10): flex parent gwarantuje symmetric margins
+       niezaleznie od scrollbar/gutter behavior browsera */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Hide scrollbar wizualnie (scroll wciaz dziala wheel/touch jesli potrzebny) */
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge */
+}
+
+.bt-picker-screen::-webkit-scrollbar {
+    display: none;                  /* Chrome/Safari */
+}
+
+.bt-picker-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 560px;
+    padding: 16px 16px 80px; /* bottom padding dla space pod footer */
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+/* Force IDENTYCZNA width na WSZYSTKICH direct children picker-content (Runda 1.13).
+   Belt+suspenders: width 100%, max-width 100%, min-width 100%, explicit margins zero.
+   !important zeby przebic ewentualne specyficzne overrides. */
+.bt-picker-content > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    align-self: stretch;
+    box-sizing: border-box;
+}
+
+/* === Picker header === */
+.bt-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    background: rgba(15, 20, 35, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(241, 196, 15, 0.4);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.bt-picker-title {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--bt-gold);
+    margin: 0;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    flex: 1;
+}
+
+.bt-picker-subtitle {
+    position: relative;
+    z-index: 10;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--bt-gold);
+    margin: 0;
+    padding: 8px 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    background: rgba(15, 20, 35, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(241, 196, 15, 0.4);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* === Step indicator (● ○) === */
+.bt-step-indicator {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.bt-step-indicator .step {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    transition: all var(--transition-base);
+}
+
+.bt-step-indicator .step.is-active {
+    background: var(--bt-gold);
+    border-color: #fff;
+    box-shadow: 0 0 12px rgba(241, 196, 15, 0.7);
+    transform: scale(1.15);
+}
+
+/* === Picker footer === */
+.bt-picker-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 4px;
+}
+
+.bt-picker-footer .bt-btn-secondary {
+    font-size: 0.92rem;
+    padding: 8px 18px;
+    flex-shrink: 0;
+}
+
+.bt-picker-footer .bt-btn-primary {
+    font-size: 1.2rem;
+    padding: 9px 28px;
+    flex: 1;
+    max-width: 240px;
+}
+
+.bt-picker-footer .bt-cta-button {
+    /* Runda 1.23: max-width 240px zamiast flex:1 (full width).
+       Powod: na wide screens (tablet/desktop) button rozciagal sie na cala szerokosc
+       pozostala po BACK, wygladal gigantycznie. Cap 240px daje compact, focused CTA. */
+    flex: 1;
+    max-width: 240px;
+}
+
+.bt-picker-footer .bt-btn-primary:disabled,
+.bt-picker-footer .bt-cta-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: saturate(0.5);
+    animation: none !important;
+}
+
+/* =============================================================
+   16. SCENARIO CARDS (FAZA 6d)
+   ============================================================= */
+
+.bt-scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.bt-scenario-card {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    /* Runda 1.21: padding 0 - preview-wrap fills top, info section has own padding (like map card) */
+    padding: 0;
+    /* Runda 1.14 unification: brawler styling tokens (Opcja A + X) */
+    background: rgba(15, 20, 35, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid var(--bt-navy);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    font-family: inherit;
+    text-align: center;
+}
+
+.bt-scenario-card:not(.is-locked):hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.5);
+    border-color: var(--bt-gold);
+}
+
+.bt-scenario-card:not(.is-locked):active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.bt-scenario-card.is-selected {
+    border-color: var(--bt-gold);
+    box-shadow:
+        0 8px 0 var(--bt-gold-dark),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.5);
+    transform: translateY(-4px) scale(1.04);
+    z-index: 5;
+}
+
+.bt-scenario-card:focus-visible {
+    outline: 3px solid var(--bt-gold);
+    outline-offset: 4px;
+}
+
+.bt-scenario-card.is-locked {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Runda 1.21: Preview wrap - kolorowy box z emoji (aspect-ratio jak map card) */
+.bt-scenario-card-preview {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 240 / 140;
+    background: var(--surface-dark);
+    overflow: hidden;
+    border-top-left-radius: calc(var(--radius-md) - 3px);
+    border-top-right-radius: calc(var(--radius-md) - 3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Info section (jak map-card-info) */
+.bt-scenario-card-info {
+    padding: 8px 6px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: transparent;
+}
+
+/* Emoji - bigger, centered w preview wrap, above background pseudo elements */
+.bt-scenario-card-emoji {
+    font-size: 3.4rem;
+    line-height: 1;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.7));
+    position: relative;
+    z-index: 2;
+    display: inline-block; /* required dla transform animations */
+}
+
+/* Runda 1.27: thematic SVG background per scenariusz (KTB/CTF/Castle)
+   Full-bleed pod animacjami pseudo-elements (::before z-index 1) i emoji (z-index 2). */
+.bt-scenario-preview-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* ============================================================
+   Runda 1.21: Per-scenario JUICY animations
+   Dual-layer system: background ::before pseudo + emoji transform
+   ============================================================ */
+
+/* ---- KTB (Kill the Boss): pulsing red menace + rotating skull ---- */
+.bt-scenario-card[data-scenario-id="ktb"] .bt-scenario-card-preview {
+    /* Runda 1.27: radial gradient usuniety - SVG bg dostarcza thematic background (pale wine + skulls + bones).
+       Surface-dark zostaje jako fallback (1 frame przed SVG render). */
+    background: var(--surface-dark);
+}
+
+.bt-scenario-card[data-scenario-id="ktb"] .bt-scenario-card-preview::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(231, 76, 60, 0.55) 0%, transparent 50%);
+    animation: bt-ktb-bg-pulse 1.6s ease-in-out infinite;
+    z-index: 1;
+}
+
+@keyframes bt-ktb-bg-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.85); }
+    50%      { opacity: 1;   transform: scale(1.25); }
+}
+
+.bt-scenario-card[data-scenario-id="ktb"] .bt-scenario-card-emoji {
+    animation: bt-emoji-skull-juicy 3.2s ease-in-out infinite;
+}
+
+@keyframes bt-emoji-skull-juicy {
+    0%, 100%  { transform: rotate(-10deg) scale(1); }
+    25%       { transform: rotate(0deg) scale(1.08); }
+    50%       { transform: rotate(10deg) scale(1); }
+    75%       { transform: rotate(0deg) scale(1.08); }
+}
+
+/* ---- CTF (Capture the Flag): wind streaks + dramatic waving flag ---- */
+.bt-scenario-card[data-scenario-id="ctf"] .bt-scenario-card-preview {
+    /* Runda 1.27: linear gradient usuniety - SVG bg dostarcza scenografie (jasne tlo + ruined columns + walls) */
+    background: var(--surface-dark);
+}
+
+.bt-scenario-card[data-scenario-id="ctf"] .bt-scenario-card-preview::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg,
+        transparent 25%,
+        rgba(52, 152, 219, 0.35) 45%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(52, 152, 219, 0.35) 55%,
+        transparent 75%);
+    animation: bt-ctf-wind 2.2s linear infinite;
+    z-index: 1;
+}
+
+@keyframes bt-ctf-wind {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(120%); }
+}
+
+.bt-scenario-card[data-scenario-id="ctf"] .bt-scenario-card-emoji {
+    animation: bt-emoji-flag-juicy 1.4s ease-in-out infinite;
+    transform-origin: bottom left;
+}
+
+@keyframes bt-emoji-flag-juicy {
+    0%, 100% { transform: skewX(0deg) rotate(0deg) scale(1); }
+    25%      { transform: skewX(-14deg) rotate(-5deg) scale(1.03); }
+    50%      { transform: skewX(0deg) rotate(0deg) scale(1); }
+    75%      { transform: skewX(14deg) rotate(5deg) scale(1.03); }
+}
+
+/* ---- Castle (Defend the Castle): golden shield activation pulse + castle ground shake ---- */
+.bt-scenario-card[data-scenario-id="castle"] .bt-scenario-card-preview {
+    /* Runda 1.27: radial gradient usuniety - SVG bg dostarcza scenografie (blue sky + cloud + hills + grass) */
+    background: var(--surface-dark);
+}
+
+.bt-scenario-card[data-scenario-id="castle"] .bt-scenario-card-preview::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(241, 196, 15, 0.5) 0%, rgba(241, 196, 15, 0.15) 30%, transparent 50%);
+    animation: bt-castle-shield 2.4s ease-in-out infinite;
+    z-index: 1;
+    opacity: 0;
+}
+
+@keyframes bt-castle-shield {
+    0%, 100% { opacity: 0;   transform: scale(0.4); }
+    35%      { opacity: 0.9; transform: scale(1.05); }
+    55%      { opacity: 0.5; transform: scale(1.2); }
+    75%      { opacity: 0;   transform: scale(1.3); }
+}
+
+.bt-scenario-card[data-scenario-id="castle"] .bt-scenario-card-emoji {
+    animation: bt-emoji-castle-juicy 2.4s ease-in-out infinite;
+}
+
+@keyframes bt-emoji-castle-juicy {
+    0%, 100% {
+        transform: scale(1) translateY(0);
+        filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.7));
+    }
+    35% {
+        transform: scale(1.1) translateY(-4px);
+        filter: drop-shadow(0 4px 14px rgba(241, 196, 15, 0.75));
+    }
+    50% {
+        transform: scale(1.05) translateY(-2px);
+        filter: drop-shadow(0 4px 10px rgba(241, 196, 15, 0.45));
+    }
+}
+
+/* ---- SaveKing (locked): royal sparkles + floating crown ---- */
+.bt-scenario-card[data-scenario-id="save_king"] .bt-scenario-card-preview {
+    background:
+        radial-gradient(circle at 50% 50%, rgba(241, 196, 15, 0.25) 0%, transparent 70%),
+        var(--surface-dark);
+}
+
+.bt-scenario-card[data-scenario-id="save_king"] .bt-scenario-card-preview::before {
+    content: '✦   ✦   ✦';
+    position: absolute;
+    inset: 0;
+    color: rgba(241, 196, 15, 0.7);
+    font-size: 0.7rem;
+    text-align: center;
+    line-height: 100%;
+    padding-top: 12%;
+    letter-spacing: 20px;
+    animation: bt-saveking-sparkle 2.8s ease-in-out infinite;
+    z-index: 1;
+}
+
+@keyframes bt-saveking-sparkle {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    50%      { opacity: 0.95; transform: translateY(-3px); }
+}
+
+.bt-scenario-card[data-scenario-id="save_king"] .bt-scenario-card-emoji {
+    animation: bt-emoji-crown-juicy 2.6s ease-in-out infinite;
+}
+
+@keyframes bt-emoji-crown-juicy {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50%      { transform: translateY(-8px) rotate(3deg); }
+}
+
+/* A11y: respektuj prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+    .bt-scenario-card-emoji,
+    .bt-scenario-card-preview::before {
+        animation: none !important;
+    }
+}
+
+.bt-scenario-card-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    color: #fff;
+    background: var(--accent);
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    /* Runda 1.20 fix: vertical justification - 1-line texts centered in 2-line min-height area
+       Eliminuje wertykalny mismatch między "Kill the Boss" (1-line) vs "Capture the Flag"/"Defend the Castle" (2-line) */
+    min-height: 2.6em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.bt-scenario-card-desc {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.3;
+    font-weight: normal;
+    letter-spacing: 0.3px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+.bt-scenario-card-mapbadge {
+    margin-top: 6px;
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    color: var(--bt-gold);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.8px;
+    border: 1px solid rgba(241, 196, 15, 0.4);
+}
+
+/* Lock overlay dla scenario card */
+.bt-scenario-lock-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15, 20, 35, 0.4) 0%, rgba(15, 20, 35, 0.75) 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.bt-scenario-lock-overlay .lock-icon {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+    animation: bt-lock-pulse 2.6s ease-in-out infinite;
+}
+
+.bt-scenario-lock-overlay .lock-badge {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.78);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+}
+
+/* =============================================================
+   17. MAP SECTION (conditional, slide-down + fade-in)
+   ============================================================= */
+
+.bt-map-section {
+    display: flex;
+    flex-direction: column;
+    /* Runda 1.24 fix: gap 8px → 16px (więcej oddechu między WYBIERZ OTOCZENIE subtitle a map grid) */
+    gap: 16px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transform: translateY(-12px);
+    transition:
+        opacity 0.25s ease-out,
+        max-height 0.32s ease-out,
+        transform 0.25s ease-out;
+}
+
+.bt-map-section.is-visible {
+    opacity: 1;
+    max-height: 1200px; /* duzy zapas dla 4 kart */
+    transform: translateY(0);
+}
+
+/* Runda 1.16 fix: po zakonczeniu slide-down animation, JS dodaje is-expanded
+   zeby overflow nie clipowal effects (gold glow + scale 1.04 + drop shadow)
+   selected map card. Przy collapse: is-expanded usuwany PRZED is-visible
+   zeby overflow:hidden chronil animacje. */
+.bt-map-section.is-expanded {
+    overflow: visible;
+}
+
+.bt-map-section.is-hidden {
+    display: none;
+}
+
+/* =============================================================
+   18. BRAWLER CARDS (FAZA 6d)
+   =============================================================
+   Mobile: 2 columns x 4 rows (2x4 grid) — szersze karty dla stats
+   Tablet+: 4 columns x 2 rows
+   ============================================================= */
+
+.bt-brawler-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.bt-brawler-card {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 6px 10px;
+    background: rgba(15, 20, 35, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid var(--bt-navy);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    font-family: inherit;
+    min-height: 190px;
+}
+
+.bt-brawler-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.5);
+    border-color: var(--bt-gold);
+}
+
+.bt-brawler-card.is-selected {
+    border-color: var(--bt-gold);
+    box-shadow:
+        0 8px 0 var(--bt-gold-dark),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.5);
+    transform: translateY(-4px) scale(1.04);
+    z-index: 5;
+}
+
+.bt-brawler-card:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.bt-brawler-card:focus-visible {
+    outline: 3px solid var(--bt-gold);
+    outline-offset: 4px;
+}
+
+.bt-brawler-card-icon-wrap {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin-bottom: 4px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    border: 3px solid var(--bt-navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bt-brawler-card-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border: 0;
+    border-radius: 0;
+    display: block;
+}
+
+.bt-brawler-card-emoji {
+    font-size: 3.5rem;
+    line-height: 1;
+}
+
+.bt-brawler-card-name {
+    width: 100%;
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    color: #fff;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 4px;
+    padding: 3px 6px;
+    line-height: 1.1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    background: var(--bt-navy);
+    border-radius: 8px;
+    border: 1.5px solid rgba(0, 0, 0, 0.3);
+}
+
+.bt-brawler-card-stats {
+    width: 100%;
+    display: flex;
+    /* Runda 1.19-B1 fix: space-around → space-between
+       Powod: space-around tworzylo outer margins (1/2 gap przy lewej i prawej krawedzi container),
+       co zabieralo precious horizontal space. space-between umieszcza pierwszy stat AT left edge
+       i ostatni AT right edge, calosc wolnej przestrzeni idzie MIEDZY elementami. */
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 8px;
+    /* Runda 1.19 fix: padding horizontal 5px → 4px (per Mariusz: "kilka pikseli wolnego miejsca")
+       Oszczednosc 2px each side = 4px total dla decimal values horizontal fit */
+    padding: 4px 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.bt-brawler-card-stats .stat {
+    font-family: var(--font-display);
+    /* Runda 1.18: unified font-size (stat/icon/divider same per breakpoint) + explicit line-height
+       dla descender breathing space (decimal point "." nie obcina sie pod container) */
+    font-size: 0.85rem;
+    line-height: 1.3;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    /* Runda 1.19 fix: gap 3px → 1px + letter-spacing 0.3 → 0 (eliminuje horizontal overflow
+       decimal stats values "3.5", "7.5", "0.8" wystajacych poza karte brawlera) */
+    gap: 1px;
+    letter-spacing: 0;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.bt-brawler-card-stats .stat-icon {
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.bt-brawler-card-stats .stat-divider {
+    color: rgba(255, 255, 255, 0.3);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    user-select: none;
+}
+
+/* =============================================================
+   19. DIFFICULTY PILLS (FAZA 6d)
+   ============================================================= */
+
+.bt-difficulty-pills {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+}
+
+.bt-difficulty-pill {
+    appearance: none;
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 12px 6px;
+    background: rgba(15, 20, 35, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid var(--bt-navy);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+    font-family: inherit;
+    text-align: center;
+}
+
+.bt-difficulty-pill:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.5);
+    border-color: var(--bt-gold);
+}
+
+.bt-difficulty-pill.is-selected {
+    background: var(--pill-color);
+    border-color: var(--bt-gold);
+    transform: translateY(-4px) scale(1.04);
+    /* Runda 1.16-pill fix: drop shadow gold-dark → dark (jak na map card Runda 1.15).
+       Powod: pill ma kolorowy bg (pill-color per difficulty), pomaranczowy drop
+       (gold-dark) compoundowal z pill bg color → visual artifacts w bottom corners. */
+    box-shadow:
+        0 8px 0 rgba(0, 0, 0, 0.5),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.55);
+    z-index: 5;
+}
+
+.bt-difficulty-pill .pill-label {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: #fff;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* =============================================================
+   20. CTA BUTTON (BrawlerPicker hero CTA z dynamic text)
+   =============================================================
+   Inny niz bt-hub-hero-play — kompaktowy do footer.
+   ============================================================= */
+
+.bt-cta-button {
+    appearance: none;
+    padding: 10px 32px;
+    background: linear-gradient(135deg, #f1c40f 0%, #f39c12 50%, #e67e22 100%);
+    border: 4px solid var(--bt-navy);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    box-shadow: 0 5px 0 var(--bt-gold-dark);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    font-family: inherit;
+    text-align: center;
+    animation: bt-cta-subtle-pulse 2.6s ease-in-out infinite;
+}
+
+.bt-cta-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 0 var(--bt-gold-dark);
+}
+
+.bt-cta-button:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 var(--bt-gold-dark);
+    animation: none;
+}
+
+@keyframes bt-cta-subtle-pulse {
+    0%, 100% {
+        box-shadow: 0 5px 0 var(--bt-gold-dark);
+    }
+    50% {
+        box-shadow: 0 5px 0 var(--bt-gold-dark), 0 0 20px rgba(241, 196, 15, 0.5);
+    }
+}
+
+.bt-cta-label {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    color: #fff;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* =============================================================
+   21. PICKER RESPONSIVE BREAKPOINTS
+   ============================================================= */
+
+@media (min-width: 768px) {
+    .bt-picker-content {
+        padding: 24px 24px 100px;
+        gap: 16px;
+        max-width: 720px;
+    }
+
+    .bt-picker-title { font-size: 1.5rem; }
+    .bt-picker-subtitle { font-size: 1.5rem; }
+
+    /* Scenario grid: 4 cols on tablet+ */
+    .bt-scenario-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    /* Runda 1.21: card padding removed (now structural via preview+info), emoji scaled up dla preview-wrap */
+    .bt-scenario-card-emoji { font-size: 3.8rem; }
+    .bt-scenario-card-info  { padding: 10px 8px 13px; }
+    .bt-scenario-card-name  { font-size: 1.05rem; padding: 4px 12px; }
+    .bt-scenario-card-desc  { font-size: 0.8rem; }
+
+    /* Brawler grid: 4 cols on tablet+ */
+    .bt-brawler-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .bt-brawler-card {
+        min-height: 215px;
+        /* Runda 1.19-B3 fix: padding horizontal 8px → 5px (+6px width dla stats container).
+           Zerowanie worst case overflow OGNIARZ +6px do 0. */
+        padding: 10px 5px 12px;
+    }
+
+    .bt-brawler-card-icon-wrap { width: 130px; height: 130px; border-radius: 16px; margin-bottom: 6px; }
+    .bt-brawler-card-emoji { font-size: 3.6rem; }
+    .bt-brawler-card-name { font-size: 1rem; margin-bottom: 6px; padding: 4px 8px; }
+    /* Runda 1.19-B3: stats container padding 5px → 3px sides (+2px extra buffer = 2px safety margin) */
+    .bt-brawler-card-stats { padding: 5px 3px; }
+    .bt-brawler-card-stats .stat { font-size: 0.95rem; gap: 2px; }
+    .bt-brawler-card-stats .stat-icon { font-size: 0.95rem; }
+    .bt-brawler-card-stats .stat-divider { font-size: 0.95rem; }
+
+    /* Difficulty pills bigger */
+    .bt-difficulty-pill { padding: 10px 6px; }
+    .bt-difficulty-pill .pill-label { font-size: 0.85rem; letter-spacing: 1px; }
+
+    /* CTA bigger */
+    .bt-cta-button { padding: 12px 40px; }
+    .bt-cta-label { font-size: 1.5rem; letter-spacing: 2.5px; }
+}
+
+@media (min-width: 1280px) {
+    .bt-picker-content {
+        max-width: 800px;
+        gap: 18px;
+    }
+
+    .bt-picker-title { font-size: 1.7rem; }
+    .bt-picker-subtitle { font-size: 1.7rem; }
+
+    .bt-scenario-card-emoji { font-size: 4.2rem; }
+    .bt-scenario-card-info  { padding: 12px 10px 16px; }
+    .bt-scenario-card-name { font-size: 1.18rem; }
+    .bt-scenario-card-desc { font-size: 0.88rem; }
+
+    .bt-brawler-card { min-height: 240px; }
+    .bt-brawler-card-icon-wrap { width: 150px; height: 150px; border-radius: 18px; margin-bottom: 8px; }
+    .bt-brawler-card-emoji { font-size: 4.2rem; }
+    .bt-brawler-card-name { font-size: 1.1rem; padding: 5px 10px; }
+    .bt-brawler-card-stats .stat { font-size: 1.05rem; }
+    .bt-brawler-card-stats .stat-icon { font-size: 1.05rem; }
+    .bt-brawler-card-stats .stat-divider { font-size: 1.05rem; }
+
+    .bt-difficulty-pill { padding: 12px 8px; }
+    .bt-difficulty-pill .pill-label { font-size: 0.95rem; }
+
+    .bt-cta-button { padding: 14px 48px; }
+    .bt-cta-label { font-size: 1.7rem; letter-spacing: 3px; }
+}
+
+/* =============================================================
+   22. PICKER REDUCED MOTION
+   ============================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .bt-scenario-card,
+    .bt-brawler-card,
+    .bt-difficulty-pill,
+    .bt-cta-button,
+    .bt-map-section,
+    .bt-scenario-lock-overlay .lock-icon {
+        animation: none !important;
+        transition: none !important;
+    }
+}

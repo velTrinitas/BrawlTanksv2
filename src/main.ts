@@ -48,18 +48,30 @@ import { PowerSystem } from './systems/PowerSystem';
 import { PICKUP_CONFIG, MEGA_BOMB_CONFIG } from './config/powers';
 import { AudioSys } from './audio/AudioSys';
 
+// === FAZA 6.5.1: Config + Session architecture ===
+import { GameConfigBuilder, describeGameConfig } from './types/GameConfig';
+import { GameSession } from './services/GameSession';
+import { scoreService } from './services/ScoreService';
+import { sessionService } from './services/SessionService';
+import { SCENARIO_CONFIGS } from './types/Scenario';
+import { t } from './i18n/i18n';
+
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
+const COMBO_WINDOW_MS = 2000;
 
 // v0.18.3-fix1 FAZA 4c — OASIS STEALTH timer constants
-const OASIS_STEALTH_DURATION_MS = 10000;  // 10s niewidzialności po wejściu do oazy
+const OASIS_STEALTH_DURATION_MS = 10000;  // 10s niewidzialnosci po wejsciu do oazy
 
+// === Menu selection state (FAZA 6.5.2 zlikwiduje, gdy MainMenu wpiety) ===
 let selectedBrawler: Brawler = BRAWLERS[0];
 let selectedMapId: MapId = getMapIdFromUrl();
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
-let stats = { score: 0 };
-let gameStartTime = 0;
+// === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
+// Stary scattered state (stats, gameStartTime, comboCount, comboEndTime) wymieniony
+// na jeden GameSession ktory trzyma score+combo+time+immutable config reference.
+let currentSession: GameSession | null = null;
 
 let player: Player | null = null;
 let enemies: Enemy[] = [];
@@ -81,11 +93,12 @@ let oases: Oasis[] = [];
 // v0.18.4 FAZA 4d — caravan (5 camels back-and-forth, drop pickup co 15s)
 let caravan: Caravan | null = null;
 
-// v0.18.3-fix1 — Oasis stealth state machine (game-level, reset per startGame)
-// v0.18.3-fix1 — Oasis stealth state machine (game-level, reset per startGame)
-let oasisStealthEndTime: number = 0;       // Date.now() po którym stealth wygasa (gdy gracz w oazie)
+// === Frame-transient state (per-frame mechanics, reset per startGame) ===
+// CELOWO module-level, NIE czesc GameSession — to per-frame game loop state,
+// nie session metadata. GameSession trzyma logical "session" (score/combo/time/config).
+let oasisStealthEndTime: number = 0;       // Date.now() po ktorym stealth wygasa (gdy gracz w oazie)
 let wasInOasisLastFrame: boolean = false;  // do detekcji fresh entry (false→true transition)
-let wasStealthActiveLastFrame: boolean = false;  // do detekcji końca stealth (notif "zauważony")
+let wasStealthActiveLastFrame: boolean = false;  // do detekcji konca stealth (notif "zauwazony")
 
 // v0.18.5 FAZA 5a — Sand kick frame counter (tylko desert, tylko gdy player.isMoving)
 let sandKickFrameCounter: number = 0;
@@ -101,9 +114,6 @@ const keys = { w: false, a: false, s: false, d: false };
 const mouse = { screenX: window.innerWidth / 2, screenY: window.innerHeight / 2 };
 let lastShotTime = 0;
 let isMouseDown = false;
-
-let comboCount = 0;
-let comboEndTime = 0;
 
 const audio = AudioSys.getInstance();
 
@@ -156,7 +166,7 @@ setTimeout(() => {
 }, 10000);
 
 function tryActivateSuper(): void {
-    if (gameState !== 'PLAYING' || !powerSystem || !player || !effects) return;
+    if (gameState !== 'PLAYING' || !powerSystem || !player || !effects || !currentSession) return;
     
     const result = powerSystem.activate(player, enemies);
     if (!result.activated) return;
@@ -174,7 +184,7 @@ function tryActivateSuper(): void {
             const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
             if (killed) {
                 spawnSystem!.registerKill(enemy);
-                stats.score += enemy.scoreValue;
+                currentSession.score += enemy.scoreValue;
                 dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                 if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
             }
@@ -255,6 +265,34 @@ function startGame(): void {
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
     
+    // === FAZA 6.5.1: Build immutable GameConfig (single source of truth) ===
+    // Legacy welcomeScreen pozwala wybrac TYLKO brawler+map (no scenario/difficulty UI),
+    // wiec hardcode: scenario='ktb', difficulty='normal', mode='solo'.
+    // FAZA 6.5.2 podmieni te defaulty na wybory uzytkownika z MainMenu (ScenarioPicker/BrawlerPicker).
+    const config = new GameConfigBuilder()
+        .setScenario('ktb')
+        .setMap(selectedMapId)
+        .setDifficulty('normal')
+        .setBrawlerId(selectedBrawler.id)
+        .setMode('solo')
+        .build();
+    
+    currentSession = new GameSession(config);
+    console.log(describeGameConfig(config));
+    
+    // === FAZA 6.5.1: Save last session snapshot dla MainHub "Kontynuuj" (FAZA 6.5.2 UI) ===
+    sessionService.saveLastSession({
+        brawlerId: selectedBrawler.id,
+        scenario: config.scenario,
+        map: config.map,
+        difficulty: config.difficulty,
+        mode: config.mode,
+        lastPlayedAt: Date.now(),
+        brawlerName: selectedBrawler.name,
+        mapName: MAP_CONFIGS[config.map].name,
+        scenarioName: t(SCENARIO_CONFIGS[config.scenario].nameKey),
+    });
+    
     worldContainer.removeChildren();
     buildings = [];
     solidBuildings = [];
@@ -267,7 +305,7 @@ function startGame(): void {
     oases = [];
     caravan = null;
     
-// v0.18.3-fix1 — reset stealth state machine na każdy nowy game
+    // v0.18.3-fix1 — reset stealth state machine na kazdy nowy game
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
     wasStealthActiveLastFrame = false;
@@ -394,10 +432,10 @@ function startGame(): void {
             new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
         );
         
-        // v0.18.4 FAZA 4d ✅ — CARAVAN (5 wielbłądów, drop gem/heart/magnet co 15s)
+        // v0.18.4 FAZA 4d ✅ — CARAVAN (5 wielbladow, drop gem/heart/magnet co 15s)
         caravan = new Caravan(worldContainer);
         
-        // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary już zrobione)
+        // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary juz zrobione)
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -406,11 +444,6 @@ function startGame(): void {
     effects = new EffectsManager(worldContainer);
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
-    
-    stats.score = 0;
-    comboCount = 0;
-    comboEndTime = 0;
-    gameStartTime = Date.now();
     
     player = new Player(selectedBrawler, worldContainer);
     enemies = [];
@@ -429,11 +462,22 @@ document.getElementById('startBtn')!.addEventListener('click', startGame);
 document.getElementById('playAgainBtn')!.addEventListener('click', startGame);
 document.getElementById('retryBtn')!.addEventListener('click', startGame);
 
-function triggerGameOver(): void {
+async function triggerGameOver(): Promise<void> {
     gameState = 'GAMEOVER';
     audio.playGameOver();
     
-    const gameSeconds = Math.round((Date.now() - gameStartTime) / 1000);
+    // === FAZA 6.5.1: Submit score do leaderboard (defer dla future Ranking UI) ===
+    if (currentSession) {
+        try {
+            await scoreService.submitScore(currentSession.score, currentSession.config);
+            console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
+        } catch (e) {
+            console.warn('[Score] Submit failed:', e);
+        }
+    }
+    
+    const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
+    const finalScore = currentSession?.score ?? 0;
     const statsEl = document.getElementById('gameOverStats')!;
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
@@ -441,7 +485,7 @@ function triggerGameOver(): void {
             <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
             <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
         </div>
-        <div>⭐ Punkty: <b>${stats.score}</b></div>
+        <div>⭐ Punkty: <b>${finalScore}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów zabitych: <b>${spawnSystem?.bossKills ?? 0}</b></div>
     `;
@@ -450,11 +494,22 @@ function triggerGameOver(): void {
     hud.clear();
 }
 
-function triggerVictory(): void {
+async function triggerVictory(): Promise<void> {
     gameState = 'VICTORY';
     audio.playVictory();
     
-    const gameSeconds = Math.round((Date.now() - gameStartTime) / 1000);
+    // === FAZA 6.5.1: Submit score do leaderboard (defer dla future Ranking UI) ===
+    if (currentSession) {
+        try {
+            await scoreService.submitScore(currentSession.score, currentSession.config);
+            console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
+        } catch (e) {
+            console.warn('[Score] Submit failed:', e);
+        }
+    }
+    
+    const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
+    const finalScore = currentSession?.score ?? 0;
     const statsEl = document.getElementById('victoryStats')!;
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
@@ -462,7 +517,7 @@ function triggerVictory(): void {
             <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
             <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
         </div>
-        <div>⭐ Punkty: <b>${stats.score}</b></div>
+        <div>⭐ Punkty: <b>${finalScore}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów: <b>${spawnSystem?.bossKills ?? 0}</b></div>
         <div>🏆 Mega Boss: <b>POKONANY!</b></div>
@@ -473,7 +528,7 @@ function triggerVictory(): void {
 }
 
 app.ticker.add((delta) => {
-    if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem) return;
+    if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
     
     camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - hud.screenH, ~~(player.y - hud.screenH / 2)));
@@ -505,7 +560,7 @@ app.ticker.add((delta) => {
     }
     
     // v0.18.3-fix1 FAZA 4c — OASIS STEALTH state machine
-    // 1) Sprawdź czy gracz jest w jakiejkolwiek oazie
+    // 1) Sprawdz czy gracz jest w jakiejkolwiek oazie
     let playerInOasis = false;
     for (const oasis of oases) {
         oasis.update();
@@ -516,21 +571,21 @@ app.ticker.add((delta) => {
     
     const nowMs = Date.now();
     
-    // 2) FRESH ENTRY: gracz wszedł do oazy (false→true transition) → reset timera
+    // 2) FRESH ENTRY: gracz wszedl do oazy (false→true transition) → reset timera
     if (playerInOasis && !wasInOasisLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
     }
     
-    // 3) Stealth aktywny TYLKO gdy gracz JEST w oazie AND timer jeszcze nie wygasł
+    // 3) Stealth aktywny TYLKO gdy gracz JEST w oazie AND timer jeszcze nie wygasl
     const isStealthActive = playerInOasis && nowMs < oasisStealthEndTime;
     
     // 4) Transitions → notyfikacje
     if (isStealthActive && !wasStealthActiveLastFrame) {
-        // Stealth START — wszedł do oazy
+        // Stealth START — wszedl do oazy
         hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
         audio.playMagnetPickup();  // reusing magnet sound dla "stealth on" feel
     } else if (!isStealthActive && wasStealthActiveLastFrame && playerInOasis) {
-        // Stealth END (jeszcze w oazie, timer expired) — został zauważony
+        // Stealth END (jeszcze w oazie, timer expired) — zostal zauwazony
         hud.addNotif('👁️ ZOSTAŁEŚ ZAUWAŻONY!', '#ff8855');
         effects.shake(3, 8);
     }
@@ -566,12 +621,12 @@ app.ticker.add((delta) => {
         }
     }
     
-buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
+    buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
     // v0.18.5 FAZA 5a — Sand kick particles (tylko desert, tylko podczas jazdy)
-    // Spawn co 3 frame'y (normal) lub co 2 (turbo) żeby było widać sznurek piasku.
+    // Spawn co 3 frame'y (normal) lub co 2 (turbo) zeby bylo widac sznurek piasku.
     if (selectedMapId === 'desert' && player.isMoving) {
         sandKickFrameCounter++;
         const interval = player.hasSpeedBoost ? 2 : 3;
@@ -630,7 +685,7 @@ buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
             if (g.pickup(effects)) {
                 const prevTotal = spawnSystem.gemsCollected;
                 spawnSystem.registerGemCollected();
-                stats.score += 1;
+                currentSession.score += 1;
                 audio.playGemPickup();
                 
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
@@ -733,7 +788,7 @@ buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
         if (shotInfo) spawnEnemyShot(shotInfo);
         
         // v0.18.3-fix1: collision damage TYLKO gdy enemy NIE jest stealthed
-        // (zdezorientowany wróg nie atakuje, nawet jeśli gracz wpadnie mu pod gąsienice)
+        // (zdezorientowany wrog nie atakuje, nawet jesli gracz wpadnie mu pod gasienice)
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
@@ -745,7 +800,7 @@ buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
                 dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
-                stats.score += enemy.scoreValue;
+                currentSession.score += enemy.scoreValue;
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
@@ -770,14 +825,15 @@ buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
                 if (killed) {
                     audio.playExplosion();
                     spawnSystem.registerKill(enemy);
-                    stats.score += enemy.scoreValue;
+                    currentSession.score += enemy.scoreValue;
                     dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
-                    if (now < comboEndTime) comboCount++; else comboCount = 1;
-                    comboEndTime = now + 2000;
-                    if (comboCount === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
-                    else if (comboCount === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
-                    else if (comboCount >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }
+                    
+                    // FAZA 6.5.1: combo tracking via GameSession.registerKill (zastapilo scattered comboCount/comboEndTime)
+                    const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
+                    if (comboNow === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
+                    else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
+                    else if (comboNow >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }
                 }
                 break;
             }
@@ -790,5 +846,5 @@ buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
     effects.update(delta);
     
     const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
-    hud.render(player, stats.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+    hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

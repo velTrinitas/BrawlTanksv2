@@ -67,7 +67,10 @@ export class IntroScreen implements IScreen {
 
         // Wire START button
         const startBtn = this.el.querySelector<HTMLButtonElement>('.bt-intro-start');
-        startBtn?.addEventListener('click', () => {
+        startBtn?.addEventListener('click', async () => {
+            // FAZA 6e.1: best-effort fullscreen request on user gesture (mobile native feel).
+            // Silently ignored if user denies, API missing (iOS Safari), or document already fullscreen.
+            await this.requestFullscreenSafe();
             this.onStartClick?.();
         });
     }
@@ -155,5 +158,38 @@ export class IntroScreen implements IScreen {
         }, TRANSITION_MS);
 
         this.activeSlideIdx = nextIdx;
+    }
+
+    /**
+     * FAZA 6e.1: request fullscreen on START tap (mobile native feel).
+     *
+     * Vendor-prefixed fallback dla starszych przegladarek (webkit/moz/ms).
+     * Errors silently swallowed: iOS Safari nie supportuje, user moze deny,
+     * document moze byc juz fullscreen, lub PWA standalone mode juz pokrywa viewport.
+     *
+     * Bezpieczne: jesli failed, gra dalej dziala bez fullscreen (graceful degradation).
+     */
+    private async requestFullscreenSafe(): Promise<void> {
+        try {
+            // Skip if already fullscreen (PWA standalone, manual F11, etc.)
+            if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+                return;
+            }
+
+            const el = document.documentElement as any;
+            const req =
+                el.requestFullscreen ||
+                el.webkitRequestFullscreen ||
+                el.mozRequestFullScreen ||
+                el.msRequestFullscreen;
+
+            if (typeof req === 'function') {
+                await req.call(el);
+            }
+        } catch (err) {
+            // Silent fail: user denied, unsupported, etc.
+            // Use console.debug (suppressed in production unless verbose)
+            console.debug('[IntroScreen] Fullscreen request failed (gracefully ignored):', err);
+        }
     }
 }

@@ -3,6 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- ============================================================
+         FAZA 6e PWA + Mobile native feel (v0.19.0)
+         ============================================================ -->
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="./manifest.webmanifest">
+
+    <!-- Theme color (Android Chrome browser bar + Edge title bar) -->
+    <meta name="theme-color" content="#1a252f">
+
+    <!-- Favicon (multi-format) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png">
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+
+    <!-- Apple touch icon (iOS home screen) -->
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+
+    <!-- iOS: web app capable + status bar + title -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Brawl Tanks">
+
+    <!-- Android: mobile-web-app capable -->
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- SEO + social shares -->
+    <meta name="description" content="Top-down tank brawler arena - 8 brawlers, survival vs hordes, super shots and special powers.">
+    <meta property="og:title" content="Brawl Tanks Season 2">
+    <meta property="og:description" content="Top-down tank brawler arena - 8 brawlers, survival vs hordes.">
+    <meta property="og:image" content="./icon-512.png">
+    <meta property="og:type" content="website">
+
+    <!-- ============================================================ -->
+
     <title>Brawl Tanks — Season 2</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
@@ -152,8 +187,47 @@
           </div>
     </div>
 
-    <div id="credits">Game version: 0.18.7-polish1</div>
+    <div id="credits">Game version: v0.19.0</div>
 
     <script type="module" src="/src/main.ts"></script>
+
+    <!-- ============================================================
+         FAZA 6e.3 - Service Worker registration (v0.19.0)
+         Skipped w dev mode (localhost) zeby uniknac konfliktow z vite HMR.
+         W production (GitHub Pages HTTPS) rejestruje SW dla offline cache + install prompt.
+         ============================================================ -->
+    <script>
+        (function () {
+            var isLocalDev =
+                window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+
+            if ('serviceWorker' in navigator && !isLocalDev) {
+                window.addEventListener('load', function () {
+                    navigator.serviceWorker.register('./sw.js', { scope: './' })
+                        .then(function (reg) {
+                            console.log('[PWA] SW registered, scope:', reg.scope);
+
+                            // Check for new SW version on each load
+                            reg.addEventListener('updatefound', function () {
+                                var newWorker = reg.installing;
+                                if (newWorker) {
+                                    newWorker.addEventListener('statechange', function () {
+                                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                            console.log('[PWA] New version available - reload to update');
+                                        }
+                                    });
+                                }
+                            });
+                        })
+                        .catch(function (err) {
+                            console.warn('[PWA] SW registration failed:', err);
+                        });
+                });
+            } else if (isLocalDev) {
+                console.log('[PWA] SW registration skipped (dev mode: ' + window.location.hostname + ')');
+            }
+        })();
+    </script>
 </body>
 </html>

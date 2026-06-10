@@ -6,10 +6,14 @@
  * - Config zawiera TYLKO structural data + TranslationKey references
  * - UI components uzywaja t() do resolve display strings
  *
- * Separation of concerns: config = structural, UI = display.
+ * v0.20.2-fix2 (FAZA 6.5.2b-fix2):
+ * - CTF + Castle zmienione na `available: false` z `comingSoonKey: 'common.locked'`
+ *   bo mechanika tych scenariuszy nie jest jeszcze zaimplementowana w main.ts
+ *   (handluje tylko 'city' + 'desert' map types). Implementacja w FAZA 9+.
+ * - SaveKing pozostaje locked jak wczesniej.
+ * - Tylko KTB ('city' + 'desert') jest klikalne dla pelnego gameplay.
  *
- * KTB jest jedynym scenariuszem gdzie gracz wybiera mape (Desert/Cyberpunk).
- * Pozostale scenariusze maja zdefiniowane fixed maps lub sa locked.
+ * Separation of concerns: config = structural, UI = display.
  */
 
 import type { MapId } from './MapType';
@@ -56,7 +60,10 @@ export const SCENARIO_CONFIGS: Record<ScenarioId, ScenarioConfig> = {
         descKey: 'scenario.ctf.desc',
         emoji: '🚩',
         color: '#3498db',
-        available: true,
+        // v0.20.2-fix2: locked - main.ts nie obsluguje jeszcze map 'fortified_ruins'.
+        // Implementacja w FAZA 9+ (port mechaniki z ctf.html lub modularny rewrite).
+        available: false,
+        comingSoonKey: 'common.locked',
         fixedMapId: 'fortified_ruins',
         externalFile: 'ctf.html',
     },
@@ -66,7 +73,10 @@ export const SCENARIO_CONFIGS: Record<ScenarioId, ScenarioConfig> = {
         descKey: 'scenario.castle.desc',
         emoji: '🏰',
         color: '#2d5016',
-        available: true,
+        // v0.20.2-fix2: locked - main.ts nie obsluguje jeszcze map 'castle_grounds'.
+        // Implementacja w FAZA 9+ (port mechaniki z castle.html lub modularny rewrite).
+        available: false,
+        comingSoonKey: 'common.locked',
         fixedMapId: 'castle_grounds',
         externalFile: 'castle.html',
     },

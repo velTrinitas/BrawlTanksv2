@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- ============================================================
-         FAZA 6e PWA + Mobile native feel (v0.19.0)
+         FAZA 6e PWA + Mobile native feel
          ============================================================ -->
 
     <!-- PWA manifest -->
@@ -65,40 +65,18 @@
         }
         .active-screen { display: flex; }
 
-        h1 { 
+        /* FAZA 6.5.2b-fix1: SCOPED h1/h2 - tylko endcards (NIE global!).
+           Wczesniejszy global `h1 { ... }` / `h2 { ... }` nadpisywal styling MainMenu pickers
+           (np. .bt-picker-title ktory uzywa <h2>). Teraz scoped only do legacy endcards. */
+        #victoryScreen h1, #gameOverScreen h1 { 
             font-size: 4rem; margin: 0 0 10px 0; color: #f1c40f; text-transform: uppercase; 
             text-shadow: 4px 4px 0 #000; -webkit-text-stroke: 2px #000; letter-spacing: 2px; 
         }
-        h2 { 
+        #victoryScreen h2, #gameOverScreen h2 { 
             font-size: 1.5rem; color: #fff; background: #3498db; padding: 8px 30px; 
             border-radius: 20px; border: 4px solid #2c3e50; box-shadow: 4px 4px 0 #2c3e50; 
             margin: 20px 0 15px 0; 
         }
-
-        .grid-container { display: grid; gap: 15px; width: 100%; }
-        .char-grid { grid-template-columns: repeat(4, 1fr); }
-
-        .select-card {
-            background: #ecf0f1; border: 4px solid #2c3e50; border-radius: 16px;
-            padding: 12px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
-            text-align: center; box-shadow: 0 6px 0 #2c3e50; position: relative;
-        }
-        .select-card:hover { transform: translateY(-5px); }
-        .select-card.selected {
-            background: #f1c40f; border-color: #000;
-            box-shadow: 0 8px 0 #d35400, 0 0 16px rgba(241,196,15,0.55);
-            transform: translateY(-5px) scale(1.05); z-index: 10;
-        }
-        .select-card .name {
-            font-size: 1.3rem; margin-bottom: 5px; color: #fff;
-            -webkit-text-stroke: 1px #000; text-shadow: 2px 2px 0 #000;
-            text-transform: uppercase; position: relative; z-index: 2;
-        }
-        .card-stats-row { 
-            display: flex; align-items: center; background: rgba(0,0,0,0.18); 
-            border-radius: 8px; padding: 4px 0; margin: 4px 0; 
-        }
-        .card-stat { flex: 1; text-align: center; font-size: 0.75rem; color: #fff; }
 
         button.brawl-btn {
             padding: 15px 60px; font-size: 3rem; color: #fff; background: #f1c40f;
@@ -117,27 +95,6 @@
             position: absolute; top: 0; left: 0; 
             z-index: 50; pointer-events: none; 
             width: 100vw; height: 100vh;
-        }
-        
-        /* Controls hint (v0.7 Sesja 5) */
-        .controls-hint {
-            margin-top: 18px;
-            padding: 12px 24px;
-            background: rgba(44, 62, 80, 0.08);
-            border-radius: 16px;
-            border: 2px dashed rgba(44, 62, 80, 0.25);
-            color: #2c3e50;
-            font-size: 0.95rem;
-            text-align: center;
-            line-height: 1.6;
-            max-width: 700px;
-        }
-        .controls-hint b {
-            color: #e74c3c;
-            background: rgba(231, 76, 60, 0.1);
-            padding: 2px 8px;
-            border-radius: 6px;
-            margin: 0 2px;
         }
 
         /* v0.18.3 — Game version stamp (bottom-left, dyskretny) */
@@ -161,54 +118,56 @@
 
     <canvas id="hudCanvas"></canvas>
 
+    <!-- FAZA 6.5.2b: MainMenu mount point -->
+    <div id="bt-menu-root"></div>
+
     <div id="uiLayer">
-        <div id="welcomeScreen" class="screen active-screen">
-            <h1>Brawl Tanks</h1>
-            <h2>Wybierz swój czołg</h2>
-            <div class="grid-container char-grid" id="charGrid"></div>
-            <button class="brawl-btn" id="startBtn">Wejdź do Miasta!</button>
-            <div class="controls-hint">
-                <b>WASD</b> = ruch &nbsp;·&nbsp; <b>LPM</b> = strzał &nbsp;·&nbsp; <b>scroll</b> = wybór super<br>
-                <b>PPM</b> lub <b>SPACE</b> = aktywuj super &nbsp;·&nbsp; 🔇 <b>M</b> = wycisz dźwięk
-            </div>
-        </div>
         <div id="victoryScreen" class="screen">
             <h1 style="color: #ffdd00;">🏆 ZWYCIĘSTWO!</h1>
             <h2 style="background: #27ae60;">Mega Boss pokonany</h2>
             <div id="victoryStats" style="font-size: 1.5rem; color: #2c3e50; margin: 20px 0;"></div>
-            <button class="brawl-btn" id="playAgainBtn">Zagraj jeszcze raz</button>
+            <button class="brawl-btn" id="playAgainBtn">Powrót do menu</button>
         </div>
 
         <div id="gameOverScreen" class="screen">
             <h1 style="color: #e74c3c;">💀 PRZEGRANA</h1>
             <h2 style="background: #c0392b;">Twój czołg zniszczony</h2>
             <div id="gameOverStats" style="font-size: 1.5rem; color: #2c3e50; margin: 20px 0;"></div>
-            <button class="brawl-btn" id="retryBtn">Spróbuj jeszcze raz</button>
-          </div>
+            <button class="brawl-btn" id="retryBtn">Powrót do menu</button>
+        </div>
     </div>
 
-    <div id="credits">Game version: v0.20.0</div>
+    <div id="credits">Game version: v0.20.2-fix2</div>
 
     <script type="module" src="/src/main.ts"></script>
 
     <!-- ============================================================
-         FAZA 6e.3 - Service Worker registration (v0.19.0)
-         Skipped w dev mode (localhost) zeby uniknac konfliktow z vite HMR.
-         W production (GitHub Pages HTTPS) rejestruje SW dla offline cache + install prompt.
+         FAZA 6e.3 - Service Worker registration
          ============================================================ -->
     <script>
         (function () {
-            var isLocalDev =
-                window.location.hostname === 'localhost' ||
-                window.location.hostname === '127.0.0.1';
+            var hostname = window.location.hostname;
 
-            if ('serviceWorker' in navigator && !isLocalDev) {
+            var isLocalDev =
+                hostname === 'localhost' ||
+                hostname === '127.0.0.1' ||
+                hostname.endsWith('.local');
+
+            var isSandboxPreview =
+                hostname.indexOf('claudeusercontent') !== -1 ||
+                hostname.indexOf('codespaces') !== -1 ||
+                hostname.indexOf('vercel.app') !== -1 ||
+                hostname.indexOf('netlify.app') !== -1 ||
+                hostname.indexOf('stackblitz') !== -1;
+
+            var shouldSkipSW = isLocalDev || isSandboxPreview;
+
+            if ('serviceWorker' in navigator && !shouldSkipSW) {
                 window.addEventListener('load', function () {
                     navigator.serviceWorker.register('./sw.js', { scope: './' })
                         .then(function (reg) {
                             console.log('[PWA] SW registered, scope:', reg.scope);
 
-                            // Check for new SW version on each load
                             reg.addEventListener('updatefound', function () {
                                 var newWorker = reg.installing;
                                 if (newWorker) {
@@ -221,11 +180,11 @@
                             });
                         })
                         .catch(function (err) {
-                            console.warn('[PWA] SW registration failed:', err);
+                            console.debug('[PWA] SW registration skipped (script not available):', err.message);
                         });
                 });
-            } else if (isLocalDev) {
-                console.log('[PWA] SW registration skipped (dev mode: ' + window.location.hostname + ')');
+            } else if (shouldSkipSW) {
+                console.log('[PWA] SW registration skipped (dev/sandbox env: ' + hostname + ')');
             }
         })();
     </script>

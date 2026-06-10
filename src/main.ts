@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js';
+import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu (intro/hub/pickery)
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
-import type { Brawler } from './types/Brawler';
 import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
     MEDI_PAD_POSITIONS, POWER_PAD_POSITIONS,
@@ -31,7 +31,7 @@ import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { Quicksand } from './maps/desert/Quicksand';
 import { Oasis } from './maps/desert/Oasis';
 import { Caravan } from './maps/desert/Caravan';
-import { MAP_CONFIGS, getMapIdFromUrl, type MapId, type ICollidable } from './types/MapType';
+import { MAP_CONFIGS, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { Bullet } from './entities/Bullet';
@@ -52,9 +52,13 @@ import { AudioSys } from './audio/AudioSys';
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { GameSession } from './services/GameSession';
 import { scoreService } from './services/ScoreService';
-import { sessionService } from './services/SessionService';
+import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
 import { t } from './i18n/i18n';
+
+// === FAZA 6.5.2b: MainMenu wpiety jako bootstrap entry point ===
+import { MainMenu } from './ui/MainMenu';
+import { showToast } from './ui/toast';
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
@@ -62,11 +66,8 @@ const COMBO_WINDOW_MS = 2000;
 
 const OASIS_STEALTH_DURATION_MS = 10000;
 
-// === Legacy menu selection state (FAZA 6.5.2b zlikwiduje gdy MainMenu wpiety) ===
-// Te dwa zostaja TYLKO dla legacy welcomeScreen UI (charGrid + mapBadge).
-// NIE sa juz uzywane w game loop — gameplay czyta z currentSession.config.
-let selectedBrawler: Brawler = BRAWLERS[0];
-let selectedMapId: MapId = getMapIdFromUrl();
+// === FAZA 6.5.2b: Legacy state usuniety — MainMenu jest jedynym sourcem GameConfig ===
+// selectedBrawler / selectedMapId / buildLegacyConfig() ZNIKAJA - nie sa juz potrzebne.
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
@@ -125,38 +126,86 @@ app.stage.addChild(worldContainer);
 
 const hud = new HUD('hudCanvas');
 
-const charGrid = document.getElementById('charGrid')!;
-BRAWLERS.forEach(b => {
-    const div = document.createElement('div');
-    div.className = `select-card ${b.id === selectedBrawler.id ? 'selected' : ''}`;
-    div.innerHTML = `
-        <div style="width:100%; height:130px; position:relative; border-radius:10px; overflow:hidden; border:2px solid ${b.colorMain}; background: #1a1a2e;">
-            <img src="${b.icon}" alt="${b.name}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1;">
-        </div>
-        <div class="name" style="background:${b.colorMain};border-radius:8px;padding:4px 2px;margin-top:8px;">${b.emoji} ${b.name}</div>
-        <div class="card-stats-row">
-            <span class="card-stat">❤️ ${b.hp}</span>
-            <span class="card-stat">⚡ ${b.speed}</span>
-            <span class="card-stat">💥 ${b.dmg}</span>
-        </div>
-    `;
-    div.onclick = () => {
-        document.querySelectorAll('.char-grid .select-card').forEach(el => el.classList.remove('selected'));
-        div.classList.add('selected');
-        selectedBrawler = b;
-    };
-    charGrid.appendChild(div);
-});
+// ============================================================
+// FAZA 6.5.2b: MainMenu bootstrap
+// ============================================================
+// MainMenu jest TERAZ jedynym entry pointem do gry.
+// Legacy welcomeScreen (charGrid, mapBadge, startBtn) usuniete z HTML + JS.
+const menu = new MainMenu('#bt-menu-root');
 
-const mapBadge = document.createElement('div');
-mapBadge.style.cssText = 'position:fixed;bottom:14px;right:14px;padding:6px 12px;background:rgba(0,0,0,0.65);color:#fff;border-radius:8px;font-family:sans-serif;font-size:13px;z-index:100;pointer-events:none;transition:opacity 0.6s ease-out;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
-mapBadge.innerHTML = `🗺️ Mapa: <b style="color:${MAP_CONFIGS[selectedMapId].badge}">${MAP_CONFIGS[selectedMapId].name}</b>`;
-document.body.appendChild(mapBadge);
+menu.onGameRequested = (config: GameConfig) => {
+    // FAZA 6.5.2b-fix2: defensive guard dla scenariuszy CTF/Castle (jeszcze nie zaimplementowane).
+    // Pierwsza linia obrony jest w Scenario.ts (available: false → ScenarioPicker locks UI),
+    // ale ten guard catches edge cases (np. URL hacks lub future bugs in picker).
+    if (config.scenario === 'ctf' || config.scenario === 'castle') {
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
+        return;
+    }
+    menu.hide();
+    startGame(config);
+};
 
-setTimeout(() => {
-    mapBadge.style.opacity = '0';
-    setTimeout(() => mapBadge.remove(), 700);
-}, 10000);
+menu.onContinueRequested = (lastSession: LastSession) => {
+    // FAZA 6.5.2b-fix2: defensive guard dla starych session snapshots zapisanych przed lockem.
+    // User mógł mieć w localStorage lastSession z CTF/Castle z poprzednich testów.
+    if (lastSession.scenario === 'ctf' || lastSession.scenario === 'castle') {
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
+        return;
+    }
+    // Rebuild immutable GameConfig from LastSession snapshot (nowy sessionId + timestamp!)
+    const config = new GameConfigBuilder()
+        .setScenario(lastSession.scenario)
+        .setMap(lastSession.map)
+        .setDifficulty(lastSession.difficulty)
+        .setBrawlerId(lastSession.brawlerId)
+        .setMode(lastSession.mode)
+        .setProfileId('default')
+        .build();
+    menu.hide();
+    startGame(config);
+};
+
+menu.onHowToPlayRequested = () => {
+    // FAZA 8: pokaze instructionsScreen modal
+    console.log('[Menu] HowToPlay requested (FAZA 8 will implement)');
+};
+
+menu.onSettingsRequested = () => {
+    // FAZA 8: pokaze settings panel (audio, language PL/EN, controls)
+    console.log('[Menu] Settings requested (FAZA 8 will implement)');
+};
+
+// Start bootstrap flow: pokaz IntroScreen (Ken Burns slideshow)
+menu.start();
+
+/**
+ * FAZA 6.5.2b: Po endgame uzytkownik wraca do MainHub.
+ * - victoryScreen/gameOverScreen sa schowane
+ * - menu.reshow() przywraca display MainMenu container
+ * - menu.show('hub') odswieza lastSession z sessionService — "Kontynuuj" pill pojawi sie
+ *
+ * NIE resetujemy picker state (lastScenario/Map/Brawler) — user zachowuje swoje wybory
+ * dla quick replay przez pickery. Continue card to osobny shortcut.
+ */
+function returnToMenuFromEnd(): void {
+    document.getElementById('victoryScreen')!.classList.remove('active-screen');
+    document.getElementById('gameOverScreen')!.classList.remove('active-screen');
+    document.body.classList.remove('game-cursor-hidden');
+    gameState = 'MENU';
+    currentSession = null;       // GC moze zbierac poprzednia sesje
+    
+    // Stop game music (intro/hub powinno byc ciche lub miec swoje)
+    audio.stopMusic();
+    
+    menu.reshow();
+    menu.show('hub');             // hub re-mounts → czyta sessionService.getLastSession() fresh
+}
+
+// Wire endgame buttons do powrotu do menu (zamiast wczesniej startGame)
+document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
+document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
 
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects || !currentSession) return;
@@ -253,42 +302,18 @@ function dropGems(x: number, y: number, count: number): void {
 }
 
 /**
- * FAZA 6.5.2a: Build GameConfig from legacy menu state (welcomeScreen + URL).
- * Wywolywane przez 3 click handlers (startBtn/playAgainBtn/retryBtn) ktore
- * legacy menu produkuje. Po FAZA 6.5.2b MainMenu zastapi te handlery i
- * dostarczy juz pelny config z user-selected scenariusz/difficulty.
- */
-function buildLegacyConfig(): GameConfig {
-    return new GameConfigBuilder()
-        .setScenario('ktb')
-        .setMap(selectedMapId)
-        .setDifficulty('normal')
-        .setBrawlerId(selectedBrawler.id)
-        .setMode('solo')
-        .build();
-}
-
-/**
- * FAZA 6.5.2a: startGame teraz przyjmuje immutable GameConfig jako argument.
- * Single source of truth dla gameplay — selectedMapId/selectedBrawler nie sa
- * juz potrzebne wewnatrz (config.map / config.brawlerId zastapily).
- *
- * Wywolywane przez:
- *  - Legacy handlers: startGame(buildLegacyConfig())
- *  - FAZA 6.5.2b: MainMenu.onGameRequested -> startGame(config)
- *  - FAZA 6.5.2c: MainMenu.onContinueRequested -> startGame(rebuiltConfigFromLastSession)
+ * FAZA 6.5.2a: startGame przyjmuje immutable GameConfig.
+ * FAZA 6.5.2b: wywolywane TYLKO przez MainMenu callbacks (onGameRequested / onContinueRequested).
  */
 function startGame(config: GameConfig): void {
-    document.getElementById('welcomeScreen')!.classList.remove('active-screen');
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
     
-    // === FAZA 6.5.1: GameSession wraps immutable config + tracks runtime state ===
     currentSession = new GameSession(config);
     console.log(describeGameConfig(config));
     
-    // === FAZA 6.5.1: Save last session snapshot dla MainHub "Kontynuuj" ===
+    // Save last session snapshot dla MainHub "Kontynuuj" — odswiezone po kazdej grze
     const brawlerForDisplay = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
     sessionService.saveLastSession({
         brawlerId: config.brawlerId,
@@ -319,7 +344,6 @@ function startGame(config: GameConfig): void {
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
     
-    // === Map setup — czyta z config.map (NIE selectedMapId) ===
     if (config.map === 'city') {
         const cityTex = buildCityTexture();
         const citySprite = new PIXI.Sprite(cityTex);
@@ -449,7 +473,6 @@ function startGame(config: GameConfig): void {
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
     
-    // === Player setup — z config.brawlerId (lookup z BRAWLERS array) ===
     const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
     player = new Player(brawler, worldContainer);
     
@@ -462,15 +485,8 @@ function startGame(config: GameConfig): void {
     isMouseDown = false;
     gameState = 'PLAYING';
     
-    // === Music — z config.map ===
     audio.startMusic(config.map);
 }
-
-// === FAZA 6.5.2a: Legacy handlers buduja config z legacy state + przekazuja do startGame ===
-// FAZA 6.5.2b zastapi te 3 listenery przez MainMenu.onGameRequested wiring.
-document.getElementById('startBtn')!.addEventListener('click', () => startGame(buildLegacyConfig()));
-document.getElementById('playAgainBtn')!.addEventListener('click', () => startGame(buildLegacyConfig()));
-document.getElementById('retryBtn')!.addEventListener('click', () => startGame(buildLegacyConfig()));
 
 async function triggerGameOver(): Promise<void> {
     gameState = 'GAMEOVER';
@@ -622,7 +638,6 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // FAZA 6.5.2a: sand kick check uses currentSession.config.map (NIE selectedMapId)
     if (currentSession.config.map === 'desert' && player.isMoving) {
         sandKickFrameCounter++;
         const interval = player.hasSpeedBoost ? 2 : 3;

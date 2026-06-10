@@ -49,7 +49,7 @@ import { PICKUP_CONFIG, MEGA_BOMB_CONFIG } from './config/powers';
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
-import { GameConfigBuilder, describeGameConfig } from './types/GameConfig';
+import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { GameSession } from './services/GameSession';
 import { scoreService } from './services/ScoreService';
 import { sessionService } from './services/SessionService';
@@ -60,17 +60,16 @@ const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 const COMBO_WINDOW_MS = 2000;
 
-// v0.18.3-fix1 FAZA 4c — OASIS STEALTH timer constants
-const OASIS_STEALTH_DURATION_MS = 10000;  // 10s niewidzialnosci po wejsciu do oazy
+const OASIS_STEALTH_DURATION_MS = 10000;
 
-// === Menu selection state (FAZA 6.5.2 zlikwiduje, gdy MainMenu wpiety) ===
+// === Legacy menu selection state (FAZA 6.5.2b zlikwiduje gdy MainMenu wpiety) ===
+// Te dwa zostaja TYLKO dla legacy welcomeScreen UI (charGrid + mapBadge).
+// NIE sa juz uzywane w game loop — gameplay czyta z currentSession.config.
 let selectedBrawler: Brawler = BRAWLERS[0];
 let selectedMapId: MapId = getMapIdFromUrl();
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
-// Stary scattered state (stats, gameStartTime, comboCount, comboEndTime) wymieniony
-// na jeden GameSession ktory trzyma score+combo+time+immutable config reference.
 let currentSession: GameSession | null = null;
 
 let player: Player | null = null;
@@ -88,19 +87,13 @@ let waterLife: WaterLife | null = null;
 let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let quicksands: Quicksand[] = [];
-// v0.18.3 FAZA 4c — oasis stealth zones (enemy detection range -50%, no collision, per-frame isPointInside check)
 let oases: Oasis[] = [];
-// v0.18.4 FAZA 4d — caravan (5 camels back-and-forth, drop pickup co 15s)
 let caravan: Caravan | null = null;
 
-// === Frame-transient state (per-frame mechanics, reset per startGame) ===
-// CELOWO module-level, NIE czesc GameSession — to per-frame game loop state,
-// nie session metadata. GameSession trzyma logical "session" (score/combo/time/config).
-let oasisStealthEndTime: number = 0;       // Date.now() po ktorym stealth wygasa (gdy gracz w oazie)
-let wasInOasisLastFrame: boolean = false;  // do detekcji fresh entry (false→true transition)
-let wasStealthActiveLastFrame: boolean = false;  // do detekcji konca stealth (notif "zauwazony")
-
-// v0.18.5 FAZA 5a — Sand kick frame counter (tylko desert, tylko gdy player.isMoving)
+// Frame-transient state
+let oasisStealthEndTime: number = 0;
+let wasInOasisLastFrame: boolean = false;
+let wasStealthActiveLastFrame: boolean = false;
 let sandKickFrameCounter: number = 0;
 
 let buildings: ICollidable[] = [];
@@ -259,36 +252,52 @@ function dropGems(x: number, y: number, count: number): void {
     }
 }
 
-function startGame(): void {
-    document.getElementById('welcomeScreen')!.classList.remove('active-screen');
-    document.getElementById('victoryScreen')!.classList.remove('active-screen');
-    document.getElementById('gameOverScreen')!.classList.remove('active-screen');
-    document.body.classList.add('game-cursor-hidden');
-    
-    // === FAZA 6.5.1: Build immutable GameConfig (single source of truth) ===
-    // Legacy welcomeScreen pozwala wybrac TYLKO brawler+map (no scenario/difficulty UI),
-    // wiec hardcode: scenario='ktb', difficulty='normal', mode='solo'.
-    // FAZA 6.5.2 podmieni te defaulty na wybory uzytkownika z MainMenu (ScenarioPicker/BrawlerPicker).
-    const config = new GameConfigBuilder()
+/**
+ * FAZA 6.5.2a: Build GameConfig from legacy menu state (welcomeScreen + URL).
+ * Wywolywane przez 3 click handlers (startBtn/playAgainBtn/retryBtn) ktore
+ * legacy menu produkuje. Po FAZA 6.5.2b MainMenu zastapi te handlery i
+ * dostarczy juz pelny config z user-selected scenariusz/difficulty.
+ */
+function buildLegacyConfig(): GameConfig {
+    return new GameConfigBuilder()
         .setScenario('ktb')
         .setMap(selectedMapId)
         .setDifficulty('normal')
         .setBrawlerId(selectedBrawler.id)
         .setMode('solo')
         .build();
+}
+
+/**
+ * FAZA 6.5.2a: startGame teraz przyjmuje immutable GameConfig jako argument.
+ * Single source of truth dla gameplay — selectedMapId/selectedBrawler nie sa
+ * juz potrzebne wewnatrz (config.map / config.brawlerId zastapily).
+ *
+ * Wywolywane przez:
+ *  - Legacy handlers: startGame(buildLegacyConfig())
+ *  - FAZA 6.5.2b: MainMenu.onGameRequested -> startGame(config)
+ *  - FAZA 6.5.2c: MainMenu.onContinueRequested -> startGame(rebuiltConfigFromLastSession)
+ */
+function startGame(config: GameConfig): void {
+    document.getElementById('welcomeScreen')!.classList.remove('active-screen');
+    document.getElementById('victoryScreen')!.classList.remove('active-screen');
+    document.getElementById('gameOverScreen')!.classList.remove('active-screen');
+    document.body.classList.add('game-cursor-hidden');
     
+    // === FAZA 6.5.1: GameSession wraps immutable config + tracks runtime state ===
     currentSession = new GameSession(config);
     console.log(describeGameConfig(config));
     
-    // === FAZA 6.5.1: Save last session snapshot dla MainHub "Kontynuuj" (FAZA 6.5.2 UI) ===
+    // === FAZA 6.5.1: Save last session snapshot dla MainHub "Kontynuuj" ===
+    const brawlerForDisplay = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
     sessionService.saveLastSession({
-        brawlerId: selectedBrawler.id,
+        brawlerId: config.brawlerId,
         scenario: config.scenario,
         map: config.map,
         difficulty: config.difficulty,
         mode: config.mode,
         lastPlayedAt: Date.now(),
-        brawlerName: selectedBrawler.name,
+        brawlerName: brawlerForDisplay.name,
         mapName: MAP_CONFIGS[config.map].name,
         scenarioName: t(SCENARIO_CONFIGS[config.scenario].nameKey),
     });
@@ -305,14 +314,13 @@ function startGame(): void {
     oases = [];
     caravan = null;
     
-    // v0.18.3-fix1 — reset stealth state machine na kazdy nowy game
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
     wasStealthActiveLastFrame = false;
-    // v0.18.5 — reset sand kick counter
     sandKickFrameCounter = 0;
     
-    if (selectedMapId === 'city') {
+    // === Map setup — czyta z config.map (NIE selectedMapId) ===
+    if (config.map === 'city') {
         const cityTex = buildCityTexture();
         const citySprite = new PIXI.Sprite(cityTex);
         citySprite.zIndex = -100;
@@ -326,7 +334,7 @@ function startGame(): void {
         
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
-    } else if (selectedMapId === 'desert') {
+    } else if (config.map === 'desert') {
         const desertTex = buildDesertTexture();
         const desertSprite = new PIXI.Sprite(desertTex);
         desertSprite.zIndex = -100;
@@ -427,15 +435,11 @@ function startGame(): void {
             new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer),
         );
         
-        // v0.18.3 FAZA 4c ✅ — OASIS STEALTH ZONES
         oases = DESERT_OASIS_LAYOUT.map(o =>
             new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
         );
         
-        // v0.18.4 FAZA 4d ✅ — CARAVAN (5 wielbladow, drop gem/heart/magnet co 15s)
         caravan = new Caravan(worldContainer);
-        
-        // TODO FAZA 5: mirage + pharaoh-ghost + sand kick (sandstorm-as-boundary juz zrobione)
         
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -445,7 +449,10 @@ function startGame(): void {
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
     
-    player = new Player(selectedBrawler, worldContainer);
+    // === Player setup — z config.brawlerId (lookup z BRAWLERS array) ===
+    const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
+    player = new Player(brawler, worldContainer);
+    
     enemies = [];
     bullets = [];
     enemyBullets = [];
@@ -455,18 +462,20 @@ function startGame(): void {
     isMouseDown = false;
     gameState = 'PLAYING';
     
-    audio.startMusic(selectedMapId);
+    // === Music — z config.map ===
+    audio.startMusic(config.map);
 }
 
-document.getElementById('startBtn')!.addEventListener('click', startGame);
-document.getElementById('playAgainBtn')!.addEventListener('click', startGame);
-document.getElementById('retryBtn')!.addEventListener('click', startGame);
+// === FAZA 6.5.2a: Legacy handlers buduja config z legacy state + przekazuja do startGame ===
+// FAZA 6.5.2b zastapi te 3 listenery przez MainMenu.onGameRequested wiring.
+document.getElementById('startBtn')!.addEventListener('click', () => startGame(buildLegacyConfig()));
+document.getElementById('playAgainBtn')!.addEventListener('click', () => startGame(buildLegacyConfig()));
+document.getElementById('retryBtn')!.addEventListener('click', () => startGame(buildLegacyConfig()));
 
 async function triggerGameOver(): Promise<void> {
     gameState = 'GAMEOVER';
     audio.playGameOver();
     
-    // === FAZA 6.5.1: Submit score do leaderboard (defer dla future Ranking UI) ===
     if (currentSession) {
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config);
@@ -498,7 +507,6 @@ async function triggerVictory(): Promise<void> {
     gameState = 'VICTORY';
     audio.playVictory();
     
-    // === FAZA 6.5.1: Submit score do leaderboard (defer dla future Ranking UI) ===
     if (currentSession) {
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config);
@@ -538,7 +546,6 @@ app.ticker.add((delta) => {
     const mouseWorldX = mouse.screenX + camera.x;
     const mouseWorldY = mouse.screenY + camera.y;
     
-    // v0.18.1 FAZA 4b — Quicksand: per-frame check + slowdown application
     let playerInQuicksand = false;
     for (const qs of quicksands) {
         qs.update();
@@ -559,8 +566,6 @@ app.ticker.add((delta) => {
         enemy.speedModifier = enemyInQuicksand ? 0.5 : 1.0;
     }
     
-    // v0.18.3-fix1 FAZA 4c — OASIS STEALTH state machine
-    // 1) Sprawdz czy gracz jest w jakiejkolwiek oazie
     let playerInOasis = false;
     for (const oasis of oases) {
         oasis.update();
@@ -571,31 +576,24 @@ app.ticker.add((delta) => {
     
     const nowMs = Date.now();
     
-    // 2) FRESH ENTRY: gracz wszedl do oazy (false→true transition) → reset timera
     if (playerInOasis && !wasInOasisLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
     }
     
-    // 3) Stealth aktywny TYLKO gdy gracz JEST w oazie AND timer jeszcze nie wygasl
     const isStealthActive = playerInOasis && nowMs < oasisStealthEndTime;
     
-    // 4) Transitions → notyfikacje
     if (isStealthActive && !wasStealthActiveLastFrame) {
-        // Stealth START — wszedl do oazy
         hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
-        audio.playMagnetPickup();  // reusing magnet sound dla "stealth on" feel
+        audio.playMagnetPickup();
     } else if (!isStealthActive && wasStealthActiveLastFrame && playerInOasis) {
-        // Stealth END (jeszcze w oazie, timer expired) — zostal zauwazony
         hud.addNotif('👁️ ZOSTAŁEŚ ZAUWAŻONY!', '#ff8855');
         effects.shake(3, 8);
     }
     
-    // 5) Aplikuj flag do wszystkich enemies
     for (const enemy of enemies) {
         enemy.playerStealthed = isStealthActive;
     }
     
-    // 6) Update history vars na koniec
     wasInOasisLastFrame = playerInOasis;
     wasStealthActiveLastFrame = isStealthActive;
     
@@ -603,7 +601,6 @@ app.ticker.add((delta) => {
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
     
-    // v0.18.4 FAZA 4d — Caravan update + drop spawning
     if (caravan) {
         const drop = caravan.update(delta);
         if (drop) {
@@ -617,7 +614,7 @@ app.ticker.add((delta) => {
                 magnets.push(new Magnet(drop.x, drop.y, worldContainer));
                 hud.addNotif('🐪 Karawana dropiła 🧲', '#d97e3a');
             }
-            audio.playGemPickup();  // subtle "drop sound"
+            audio.playGemPickup();
         }
     }
     
@@ -625,9 +622,8 @@ app.ticker.add((delta) => {
     
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
     
-    // v0.18.5 FAZA 5a — Sand kick particles (tylko desert, tylko podczas jazdy)
-    // Spawn co 3 frame'y (normal) lub co 2 (turbo) zeby bylo widac sznurek piasku.
-    if (selectedMapId === 'desert' && player.isMoving) {
+    // FAZA 6.5.2a: sand kick check uses currentSession.config.map (NIE selectedMapId)
+    if (currentSession.config.map === 'desert' && player.isMoving) {
         sandKickFrameCounter++;
         const interval = player.hasSpeedBoost ? 2 : 3;
         if (sandKickFrameCounter >= interval) {
@@ -787,8 +783,6 @@ app.ticker.add((delta) => {
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
         if (shotInfo) spawnEnemyShot(shotInfo);
         
-        // v0.18.3-fix1: collision damage TYLKO gdy enemy NIE jest stealthed
-        // (zdezorientowany wrog nie atakuje, nawet jesli gracz wpadnie mu pod gasienice)
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
@@ -829,7 +823,6 @@ app.ticker.add((delta) => {
                     dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
                     
-                    // FAZA 6.5.1: combo tracking via GameSession.registerKill (zastapilo scattered comboCount/comboEndTime)
                     const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
                     if (comboNow === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
                     else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }

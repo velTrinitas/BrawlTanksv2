@@ -139,4 +139,35 @@ export const en: typeof pl = {
     'notif.megaBomb': 'MEGA BOMB — {count} targets!',
     'notif.freeze': 'FREEZE — {count} enemies!',
     'notif.magnet': 'MAGNET 5s!',
+
+    // ============================================================
+    // Profile / Onboarding (FAZA 7b)
+    // ============================================================
+    // Onboarding screen (IdentityScreen)
+    'profile.onboarding.welcomeTitle': 'Welcome, Commander!',
+    'profile.onboarding.welcomeSubtitle': 'Create your profile before joining the battle',
+    'profile.onboarding.pickAvatarLabel': 'Choose your avatar',
+    'profile.onboarding.pickFlagLabel': 'Your flag',
+    'profile.onboarding.startButton': 'BEGIN',
+
+    'profile.onboarding.nicknameLabel': 'Your nickname',
+    'profile.onboarding.nicknamePlaceholder': 'e.g. Mariusz123',
+    'profile.onboarding.nicknameHint': '2-16 characters: letters and digits',
+    'profile.onboarding.nicknameError': 'Nickname must be 2-16 letters or digits',
+
+    // Avatar names (translated to EN) + descriptions
+    'profile.avatar.komandor.name': 'Commander',
+    'profile.avatar.komandor.desc': 'Experienced tactician',
+    'profile.avatar.pilotka.name': 'Pilot',
+    'profile.avatar.pilotka.desc': 'Brave scout',
+    'profile.avatar.smyk.name': 'Kid',
+    'profile.avatar.smyk.desc': 'Energetic rookie',
+    'profile.avatar.inzynier.name': 'Engineer',
+    'profile.avatar.inzynier.desc': 'Calm strategist',
+
+    // Flag names
+    'profile.flag.pl': 'Poland',
+    'profile.flag.fr': 'France',
+    'profile.flag.it': 'Italy',
+    'profile.flag.de': 'Germany',
 };

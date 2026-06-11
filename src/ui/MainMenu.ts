@@ -1,37 +1,32 @@
 /**
- * MainMenu.ts — orchestrator dla wszystkich screens menu (FAZA 6c + 6d).
+ * MainMenu.ts — orchestrator dla wszystkich screens menu (FAZA 6c + 6d + 7b).
  *
  * State machine: zarzadza ktorym screenem jestesmy + transition pomiedzy.
- * Lifecycle: bootstrap() → show('intro') → on START → show('hub')
+ * Lifecycle: bootstrap() → show('intro') → on START →
+ *            (if needsOnboarding) → show('identity') → onCreated → show('hub')
+ *            (else) → show('hub')
  *            → on GRAJ → show('scenarioPicker') → on Next → show('brawlerPicker')
  *            → on Play → onGameRequested(config)
  *
- * v0.19.0 FAZA 6d update:
- * - Dodane createScenarioPicker() + createBrawlerPicker()
- * - State preservation: lastScenarioSelection, lastMapSelection, lastBrawlerSelection, lastDifficultySelection
- *   → po "Wroc" gracz widzi swoje wybory zachowane
- * - GameConfigBuilder akumuluje selekcje przez pickery
- * - Nowe callbacks:
- *   - onGameRequested(config) — nowa gra z pelnym GameConfig
- *   - onContinueRequested(lastSession) — instant replay z Continue card
+ * v0.19.0 FAZA 7b update:
+ * - Dodany screen 'identity' (IdentityScreen)
+ * - Po IntroScreen sprawdzamy ProfileService.needsOnboarding():
+ *   - true  → IdentityScreen → po stworzeniu profilu → MainHub
+ *   - false → MainHub bezposrednio (existing flow)
  *
  * Pattern (Strategy + State Machine):
  * - Kazdy screen implementuje IScreen interface (mount/unmount/onShow)
  * - MainMenu trzyma current screen + container element
  * - show(screenId) = unmount old (fade out) → mount new (fade in)
- *
- * Integracja z main.ts (FAZA 6e):
- *   const menu = new MainMenu('#bt-menu-root');
- *   menu.onGameRequested = (config) => { menu.hide(); startGame(config); };
- *   menu.onContinueRequested = (session) => { menu.hide(); startGameFromSession(session); };
- *   menu.start();
  */
 
 import { IntroScreen } from './IntroScreen';
 import { MainHub } from './MainHub';
 import { ScenarioPicker } from './ScenarioPicker';
 import { BrawlerPicker } from './BrawlerPicker';
+import { IdentityScreen } from './IdentityScreen';
 import { sessionService, type LastSession } from '../services/SessionService';
+import { ProfileService } from '../services/ProfileService';
 import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/GameConfig';
 import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
@@ -40,7 +35,7 @@ import type { MapId } from '../types/MapType';
 // Types
 // ============================================================
 
-export type ScreenId = 'intro' | 'hub' | 'scenarioPicker' | 'brawlerPicker';
+export type ScreenId = 'intro' | 'identity' | 'hub' | 'scenarioPicker' | 'brawlerPicker';
 
 export interface IScreen {
     mount(root: HTMLElement): void;
@@ -183,6 +178,8 @@ export class MainMenu {
         switch (id) {
             case 'intro':
                 return this.createIntroScreen();
+            case 'identity':
+                return this.createIdentityScreen();
             case 'hub':
                 return this.createMainHub();
             case 'scenarioPicker':
@@ -199,8 +196,23 @@ export class MainMenu {
     private createIntroScreen(): IScreen {
         const screen = new IntroScreen();
         screen.onStartClick = () => {
-            this.show('hub');
+            // FAZA 7b: on first launch, route to IdentityScreen before MainHub
+            if (ProfileService.needsOnboarding()) {
+                this.show('identity');
+            } else {
+                this.show('hub');
+            }
         };
+        return screen;
+    }
+
+    private createIdentityScreen(): IScreen {
+        const screen = new IdentityScreen({
+            onProfileCreated: () => {
+                // After successful profile creation, navigate to MainHub
+                this.show('hub');
+            },
+        });
         return screen;
     }
 
@@ -282,7 +294,7 @@ export class MainMenu {
                 .setMap(this.lastMapSelection!)
                 .setBrawlerId(brawlerId)
                 .setDifficulty(difficulty)
-                .setProfileId('default') // FAZA 7 podmieni na rzeczywisty profileId
+                .setProfileId('default') // FAZA 7c podmieni na aktywny profileId
                 .build();
 
             console.log('[MainMenu] GameConfig built:', config);

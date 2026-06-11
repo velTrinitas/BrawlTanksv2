@@ -2130,3 +2130,424 @@
         transition: none !important;
     }
 }
+/* =============================================================
+   23. IDENTITY SCREEN (FAZA 7b — Profile onboarding)
+   =============================================================
+   First-launch flow: po IntroScreen, jezeli ProfileService.needsOnboarding()
+   === true, gracz przechodzi do tego ekranu i wybiera avatar + flage
+   zanim trafi do MainHub.
+
+   Reuses .bt-picker-screen shell (bg landscape + overlay + .bt-picker-content).
+   Layouts:
+   - Avatar grid: 2x2 mobile, 4x1 desktop (matches BrawlerPicker)
+   - Flag grid: always 4x1 (compact swatch row)
+   ============================================================= */
+
+/* === Welcome block (custom, no step indicator since single screen) === */
+.bt-identity-welcome {
+    text-align: center;
+    padding: 12px 14px 16px;
+    background: rgba(15, 20, 35, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(241, 196, 15, 0.4);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.bt-identity-title {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--bt-gold);
+    margin: 0 0 6px;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+    text-transform: uppercase;
+    line-height: 1.1;
+}
+
+.bt-identity-subtitle {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0;
+    letter-spacing: 0.5px;
+    font-weight: normal;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+    line-height: 1.3;
+}
+
+/* === Section (avatar/flag groups) === */
+.bt-identity-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bt-identity-section-title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    color: var(--bt-gold);
+    margin: 0;
+    padding: 6px 14px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    background: rgba(15, 20, 35, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(241, 196, 15, 0.4);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+
+/* === Grids === */
+.bt-identity-avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.bt-identity-flag-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+}
+
+/* === Identity card (shared base — extends visual language ze scenario/brawler cards) === */
+.bt-identity-card {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 6px 10px;
+    background: rgba(15, 20, 35, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid var(--bt-navy);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    font-family: inherit;
+    text-align: center;
+}
+
+.bt-identity-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.5);
+    border-color: var(--bt-gold);
+}
+
+.bt-identity-card:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.bt-identity-card:focus-visible {
+    outline: 3px solid var(--bt-gold);
+    outline-offset: 4px;
+}
+
+.bt-identity-card.is-selected {
+    border-color: var(--bt-gold);
+    box-shadow:
+        0 8px 0 var(--bt-gold-dark),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.5);
+    transform: translateY(-4px) scale(1.04);
+    z-index: 5;
+}
+
+/* === Avatar visual (square image fills card top) === */
+.bt-identity-card-visual {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: calc(var(--radius-md) - 6px);
+    overflow: hidden;
+    margin-bottom: 6px;
+    background: var(--surface-dark);
+}
+
+.bt-identity-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* === Flag swatch (CSS gradient mirroring PIXI FlagRenderer) === */
+.bt-identity-flag-swatch {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: calc(var(--radius-md) - 6px);
+    border: 2px solid rgba(0, 0, 0, 0.4);
+    margin-bottom: 6px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* === Card name labels === */
+.bt-identity-card-name {
+    width: 100%;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: #fff;
+    letter-spacing: 0.5px;
+    line-height: 1.15;
+    padding: 3px 6px;
+    background: var(--bt-navy);
+    border-radius: 6px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    box-sizing: border-box;
+}
+
+.bt-identity-card-name--small {
+    font-size: 0.72rem;
+    padding: 2px 4px;
+}
+
+/* === Identity footer (centered CTA, no Back button on first launch) === */
+.bt-identity-footer {
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.bt-identity-footer .bt-cta-button {
+    flex: 0 1 auto;
+    max-width: 280px;
+    min-width: 180px;
+}
+
+/* =============================================================
+   24. IDENTITY SCREEN — Responsive breakpoints
+   ============================================================= */
+
+@media (min-width: 768px) {
+    .bt-identity-welcome {
+        padding: 14px 20px 18px;
+    }
+
+    .bt-identity-title {
+        font-size: 1.8rem;
+    }
+
+    .bt-identity-subtitle {
+        font-size: 0.98rem;
+    }
+
+    .bt-identity-section-title {
+        font-size: 1.2rem;
+        padding: 8px 18px;
+    }
+
+    /* Avatars: 4 in a row on tablet+ (jak BrawlerPicker) */
+    .bt-identity-avatar-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .bt-identity-flag-grid {
+        gap: 12px;
+    }
+
+    .bt-identity-card {
+        padding: 10px 8px 12px;
+    }
+
+    .bt-identity-card-name {
+        font-size: 0.95rem;
+        padding: 4px 8px;
+    }
+
+    .bt-identity-card-name--small {
+        font-size: 0.82rem;
+        padding: 3px 6px;
+    }
+
+    .bt-identity-footer .bt-cta-button {
+        max-width: 320px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .bt-identity-title {
+        font-size: 2.1rem;
+    }
+
+    .bt-identity-subtitle {
+        font-size: 1.08rem;
+    }
+
+    .bt-identity-section-title {
+        font-size: 1.3rem;
+    }
+
+    .bt-identity-avatar-grid {
+        gap: 18px;
+    }
+
+    .bt-identity-flag-grid {
+        gap: 14px;
+    }
+
+    .bt-identity-card {
+        padding: 12px 10px 14px;
+    }
+
+    .bt-identity-card-name {
+        font-size: 1.05rem;
+    }
+
+    .bt-identity-card-name--small {
+        font-size: 0.88rem;
+    }
+}
+
+/* === A11y === */
+@media (prefers-reduced-motion: reduce) {
+    .bt-identity-card {
+        transition: none !important;
+    }
+}
+
+/* =============================================================
+   25. IDENTITY SCREEN — NICKNAME INPUT (FAZA 7b nickname fix)
+   =============================================================
+   Required text input dla uniqueness w leaderboard.
+   Pre-fill po avatar click (zero-friction happy path) — user moze nadpisac.
+   Real-time validation: invalid → red border, valid → gold border.
+   ============================================================= */
+
+.bt-identity-section--nickname {
+    /* Slightly tighter gap niz pozostale sekcje — input + hint to compact pair */
+    gap: 6px;
+}
+
+.bt-identity-nickname-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.bt-identity-nickname-input {
+    appearance: none;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 16px;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: #fff;
+    letter-spacing: 1px;
+    background: rgba(15, 20, 35, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 3px solid var(--bt-navy);
+    border-radius: var(--radius-md);
+    box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5);
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    transition:
+        border-color var(--transition-base),
+        box-shadow var(--transition-base),
+        background var(--transition-fast);
+}
+
+.bt-identity-nickname-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: normal;
+    letter-spacing: 0.5px;
+}
+
+.bt-identity-nickname-input:focus {
+    outline: none;
+    border-color: var(--bt-gold);
+    box-shadow:
+        0 5px 0 rgba(0, 0, 0, 0.5),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.3);
+    background: rgba(15, 20, 35, 0.9);
+}
+
+/* === Valid state (subtle gold tint, no shake) === */
+.bt-identity-nickname-input.is-valid {
+    border-color: var(--bt-gold);
+}
+
+.bt-identity-nickname-input.is-valid:focus {
+    box-shadow:
+        0 5px 0 rgba(0, 0, 0, 0.5),
+        0 0 0 3px rgba(241, 196, 15, 0.5),
+        0 0 24px rgba(241, 196, 15, 0.4);
+}
+
+/* === Invalid state (red border, only when user has typed something invalid) === */
+.bt-identity-nickname-input.is-invalid {
+    border-color: var(--bt-red);
+}
+
+.bt-identity-nickname-input.is-invalid:focus {
+    box-shadow:
+        0 5px 0 rgba(0, 0, 0, 0.5),
+        0 0 0 3px rgba(231, 76, 60, 0.4),
+        0 0 24px rgba(231, 76, 60, 0.3);
+}
+
+/* === Hint text (default = neutral grey, error = red) === */
+.bt-identity-nickname-hint {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.65);
+    letter-spacing: 0.5px;
+    text-align: center;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+    padding: 4px 8px;
+    line-height: 1.3;
+    transition: color var(--transition-base);
+}
+
+.bt-identity-nickname-hint.is-error {
+    color: var(--bt-red);
+}
+
+/* =============================================================
+   NICKNAME INPUT — Responsive
+   ============================================================= */
+
+@media (min-width: 768px) {
+    .bt-identity-nickname-input {
+        padding: 14px 20px;
+        font-size: 1.25rem;
+        letter-spacing: 1.5px;
+    }
+
+    .bt-identity-nickname-hint {
+        font-size: 0.82rem;
+    }
+}
+
+@media (min-width: 1280px) {
+    .bt-identity-nickname-input {
+        padding: 16px 24px;
+        font-size: 1.4rem;
+    }
+
+    .bt-identity-nickname-hint {
+        font-size: 0.9rem;
+    }
+}
+
+/* === A11y === */
+@media (prefers-reduced-motion: reduce) {
+    .bt-identity-nickname-input {
+        transition: none !important;
+    }
+}

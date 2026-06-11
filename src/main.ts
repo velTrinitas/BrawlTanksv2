@@ -353,6 +353,7 @@ function startGame(config: GameConfig): void {
     document.body.classList.add('game-cursor-hidden');
     
     currentSession = new GameSession(config);
+    ProfileService.recordSessionStart();
     console.log(describeGameConfig(config));
     
     // Save last session snapshot dla MainHub "Kontynuuj" — odswiezone po kazdej grze
@@ -516,7 +517,8 @@ function startGame(config: GameConfig): void {
     powerSystem = new PowerSystem(worldContainer);
     
     const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
-    player = new Player(brawler, worldContainer);
+    const activeProfile = ProfileService.getActiveProfile();
+    player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
     
     enemies = [];
     bullets = [];

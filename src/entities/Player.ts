@@ -2,9 +2,12 @@ import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
 import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
-import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
 import type { ICollidable } from '../types/MapType';
+
+// FAZA 7c: profile flag override via FLAGS config (data-driven)
+import { FLAGS, type FlagConfig } from '../config/flags';
+import type { FlagId } from '../types/Profile';
 
 interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 
@@ -29,52 +32,67 @@ export class Player {
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
-    
+
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
-    
+
     // v0.18.1 FAZA 4b — speed modifier (set externally per-frame by main.ts: quicksand = 0.5, normal = 1.0)
     // Aplikowane w currentSpeed getter → propaguje też na tracksGfx (track animation zwalnia w quicksand)
     public speedModifier: number = 1.0;
-    
+
     public superCharges: number = 0;
     public superActive: boolean = false;
     public superEndTime: number = 0;
     private superRingGfx: PIXI.Graphics;
-    
+
     private flagGfx: PIXI.Graphics;
     private tracksGfx: PIXI.Graphics;
     private exhaustGfx: PIXI.Graphics;
-    
+
     private trackTimer: number = 0;
     private lastMoveAngle: number = 0;
     public isMoving: boolean = false;
-    
-    constructor(brawlerData: Brawler, worldContainer: PIXI.Container) {
+
+    /**
+     * Constructor signature (FAZA 7c):
+     *   new Player(brawlerData, worldContainer)                       — uses brawler.flag default
+     *   new Player(brawlerData, worldContainer, profileFlagId)        — profile override
+     *
+     * Profile flag rendering uses FLAGS config (data-driven, supports PL/FR/IT/DE patterns).
+     * Brawler default flag rendering uses legacy switch (supports PL/UA/DE/JP country codes).
+     * Coexistence: if both could apply, profile override wins.
+     */
+    constructor(brawlerData: Brawler, worldContainer: PIXI.Container, profileFlagId?: FlagId | null) {
         this.brawler = brawlerData;
         this.x = 800;
         this.y = 800;
         this.baseSpeed = brawlerData.speed;
         this.maxHp = brawlerData.hp;
         this.hp = this.maxHp;
-        
+
         this.container = new PIXI.Container();
         this.container.x = this.x;
         this.container.y = this.y;
-        
+
         const tex = getBrawlerTextures(this.brawler);
         this.hull = new PIXI.Sprite(tex.hull);
         this.hull.anchor.set(0.5);
         this.turret = new PIXI.Sprite(tex.turret);
         this.turret.anchor.set(0.5);
-        
+
         this.superRingGfx = new PIXI.Graphics();
         this.superRingGfx.visible = false;
         this.tracksGfx = new PIXI.Graphics();
         this.exhaustGfx = new PIXI.Graphics();
         this.flagGfx = new PIXI.Graphics();
-        this.drawFlag(this.brawler.flag ?? 'PL');
-        
+
+        // FAZA 7c: profile override via FLAGS config, else legacy brawler default
+        if (profileFlagId && FLAGS[profileFlagId]) {
+            this.drawFlagFromConfig(FLAGS[profileFlagId]);
+        } else {
+            this.drawFlag(this.brawler.flag ?? 'PL');
+        }
+
         // Order: super-ring → hull → tracks → exhaust → flag → turret (turret zasłania flag)
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
@@ -84,20 +102,23 @@ export class Player {
         this.container.addChild(this.turret);
         worldContainer.addChild(this.container);
     }
-    
+
     /**
+     * Legacy flag rendering (FAZA 6 era) — country code string switch.
+     * Used for brawler defaults (PL/UA/DE/JP). Profile flags use drawFlagFromConfig.
+     *
      * Flaga — drzewce w (0,0), flaga ciągnie w LEWO (x ∈ [-FLAG_W, 0]).
      * Biało-czerwona PL: biały TOP (-y), czerwony BOTTOM (+y) — w default rotation widoczne jako biały NA GÓRZE.
      */
     drawFlag(countryCode: string): void {
         this.flagGfx.clear();
         const flagStartX = -FLAG_W;
-        
+
         // Drzewce
         this.flagGfx.beginFill(0x4a3520);
         this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
         this.flagGfx.endFill();
-        
+
         switch (countryCode.toUpperCase()) {
             case 'PL':
                 this.flagGfx.beginFill(0xffffff);
@@ -139,7 +160,76 @@ export class Player {
                 this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H);
                 this.flagGfx.endFill();
         }
-        
+
+        this.drawFlagBorderAndFinial(flagStartX);
+    }
+
+    /**
+     * FAZA 7c: profile flag rendering — data-driven via FlagConfig.
+     * Supports all 3 patterns (horizontal_2 / horizontal_3 / vertical_3) used
+     * by FAZA 7a/7b flags (PL/FR/IT/DE). Same visual quality as legacy drawFlag,
+     * but rendered from config data instead of country-specific switch case.
+     *
+     * Math verification:
+     * - horizontal_2: FLAG_H/2 + FLAG_H/2 = FLAG_H ✓ (full height covered)
+     * - horizontal_3: FLAG_H/3 × 3 = FLAG_H ✓ (3 equal stripes)
+     * - vertical_3: FLAG_W/3 × 3 = FLAG_W ✓ (3 equal columns)
+     */
+    drawFlagFromConfig(config: FlagConfig): void {
+        this.flagGfx.clear();
+        const flagStartX = -FLAG_W;
+
+        // Drzewce
+        this.flagGfx.beginFill(0x4a3520);
+        this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
+        this.flagGfx.endFill();
+
+        const p = config.colors.primary;
+        const s = config.colors.secondary;
+        const tert = config.colors.tertiary ?? p;
+
+        switch (config.pattern) {
+            case 'horizontal_2':
+                // PL: white (primary) top, red (secondary) bottom
+                this.flagGfx.beginFill(p);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
+                this.flagGfx.endFill();
+                this.flagGfx.beginFill(s);
+                this.flagGfx.drawRect(flagStartX, 0, FLAG_W, FLAG_H / 2);
+                this.flagGfx.endFill();
+                break;
+            case 'horizontal_3':
+                // DE: black (primary), red (secondary), gold (tertiary)
+                this.flagGfx.beginFill(p);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 3);
+                this.flagGfx.endFill();
+                this.flagGfx.beginFill(s);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2 + FLAG_H / 3, FLAG_W, FLAG_H / 3);
+                this.flagGfx.endFill();
+                this.flagGfx.beginFill(tert);
+                this.flagGfx.drawRect(flagStartX, FLAG_H / 2 - FLAG_H / 3, FLAG_W, FLAG_H / 3);
+                this.flagGfx.endFill();
+                break;
+            case 'vertical_3':
+                // FR: blue/white/red (left to right when flag faces right)
+                // IT: green/white/red (same layout, different colors)
+                this.flagGfx.beginFill(p);
+                this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
+                this.flagGfx.endFill();
+                this.flagGfx.beginFill(s);
+                this.flagGfx.drawRect(flagStartX + FLAG_W / 3, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
+                this.flagGfx.endFill();
+                this.flagGfx.beginFill(tert);
+                this.flagGfx.drawRect(flagStartX + (FLAG_W * 2) / 3, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
+                this.flagGfx.endFill();
+                break;
+        }
+
+        this.drawFlagBorderAndFinial(flagStartX);
+    }
+
+    /** Helper — black border + gold finial on pole top. Shared by drawFlag + drawFlagFromConfig. */
+    private drawFlagBorderAndFinial(flagStartX: number): void {
         this.flagGfx.lineStyle(0.8, 0x000000, 0.75);
         this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H);
         this.flagGfx.lineStyle(0);
@@ -147,32 +237,32 @@ export class Player {
         this.flagGfx.drawCircle(0, -FLAG_POLE_H / 2 - 0.5, 2);
         this.flagGfx.endFill();
     }
-    
+
     takeDamage(amount: number, isInvulnerable: boolean = false): boolean {
         if (isInvulnerable) return false;
         this.hp -= amount;
         return this.hp <= 0;
     }
-    
+
     applyTurboBoost(durationMs: number, multiplier: number): void {
         this.speedBoostMult = multiplier;
         this.speedBoostEnd = Date.now() + durationMs;
     }
-    
+
     get currentSpeed(): number {
         if (Date.now() > this.speedBoostEnd) this.speedBoostMult = 1;
         // v0.18.1: speedModifier applied here → propaguje też na tracksGfx animation
         return this.baseSpeed * this.speedBoostMult * this.speedModifier;
     }
-    
+
     get hasSpeedBoost(): boolean {
         return Date.now() < this.speedBoostEnd && this.speedBoostMult > 1;
     }
-    
+
     addSuperCharge(amount: number): void {
         this.superCharges = Math.min(SUPER_MAX_CHARGES, this.superCharges + amount);
     }
-    
+
     tryActivateOrContinueSuperShot(): boolean {
         const now = Date.now();
         if (this.superActive && now < this.superEndTime) return true;
@@ -185,16 +275,16 @@ export class Player {
         }
         return false;
     }
-    
+
     get isSuperShotActive(): boolean {
         return this.superActive && Date.now() < this.superEndTime;
     }
-    
+
     get superShotSecondsLeft(): number {
         if (!this.superActive) return 0;
         return Math.max(0, (this.superEndTime - Date.now()) / 1000);
     }
-    
+
     private updateSuperRing(): void {
         const showRing = this.superCharges > 0 || this.isSuperShotActive;
         if (!showRing) { this.superRingGfx.visible = false; return; }
@@ -223,13 +313,13 @@ export class Player {
             this.superRingGfx.drawCircle(0, 0, 35);
         }
     }
-    
+
     private updateBrawlerTracks(): void {
         this.tracksGfx.clear();
         const config = PROGRAMMATIC_BRAWLER_CONFIG[this.brawler.id];
         if (!config) return;
         if (!this.isMoving) return;
-        
+
         const time = Date.now();
         const speedFactor = this.currentSpeed / 5;
         const phase = (time * speedFactor * 0.04) % 12;
@@ -237,9 +327,9 @@ export class Player {
         const trackY = (config.HW / 2) + (config.TRK_H / 2);
         const cos = Math.cos(this.hull.rotation);
         const sin = Math.sin(this.hull.rotation);
-        
+
         this.tracksGfx.lineStyle(1.8, 0xfff5cf, 0.55);
-        
+
         for (const ty of [-trackY, trackY]) {
             for (let i = -3; i <= 3; i++) {
                 const localX1 = i * 12 + phase - 8;
@@ -256,13 +346,13 @@ export class Player {
             }
         }
     }
-    
+
     private updateBrawlerExhaust(): void {
         this.exhaustGfx.clear();
         const config = PROGRAMMATIC_BRAWLER_CONFIG[this.brawler.id];
         if (!config) return;
         if (!config.HAS_FLAME && !config.HAS_SMOKE) return;
-        
+
         const time = Date.now();
         const cos = Math.cos(this.hull.rotation);
         const sin = Math.sin(this.hull.rotation);
@@ -270,12 +360,12 @@ export class Player {
         const rearDirY = -sin;
         const intensityBase = this.isMoving ? 1.0 : 0.55;
         const offsets = [-config.EXHAUST_Y, config.EXHAUST_Y];
-        
+
         for (let idx = 0; idx < 2; idx++) {
             const offLocalY = offsets[idx];
             const ex = (config.EXHAUST_X * cos - offLocalY * sin) * TANK_CANVAS_SCALE;
             const ey = (config.EXHAUST_X * sin + offLocalY * cos) * TANK_CANVAS_SCALE;
-            
+
             if (config.HAS_FLAME) {
                 const flamePhase = time / 130 + idx * 1.7;
                 const flameScale = 0.85 + Math.sin(flamePhase) * 0.25;
@@ -293,7 +383,7 @@ export class Player {
                 this.exhaustGfx.drawCircle(fx, fy, flameSize * 0.22);
                 this.exhaustGfx.endFill();
             }
-            
+
             if (config.HAS_SMOKE) {
                 const smokeBoost = config.SMOKE_BOOST ?? 1.0; // 1.5 dla większego dymu
                 for (let s = 0; s < 4; s++) {
@@ -306,7 +396,7 @@ export class Player {
                     const perpY = rearDirX * driftPerp;
                     const smx = ex + rearDirX * smokeDist + perpX;
                     const smy = ey + rearDirY * smokeDist + perpY;
-                    
+
                     this.exhaustGfx.beginFill(config.SMOKE_COLOR!, smokeAlpha);
                     this.exhaustGfx.drawCircle(smx, smy, smokeSize);
                     this.exhaustGfx.endFill();
@@ -317,7 +407,7 @@ export class Player {
             }
         }
     }
-    
+
     update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: ICollidable[], effects: EffectsManager): void {
         let dx = 0, dy = 0;
         if (keys.w) dy -= 1;
@@ -325,7 +415,7 @@ export class Player {
         if (keys.a) dx -= 1;
         if (keys.d) dx += 1;
         this.isMoving = false;
-        
+
         if (dx !== 0 || dy !== 0) {
             this.isMoving = true;
             const len = Math.sqrt(dx * dx + dy * dy);
@@ -342,27 +432,27 @@ export class Player {
             this.lastMoveAngle = Math.atan2(dy, dx);
             this.hull.rotation = this.lastMoveAngle;
         }
-        
+
         this.container.x = this.x;
         this.container.y = this.y;
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
-        
+
         // Flag — drzewce w (FLAG_POLE_DIST za center hull), w hull local space (rotuje z hull, biały NA GÓRZE)
         this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_POLE_DIST;
         this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_POLE_DIST;
         this.flagGfx.rotation = this.hull.rotation;
-        
+
         if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
         else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;
         else this.hull.tint = 0xffffff;
-        
+
         if (this.superActive && Date.now() >= this.superEndTime) this.superActive = false;
-        
+
         this.updateSuperRing();
         this.updateBrawlerTracks();
         this.updateBrawlerExhaust();
-        
+
         if (this.isMoving) {
             this.trackTimer++;
             const trackInterval = this.hasSpeedBoost ? 2 : 4;

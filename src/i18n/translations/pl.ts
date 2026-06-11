@@ -50,10 +50,11 @@ export const pl = {
     'hub.settings': 'USTAWIENIA',
     'hub.leaderboard': 'LEADERBOARD',
     'hub.shop': 'SKLEP',
-    'hub.continue': 'Kontynuuj jako {brawler} na mapie {map}',
+    'hub.continue': 'Kontynuuj jako {nickname} na mapie {map}',
     'hub.continueShort': 'Kontynuuj',
     'hub.changePlayer': 'Zmien gracza',
     'hub.welcome': 'Witaj, {name}!',
+    'hub.editProfile': 'Edytuj w Ustawieniach',
 
     // ============================================================
     // Scenario Picker (Ekran 1)

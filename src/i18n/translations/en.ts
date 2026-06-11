@@ -44,10 +44,11 @@ export const en: typeof pl = {
     'hub.settings': 'SETTINGS',
     'hub.leaderboard': 'LEADERBOARD',
     'hub.shop': 'SHOP',
-    'hub.continue': 'Continue as {brawler} on {map}',
+    'hub.continue': 'Continue as {nickname} on {map}',
     'hub.continueShort': 'Continue',
     'hub.changePlayer': 'Change player',
     'hub.welcome': 'Welcome, {name}!',
+    'hub.editProfile': 'Edit in Settings',
 
     // ============================================================
     // Scenario Picker

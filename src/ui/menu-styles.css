@@ -2519,6 +2519,138 @@
 }
 
 /* =============================================================
+   26. MAIN HUB — PROFILE CHIP (FAZA 7c)
+   =============================================================
+   Welcome bar promoted to tappable profile chip:
+   layout = [avatar circle] [welcome text] [flag swatch]
+   Whole element jest button — klik → toast "Edytuj w Ustawieniach"
+   ============================================================= */
+
+/* Variant: chip mode (active profile present) */
+.bt-hub-welcome--chip {
+    appearance: none;
+    /* Override default <button> styling — keep existing welcome bar visual */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    /* Reset button defaults */
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    /* Cursor + interactive feedback */
+    cursor: pointer;
+    transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.bt-hub-welcome--chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--bt-gold);
+}
+
+.bt-hub-welcome--chip:active {
+    transform: translateY(1px);
+}
+
+.bt-hub-welcome--chip:focus-visible {
+    outline: 3px solid var(--bt-gold);
+    outline-offset: 4px;
+}
+
+/* === Avatar circle (left) === */
+.bt-hub-chip-avatar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--bt-gold);
+    background: var(--surface-dark);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.bt-hub-chip-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* === Welcome text (middle, flex grow) === */
+.bt-hub-welcome--chip .bt-hub-welcome-text {
+    flex: 1;
+    min-width: 0; /* allows text to truncate if too long */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* === Flag swatch (right) === */
+.bt-hub-chip-flag {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 2px solid rgba(0, 0, 0, 0.4);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* === Fallback: no profile loaded (edge case for tests) === */
+.bt-hub-welcome--no-profile {
+    /* Inherits existing .bt-hub-welcome styling — no chip-specific changes */
+}
+
+/* =============================================================
+   PROFILE CHIP — Responsive
+   ============================================================= */
+
+@media (min-width: 768px) {
+    .bt-hub-welcome--chip {
+        gap: 14px;
+    }
+
+    .bt-hub-chip-avatar {
+        width: 44px;
+        height: 44px;
+    }
+
+    .bt-hub-chip-flag {
+        width: 32px;
+        height: 32px;
+        border-radius: 7px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .bt-hub-welcome--chip {
+        gap: 18px;
+    }
+
+    .bt-hub-chip-avatar {
+        width: 52px;
+        height: 52px;
+    }
+
+    .bt-hub-chip-flag {
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+    }
+}
+
+/* === A11y === */
+@media (prefers-reduced-motion: reduce) {
+    .bt-hub-welcome--chip {
+        transition: none !important;
+    }
+}
+
+
+/* =============================================================
    NICKNAME INPUT — Responsive
    ============================================================= */
 

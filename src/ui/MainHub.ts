@@ -1,32 +1,37 @@
 /**
- * MainHub.ts — main menu hub (FAZA 6c).
+ * MainHub.ts — main menu hub (FAZA 6c + FAZA 7c).
  *
- * Layout:
- *   ┌─────────────────────────────────────┐
- *   │  👋 Witaj, Brawler!         [Zmien] │  ← Welcome bar
- *   ├─────────────────────────────────────┤
- *   │  🔁 Kontynuuj jako X na mapie Y  →  │  ← Continue card (conditional)
- *   ├─────────────────────────────────────┤
- *   │                                     │
- *   │     ▶️  GRAJ                         │  ← Hero PLAY (gold gradient)
- *   │       Nowa rozgrywka                 │
- *   │                                     │
- *   ├─────────────────────────────────────┤
- *   │  📖 JAK GRAC  │  ⚙️ USTAWIENIA      │  ← Secondary (2x1)
- *   ├───────────────┼─────────────────────┤
- *   │  🏆 LB 🔒     │  🛒 SKLEP 🔒        │  ← Soon slots (2x1)
- *   └─────────────────────────────────────┘
+ * Layout v0.22.0 (FAZA 7c):
+ *   ┌─────────────────────────────────────────────┐
+ *   │ [👤] 👋 Witaj, Mariusz!            [🇵🇱]    │  ← Profile chip (whole welcome bar tappable)
+ *   ├─────────────────────────────────────────────┤
+ *   │  🔁 Kontynuuj jako Mariusz na mapie X   →   │  ← Continue card (uses nickname, not brawler)
+ *   ├─────────────────────────────────────────────┤
+ *   │                                             │
+ *   │     ▶️  GRAJ                                │  ← Hero PLAY (unchanged)
+ *   │       Nowa rozgrywka                        │
+ *   │                                             │
+ *   ├─────────────────────────────────────────────┤
+ *   │  📖 JAK GRAC  │  ⚙️ USTAWIENIA              │
+ *   ├───────────────┼─────────────────────────────┤
+ *   │  🏆 LB 🔒     │  🛒 SKLEP 🔒                │
+ *   └─────────────────────────────────────────────┘
  *
- * Architectural notes:
- * - "Witaj, Brawler" hardcoded w FAZIE 6c — FAZA 7 podmieni na profile.name
- * - Continue card pojawia sie tylko gdy sessionService.hasValidLastSession()
- * - Brak Continue = Hero PLAY wypelnia wiecej miejsca (CSS flex adapts)
- * - Soon slots klikalne ale pokazuja toast "Wkrotce" (FAZA 7-8 podlaczy)
+ * FAZA 7c additions:
+ * - activeProfile property (injected by MainMenu before mount)
+ * - Welcome bar promoted to PROFILE CHIP — wraps avatar + nickname + flag swatch,
+ *   whole bar is tappable (klik → toast "Edycja w Ustawieniach")
+ * - welcomeName lookup from profile.nickname (fallback 'Brawler' for backward compat)
+ * - Continue card uses profile.nickname instead of session.brawlerName
+ *   (identity > vehicle: nickname unique, brawler reusable)
  */
 
 import type { IScreen } from './MainMenu';
 import { t } from '../i18n/i18n';
 import type { LastSession } from '../services/SessionService';
+import type { Profile, FlagId } from '../types/Profile';
+import { AVATARS } from '../config/avatars';
+import { FLAGS, type FlagConfig } from '../config/flags';
 import { showToast } from './toast';
 
 // ============================================================
@@ -42,7 +47,17 @@ export class MainHub implements IScreen {
      */
     lastSession: LastSession | null = null;
 
-    /** Imie wyswietlane w welcome bar. FAZA 7: profile.name. */
+    /**
+     * FAZA 7c: active profile injected by MainMenu before mount.
+     * Drives welcome chip display (avatar + nickname + flag).
+     * null = fallback ('Brawler' welcome, no chip visuals) — edge case for tests.
+     */
+    activeProfile: Profile | null = null;
+
+    /**
+     * Imie wyswietlane w welcome bar.
+     * FAZA 7c: derived from activeProfile.nickname (set in render() if profile exists).
+     */
     welcomeName: string = 'Brawler';
 
     // === Callbacks ===
@@ -57,6 +72,11 @@ export class MainHub implements IScreen {
     onSettingsClick:  (() => void) | null = null;
 
     mount(root: HTMLElement): void {
+        // FAZA 7c: derive welcomeName from active profile (or fallback)
+        if (this.activeProfile) {
+            this.welcomeName = this.activeProfile.nickname;
+        }
+
         this.el = this.render();
         root.appendChild(this.el);
         this.wireEvents();
@@ -73,15 +93,8 @@ export class MainHub implements IScreen {
         const root = document.createElement('div');
         root.className = 'bt-hub-screen';
 
-        // === Welcome bar ===
-        const welcomeBar = `
-            <div class="bt-hub-welcome">
-                <div class="bt-hub-welcome-text">
-                    <span class="wave" aria-hidden="true">👋</span>
-                    <span>${t('hub.welcome', { name: this.welcomeName })}</span>
-                </div>
-            </div>
-        `;
+        // === Welcome bar — FAZA 7c: now a profile chip ===
+        const welcomeBar = this.renderProfileChip();
 
         // === Continue card (conditional) ===
         const continueCard = this.lastSession ? this.renderContinueCard(this.lastSession) : '';
@@ -133,17 +146,89 @@ export class MainHub implements IScreen {
         return root;
     }
 
+    /**
+     * FAZA 7c: profile chip is the welcome bar.
+     * Layout: [avatar] 👋 Witaj, {nickname}! [flag swatch]
+     * Whole chip tappable → toast (FAZA 8 will open Settings/edit profile).
+     */
+    private renderProfileChip(): string {
+        // Edge case: no profile loaded yet (unlikely after FAZA 7b onboarding, but defensive)
+        if (!this.activeProfile) {
+            return `
+                <div class="bt-hub-welcome bt-hub-welcome--no-profile">
+                    <div class="bt-hub-welcome-text">
+                        <span class="wave" aria-hidden="true">👋</span>
+                        <span>${t('hub.welcome', { name: 'Brawler' })}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        const profile = this.activeProfile;
+        const avatarConfig = AVATARS[profile.avatarId];
+        const flagConfig = FLAGS[profile.flagId];
+
+        const baseUrl = this.getBaseUrl();
+        const avatarUrl = `${baseUrl}${avatarConfig.assetPath}`;
+        const flagGradient = this.computeFlagGradient(flagConfig);
+
+        return `
+            <button class="bt-hub-welcome bt-hub-welcome--chip" type="button" data-action="profile"
+                    aria-label="${t('hub.editProfile')}">
+                <div class="bt-hub-chip-avatar">
+                    <img class="bt-hub-chip-avatar-img" src="${avatarUrl}"
+                         alt="" loading="eager" draggable="false">
+                </div>
+                <div class="bt-hub-welcome-text">
+                    <span class="wave" aria-hidden="true">👋</span>
+                    <span>${t('hub.welcome', { name: profile.nickname })}</span>
+                </div>
+                <div class="bt-hub-chip-flag" style="background: ${flagGradient};"
+                     aria-hidden="true"></div>
+            </button>
+        `;
+    }
+
     private renderContinueCard(session: LastSession): string {
+        // FAZA 7c: nickname-driven identity (not brawlerName)
+        // Fallback for edge case: no active profile (use 'Brawler' generic)
+        const nickname = this.activeProfile?.nickname ?? 'Brawler';
+
         return `
             <button class="bt-hub-continue" type="button" data-action="continue">
                 <span class="bt-hub-continue-icon" aria-hidden="true">🔁</span>
                 <span class="bt-hub-continue-text">${t('hub.continue', {
-                    brawler: session.brawlerName,
+                    nickname,
                     map: session.mapName,
                 })}</span>
                 <span class="bt-hub-continue-arrow" aria-hidden="true">→</span>
             </button>
         `;
+    }
+
+    /**
+     * Generates CSS linear-gradient matching PIXI FlagRenderer + IdentityScreen flag swatches.
+     * Same math as IdentityScreen.computeFlagGradient (shared visual language).
+     */
+    private computeFlagGradient(config: FlagConfig): string {
+        const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+        const p = hex(config.colors.primary);
+        const s = hex(config.colors.secondary);
+        const tert = hex(config.colors.tertiary ?? config.colors.primary);
+
+        switch (config.pattern) {
+            case 'horizontal_2':
+                return `linear-gradient(to bottom, ${p} 0%, ${p} 50%, ${s} 50%, ${s} 100%)`;
+            case 'horizontal_3':
+                return `linear-gradient(to bottom, ${p} 0%, ${p} 33.33%, ${s} 33.33%, ${s} 66.67%, ${tert} 66.67%, ${tert} 100%)`;
+            case 'vertical_3':
+                return `linear-gradient(to right, ${p} 0%, ${p} 33.33%, ${s} 33.33%, ${s} 66.67%, ${tert} 66.67%, ${tert} 100%)`;
+        }
+    }
+
+    private getBaseUrl(): string {
+        const env = (import.meta as unknown as { env?: { BASE_URL?: string } }).env;
+        return env?.BASE_URL ?? '/';
     }
 
     private wireEvents(): void {
@@ -169,6 +254,10 @@ export class MainHub implements IScreen {
                     break;
                 case 'settings':
                     this.onSettingsClick?.();
+                    break;
+                case 'profile':
+                    // FAZA 7c: profile chip click — toast informing FAZA 8 will add edit screen
+                    showToast(t('hub.editProfile'), 2200);
                     break;
                 case 'leaderboard':
                 case 'shop':

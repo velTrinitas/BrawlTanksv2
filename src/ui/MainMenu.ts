@@ -1,5 +1,5 @@
 /**
- * MainMenu.ts — orchestrator dla wszystkich screens menu (FAZA 6c + 6d + 7b).
+ * MainMenu.ts — orchestrator dla wszystkich screens menu (FAZA 6c + 6d + 7b + 7c).
  *
  * State machine: zarzadza ktorym screenem jestesmy + transition pomiedzy.
  * Lifecycle: bootstrap() → show('intro') → on START →
@@ -8,16 +8,11 @@
  *            → on GRAJ → show('scenarioPicker') → on Next → show('brawlerPicker')
  *            → on Play → onGameRequested(config)
  *
- * v0.19.0 FAZA 7b update:
- * - Dodany screen 'identity' (IdentityScreen)
- * - Po IntroScreen sprawdzamy ProfileService.needsOnboarding():
- *   - true  → IdentityScreen → po stworzeniu profilu → MainHub
- *   - false → MainHub bezposrednio (existing flow)
- *
- * Pattern (Strategy + State Machine):
- * - Kazdy screen implementuje IScreen interface (mount/unmount/onShow)
- * - MainMenu trzyma current screen + container element
- * - show(screenId) = unmount old (fade out) → mount new (fade in)
+ * v0.22.0 FAZA 7c update:
+ * - createMainHub() przekazuje activeProfile do MainHub (driver welcome chip)
+ * - createBrawlerPicker().onPlay buduje GameConfig z prawdziwym profileId
+ *   z ProfileService.getActiveProfile()?.id (zamiast hardcoded 'default')
+ * - Defensive fallback: 'default' gdy brak profilu (edge case dla testow)
  */
 
 import { IntroScreen } from './IntroScreen';
@@ -220,6 +215,9 @@ export class MainMenu {
         const hub = new MainHub();
         hub.lastSession = sessionService.getLastSession();
 
+        // FAZA 7c: inject active profile dla welcome chip rendering
+        hub.activeProfile = ProfileService.getActiveProfile();
+
         hub.onContinueClick = (session) => {
             this.onContinueRequested?.(session);
         };
@@ -288,13 +286,16 @@ export class MainMenu {
             this.lastBrawlerSelection = brawlerId;
             this.lastDifficultySelection = difficulty;
 
+            // FAZA 7c: hookup real profileId (was 'default' before)
+            const activeProfileId = ProfileService.getActiveProfile()?.id ?? 'default';
+
             // Build immutable GameConfig
             const config = new GameConfigBuilder()
                 .setScenario(this.lastScenarioSelection!)
                 .setMap(this.lastMapSelection!)
                 .setBrawlerId(brawlerId)
                 .setDifficulty(difficulty)
-                .setProfileId('default') // FAZA 7c podmieni na aktywny profileId
+                .setProfileId(activeProfileId)
                 .build();
 
             console.log('[MainMenu] GameConfig built:', config);

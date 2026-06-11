@@ -60,6 +60,10 @@ import { t } from './i18n/i18n';
 import { MainMenu } from './ui/MainMenu';
 import { showToast } from './ui/toast';
 
+// === FAZA 7a: Profile system foundation ===
+import { ProfileSpriteCache } from './rendering/profile/ProfileSpriteCache';
+import { ProfileService } from './services/ProfileService';
+
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 const COMBO_WINDOW_MS = 2000;
@@ -177,8 +181,46 @@ menu.onSettingsRequested = () => {
     console.log('[Menu] Settings requested (FAZA 8 will implement)');
 };
 
-// Start bootstrap flow: pokaz IntroScreen (Ken Burns slideshow)
-menu.start();
+// ============================================================
+// FAZA 7a: Async bootstrap — preload profile sprite cache before menu starts
+// ============================================================
+// ProfileSpriteCache MUSI byc zainicjalizowany ZANIM MainMenu startuje, zeby:
+//   - FAZA 7b onboarding UI mogl od razu wyrenderowac avatary
+//   - Pierwsza klatka po pokazaniu menu nie miala "flash" loading state
+//
+// IIFE non-blocking: pozostale event listenery + funkcje pomocnicze sa rejestrowane
+// synchronicznie ponizej, a menu.start() poczeka tylko na cache init (~50-200ms).
+(async () => {
+    try {
+        await ProfileSpriteCache.init(app);
+        console.log('[boot] ProfileSpriteCache ready (4 avatars + 4 flags cached)');
+
+        const profile = ProfileService.getActiveProfile();
+        if (profile) {
+            console.log(`[boot] Active profile: ${profile.avatarId} (flag=${profile.flagId})`);
+        } else {
+            console.log('[boot] No active profile — onboarding triggers in FAZA 7b');
+        }
+    } catch (e) {
+        // Graceful degradation: gra dalej startuje, ale FAZA 7b UI nie wyrenderuje avatarow.
+        // W produkcji ten path nie powinien sie pojawiac (PNG sa w public/profile/avatars/).
+        console.error('[boot] ProfileSpriteCache init failed — avatars unavailable:', e);
+    }
+
+    // Start bootstrap flow: pokaz IntroScreen (Ken Burns slideshow)
+    menu.start();
+})();
+
+// === FAZA 7a: Dev-only services exposure dla smoke testing ===
+// W browser console: window.BT_DEV.ProfileService.createProfile({...}) etc.
+// Wycieczki produkcyjne nie maja BT_DEV — chronione przez import.meta.env.DEV.
+if (import.meta.env.DEV) {
+    (window as unknown as { BT_DEV: unknown }).BT_DEV = {
+        ProfileService,
+        ProfileSpriteCache,
+    };
+    console.log('[FAZA 7a] window.BT_DEV attached — use for smoke testing');
+}
 
 /**
  * FAZA 6.5.2b: Po endgame uzytkownik wraca do MainHub.

@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu (intro/hub/pickery)
+import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
 import {
@@ -56,7 +56,7 @@ import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
 import { t } from './i18n/i18n';
 
-// === FAZA 6.5.2b: MainMenu wpiety jako bootstrap entry point ===
+// === FAZA 6.5.2b: MainMenu jako bootstrap entry point ===
 import { MainMenu } from './ui/MainMenu';
 import { showToast } from './ui/toast';
 
@@ -64,14 +64,15 @@ import { showToast } from './ui/toast';
 import { ProfileSpriteCache } from './rendering/profile/ProfileSpriteCache';
 import { ProfileService } from './services/ProfileService';
 
+// === FAZA 8.5: Mobile touch controls ===
+import { TouchInputManager } from './input/TouchInputManager';
+
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 const COMBO_WINDOW_MS = 2000;
 
 const OASIS_STEALTH_DURATION_MS = 10000;
 
-// === FAZA 6.5.2b: Legacy state usuniety — MainMenu jest jedynym sourcem GameConfig ===
-// selectedBrawler / selectedMapId / buildLegacyConfig() ZNIKAJA - nie sa juz potrzebne.
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
@@ -133,14 +134,19 @@ const hud = new HUD('hudCanvas');
 // ============================================================
 // FAZA 6.5.2b: MainMenu bootstrap
 // ============================================================
-// MainMenu jest TERAZ jedynym entry pointem do gry.
-// Legacy welcomeScreen (charGrid, mapBadge, startBtn) usuniete z HTML + JS.
 const menu = new MainMenu('#bt-menu-root');
 
+// ============================================================
+// FAZA 8.5: Touch controls dla mobile
+// ============================================================
+const touchManager = new TouchInputManager();
+touchManager.init();
+touchManager.onSuperRequested = () => {
+    tryActivateSuper();
+};
+
 menu.onGameRequested = (config: GameConfig) => {
-    // FAZA 6.5.2b-fix2: defensive guard dla scenariuszy CTF/Castle (jeszcze nie zaimplementowane).
-    // Pierwsza linia obrony jest w Scenario.ts (available: false → ScenarioPicker locks UI),
-    // ale ten guard catches edge cases (np. URL hacks lub future bugs in picker).
+    // FAZA 6.5.2b-fix2: defensive guard dla scenariuszy CTF/Castle
     if (config.scenario === 'ctf' || config.scenario === 'castle') {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
@@ -151,45 +157,34 @@ menu.onGameRequested = (config: GameConfig) => {
 };
 
 menu.onContinueRequested = (lastSession: LastSession) => {
-    // FAZA 6.5.2b-fix2: defensive guard dla starych session snapshots zapisanych przed lockem.
-    // User mógł mieć w localStorage lastSession z CTF/Castle z poprzednich testów.
     if (lastSession.scenario === 'ctf' || lastSession.scenario === 'castle') {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
         return;
     }
-    // Rebuild immutable GameConfig from LastSession snapshot (nowy sessionId + timestamp!)
     const config = new GameConfigBuilder()
         .setScenario(lastSession.scenario)
         .setMap(lastSession.map)
         .setDifficulty(lastSession.difficulty)
         .setBrawlerId(lastSession.brawlerId)
         .setMode(lastSession.mode)
-        .setProfileId('default')
+        .setProfileId(ProfileService.getActiveProfile()?.id ?? 'default')
         .build();
     menu.hide();
     startGame(config);
 };
 
 menu.onHowToPlayRequested = () => {
-    // FAZA 8: pokaze instructionsScreen modal
     console.log('[Menu] HowToPlay requested (FAZA 8 will implement)');
 };
 
 menu.onSettingsRequested = () => {
-    // FAZA 8: pokaze settings panel (audio, language PL/EN, controls)
     console.log('[Menu] Settings requested (FAZA 8 will implement)');
 };
 
 // ============================================================
 // FAZA 7a: Async bootstrap — preload profile sprite cache before menu starts
 // ============================================================
-// ProfileSpriteCache MUSI byc zainicjalizowany ZANIM MainMenu startuje, zeby:
-//   - FAZA 7b onboarding UI mogl od razu wyrenderowac avatary
-//   - Pierwsza klatka po pokazaniu menu nie miala "flash" loading state
-//
-// IIFE non-blocking: pozostale event listenery + funkcje pomocnicze sa rejestrowane
-// synchronicznie ponizej, a menu.start() poczeka tylko na cache init (~50-200ms).
 (async () => {
     try {
         await ProfileSpriteCache.init(app);
@@ -202,18 +197,13 @@ menu.onSettingsRequested = () => {
             console.log('[boot] No active profile — onboarding triggers in FAZA 7b');
         }
     } catch (e) {
-        // Graceful degradation: gra dalej startuje, ale FAZA 7b UI nie wyrenderuje avatarow.
-        // W produkcji ten path nie powinien sie pojawiac (PNG sa w public/profile/avatars/).
         console.error('[boot] ProfileSpriteCache init failed — avatars unavailable:', e);
     }
 
-    // Start bootstrap flow: pokaz IntroScreen (Ken Burns slideshow)
     menu.start();
 })();
 
 // === FAZA 7a: Dev-only services exposure dla smoke testing ===
-// W browser console: window.BT_DEV.ProfileService.createProfile({...}) etc.
-// Wycieczki produkcyjne nie maja BT_DEV — chronione przez import.meta.env.DEV.
 if (import.meta.env.DEV) {
     (window as unknown as { BT_DEV: unknown }).BT_DEV = {
         ProfileService,
@@ -224,37 +214,32 @@ if (import.meta.env.DEV) {
 
 /**
  * FAZA 6.5.2b: Po endgame uzytkownik wraca do MainHub.
- * - victoryScreen/gameOverScreen sa schowane
- * - menu.reshow() przywraca display MainMenu container
- * - menu.show('hub') odswieza lastSession z sessionService — "Kontynuuj" pill pojawi sie
- *
- * NIE resetujemy picker state (lastScenario/Map/Brawler) — user zachowuje swoje wybory
- * dla quick replay przez pickery. Continue card to osobny shortcut.
  */
 function returnToMenuFromEnd(): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.remove('game-cursor-hidden');
     gameState = 'MENU';
-    currentSession = null;       // GC moze zbierac poprzednia sesje
-    
-    // Stop game music (intro/hub powinno byc ciche lub miec swoje)
+    currentSession = null;
+
+    // FAZA 8.5: ukryj touch UI po powrocie do menu
+    touchManager.hide();
+
     audio.stopMusic();
-    
+
     menu.reshow();
-    menu.show('hub');             // hub re-mounts → czyta sessionService.getLastSession() fresh
+    menu.show('hub');
 }
 
-// Wire endgame buttons do powrotu do menu (zamiast wczesniej startGame)
 document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
 document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
 
 function tryActivateSuper(): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects || !currentSession) return;
-    
+
     const result = powerSystem.activate(player, enemies);
     if (!result.activated) return;
-    
+
     if (result.powerId === 'aura') {
         hud.addNotif('🛡️ TARCZA AKTYWNA!', '#ffdd00');
         effects.shake(4, 6);
@@ -263,7 +248,7 @@ function tryActivateSuper(): void {
         effects.spawnMegaBomb(player.x, player.y);
         hud.addNotif(`💣 MEGA BOMBA — ${result.megaBombTargets.length} celów!`, '#ff4400');
         audio.playSuperActivate('megaBomb');
-        
+
         for (const enemy of result.megaBombTargets) {
             const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
             if (killed) {
@@ -307,10 +292,18 @@ window.addEventListener('keyup', e => {
 });
 
 (app.view as HTMLCanvasElement).addEventListener('pointerdown', (e: any) => {
+    // FAZA 8.5: ignore canvas mouse events when touch UI active (touchManager wins)
+    if (touchManager.isActive) return;
     if (e.button === 0) isMouseDown = true;
 });
-(app.view as HTMLCanvasElement).addEventListener('pointerup', () => { isMouseDown = false; });
-(app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => { isMouseDown = false; });
+(app.view as HTMLCanvasElement).addEventListener('pointerup', () => {
+    if (touchManager.isActive) return;
+    isMouseDown = false;
+});
+(app.view as HTMLCanvasElement).addEventListener('pointerupoutside' as any, () => {
+    if (touchManager.isActive) return;
+    isMouseDown = false;
+});
 
 (app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => {
     e.preventDefault();
@@ -345,18 +338,21 @@ function dropGems(x: number, y: number, count: number): void {
 
 /**
  * FAZA 6.5.2a: startGame przyjmuje immutable GameConfig.
- * FAZA 6.5.2b: wywolywane TYLKO przez MainMenu callbacks (onGameRequested / onContinueRequested).
+ * FAZA 7c: ProfileService.recordSessionStart + Player flag override.
+ * FAZA 8.5: touchManager.show() po setup.
  */
 function startGame(config: GameConfig): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
-    
+
     currentSession = new GameSession(config);
+
+    // FAZA 7c: track per-profile play stats (totalGamesPlayed + lastPlayedAt)
     ProfileService.recordSessionStart();
+
     console.log(describeGameConfig(config));
-    
-    // Save last session snapshot dla MainHub "Kontynuuj" — odswiezone po kazdej grze
+
     const brawlerForDisplay = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
     sessionService.saveLastSession({
         brawlerId: config.brawlerId,
@@ -369,7 +365,7 @@ function startGame(config: GameConfig): void {
         mapName: MAP_CONFIGS[config.map].name,
         scenarioName: t(SCENARIO_CONFIGS[config.scenario].nameKey),
     });
-    
+
     worldContainer.removeChildren();
     buildings = [];
     solidBuildings = [];
@@ -381,24 +377,24 @@ function startGame(config: GameConfig): void {
     quicksands = [];
     oases = [];
     caravan = null;
-    
+
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
-    
+
     if (config.map === 'city') {
         const cityTex = buildCityTexture();
         const citySprite = new PIXI.Sprite(cityTex);
         citySprite.zIndex = -100;
         worldContainer.addChild(citySprite);
-        
+
         CITY_BUILDINGS_LAYOUT.forEach(b => {
             const cb = new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer);
             buildings.push(cb);
             solidBuildings.push(cb);
         });
-        
+
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     } else if (config.map === 'desert') {
@@ -406,13 +402,13 @@ function startGame(config: GameConfig): void {
         const desertSprite = new PIXI.Sprite(desertTex);
         desertSprite.zIndex = -100;
         worldContainer.addChild(desertSprite);
-        
+
         DESERT_PYRAMID_LAYOUT.forEach(p => {
             const pyramid = new Pyramid(p.x, p.y, p.size, p.seed, worldContainer);
             buildings.push(pyramid);
             solidBuildings.push(pyramid);
         });
-        
+
         const sphinx = new Sphinx(
             DESERT_SPHINX_POSITION.x,
             DESERT_SPHINX_POSITION.y,
@@ -423,7 +419,7 @@ function startGame(config: GameConfig): void {
         );
         buildings.push(sphinx);
         solidBuildings.push(sphinx);
-        
+
         river = new RiverNile(
             DESERT_RIVER_PATH,
             DESERT_RIVER_WIDTH,
@@ -433,30 +429,30 @@ function startGame(config: GameConfig): void {
             worldContainer,
         );
         buildings.push(...river.getCollisionSegments());
-        
+
         bridges = river.getBridgeLayout().map(b =>
             new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer),
         );
-        
+
         waterLife = new WaterLife(
             DESERT_RIVER_PATH,
             DESERT_RIVER_WIDTH,
             river.getBridgeLayout(),
             worldContainer,
         );
-        
+
         DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
-        
+
         DESERT_RIVER_CATARACT_ROCKS.forEach(r => {
             const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
-        
+
         const MIN_DIST_TO_BUILDINGS = 110;
         const MIN_DIST_BETWEEN_SMALL = 45;
         let smallRockAttempts = 0;
@@ -464,7 +460,7 @@ function startGame(config: GameConfig): void {
             smallRockAttempts++;
             const rx = 100 + Math.random() * (WORLD_W - 200);
             const ry = 100 + Math.random() * (WORLD_H - 200);
-            
+
             let blocked = false;
             for (const b of buildings) {
                 if (b.w === 0) continue;
@@ -478,7 +474,7 @@ function startGame(config: GameConfig): void {
                 }
             }
             if (blocked) continue;
-            
+
             for (const sr of smallRocks) {
                 const dx = rx - sr.visualX;
                 const dy = ry - sr.visualY;
@@ -488,38 +484,40 @@ function startGame(config: GameConfig): void {
                 }
             }
             if (blocked) continue;
-            
+
             const size = DESERT_SMALL_ROCK_MIN_SIZE + Math.random() * (DESERT_SMALL_ROCK_MAX_SIZE - DESERT_SMALL_ROCK_MIN_SIZE);
             const seed = Math.floor(Math.random() * 1000);
             smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
         }
-        
+
         sandstormBorder = new SandstormBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...sandstormBorder.getCollisionRects());
         solidBuildings.push(...sandstormBorder.getCollisionRects());
-        
+
         quicksands = DESERT_QUICKSAND_LAYOUT.map(q =>
             new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer),
         );
-        
+
         oases = DESERT_OASIS_LAYOUT.map(o =>
             new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
         );
-        
+
         caravan = new Caravan(worldContainer);
-        
+
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     }
-    
+
     effects = new EffectsManager(worldContainer);
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
-    
+
     const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
+
+    // FAZA 7c: profile flag override - gracz nosi swoja flage zamiast brawler default
     const activeProfile = ProfileService.getActiveProfile();
     player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
-    
+
     enemies = [];
     bullets = [];
     enemyBullets = [];
@@ -528,14 +526,20 @@ function startGame(config: GameConfig): void {
     magnets = [];
     isMouseDown = false;
     gameState = 'PLAYING';
-    
+
+    // FAZA 8.5: pokaz touch UI gdy gracz wchodzi do gry
+    touchManager.show();
+
     audio.startMusic(config.map);
 }
 
 async function triggerGameOver(): Promise<void> {
     gameState = 'GAMEOVER';
     audio.playGameOver();
-    
+
+    // FAZA 8.5: ukryj touch UI na endgame screens
+    touchManager.hide();
+
     if (currentSession) {
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config);
@@ -544,7 +548,7 @@ async function triggerGameOver(): Promise<void> {
             console.warn('[Score] Submit failed:', e);
         }
     }
-    
+
     const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
     const finalScore = currentSession?.score ?? 0;
     const statsEl = document.getElementById('gameOverStats')!;
@@ -566,7 +570,10 @@ async function triggerGameOver(): Promise<void> {
 async function triggerVictory(): Promise<void> {
     gameState = 'VICTORY';
     audio.playVictory();
-    
+
+    // FAZA 8.5: ukryj touch UI na endgame screens
+    touchManager.hide();
+
     if (currentSession) {
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config);
@@ -575,7 +582,7 @@ async function triggerVictory(): Promise<void> {
             console.warn('[Score] Submit failed:', e);
         }
     }
-    
+
     const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
     const finalScore = currentSession?.score ?? 0;
     const statsEl = document.getElementById('victoryStats')!;
@@ -597,15 +604,45 @@ async function triggerVictory(): Promise<void> {
 
 app.ticker.add((delta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
-    
+
     camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - hud.screenH, ~~(player.y - hud.screenH / 2)));
     worldContainer.x = -camera.x + effects.shakeOffsetX;
     worldContainer.y = -camera.y + effects.shakeOffsetY;
-    
+
+    // ============================================================
+    // FAZA 8.5: Touch input bridge (overrides mouse/keyboard gdy touch active)
+    // ============================================================
+    let touchMoveVector: { x: number; y: number } | null = null;
+    if (touchManager.isActive) {
+        // Update super button visual feedback per-frame
+        touchManager.updateSuperChargedVisual(player.superCharges > 0);
+
+        // Bridge super-shot tap → tryActivateSuper (edge-triggered)
+        if (touchManager.consumeSuperRequest()) {
+            tryActivateSuper();
+        }
+
+        // Left joystick → moveVector (passed to player.update)
+        touchMoveVector = touchManager.moveVector;
+
+        // Right joystick → fake mouse position + isFiring flag
+        const aimVec = touchManager.aimVector;
+        if (aimVec) {
+            // Project aim vector ~200px from player in screen space
+            const AIM_DISTANCE = 200;
+            mouse.screenX = (player.x - camera.x) + aimVec.x * AIM_DISTANCE;
+            mouse.screenY = (player.y - camera.y) + aimVec.y * AIM_DISTANCE;
+        }
+
+            // Continuous fire while right stick active (decision B1: aim+fire combined)
+            // Force-override AFTER canvas pointer events have had chance to run
+            isMouseDown = touchManager.isFiring;
+    }
+
     const mouseWorldX = mouse.screenX + camera.x;
     const mouseWorldY = mouse.screenY + camera.y;
-    
+
     let playerInQuicksand = false;
     for (const qs of quicksands) {
         qs.update();
@@ -614,7 +651,7 @@ app.ticker.add((delta) => {
         }
     }
     player.speedModifier = playerInQuicksand ? 0.5 : 1.0;
-    
+
     for (const enemy of enemies) {
         let enemyInQuicksand = false;
         for (const qs of quicksands) {
@@ -625,7 +662,7 @@ app.ticker.add((delta) => {
         }
         enemy.speedModifier = enemyInQuicksand ? 0.5 : 1.0;
     }
-    
+
     let playerInOasis = false;
     for (const oasis of oases) {
         oasis.update();
@@ -633,15 +670,15 @@ app.ticker.add((delta) => {
             playerInOasis = true;
         }
     }
-    
+
     const nowMs = Date.now();
-    
+
     if (playerInOasis && !wasInOasisLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
     }
-    
+
     const isStealthActive = playerInOasis && nowMs < oasisStealthEndTime;
-    
+
     if (isStealthActive && !wasStealthActiveLastFrame) {
         hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
         audio.playMagnetPickup();
@@ -649,18 +686,18 @@ app.ticker.add((delta) => {
         hud.addNotif('👁️ ZOSTAŁEŚ ZAUWAŻONY!', '#ff8855');
         effects.shake(3, 8);
     }
-    
+
     for (const enemy of enemies) {
         enemy.playerStealthed = isStealthActive;
     }
-    
+
     wasInOasisLastFrame = playerInOasis;
     wasStealthActiveLastFrame = isStealthActive;
-    
+
     if (river) river.update();
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
-    
+
     if (caravan) {
         const drop = caravan.update(delta);
         if (drop) {
@@ -677,11 +714,12 @@ app.ticker.add((delta) => {
             audio.playGemPickup();
         }
     }
-    
+
     buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
-    
-    player.update(keys, mouseWorldX, mouseWorldY, buildings, effects);
-    
+
+    // FAZA 8.5: passed touchMoveVector jako 6-th arg (null = fallback do keys.wasd)
+    player.update(keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
+
     if (currentSession.config.map === 'desert' && player.isMoving) {
         sandKickFrameCounter++;
         const interval = player.hasSpeedBoost ? 2 : 3;
@@ -693,7 +731,7 @@ app.ticker.add((delta) => {
     } else {
         sandKickFrameCounter = 0;
     }
-    
+
     const time = Date.now() / 1000;
     for (const pad of mediPads) {
         const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
@@ -714,7 +752,7 @@ app.ticker.add((delta) => {
             audio.playMagnetPickup();
         }
     }
-    
+
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
         h.update(delta);
@@ -729,7 +767,7 @@ app.ticker.add((delta) => {
             }
         }
     }
-    
+
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
@@ -742,7 +780,7 @@ app.ticker.add((delta) => {
                 spawnSystem.registerGemCollected();
                 currentSession.score += 1;
                 audio.playGemPickup();
-                
+
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 if (newTrigger > prevTrigger) {
@@ -750,12 +788,12 @@ app.ticker.add((delta) => {
                     hud.addNotif(`⚡ +${SUPER_CHARGES_PER_TRIGGER} SUPER STRZAŁY! (×${player.superCharges})`, '#c850ff');
                     effects.shake(4, 8);
                 }
-                
+
                 gems.splice(i, 1);
             }
         }
     }
-    
+
     for (let i = magnets.length - 1; i >= 0; i--) {
         const m = magnets[i];
         m.update(delta);
@@ -770,24 +808,24 @@ app.ticker.add((delta) => {
             }
         }
     }
-    
+
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;
         effects.spawnMuzzleFlash(sX, sY, angle);
-        
+
         const wasActive = player.isSuperShotActive;
         const isSuperShot = player.tryActivateOrContinueSuperShot();
         const justActivated = !wasActive && isSuperShot;
-        
+
         if (justActivated) {
             audio.playSuperShotActivate();
         }
-        
+
         audio.playShoot(player.brawler.id);
-        
+
         if (player.brawler.type === 'spread') {
             bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot));
             bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
@@ -801,13 +839,13 @@ app.ticker.add((delta) => {
         }
         lastShotTime = now;
     }
-    
+
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects);
         if (!b.active) bullets.splice(i, 1);
     }
-    
+
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         eb.update(delta, solidBuildings, effects);
@@ -815,7 +853,7 @@ app.ticker.add((delta) => {
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {
             const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable);
-            
+
             if (powerSystem.isInvulnerable) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
@@ -828,25 +866,25 @@ app.ticker.add((delta) => {
             if (playerDied) { triggerGameOver(); return; }
         }
     }
-    
+
     const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
     magnets.push(...spawnResult.newMagnets);
     if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
-    
+
     powerSystem.update(delta, player, enemies, worldContainer, effects);
-    
+
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         const shotInfo = enemy.update(delta, player.x, player.y, buildings);
         if (shotInfo) spawnEnemyShot(shotInfo);
-        
+
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
             const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable);
-            
+
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
                 audio.playExplosion();
@@ -864,7 +902,7 @@ app.ticker.add((delta) => {
             }
             if (playerDied) { triggerGameOver(); return; }
         }
-        
+
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (!b.active) continue;
@@ -881,7 +919,7 @@ app.ticker.add((delta) => {
                     currentSession.score += enemy.scoreValue;
                     dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
-                    
+
                     const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
                     if (comboNow === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
                     else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
@@ -890,13 +928,13 @@ app.ticker.add((delta) => {
                 break;
             }
         }
-        
+
         if (!enemy.active) enemies.splice(i, 1);
     }
-    
+
     if (hud.comboTextTimer > 0) hud.comboTextTimer--;
     effects.update(delta);
-    
+
     const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
     hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

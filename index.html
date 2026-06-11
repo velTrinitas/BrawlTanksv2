@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <!-- ============================================================
          FAZA 6e PWA + Mobile native feel
@@ -137,12 +137,13 @@
         </div>
     </div>
 
-    <div id="credits">Game version: v0.22.0</div>
+    <div id="credits">Game version: v0.23.0</div>
 
     <script type="module" src="/src/main.ts"></script>
 
     <!-- ============================================================
          FAZA 6e.3 - Service Worker registration
+         FAZA 8.5 - Added LAN IP guards dla mobile testing przez Vite --host
          ============================================================ -->
     <script>
         (function () {
@@ -151,7 +152,14 @@
             var isLocalDev =
                 hostname === 'localhost' ||
                 hostname === '127.0.0.1' ||
-                hostname.endsWith('.local');
+                hostname.endsWith('.local') ||
+                // FAZA 8.5: LAN IPs (RFC 1918 private ranges) dla mobile testing
+                // przez WiFi gdy Vite uruchamiony z --host flag.
+                // Bez tych regexów SW rejestrowal sie na 192.168.x.x i cache'owal
+                // stara wersje, pomimo bumpniecia w index.html.
+                /^192\.168\.\d+\.\d+$/.test(hostname) ||
+                /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
+                /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname);
 
             var isSandboxPreview =
                 hostname.indexOf('claudeusercontent') !== -1 ||

@@ -2599,10 +2599,9 @@
         0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
-/* === Fallback: no profile loaded (edge case for tests) === */
-.bt-hub-welcome--no-profile {
+    /* === Fallback: no profile loaded (edge case for tests) === */
     /* Inherits existing .bt-hub-welcome styling — no chip-specific changes */
-}
+
 
 /* =============================================================
    PROFILE CHIP — Responsive
@@ -2680,6 +2679,274 @@
 /* === A11y === */
 @media (prefers-reduced-motion: reduce) {
     .bt-identity-nickname-input {
+        transition: none !important;
+    }
+}
+/* =============================================================
+   27. TOUCH CONTROLS (FAZA 8.5 — Mobile)
+   =============================================================
+   Wirtualne joysticki + super button dla mobile gameplay.
+   Renderowane tylko gdy TouchInputManager.isActive (auto-detect or URL forced).
+   Position: fixed, overlay nad canvas, z-index nad HUD ale pod menu.
+
+   Safe-area-insets: iOS notch / Android cutout — buttons odsunięte od krawędzi.
+   touch-action: none on body — blokuje scroll/pinch przy gameplayu.
+   ============================================================= */
+
+/* === Root container — covers viewport, no pointer events by default === */
+.bt-touch-root {
+    position: fixed;
+    inset: 0;
+    z-index: 60;        /* nad HUD canvas (z-index ~50), pod MainMenu (z-index 100) */
+    pointer-events: none; /* re-enabled per element */
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+
+/* =============================================================
+   VIRTUAL JOYSTICK (base)
+   ============================================================= */
+
+.bt-joystick {
+    position: absolute;
+    width: 130px;
+    height: 130px;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Disable iOS Safari long-press magnifier */
+    -webkit-touch-callout: none;
+}
+
+/* Position: bottom-left (movement) */
+.bt-joystick--left {
+    left: calc(20px + env(safe-area-inset-left, 0px));
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Position: bottom-right (aim) */
+.bt-joystick--right {
+    right: calc(20px + env(safe-area-inset-right, 0px));
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* === Base circle (dark, translucent) === */
+.bt-joystick-base {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at center,
+        rgba(15, 20, 35, 0.55) 0%,
+        rgba(15, 20, 35, 0.4) 65%,
+        rgba(15, 20, 35, 0.25) 100%
+    );
+    border: 3px solid rgba(241, 196, 15, 0.45);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 4px 12px rgba(0, 0, 0, 0.35);
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.bt-joystick.is-active .bt-joystick-base {
+    border-color: var(--bt-gold);
+    background: radial-gradient(
+        circle at center,
+        rgba(15, 20, 35, 0.7) 0%,
+        rgba(15, 20, 35, 0.5) 65%,
+        rgba(15, 20, 35, 0.3) 100%
+    );
+}
+
+/* === Knob (gold, translucent, centered via absolute + transform) === */
+.bt-joystick-knob {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 52px;
+    height: 52px;
+    margin-top: -26px;
+    margin-left: -26px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at 30% 30%,
+        rgba(241, 196, 15, 0.95) 0%,
+        rgba(243, 156, 18, 0.85) 60%,
+        rgba(211, 84, 0, 0.7) 100%
+    );
+    border: 3px solid var(--bt-navy);
+    box-shadow:
+        inset 0 -2px 4px rgba(0, 0, 0, 0.35),
+        0 2px 6px rgba(0, 0, 0, 0.45);
+    pointer-events: none; /* knob nie capture'uje pointer; base does */
+    will-change: transform;
+    transition: background var(--transition-fast);
+}
+
+.bt-joystick.is-active .bt-joystick-knob {
+    background: radial-gradient(
+        circle at 30% 30%,
+        rgba(255, 220, 70, 1) 0%,
+        rgba(243, 156, 18, 1) 60%,
+        rgba(211, 84, 0, 0.9) 100%
+    );
+    box-shadow:
+        inset 0 -2px 4px rgba(0, 0, 0, 0.35),
+        0 3px 8px rgba(0, 0, 0, 0.55),
+        0 0 16px rgba(241, 196, 15, 0.5);
+}
+
+/* =============================================================
+   SUPER BUTTON
+   ============================================================= */
+
+.bt-super-button {
+    position: absolute;
+    /* Pozycja: above right joystick, slight inset-left */
+    right: calc(40px + env(safe-area-inset-right, 0px));
+    bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 4px solid var(--bt-navy);
+    background: radial-gradient(
+        circle at 30% 30%,
+        rgba(60, 60, 80, 0.85) 0%,
+        rgba(30, 30, 45, 0.95) 100%
+    );
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    appearance: none;
+    font-family: inherit;
+    box-shadow:
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+        0 4px 10px rgba(0, 0, 0, 0.4);
+    transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.bt-super-button-icon {
+    font-size: 2rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+
+/* === Charged state: pulsing gold glow (mirrors super-shot in-game visual) === */
+.bt-super-button.is-charged {
+    background: radial-gradient(
+        circle at 30% 30%,
+        rgba(241, 196, 15, 1) 0%,
+        rgba(243, 156, 18, 0.95) 60%,
+        rgba(211, 84, 0, 0.85) 100%
+    );
+    color: #fff;
+    animation: bt-super-btn-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes bt-super-btn-pulse {
+    0%, 100% {
+        box-shadow:
+            inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+            0 4px 10px rgba(0, 0, 0, 0.4),
+            0 0 20px rgba(241, 196, 15, 0.5);
+    }
+    50% {
+        box-shadow:
+            inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+            0 4px 10px rgba(0, 0, 0, 0.4),
+            0 0 36px rgba(241, 196, 15, 0.85);
+    }
+}
+
+/* Pressed state — tactile compression */
+.bt-super-button.is-pressed {
+    transform: translateY(2px) scale(0.96);
+    box-shadow:
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+        0 1px 4px rgba(0, 0, 0, 0.4);
+    animation: none !important;
+}
+
+/* =============================================================
+   RESPONSIVE — small phones (≤375px) get slightly smaller controls
+   ============================================================= */
+
+@media (max-width: 375px) {
+    .bt-joystick {
+        width: 110px;
+        height: 110px;
+    }
+
+    .bt-joystick-knob {
+        width: 44px;
+        height: 44px;
+        margin-top: -22px;
+        margin-left: -22px;
+    }
+
+    .bt-super-button {
+        width: 62px;
+        height: 62px;
+        right: calc(32px + env(safe-area-inset-right, 0px));
+        bottom: calc(145px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .bt-super-button-icon {
+        font-size: 1.7rem;
+    }
+}
+
+/* =============================================================
+   TABLETS / LARGE PHONES — bigger thumb targets
+   ============================================================= */
+
+@media (min-width: 768px) and (pointer: coarse) {
+    .bt-joystick {
+        width: 150px;
+        height: 150px;
+    }
+
+    .bt-joystick-knob {
+        width: 60px;
+        height: 60px;
+        margin-top: -30px;
+        margin-left: -30px;
+    }
+
+    .bt-super-button {
+        width: 84px;
+        height: 84px;
+        bottom: calc(195px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .bt-super-button-icon {
+        font-size: 2.4rem;
+    }
+}
+
+/* =============================================================
+   ACCESSIBILITY — reduce motion
+   ============================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .bt-super-button.is-charged {
+        animation: none !important;
+    }
+
+    .bt-joystick-base,
+    .bt-joystick-knob,
+    .bt-super-button {
         transition: none !important;
     }
 }

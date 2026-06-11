@@ -20,7 +20,7 @@ const FLAG_W = 21;
 const FLAG_H = 13.5;
 const FLAG_POLE_W = 2.25;
 const FLAG_POLE_H = 17.5;
-const FLAG_POLE_DIST = 25; // drzewce x = -25 (w hull bounds dla wszystkich brawlerów)
+const FLAG_POLE_DIST = 25;
 
 export class Player {
     public brawler: Brawler;
@@ -37,7 +37,6 @@ export class Player {
     public speedBoostEnd: number = 0;
 
     // v0.18.1 FAZA 4b — speed modifier (set externally per-frame by main.ts: quicksand = 0.5, normal = 1.0)
-    // Aplikowane w currentSpeed getter → propaguje też na tracksGfx (track animation zwalnia w quicksand)
     public speedModifier: number = 1.0;
 
     public superCharges: number = 0;
@@ -57,10 +56,6 @@ export class Player {
      * Constructor signature (FAZA 7c):
      *   new Player(brawlerData, worldContainer)                       — uses brawler.flag default
      *   new Player(brawlerData, worldContainer, profileFlagId)        — profile override
-     *
-     * Profile flag rendering uses FLAGS config (data-driven, supports PL/FR/IT/DE patterns).
-     * Brawler default flag rendering uses legacy switch (supports PL/UA/DE/JP country codes).
-     * Coexistence: if both could apply, profile override wins.
      */
     constructor(brawlerData: Brawler, worldContainer: PIXI.Container, profileFlagId?: FlagId | null) {
         this.brawler = brawlerData;
@@ -93,7 +88,7 @@ export class Player {
             this.drawFlag(this.brawler.flag ?? 'PL');
         }
 
-        // Order: super-ring → hull → tracks → exhaust → flag → turret (turret zasłania flag)
+        // Order: super-ring → hull → tracks → exhaust → flag → turret
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
         this.container.addChild(this.tracksGfx);
@@ -106,15 +101,11 @@ export class Player {
     /**
      * Legacy flag rendering (FAZA 6 era) — country code string switch.
      * Used for brawler defaults (PL/UA/DE/JP). Profile flags use drawFlagFromConfig.
-     *
-     * Flaga — drzewce w (0,0), flaga ciągnie w LEWO (x ∈ [-FLAG_W, 0]).
-     * Biało-czerwona PL: biały TOP (-y), czerwony BOTTOM (+y) — w default rotation widoczne jako biały NA GÓRZE.
      */
     drawFlag(countryCode: string): void {
         this.flagGfx.clear();
         const flagStartX = -FLAG_W;
 
-        // Drzewce
         this.flagGfx.beginFill(0x4a3520);
         this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
         this.flagGfx.endFill();
@@ -166,20 +157,12 @@ export class Player {
 
     /**
      * FAZA 7c: profile flag rendering — data-driven via FlagConfig.
-     * Supports all 3 patterns (horizontal_2 / horizontal_3 / vertical_3) used
-     * by FAZA 7a/7b flags (PL/FR/IT/DE). Same visual quality as legacy drawFlag,
-     * but rendered from config data instead of country-specific switch case.
-     *
-     * Math verification:
-     * - horizontal_2: FLAG_H/2 + FLAG_H/2 = FLAG_H ✓ (full height covered)
-     * - horizontal_3: FLAG_H/3 × 3 = FLAG_H ✓ (3 equal stripes)
-     * - vertical_3: FLAG_W/3 × 3 = FLAG_W ✓ (3 equal columns)
+     * Supports all 3 patterns (horizontal_2 / horizontal_3 / vertical_3).
      */
     drawFlagFromConfig(config: FlagConfig): void {
         this.flagGfx.clear();
         const flagStartX = -FLAG_W;
 
-        // Drzewce
         this.flagGfx.beginFill(0x4a3520);
         this.flagGfx.drawRect(-FLAG_POLE_W / 2, -FLAG_POLE_H / 2, FLAG_POLE_W, FLAG_POLE_H);
         this.flagGfx.endFill();
@@ -190,7 +173,6 @@ export class Player {
 
         switch (config.pattern) {
             case 'horizontal_2':
-                // PL: white (primary) top, red (secondary) bottom
                 this.flagGfx.beginFill(p);
                 this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 2);
                 this.flagGfx.endFill();
@@ -199,7 +181,6 @@ export class Player {
                 this.flagGfx.endFill();
                 break;
             case 'horizontal_3':
-                // DE: black (primary), red (secondary), gold (tertiary)
                 this.flagGfx.beginFill(p);
                 this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W, FLAG_H / 3);
                 this.flagGfx.endFill();
@@ -211,8 +192,6 @@ export class Player {
                 this.flagGfx.endFill();
                 break;
             case 'vertical_3':
-                // FR: blue/white/red (left to right when flag faces right)
-                // IT: green/white/red (same layout, different colors)
                 this.flagGfx.beginFill(p);
                 this.flagGfx.drawRect(flagStartX, -FLAG_H / 2, FLAG_W / 3, FLAG_H);
                 this.flagGfx.endFill();
@@ -251,7 +230,6 @@ export class Player {
 
     get currentSpeed(): number {
         if (Date.now() > this.speedBoostEnd) this.speedBoostMult = 1;
-        // v0.18.1: speedModifier applied here → propaguje też na tracksGfx animation
         return this.baseSpeed * this.speedBoostMult * this.speedModifier;
     }
 
@@ -385,7 +363,7 @@ export class Player {
             }
 
             if (config.HAS_SMOKE) {
-                const smokeBoost = config.SMOKE_BOOST ?? 1.0; // 1.5 dla większego dymu
+                const smokeBoost = config.SMOKE_BOOST ?? 1.0;
                 for (let s = 0; s < 4; s++) {
                     const smokePhase = ((time / 900) + s * 0.25 + idx * 0.17) % 1.0;
                     const smokeDist = (10 + smokePhase * 25) * smokeBoost;
@@ -408,12 +386,36 @@ export class Player {
         }
     }
 
-    update(keys: KeysState, mouseWorldX: number, mouseWorldY: number, buildings: ICollidable[], effects: EffectsManager): void {
+    /**
+     * Update player state from input.
+     *
+     * FAZA 8.5: signature dorzuca 6-th optional arg `moveVector` — gdy provided,
+     * smooth analog ruch zastępuje keys.wasd (touch joystick on mobile).
+     * Vector już znormalizowany (-1..+1) przez VirtualJoystick, magnitude
+     * propaguje przez `Math.sqrt(dx² + dy²)` jako natural speed scaling
+     * (lekkie wychylenie → wolniej, pełne → max speed).
+     */
+    update(
+        keys: KeysState,
+        mouseWorldX: number,
+        mouseWorldY: number,
+        buildings: ICollidable[],
+        effects: EffectsManager,
+        moveVector?: { x: number; y: number } | null,
+    ): void {
         let dx = 0, dy = 0;
-        if (keys.w) dy -= 1;
-        if (keys.s) dy += 1;
-        if (keys.a) dx -= 1;
-        if (keys.d) dx += 1;
+
+        // FAZA 8.5: touch joystick override gdy provided, else fallback do keys.wasd
+        if (moveVector && (moveVector.x !== 0 || moveVector.y !== 0)) {
+            dx = moveVector.x;
+            dy = moveVector.y;
+        } else {
+            if (keys.w) dy -= 1;
+            if (keys.s) dy += 1;
+            if (keys.a) dx -= 1;
+            if (keys.d) dx += 1;
+        }
+
         this.isMoving = false;
 
         if (dx !== 0 || dy !== 0) {
@@ -438,7 +440,7 @@ export class Player {
         this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
         this.container.zIndex = this.y + 19;
 
-        // Flag — drzewce w (FLAG_POLE_DIST za center hull), w hull local space (rotuje z hull, biały NA GÓRZE)
+        // Flag — drzewce w (FLAG_POLE_DIST za center hull), w hull local space
         this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_POLE_DIST;
         this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_POLE_DIST;
         this.flagGfx.rotation = this.hull.rotation;

@@ -70,6 +70,7 @@ export const pl = {
     'scenario.ktb.desc': 'Zniszcz Mega Bossa',
     'scenario.ktb.cta.desert': 'GRAJ !',
     'scenario.ktb.cta.city': 'GRAJ !',
+    'scenario.ktb.cta.tropics': 'GRAJ !',
 
     'scenario.ctf.name': 'Capture the Flag',
     'scenario.ctf.desc': 'Zdobadz 3 flagi',

@@ -22,7 +22,9 @@ import {
 import {
     buildTropicsTexture,
     TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
+    TROPICS_WHEAT_LAYOUT,
 } from './maps/TropicsMap';
+import { WheatField } from './maps/tropics/WheatField';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -102,11 +104,13 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
+let wheatFields: WheatField[] = [];
 let caravan: Caravan | null = null;
 
 // Frame-transient state
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
+let wasInWheatLastFrame: boolean = false;
 let wasStealthActiveLastFrame: boolean = false;
 let sandKickFrameCounter: number = 0;
 
@@ -428,10 +432,12 @@ function startGame(config: GameConfig): void {
     sandstormBorder = null;
     quicksands = [];
     oases = [];
+    wheatFields = [];
     caravan = null;
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
+    wasInWheatLastFrame = false;
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
 
@@ -563,13 +569,20 @@ function startGame(config: GameConfig): void {
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     } else if (config.map === 'tropics') {
-        // ── TROPICS MAP — FAZA T1 Foundation (v0.25.0) ──────────────
-        // Tylko base texture + pady. FAZA T2-T10 doda: zboze, drogi,
-        // budynki gospodarskie, domki, wiatrak, skrzynie, drzewa, stajnie, stawy.
+        // ── TROPICS MAP — FAZA T2 (v0.26.0) ─────────────────────────
+        // Base texture + pady + STEALTH WHEAT FIELDS (laneczki zboza).
+        // FAZA T3-T10 doda: drogi, budynki, domki, wiatrak, skrzynie,
+        // drzewa, stajnie, stawy.
         const tropicsTex = buildTropicsTexture();
         const tropicsSprite = new PIXI.Sprite(tropicsTex);
         tropicsSprite.zIndex = -100;
         worldContainer.addChild(tropicsSprite);
+
+        // Stealth wheat fields — analogiczne do desert Oasis,
+        // reuse oasisStealthEndTime + enemy.playerStealthed (10s timer).
+        wheatFields = TROPICS_WHEAT_LAYOUT.map(w =>
+            new WheatField(w.x, w.y, w.rX, w.rY, w.seed, worldContainer),
+        );
 
         // Pady — reuse generic HoverRepairPad + PowerHoverPad (city-style)
         // FAZA T10 zastapi custom tropics pads
@@ -760,18 +773,34 @@ app.ticker.add((delta) => {
         }
     }
 
-    const nowMs = Date.now();
+    // FAZA T2: WheatField stealth — analogiczne do Oasis, reuse oasisStealthEndTime
+    let playerInWheatField = false;
+    for (const wf of wheatFields) {
+        wf.update();
+        if (wf.isPointInside(player.x, player.y)) {
+            playerInWheatField = true;
+        }
+    }
 
-    if (playerInOasis && !wasInOasisLastFrame) {
+    const nowMs = Date.now();
+    const playerInAnyStealth = playerInOasis || playerInWheatField;
+    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInWheatLastFrame;
+
+    if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
     }
 
-    const isStealthActive = playerInOasis && nowMs < oasisStealthEndTime;
+    const isStealthActive = playerInAnyStealth && nowMs < oasisStealthEndTime;
 
     if (isStealthActive && !wasStealthActiveLastFrame) {
-        hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
+        // Differentiated notif: zboze vs oaza (oaza wygrywa jak oba)
+        if (playerInWheatField && !playerInOasis) {
+            hud.addNotif('🌾 UKRYTY W ZBOZU (10s)!', '#d4b830');
+        } else {
+            hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
+        }
         audio.playMagnetPickup();
-    } else if (!isStealthActive && wasStealthActiveLastFrame && playerInOasis) {
+    } else if (!isStealthActive && wasStealthActiveLastFrame && playerInAnyStealth) {
         hud.addNotif('👁️ ZOSTAŁEŚ ZAUWAŻONY!', '#ff8855');
         effects.shake(3, 8);
     }
@@ -781,6 +810,7 @@ app.ticker.add((delta) => {
     }
 
     wasInOasisLastFrame = playerInOasis;
+    wasInWheatLastFrame = playerInWheatField;
     wasStealthActiveLastFrame = isStealthActive;
 
     if (river) river.update();

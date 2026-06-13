@@ -192,8 +192,14 @@ export function buildTropicsTexture(): PIXI.Texture {
 // LAYOUT EXPORTS — placeholders dla FAZA T2-T10
 // =================================================================
 
-/** FAZA T2 — Stealth zones (lany zboza). Pusty w T1. */
-export const TROPICS_WHEAT_LAYOUT: Array<{ x: number, y: number, rX: number, rY: number, seed: number }> = [];
+/** FAZA T2 — Stealth zones (lany zboza). 5 stref na mapie, math-verified distances. */
+export const TROPICS_WHEAT_LAYOUT: Array<{ x: number, y: number, rX: number, rY: number, seed: number }> = [
+    { x: WORLD_W * 0.15, y: WORLD_H * 0.15, rX: 130, rY: 85, seed: 21 },  // NW corner — flanking spawn
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.85, rX: 130, rY: 85, seed: 23 },  // SE corner — symmetric
+    { x: WORLD_W * 0.55, y: WORLD_H * 0.20, rX: 150, rY: 95, seed: 29 },  // N-center — strategic mid (bigger)
+    { x: WORLD_W * 0.15, y: WORLD_H * 0.70, rX: 130, rY: 85, seed: 31 },  // SW flank
+    { x: WORLD_W * 0.85, y: WORLD_H * 0.55, rX: 130, rY: 85, seed: 37 },  // E flank
+];
 
 /** FAZA T3 — Drogi szutrowe (path waypoints). Pusty w T1. */
 export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [];

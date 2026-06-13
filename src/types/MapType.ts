@@ -1,8 +1,15 @@
 /**
  * MapType.ts — definicje map gry.
  *
+ * v0.25.0 update (FAZA T1 — Tropics unlock):
+ * - MapId rozszerzone: 'city' | 'desert' | 'tropics' (Constitution Decision #6 update)
+ * - tropics dodane do MAP_CONFIGS (musicTrack: tropiki.mp3, badge: #1a7a40)
+ * - MENU_MAP_CARDS: tropics.available = true (przeniesione z locked do playable)
+ * - MenuMapCardId zwezone: MapId | 'arctic' (tropics juz w MapId)
+ * - getMapIdFromUrl: dodana obsluga ?map=tropics
+ * - isPlayableMapId: uwzglednia 'tropics'
+ *
  * v0.19.0 update (FAZA 6 — Map Selection UI + i18n):
- * - MapId pozostaje 'city' | 'desert' (TYLKO playable mapy — nie lamie AudioSys / main.ts)
  * - MENU_MAP_CARDS: osobna struktura dla menu display, uzywa translation keys
  * - Type-safe separation: game logic uzywa MapId, menu uzywa MenuMapCardId
  */
@@ -10,7 +17,7 @@
 import type { TranslationKey } from '../i18n/i18n';
 
 // PLAYABLE maps — uzywane przez game logic (main.ts, AudioSys, Spawn, etc.)
-export type MapId = 'city' | 'desert';
+export type MapId = 'city' | 'desert' | 'tropics';
 
 export interface MapConfig {
     id: MapId;
@@ -21,8 +28,9 @@ export interface MapConfig {
 }
 
 export const MAP_CONFIGS: Record<MapId, MapConfig> = {
-    city:   { id: 'city',   name: 'CYBERPUNK', bg: '#0d0d14', musicTrack: 'miasto.mp3',   badge: '#5d3580' },
-    desert: { id: 'desert', name: 'PUSTYNIA',  bg: '#e8d4a2', musicTrack: 'pustynia.mp3', badge: '#b8720a' },
+    city:    { id: 'city',    name: 'CYBERPUNK', bg: '#0d0d14', musicTrack: 'miasto.mp3',   badge: '#5d3580' },
+    desert:  { id: 'desert',  name: 'PUSTYNIA',  bg: '#e8d4a2', musicTrack: 'pustynia.mp3', badge: '#b8720a' },
+    tropics: { id: 'tropics', name: 'TROPIKI',   bg: '#6dba4a', musicTrack: 'tropiki.mp3',  badge: '#1a7a40' },
 };
 
 /**
@@ -33,12 +41,15 @@ export const MAP_CONFIGS: Record<MapId, MapConfig> = {
 export function getMapIdFromUrl(): MapId {
     const params = new URLSearchParams(window.location.search);
     const m = params.get('map');
-    return m === 'desert' ? 'desert' : 'city';
+    if (m === 'desert') return 'desert';
+    if (m === 'tropics') return 'tropics';
+    return 'city';
 }
 
 /**
  * Wspolny interfejs dla obiektow map z kolizja i parallax.
- * Implementowany przez CyberBuilding (city), Pyramid/Sphinx/DesertColumns (desert).
+ * Implementowany przez CyberBuilding (city), Pyramid/Sphinx/Rock (desert),
+ * FarmBuilding/Crate/Windmill (tropics — FAZA T4+).
  *
  * UWAGA: collision functions w Bullet.ts / Player.ts uzywaja b.x, b.y, b.w, b.h
  * (rectangle hitbox). Wartosc update() obsluguje parallax offset per frame.
@@ -57,10 +68,10 @@ export interface ICollidable {
 
 /**
  * Identyfikatory map dla menu display.
- * Includes locked mapy (tropics, arctic) ktorych jeszcze nie ma w grze.
- * Po implementacji tych map (FAZA 9+) zostana przeniesione do MapId.
+ * v0.25.0: 'tropics' przeniesione z locked do playable (jest w MapId).
+ * 'arctic' wciaz locked — przyszle fazy (po Tropics T10).
  */
-export type MenuMapCardId = MapId | 'tropics' | 'arctic';
+export type MenuMapCardId = MapId | 'arctic';
 
 export interface MenuMapCard {
     id: MenuMapCardId;
@@ -119,8 +130,7 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
         accentColor: '#27ae60',
         accentDarker: '#1a7a40',
         bgGradient: 'linear-gradient(160deg, #2ecc71 0%, #16a085 50%, #0e6655 100%)',
-        available: false,
-        comingSoonKey: 'common.soon',
+        available: true,                  // v0.25.0 FAZA T1: unlocked
         previewType: 'tropics',
     },
     {
@@ -140,9 +150,10 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
 /**
  * Helper — czy id mapy jest playable (typy MapId)?
  * Uzywamy do narrowing typu przed uzyciem w game logic.
+ * v0.25.0: tropics dodane do playable.
  */
 export function isPlayableMapId(id: MenuMapCardId): id is MapId {
-    return id === 'city' || id === 'desert';
+    return id === 'city' || id === 'desert' || id === 'tropics';
 }
 
 /**

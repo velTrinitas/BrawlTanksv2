@@ -19,6 +19,10 @@ import {
     DESERT_RIVER_CATARACT_ROCKS,
     DESERT_OASIS_LAYOUT,
 } from './maps/DesertMap';
+import {
+    buildTropicsTexture,
+    TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
+} from './maps/TropicsMap';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -558,6 +562,19 @@ function startGame(config: GameConfig): void {
 
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
+    } else if (config.map === 'tropics') {
+        // ── TROPICS MAP — FAZA T1 Foundation (v0.25.0) ──────────────
+        // Tylko base texture + pady. FAZA T2-T10 doda: zboze, drogi,
+        // budynki gospodarskie, domki, wiatrak, skrzynie, drzewa, stajnie, stawy.
+        const tropicsTex = buildTropicsTexture();
+        const tropicsSprite = new PIXI.Sprite(tropicsTex);
+        tropicsSprite.zIndex = -100;
+        worldContainer.addChild(tropicsSprite);
+
+        // Pady — reuse generic HoverRepairPad + PowerHoverPad (city-style)
+        // FAZA T10 zastapi custom tropics pads
+        mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+        powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);

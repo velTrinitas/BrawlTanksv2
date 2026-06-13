@@ -52,8 +52,9 @@ const SFX_VOL_KEY = 'bt2:audio:sfxVol';
  * Tracki musza byc w public/sfx/ folderze.
  */
 const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
-    city:   ['music_main1.ogg', 'music_main2.mp3'],
-    desert: ['pustynia.mp3'],
+    city:    ['music_main1.ogg', 'music_main2.mp3'],
+    desert:  ['pustynia.mp3'],
+    tropics: ['tropiki.mp3'],  // v0.24.0 FAZA T1 — fallback gentle jak nie ma pliku
 };
 
 interface SoundDef {
@@ -96,9 +97,9 @@ export class AudioSys {
     private sounds: Map<string, Howl> = new Map();
 
     // Music: per-map pool z Howl instancjami
-    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [] };
+    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [] };
     private currentMusicTrack: Howl | null = null;
-    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1 };
+    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1 };
 
     private muted: boolean = false;
     private gemPickupTimer: number = 0;

@@ -6,6 +6,7 @@
 
     <!-- ============================================================
          FAZA 6e PWA + Mobile native feel
+         v0.23.1 — landscape orientation locked for mobile gameplay
          ============================================================ -->
 
     <!-- PWA manifest -->
@@ -137,7 +138,14 @@
         </div>
     </div>
 
-    <div id="credits">Game version: v0.23.0</div>
+    <!-- v0.23.1 — Portrait warning overlay (activates only on mobile + portrait via CSS media query) -->
+    <div class="bt-portrait-warning" aria-hidden="true">
+        <div class="bt-portrait-warning-icon">📱</div>
+        <div class="bt-portrait-warning-title">Obróć telefon do poziomu</div>
+        <div class="bt-portrait-warning-subtitle">Brawl Tanks gra się najlepiej w trybie poziomym — szersze pole bitwy widać lepiej 🔄</div>
+    </div>
+
+    <div id="credits">Game version: v0.23.1</div>
 
     <script type="module" src="/src/main.ts"></script>
 
@@ -155,8 +163,6 @@
                 hostname.endsWith('.local') ||
                 // FAZA 8.5: LAN IPs (RFC 1918 private ranges) dla mobile testing
                 // przez WiFi gdy Vite uruchamiony z --host flag.
-                // Bez tych regexów SW rejestrowal sie na 192.168.x.x i cache'owal
-                // stara wersje, pomimo bumpniecia w index.html.
                 /^192\.168\.\d+\.\d+$/.test(hostname) ||
                 /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
                 /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname);

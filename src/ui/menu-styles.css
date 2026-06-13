@@ -2683,14 +2683,14 @@
     }
 }
 /* =============================================================
-   27. TOUCH CONTROLS (FAZA 8.5 — Mobile)
+   27. TOUCH CONTROLS (FAZA 8.5 + v0.23.1 — Mobile)
    =============================================================
-   Wirtualne joysticki + super button dla mobile gameplay.
-   Renderowane tylko gdy TouchInputManager.isActive (auto-detect or URL forced).
-   Position: fixed, overlay nad canvas, z-index nad HUD ale pod menu.
-
-   Safe-area-insets: iOS notch / Android cutout — buttons odsunięte od krawędzi.
-   touch-action: none on body — blokuje scroll/pinch przy gameplayu.
+   v0.23.1 changes:
+   - Joysticki bardziej transparent (alpha 0.55 → 0.3 base, 0.7 → 0.5 active)
+   - Knob z 0.95 → 0.7 alpha (mniej dominujacy wizualnie)
+   - Lewy joystick: 'floating' mode — invisible activation zone w lewej 40% ekranu;
+     tap anywhere w tej strefie → joystick teleports under finger (Brawl Stars pattern)
+   - Prawy joystick: 'fixed' mode (zachowany — aim precision)
    ============================================================= */
 
 /* === Root container — covers viewport, no pointer events by default === */
@@ -2704,6 +2704,35 @@
     touch-action: none;
 }
 
+/* =============================================================
+   ACTIVATION ZONES (v0.23.1 floating mode)
+   =============================================================
+   Invisible 40%-wide × 100%-tall regions on left/right side.
+   Tap anywhere in zone → joystick repositions under finger.
+   Center 20% buffer protects aim joystick + super button od misfires.
+   ============================================================= */
+
+.bt-joystick-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40vw;
+    pointer-events: auto;
+    touch-action: none;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+    /* Z-index niżej niż joystick body, żeby joystick base capture'uje pointerdown nad zone */
+    z-index: 1;
+}
+
+.bt-joystick-zone--left {
+    left: 0;
+}
+
+.bt-joystick-zone--right {
+    right: 0;
+    /* Currently only left uses floating; right zone present dla future symmetry */
+}
 
 /* =============================================================
    VIRTUAL JOYSTICK (base)
@@ -2717,51 +2746,55 @@
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    /* Disable iOS Safari long-press magnifier */
     -webkit-touch-callout: none;
+    /* Z-index above activation zone — joystick body captures events when finger is directly on it */
+    z-index: 2;
 }
 
-/* Position: bottom-left (movement) */
+/* Position: bottom-left (movement, floating home position) */
 .bt-joystick--left {
     left: calc(20px + env(safe-area-inset-left, 0px));
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
 
-/* Position: bottom-right (aim) */
+/* Position: bottom-right (aim, fixed) */
 .bt-joystick--right {
     right: calc(20px + env(safe-area-inset-right, 0px));
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
 
-/* === Base circle (dark, translucent) === */
+
+/* === Base circle (dark, translucent — v0.23.1: bardziej transparent) === */
 .bt-joystick-base {
     position: absolute;
     inset: 0;
     border-radius: 50%;
+    /* v0.23.1: alpha 0.55 → 0.3 base, gracz widzi pole walki pod joystickiem */
     background: radial-gradient(
         circle at center,
-        rgba(15, 20, 35, 0.55) 0%,
-        rgba(15, 20, 35, 0.4) 65%,
-        rgba(15, 20, 35, 0.25) 100%
+        rgba(15, 20, 35, 0.30) 0%,
+        rgba(15, 20, 35, 0.22) 65%,
+        rgba(15, 20, 35, 0.12) 100%
     );
-    border: 3px solid rgba(241, 196, 15, 0.45);
+    border: 3px solid rgba(241, 196, 15, 0.35);
     box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-        0 4px 12px rgba(0, 0, 0, 0.35);
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 4px 12px rgba(0, 0, 0, 0.25);
     transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .bt-joystick.is-active .bt-joystick-base {
     border-color: var(--bt-gold);
+    /* v0.23.1: active alpha 0.7 → 0.5 (still vidible pod nim) */
     background: radial-gradient(
         circle at center,
-        rgba(15, 20, 35, 0.7) 0%,
-        rgba(15, 20, 35, 0.5) 65%,
-        rgba(15, 20, 35, 0.3) 100%
+        rgba(15, 20, 35, 0.50) 0%,
+        rgba(15, 20, 35, 0.38) 65%,
+        rgba(15, 20, 35, 0.22) 100%
     );
 }
 
-/* === Knob (gold, translucent, centered via absolute + transform) === */
+/* === Knob (gold, translucent — v0.23.1: 0.95 → 0.7 alpha) === */
 .bt-joystick-knob {
     position: absolute;
     top: 50%;
@@ -2771,41 +2804,43 @@
     margin-top: -26px;
     margin-left: -26px;
     border-radius: 50%;
+    /* v0.23.1: alpha 0.95 → 0.7 base, mniej dominujacy wizualnie */
     background: radial-gradient(
         circle at 30% 30%,
-        rgba(241, 196, 15, 0.95) 0%,
-        rgba(243, 156, 18, 0.85) 60%,
-        rgba(211, 84, 0, 0.7) 100%
+        rgba(241, 196, 15, 0.7) 0%,
+        rgba(243, 156, 18, 0.6) 60%,
+        rgba(211, 84, 0, 0.5) 100%
     );
-    border: 3px solid var(--bt-navy);
+    border: 3px solid rgba(20, 20, 30, 0.7);
     box-shadow:
-        inset 0 -2px 4px rgba(0, 0, 0, 0.35),
-        0 2px 6px rgba(0, 0, 0, 0.45);
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+        0 2px 6px rgba(0, 0, 0, 0.35);
     pointer-events: none; /* knob nie capture'uje pointer; base does */
     will-change: transform;
     transition: background var(--transition-fast);
 }
 
 .bt-joystick.is-active .bt-joystick-knob {
+    /* v0.23.1: active state nieco bardziej opaque dla feedback, ale nie 1.0 */
     background: radial-gradient(
         circle at 30% 30%,
-        rgba(255, 220, 70, 1) 0%,
-        rgba(243, 156, 18, 1) 60%,
-        rgba(211, 84, 0, 0.9) 100%
+        rgba(255, 220, 70, 0.92) 0%,
+        rgba(243, 156, 18, 0.85) 60%,
+        rgba(211, 84, 0, 0.75) 100%
     );
     box-shadow:
-        inset 0 -2px 4px rgba(0, 0, 0, 0.35),
-        0 3px 8px rgba(0, 0, 0, 0.55),
-        0 0 16px rgba(241, 196, 15, 0.5);
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+        0 3px 8px rgba(0, 0, 0, 0.45),
+        0 0 12px rgba(241, 196, 15, 0.35);
 }
 
 /* =============================================================
-   SUPER BUTTON
+   SUPER BUTTON (no v0.23.1 alpha changes — button musi byc czytelny)
    ============================================================= */
 
 .bt-super-button {
     position: absolute;
-    /* Pozycja: above right joystick, slight inset-left */
+    /* Pozycja: above right joystick */
     right: calc(40px + env(safe-area-inset-right, 0px));
     bottom: calc(170px + env(safe-area-inset-bottom, 0px));
     width: 72px;
@@ -2834,6 +2869,8 @@
         inset 0 -2px 4px rgba(0, 0, 0, 0.4),
         0 4px 10px rgba(0, 0, 0, 0.4);
     transition: transform var(--transition-fast), background var(--transition-fast);
+    /* Super button z-index above joysticks żeby nie zakrywal go knob podczas float */
+    z-index: 3;
 }
 
 .bt-super-button-icon {
@@ -2842,7 +2879,7 @@
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
 }
 
-/* === Charged state: pulsing gold glow (mirrors super-shot in-game visual) === */
+/* === Charged state: pulsing gold glow === */
 .bt-super-button.is-charged {
     background: radial-gradient(
         circle at 30% 30%,
@@ -2876,6 +2913,17 @@
         inset 0 -2px 4px rgba(0, 0, 0, 0.4),
         0 1px 4px rgba(0, 0, 0, 0.4);
     animation: none !important;
+}
+
+/* v0.23.1: long-press cycle feedback — quick scale pulse */
+.bt-super-button.is-cycling {
+    animation: bt-super-btn-cycle 0.25s ease-out;
+}
+
+@keyframes bt-super-btn-cycle {
+    0%   { transform: scale(1.0); }
+    40%  { transform: scale(1.15); box-shadow: 0 0 24px rgba(241, 196, 15, 0.9); }
+    100% { transform: scale(1.0); }
 }
 
 /* =============================================================
@@ -2940,7 +2988,8 @@
    ============================================================= */
 
 @media (prefers-reduced-motion: reduce) {
-    .bt-super-button.is-charged {
+    .bt-super-button.is-charged,
+    .bt-super-button.is-cycling {
         animation: none !important;
     }
 
@@ -2948,5 +2997,88 @@
     .bt-joystick-knob,
     .bt-super-button {
         transition: none !important;
+    }
+}
+
+/* =============================================================
+   28. PORTRAIT WARNING OVERLAY (v0.23.1 - Mobile playability)
+   =============================================================
+   Pełnoekranowy komunikat "Obróć telefon" gdy mobile w pionie.
+   Aktywuje się TYLKO na mobile (max-width: 900px + orientation: portrait).
+   Desktop w pionie (np. monitor pionowy) nie triggeruje — to NIE jest mobile UX issue.
+
+   Przy aktywnym warning UKRYWAMY touch UI i HUD (gracz nie widzi gry pod
+   warningiem, więc lepiej zrobić clean-slate kanwę).
+   ============================================================= */
+
+.bt-portrait-warning {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;       /* nad wszystkim — touch UI z-index 60, menu 100 */
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    color: var(--bt-gold);
+    text-align: center;
+    padding: 40px;
+    font-family: 'Lilita One', cursive, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.bt-portrait-warning-icon {
+    font-size: 6rem;
+    margin-bottom: 30px;
+    animation: bt-rotate-hint 2s ease-in-out infinite;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.bt-portrait-warning-title {
+    font-size: 2rem;
+    margin-bottom: 12px;
+    text-shadow: 3px 3px 0 #000;
+    -webkit-text-stroke: 1.5px #000;
+    letter-spacing: 1px;
+    color: var(--bt-gold);
+}
+
+.bt-portrait-warning-subtitle {
+    font-size: 1.05rem;
+    color: rgba(255, 255, 255, 0.82);
+    max-width: 400px;
+    line-height: 1.45;
+    margin: 0;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Visual cue: phone icon rocks side-to-side (suggest rotation gesture) */
+@keyframes bt-rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    25%      { transform: rotate(-20deg); }
+    50%      { transform: rotate(90deg); }
+    75%      { transform: rotate(70deg); }
+}
+
+/* === ACTIVATION: mobile + portrait → show warning, hide gameplay UI === */
+
+@media (orientation: portrait) and (max-width: 900px) {
+    .bt-portrait-warning {
+        display: flex;
+    }
+
+    /* Hide touch UI + HUD canvas + game canvas (gracz powinien widzieć tylko warning) */
+    .bt-touch-root,
+    #hudCanvas {
+        display: none !important;
+    }
+}
+
+/* === ACCESSIBILITY === */
+
+@media (prefers-reduced-motion: reduce) {
+    .bt-portrait-warning-icon {
+        animation: none !important;
     }
 }

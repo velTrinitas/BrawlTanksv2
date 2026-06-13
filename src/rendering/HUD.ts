@@ -30,7 +30,20 @@ export class HUD {
     public comboText: string = '';
     public comboTextTimer: number = 0;
     public megaBossAlertTimer: number = 0;
-    
+
+    // === v0.23.1: Mobile UI scaling + visibility flags ===
+    /** Skala glownych pill HUD'a (gem, score, kills, HP). 0.7 = mobile, 1.0 = desktop. */
+    public uiScale: number = 1.0;
+    /** Czy rysowac crosshair (mouse cursor reticle). Set per-frame by main.ts:
+     *  - Desktop: zawsze true
+     *  - Mobile: true gdy aim joystick aktywny (palec na prawym sticku), false gdy puszczony
+     */
+    public showCrosshair: boolean = true;
+    /** v0.23.1 hotfix: skala crosshair (1.5 na mobile dla lepszej czytelnosci). */
+    public crosshairScale: number = 1.0;
+    /** Czy rysowac dolny SuperPowerBar (centered 3-icon bar). False na mobile (SuperButton zastepuje). */
+    public showPowerBar: boolean = true;
+
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
         this.ctx = this.canvas.getContext('2d')!;
@@ -315,6 +328,10 @@ export class HUD {
         }
     }
     
+    /**
+     * Bottom-center super power bar — 3 icons (aura/megaBomb/freeze) z cooldown overlays.
+     * v0.23.1: hidden on mobile via this.showPowerBar = false (zastepuje SuperButton).
+     */
     private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
         const cx = this.screenW / 2;
@@ -594,9 +611,16 @@ export class HUD {
     
     private drawCrosshair(mouse: MouseState): void {
         const c = this.ctx;
-        const _mx = mouse.screenX, _my = mouse.screenY, _cl = 16, _cg = 5;
+        // v0.23.1 hotfix: scale crosshair (mobile dostaje 1.5x dla lepszej widocznosci)
+        const s = this.crosshairScale;
+        const _mx = mouse.screenX, _my = mouse.screenY;
+        const _cl = 16 * s;   // total arm length
+        const _cg = 5 * s;    // center gap
+        const _dot = 2.5 * s; // center dot radius
+        const outerW = 3.5 * s;
+        const innerW = 2 * s;
         c.strokeStyle = '#111';
-        c.lineWidth = 3.5;
+        c.lineWidth = outerW;
         c.lineCap = 'round';
         c.beginPath();
         c.moveTo(_mx - _cl, _my); c.lineTo(_mx - _cg, _my);
@@ -605,7 +629,7 @@ export class HUD {
         c.moveTo(_mx, _my + _cg); c.lineTo(_mx, _my + _cl);
         c.stroke();
         c.strokeStyle = '#e74c3c';
-        c.lineWidth = 2;
+        c.lineWidth = innerW;
         c.beginPath();
         c.moveTo(_mx - _cl, _my); c.lineTo(_mx - _cg, _my);
         c.moveTo(_mx + _cg, _my); c.lineTo(_mx + _cl, _my);
@@ -614,10 +638,15 @@ export class HUD {
         c.stroke();
         c.fillStyle = '#e74c3c';
         c.beginPath();
-        c.arc(_mx, _my, 2.5, 0, Math.PI * 2);
+        c.arc(_mx, _my, _dot, 0, Math.PI * 2);
         c.fill();
     }
     
+    /**
+     * v0.23.1: render() teraz wrappuje HUD pill rendering w c.scale(uiScale).
+     * Crosshair + powerbar are conditional na flags (mobile hides them).
+     * MegaBossAlert zostaje unscaled (centralna pozycja — wyglada lepiej w full size).
+     */
     render(
         player: Player,
         score: number,
@@ -629,10 +658,14 @@ export class HUD {
     ): void {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
-        
+
+        // v0.23.1: scale HUD pills (top + corners) — mobile dostaje uiScale=0.7
+        c.save();
+        c.scale(this.uiScale, this.uiScale);
+
         this.drawHPPill(player, 14, 8, 200, 54, 16);
-        
-        const gx2 = Math.round(this.screenW / 2 - 100);
+
+        const gx2 = Math.round((this.screenW / this.uiScale) / 2 - 100);
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
         c.roundRect(gx2, 8, 200, 54, 16);
@@ -645,27 +678,40 @@ export class HUD {
         c.lineWidth = 4;
         c.strokeText(String(score), gx2 + 58, 35);
         c.fillText(String(score), gx2 + 58, 35);
-        
-        const kx = this.screenW - 14 - 200;
+
+        const kx = (this.screenW / this.uiScale) - 14 - 200;
         this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
-        
+
         // Gem counter (lewy, drugi rząd) — z progress barem do +3 charges
         this.drawGemPill(spawnSystem, 14, 70, 140, 50, 14);
-        
+
         // Super shot pill (lewy, trzeci rząd) — gdy są charges lub aktywne
         this.drawSuperShotPill(player, 14, 126, 140, 38, 12);
-        
+
         this.drawNotifs();
+
+        // Magnet + turbo status — right-aligned tu tez sa scaled
         this.drawMagnetStatus(powerSystem);
         this.drawTurboStatus(player);
-        this.drawSuperPowerBar(powerSystem);
-        
+
+        // SuperPowerBar (bottom-center) — hidden on mobile (zastepuje SuperButton)
+        if (this.showPowerBar) {
+            this.drawSuperPowerBar(powerSystem);
+        }
+
         if (megaBoss && megaBoss.active) {
             this.drawMegaBossBar(megaBoss);
         }
-        
-        this.drawCrosshair(mouse);
-        
+
+        c.restore();
+
+        // === Unscaled overlays (full screen size, niezależne od uiScale) ===
+
+        // Crosshair — hidden on mobile (no mouse, joystick zastepuje)
+        if (this.showCrosshair) {
+            this.drawCrosshair(mouse);
+        }
+
         if (this.comboTextTimer > 0) {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);
@@ -679,7 +725,7 @@ export class HUD {
             c.fillText(this.comboText, 0, 0);
             c.restore();
         }
-        
+
         this.drawMegaBossAlert();
     }
     

@@ -15,12 +15,38 @@ const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
 
-// Flag — pozycja WEWNĄTRZ hull (drzewce -25px od center, flag ciągnie w lewo)
+// Flag — pozycja WEWNATRZ hull (drzewce -25px od center, flag ciagnie w lewo)
 const FLAG_W = 21;
 const FLAG_H = 13.5;
 const FLAG_POLE_W = 2.25;
 const FLAG_POLE_H = 17.5;
 const FLAG_POLE_DIST = 25;
+
+/**
+ * v0.23.1 Opcja A — per-brawler mobile speed multiplier (surgical fix).
+ *
+ * Problem: pojedynczy global multiplier (0.7) sprawial ze wolne brawlerzy (Pancerny speed=3)
+ * stawali sie cele na mobile — enemies (~4-5 speed) wyprzedzaly ich w prostej linii.
+ *
+ * Rozwiazanie: per-brawler bracket — wolne dostaja BONUS (>1.0), szybkie standard cap (~0.7).
+ * Bracket-based zeby uniknac magic numbers per-brawler-id (kalibruje sie raz, robi dobrze dla nowych).
+ *
+ * Wartosci kalibrowane vs typical enemy speed (~4-5):
+ * - speed <=3 (Pancerny):   x1.05 -> mobile ~3.15 (wciaz wolny, ale nie ofiara)
+ * - speed <=4 (Heavy):      x0.95 -> mobile ~3.8 (porownywalne z enemy)
+ * - speed <=5 (Twardy/Std): x0.80 -> mobile ~4.0
+ * - speed <=7 (Plasma):     x0.72 -> mobile ~5.0 (wciaz szybsze od enemy)
+ * - speed >7 (Scout):       x0.68 -> mobile ~5.4 (najszybszy, role zachowana)
+ *
+ * Cap >1.0 dla najwolniejszych jest celowy — tam input lag mniej znaczy niz przezycie graczy.
+ */
+function getMobileSpeedMult(baseSpeed: number): number {
+    if (baseSpeed <= 3) return 1.05;
+    if (baseSpeed <= 4) return 0.95;
+    if (baseSpeed <= 5) return 0.80;
+    if (baseSpeed <= 7) return 0.72;
+    return 0.68;
+}
 
 export class Player {
     public brawler: Brawler;
@@ -88,7 +114,7 @@ export class Player {
             this.drawFlag(this.brawler.flag ?? 'PL');
         }
 
-        // Order: super-ring → hull → tracks → exhaust → flag → turret
+        // Order: super-ring -> hull -> tracks -> exhaust -> flag -> turret
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
         this.container.addChild(this.tracksGfx);
@@ -389,11 +415,15 @@ export class Player {
     /**
      * Update player state from input.
      *
-     * FAZA 8.5: signature dorzuca 6-th optional arg `moveVector` — gdy provided,
-     * smooth analog ruch zastępuje keys.wasd (touch joystick on mobile).
-     * Vector już znormalizowany (-1..+1) przez VirtualJoystick, magnitude
-     * propaguje przez `Math.sqrt(dx² + dy²)` jako natural speed scaling
-     * (lekkie wychylenie → wolniej, pełne → max speed).
+     * FAZA 8.5 + v0.23.1: signature dorzuca 6-th optional arg moveVector — gdy provided,
+     * smooth analog ruch zastepuje keys.wasd (touch joystick on mobile).
+     *
+     * v0.23.1 magnitude scaling: lekkie wychylenie = wolny ruch, pelne = max speed.
+     *
+     * v0.23.1 Opcja A — per-brawler mobile multiplier (zamiast hardcoded 0.7):
+     *   getMobileSpeedMult(baseSpeed) zwraca bracket-based wartosc.
+     *   Wolne brawlerzy (Pancerny <=3) dostaja bonus x1.05 — kompensacja "ofiary mobile".
+     *   Szybkie (Scout >7) dostaja mocniejszy cap x0.68 — zachowana role + control.
      */
     update(
         keys: KeysState,
@@ -406,9 +436,11 @@ export class Player {
         let dx = 0, dy = 0;
 
         // FAZA 8.5: touch joystick override gdy provided, else fallback do keys.wasd
-        if (moveVector && (moveVector.x !== 0 || moveVector.y !== 0)) {
-            dx = moveVector.x;
-            dy = moveVector.y;
+        const isTouchInput = !!(moveVector && (moveVector.x !== 0 || moveVector.y !== 0));
+
+        if (isTouchInput) {
+            dx = moveVector!.x;
+            dy = moveVector!.y;
         } else {
             if (keys.w) dy -= 1;
             if (keys.s) dy += 1;
@@ -421,7 +453,17 @@ export class Player {
         if (dx !== 0 || dy !== 0) {
             this.isMoving = true;
             const len = Math.sqrt(dx * dx + dy * dy);
-            const speed = this.currentSpeed;
+
+            // v0.23.1: magnitude scaling dla touch (joystick wychylenie wplywa na speed).
+            // Keys.wasd: len = 1 (single key) lub sqrt(2) (diagonal) -> normalize zachowuje constant speed.
+            // Touch: magnitude = len (0..1), naturalne analogowe sterowanie.
+            const magnitudeScale = isTouchInput ? Math.min(1, len) : 1;
+
+            // v0.23.1 Opcja A: per-brawler mobile multiplier (zamiast hardcoded 0.7)
+            const platformMult = isTouchInput ? getMobileSpeedMult(this.baseSpeed) : 1;
+
+            const speed = this.currentSpeed * magnitudeScale * platformMult;
+
             const nx = this.x + (dx / len) * speed;
             const ny = this.y + (dy / len) * speed;
             let canMoveX = true, canMoveY = true;

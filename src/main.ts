@@ -45,7 +45,7 @@ import { HUD } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG } from './config/powers';
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS } from './config/powers';
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -72,6 +72,10 @@ const SUPER_CHARGES_PER_TRIGGER = 3;
 const COMBO_WINDOW_MS = 2000;
 
 const OASIS_STEALTH_DURATION_MS = 10000;
+
+// v0.23.1: world zoom dla mobile (kompensuje smaller screen + zwieksza viewable area)
+const MOBILE_WORLD_ZOOM = 0.7;
+const DESKTOP_WORLD_ZOOM = 1.0;
 
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
@@ -137,13 +141,27 @@ const hud = new HUD('hudCanvas');
 const menu = new MainMenu('#bt-menu-root');
 
 // ============================================================
-// FAZA 8.5: Touch controls dla mobile
+// FAZA 8.5 + v0.23.1: Touch controls dla mobile
 // ============================================================
 const touchManager = new TouchInputManager();
 touchManager.init();
 touchManager.onSuperRequested = () => {
     tryActivateSuper();
 };
+// v0.23.1: long-press SuperButton → cycle do next power
+touchManager.onCycleRequested = () => {
+    if (powerSystem) {
+        powerSystem.cycleSelected(1);
+    }
+};
+
+// v0.23.1: jeśli touch active — apply mobile gameplay tweaks do HUD
+if (touchManager.isActive) {
+    hud.uiScale = 0.7;             // mniejsze pille HUD
+    hud.showCrosshair = true;      // v0.23.1 hotfix: crosshair JEST potrzebny na mobile (precyzja celowania)
+    hud.crosshairScale = 1.5;      // wiekszy crosshair (dalej od ręki gracza, trzeba lepiej widoczny)
+    hud.showPowerBar = false;      // SuperButton zastepuje dolny power bar
+}
 
 menu.onGameRequested = (config: GameConfig) => {
     // FAZA 6.5.2b-fix2: defensive guard dla scenariuszy CTF/Castle
@@ -210,6 +228,24 @@ if (import.meta.env.DEV) {
         ProfileSpriteCache,
     };
     console.log('[FAZA 7a] window.BT_DEV attached — use for smoke testing');
+}
+
+/**
+ * v0.23.1: silently lock orientation to landscape (best-effort).
+ * Działa tylko gdy app jest installed jako PWA + przegladarka supports orientation lock API.
+ * Wszystkie inne scenariusze → no-op (CSS portrait warning overlay zastepuje).
+ */
+async function tryLockLandscape(): Promise<void> {
+    try {
+        const orient = (screen as Screen & { orientation?: { lock?: (orientation: string) => Promise<void> } }).orientation;
+        if (orient?.lock) {
+            await orient.lock('landscape');
+            console.log('[v0.23.1] screen.orientation locked to landscape');
+        }
+    } catch {
+        // Silently fail — orientation lock requires PWA installed mode + Chrome/Edge
+        // CSS portrait overlay handles fallback
+    }
 }
 
 /**
@@ -340,6 +376,7 @@ function dropGems(x: number, y: number, count: number): void {
  * FAZA 6.5.2a: startGame przyjmuje immutable GameConfig.
  * FAZA 7c: ProfileService.recordSessionStart + Player flag override.
  * FAZA 8.5: touchManager.show() po setup.
+ * v0.23.1: tryLockLandscape + apply world zoom mobile.
  */
 function startGame(config: GameConfig): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
@@ -382,6 +419,10 @@ function startGame(config: GameConfig): void {
     wasInOasisLastFrame = false;
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
+
+    // v0.23.1: apply world zoom (mobile = 0.7, desktop = 1.0)
+    const worldZoom = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
+    worldContainer.scale.set(worldZoom);
 
     if (config.map === 'city') {
         const cityTex = buildCityTexture();
@@ -530,6 +571,11 @@ function startGame(config: GameConfig): void {
     // FAZA 8.5: pokaz touch UI gdy gracz wchodzi do gry
     touchManager.show();
 
+    // v0.23.1: best-effort landscape orientation lock (silently fails na desktop / non-PWA)
+    if (touchManager.isActive) {
+        tryLockLandscape();
+    }
+
     audio.startMusic(config.map);
 }
 
@@ -605,18 +651,29 @@ async function triggerVictory(): Promise<void> {
 app.ticker.add((delta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
 
-    camera.x = Math.max(0, Math.min(WORLD_W - hud.screenW, ~~(player.x - hud.screenW / 2)));
-    camera.y = Math.max(0, Math.min(WORLD_H - hud.screenH, ~~(player.y - hud.screenH / 2)));
-    worldContainer.x = -camera.x + effects.shakeOffsetX;
-    worldContainer.y = -camera.y + effects.shakeOffsetY;
+    // v0.23.1: world zoom — viewport widzi 1/zoom razy więcej świata.
+    const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
+    const viewW = hud.screenW / ZOOM;
+    const viewH = hud.screenH / ZOOM;
+
+    camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(player.x - viewW / 2)));
+    camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(player.y - viewH / 2)));
+
+    // World container positioned z uwzglednieniem zoom (multiplikacja przez ZOOM)
+    worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
+    worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
 
     // ============================================================
-    // FAZA 8.5: Touch input bridge (overrides mouse/keyboard gdy touch active)
+    // FAZA 8.5 + v0.23.1: Touch input bridge
     // ============================================================
     let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {
         // Update super button visual feedback per-frame
-        touchManager.updateSuperChargedVisual(player.superCharges > 0);
+        touchManager.updateSuperChargedVisual(powerSystem.canActivate());
+
+        // v0.23.1: update selected power icon (🛡️ / 💣 / ❄️)
+        const selectedPower = POWERS[powerSystem.selectedPowerId];
+        touchManager.updateSelectedPower(selectedPower.emoji);
 
         // Bridge super-shot tap → tryActivateSuper (edge-triggered)
         if (touchManager.consumeSuperRequest()) {
@@ -629,19 +686,23 @@ app.ticker.add((delta) => {
         // Right joystick → fake mouse position + isFiring flag
         const aimVec = touchManager.aimVector;
         if (aimVec) {
-            // Project aim vector ~200px from player in screen space
+            // Project aim vector ~200px from player in screen space (uwzgledniajac zoom)
             const AIM_DISTANCE = 200;
-            mouse.screenX = (player.x - camera.x) + aimVec.x * AIM_DISTANCE;
-            mouse.screenY = (player.y - camera.y) + aimVec.y * AIM_DISTANCE;
+            mouse.screenX = (player.x - camera.x) * ZOOM + aimVec.x * AIM_DISTANCE;
+            mouse.screenY = (player.y - camera.y) * ZOOM + aimVec.y * AIM_DISTANCE;
         }
 
-            // Continuous fire while right stick active (decision B1: aim+fire combined)
-            // Force-override AFTER canvas pointer events have had chance to run
-            isMouseDown = touchManager.isFiring;
+        // v0.23.1 hotfix: crosshair visibility zalezne od aim joystick state
+        // (widoczny gdy palec na prawym sticku, ukryty po release — nie wisi w starym miejscu)
+        hud.showCrosshair = aimVec !== null;
+
+        // Continuous fire while right stick active (decision B1: aim+fire combined)
+        isMouseDown = touchManager.isFiring;
     }
 
-    const mouseWorldX = mouse.screenX + camera.x;
-    const mouseWorldY = mouse.screenY + camera.y;
+    // v0.23.1: mouse → world coordinate conversion uwzglednia zoom
+    const mouseWorldX = mouse.screenX / ZOOM + camera.x;
+    const mouseWorldY = mouse.screenY / ZOOM + camera.y;
 
     let playerInQuicksand = false;
     for (const qs of quicksands) {
@@ -715,7 +776,7 @@ app.ticker.add((delta) => {
         }
     }
 
-    buildings.forEach(b => b.update(camera.x, camera.y, hud.screenW, hud.screenH));
+    buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
     // FAZA 8.5: passed touchMoveVector jako 6-th arg (null = fallback do keys.wasd)
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);

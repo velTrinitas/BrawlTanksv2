@@ -29,7 +29,7 @@ export const POWERS: Record<PowerId, PowerConfig> = {
     },
     megaBomb: {
         id: 'megaBomb',
-        name: 'Mega Bomba',
+        name: 'Bomba',
         emoji: '💣',
         color: 0xff4400,
         cooldownMs: 20000,       // v4.48: 20s

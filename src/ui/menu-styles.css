@@ -76,7 +76,7 @@
     --shadow-glow-gold: 0 0 24px rgba(241, 196, 15, 0.4);
 
     /* === Typography === */
-    --font-display: 'Lilita One', cursive, sans-serif;
+    --font-display: 'Titan One', cursive, sans-serif;
     --font-body:    system-ui, -apple-system, sans-serif;
 
     /* Mobile-first font sizes — overridden in @media queries */
@@ -3023,7 +3023,7 @@
     color: var(--bt-gold);
     text-align: center;
     padding: 40px;
-    font-family: 'Lilita One', cursive, sans-serif;
+    font-family: var(--font-display);
     user-select: none;
     -webkit-user-select: none;
 }
@@ -3103,7 +3103,7 @@
     color: #fff;
     overflow-y: auto;
     padding: 16px;
-    font-family: 'Lilita One', cursive, sans-serif;
+    font-family: var(--font-display);
 }
 
 /* === Header z back button + title === */

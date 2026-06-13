@@ -8,6 +8,13 @@ import { POWERS, type PowerId } from '../config/powers';
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_TINT_HEX = '#c850ff';
 
+/**
+ * Globalna stala fontu dla wszystkich canvas-rendered HUD elements.
+ * v0.27.0: Lilita One → Titan One (z polskim Latin Extended supportem).
+ * Zmiana fontu w przyszlosci = 1 linia tutaj.
+ */
+const FONT_FAMILY = 'Titan One';
+
 interface HudNotif {
     text: string;
     color: string;
@@ -72,7 +79,7 @@ export class HUD {
     private drawNotifs(): void {
         if (this.hudNotifs.length === 0) return;
         const c = this.ctx;
-        c.font = `bold 15px "Lilita One",cursive`;
+        c.font = `bold 15px "${FONT_FAMILY}",cursive`;
         this.hudNotifs.forEach((n, i) => {
             if (n.timer <= 0) return;
             n.timer--;
@@ -120,20 +127,20 @@ export class HUD {
         
         const PAD = 14, GAP = 10, cy = py + PH / 2;
         c.fillStyle = 'rgba(255,255,255,0.5)';
-        c.font = `bold 14px "Lilita One",cursive`;
+        c.font = `bold 14px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.fillText('HP', px + PAD, cy);
         
         const lblW = c.measureText('HP').width;
         const numStr = `${Math.ceil(curHP)}/${Math.ceil(maxHP)}`;
-        c.font = `32px "Lilita One",cursive`;
+        c.font = `32px "${FONT_FAMILY}",cursive`;
         const numW = c.measureText(numStr).width;
         const numX = px + PW - PAD - numW;
-        c.strokeStyle = 'rgba(0,0,0,0.75)';
+        c.strokeStyle = 'rgba(0,0,0,0.85)';
         c.lineWidth = 4;
         c.strokeText(numStr, numX, cy + 1);
-        c.fillStyle = col;
+        c.fillStyle = '#ffffff';  // v0.27.0 FAZA F-fix2: HP value zawsze biala (czytelnosc)
         c.fillText(numStr, numX, cy + 1);
         
         const BH = 12, barX = px + PAD + lblW + GAP, barW = numX - barX - GAP, barY = cy - BH / 2;
@@ -187,7 +194,7 @@ export class HUD {
         c.fill();
         
         // Total gems liczba
-        c.font = `26px "Lilita One",cursive`;
+        c.font = `26px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.7)';
@@ -197,10 +204,14 @@ export class HUD {
         c.fillText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2 - 5);
         
         // Progress bar X/10 → +3 super (v0.5 Etap 2)
+        // v0.27.0 FAZA F-fix2: 10px za maly na Titan One → 13px + dark stroke dla czytelnosci
         const gemsToNext = spawnSystem.gemsCollected % GEMS_PER_SUPER_CHARGE_TRIGGER;
         const progressLabel = `${gemsToNext}/${GEMS_PER_SUPER_CHARGE_TRIGGER} → ⚡`;
-        c.font = `bold 10px "Lilita One",cursive`;
-        c.fillStyle = SUPER_TINT_HEX;
+        c.font = `bold 13px "${FONT_FAMILY}",cursive`;
+        c.strokeStyle = 'rgba(0,0,0,0.85)';
+        c.lineWidth = 3;
+        c.strokeText(progressLabel, px + 42, py + PH - 9);
+        c.fillStyle = '#ffffff';
         c.fillText(progressLabel, px + 42, py + PH - 9);
         
         const BAR_X = px + 42;
@@ -247,7 +258,7 @@ export class HUD {
         c.stroke();
         
         // Icon ⚡
-        c.font = `22px "Lilita One",cursive`;
+        c.font = `22px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.fillStyle = '#fff';
@@ -258,7 +269,7 @@ export class HUD {
             // Countdown: "SUPER X.Xs"
             const secsLeft = player.superShotSecondsLeft;
             const text = `SUPER ${secsLeft.toFixed(1)}s`;
-            c.font = `bold 14px "Lilita One",cursive`;
+            c.font = `bold 14px "${FONT_FAMILY}",cursive`;
             c.fillStyle = '#fff';
             c.strokeStyle = '#000';
             c.lineWidth = 3;
@@ -268,7 +279,7 @@ export class HUD {
         } else {
             // Charges count: "×N"
             const text = `×${player.superCharges}`;
-            c.font = `bold 18px "Lilita One",cursive`;
+            c.font = `bold 18px "${FONT_FAMILY}",cursive`;
             c.strokeStyle = '#000';
             c.lineWidth = 3;
             c.strokeText(text, px + 36, py + PH / 2);
@@ -288,12 +299,12 @@ export class HUD {
         c.fill();
         
         c.fillStyle = '#e8dcc8';
-        c.font = `26px "Lilita One",cursive`;
+        c.font = `26px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.fillText('💀', px + 14, py + PH / 2);
         
-        c.font = `32px "Lilita One",cursive`;
+        c.font = `32px "${FONT_FAMILY}",cursive`;
         c.strokeStyle = 'rgba(0,0,0,0.7)';
         c.lineWidth = 4;
         c.strokeText(String(totalKills), px + 56, py + PH / 2);
@@ -321,7 +332,7 @@ export class HUD {
             c.save();
             c.globalAlpha = pulse;
             c.fillStyle = '#ff0033';
-            c.font = `bold 13px "Lilita One",cursive`;
+            c.font = `bold 13px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'right';
             c.fillText('💀 ZNISZCZ BOSSÓW!', px + PW - 4, py + PH + 18);
             c.restore();
@@ -389,7 +400,7 @@ export class HUD {
                 c.stroke();
             }
             
-            c.font = `42px "Lilita One",cursive`;
+            c.font = `42px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
             c.globalAlpha = onCooldown ? 0.4 : 1.0;
@@ -414,7 +425,7 @@ export class HUD {
                 c.fill();
                 c.restore();
                 
-                c.font = `bold 22px "Lilita One",cursive`;
+                c.font = `bold 22px "${FONT_FAMILY}",cursive`;
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
                 c.strokeStyle = '#000';
@@ -424,8 +435,12 @@ export class HUD {
                 c.fillText(secsLeft.toFixed(0), ix + ICON_SIZE / 2, iy + ICON_SIZE / 2);
             }
             
-            c.font = `bold 11px "Lilita One",cursive`;
-            c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isSelected ? '#ffdd00' : 'rgba(255,255,255,0.85)');
+            // v0.27.0 FAZA F-fix2: 11px za maly dla Titan One → 13px + dark stroke dla kontrastu
+            c.font = `bold 13px "${FONT_FAMILY}",cursive`;
+            c.strokeStyle = 'rgba(0,0,0,0.85)';
+            c.lineWidth = 3;
+            c.strokeText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
+            c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isSelected ? '#ffdd00' : '#ffffff');
             c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
             
             if (isSelected && !isActive) {
@@ -439,7 +454,7 @@ export class HUD {
             }
         });
         
-        c.font = `12px "Lilita One",cursive`;
+        c.font = `12px "${FONT_FAMILY}",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
         c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
@@ -455,7 +470,7 @@ export class HUD {
             
             c.save();
             c.globalAlpha = pulse;
-            c.font = `bold 24px "Lilita One",cursive`;
+            c.font = `bold 24px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'center';
             c.strokeStyle = '#000';
             c.lineWidth = 5;
@@ -498,7 +513,7 @@ export class HUD {
         c.beginPath();
         c.roundRect(px, py, 200, 32, 10);
         c.fill();
-        c.font = `bold 16px "Lilita One",cursive`;
+        c.font = `bold 16px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.fillStyle = '#fff';
@@ -524,7 +539,7 @@ export class HUD {
         c.beginPath();
         c.roundRect(px, py, 200, 32, 10);
         c.fill();
-        c.font = `bold 16px "Lilita One",cursive`;
+        c.font = `bold 16px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.fillStyle = '#fff';
@@ -562,7 +577,7 @@ export class HUD {
         c.roundRect(bx, by, BW * hpPct, BH / 2, 6);
         c.fill();
         
-        c.font = `bold 18px "Lilita One",cursive`;
+        c.font = `bold 18px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.strokeStyle = '#000';
@@ -597,7 +612,7 @@ export class HUD {
         c.lineWidth = 4;
         c.stroke();
         
-        c.font = `bold 52px "Lilita One",cursive`;
+        c.font = `bold 52px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.strokeStyle = '#000';
@@ -671,7 +686,7 @@ export class HUD {
         c.roundRect(gx2, 8, 200, 54, 16);
         c.fill();
         c.fillStyle = '#f1c40f';
-        c.font = '32px "Lilita One",cursive';
+        c.font = `32px \"${FONT_FAMILY}\",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.7)';
@@ -715,7 +730,7 @@ export class HUD {
         if (this.comboTextTimer > 0) {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);
-            c.font = `bold 22px "Lilita One", cursive`;
+            c.font = `bold 22px "${FONT_FAMILY}", cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
             c.strokeStyle = '#000';

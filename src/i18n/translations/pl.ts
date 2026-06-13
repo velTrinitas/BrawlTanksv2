@@ -26,11 +26,11 @@ export const pl = {
     'common.next': 'Dalej',
     'common.play': 'Graj!',
     'common.cancel': 'Anuluj',
-    'common.confirm': 'Potwierdz',
+    'common.confirm': 'Potwierdź',
     'common.close': 'Zamknij',
-    'common.soon': 'NADCHODZI',
+    'common.soon': 'WKRÓTCE',
     'common.locked': 'W BUDOWIE',
-    'common.loading': 'Ladowanie...',
+    'common.loading': 'Ładowanie...',
     'common.yes': 'Tak',
     'common.no': 'Nie',
 
@@ -38,21 +38,21 @@ export const pl = {
     // Intro Screen
     // ============================================================
     'intro.start': 'START',
-    'intro.tap_to_play': 'Stuknij aby zagrac',
+    'intro.tap_to_play': 'Stuknij, aby zagrać',
 
     // ============================================================
     // Main Hub
     // ============================================================
     'hub.play': 'GRAJ',
     'hub.playSubNew': 'Nowa rozgrywka',
-    'hub.playSubFirst': 'Rozpocznij przygode',
+    'hub.playSubFirst': 'Rozpocznij przygodę',
     'hub.howToPlay': 'PRZEWODNIK',
     'hub.settings': 'USTAWIENIA',
     'hub.leaderboard': 'LEADERBOARD',
     'hub.shop': 'SKLEP',
     'hub.continue': 'Kontynuuj jako {nickname} na mapie {map}',
     'hub.continueShort': 'Kontynuuj',
-    'hub.changePlayer': 'Zmien gracza',
+    'hub.changePlayer': 'Zmień gracza',
     'hub.welcome': 'Witaj, {name}!',
     'hub.editProfile': 'Edytuj w Ustawieniach',
 
@@ -62,7 +62,7 @@ export const pl = {
     'picker.scenarioTitle': 'Wybierz scenariusz',
     'picker.mapTitle': 'Wybierz otoczenie',
     'picker.brawlerTitle': 'Wybierz pojazd',
-    'picker.difficultyTitle': 'POZIOM TRUDU',
+    'picker.difficultyTitle': 'POZIOM TRUDNOŚCI',
     'picker.step': 'Krok {current} z {total}',
 
     // Scenarios — name, description, CTA
@@ -73,17 +73,17 @@ export const pl = {
     'scenario.ktb.cta.tropics': 'GRAJ !',
 
     'scenario.ctf.name': 'Capture the Flag',
-    'scenario.ctf.desc': 'Zdobadz 3 flagi',
+    'scenario.ctf.desc': 'Zdobadź 3 flagi',
     'scenario.ctf.cta': 'GRAJ !',
     'scenario.ctf.mapBadge': 'Mapa: Fortified Ruins',
 
     'scenario.castle.name': 'Defend the Castle',
-    'scenario.castle.desc': 'Bron zamku przez 6 fal',
+    'scenario.castle.desc': 'Broń zamku przez 6 fal',
     'scenario.castle.cta': 'GRAJ !',
     'scenario.castle.mapBadge': 'Mapa: Castle Grounds',
 
     'scenario.save_king.name': 'Save the King',
-    'scenario.save_king.desc': 'Wkrotce dostepne!',
+    'scenario.save_king.desc': 'Wkrótce dostepne!',
     'scenario.save_king.cta': 'GRAJ !',
 
     // ============================================================
@@ -104,14 +104,14 @@ export const pl = {
     // ============================================================
     // Difficulty levels (v0.24.0: PL labels translated, dorzucone KOSZMAR)
     // ============================================================
-    'difficulty.easy.label': 'LATWY',
-    'difficulty.easy.desc': 'Mniej wrogow, slabszy boss',
+    'difficulty.easy.label': 'ŁATWY',
+    'difficulty.easy.desc': 'Mniej wrogów, słabszy boss',
 
     'difficulty.normal.label': 'NORMALNY',
     'difficulty.normal.desc': 'Standardowe wyzwanie',
 
     'difficulty.hard.label': 'TRUDNY',
-    'difficulty.hard.desc': 'Wiecej wrogow, mocniejszy boss',
+    'difficulty.hard.desc': 'Więcej wrogów, mocniejszy boss',
 
     'difficulty.nightmare.label': 'KOSZMAR',
     'difficulty.nightmare.desc': 'Tylko dla najlepszych!',
@@ -133,60 +133,60 @@ export const pl = {
     // Settings (stub — FAZA 8 wypelni)
     // ============================================================
     'settings.title': 'Ustawienia',
-    'settings.audio': 'Dzwiek',
+    'settings.audio': 'Dźwięk',
     'settings.music': 'Muzyka',
-    'settings.sfx': 'Efekty dzwiekowe',
+    'settings.sfx': 'Efekty dźwiękowe',
     'settings.controls': 'Sterowanie',
-    'settings.language': 'Jezyk',
+    'settings.language': 'Język',
     'settings.language.pl': 'Polski',
     'settings.language.en': 'English',
     'settings.graphics': 'Grafika',
-    'settings.comingSoon': 'Wkrotce dostepne',
+    'settings.comingSoon': 'Wkrótce dostepne',
 
     // ============================================================
     // Errors / Validation
     // ============================================================
     'error.missingFields': 'Brakuje wymaganych pol',
-    'error.invalidConfig': 'Nieprawidlowa konfiguracja gry',
-    'error.audioLoad': 'Nie udalo sie zaladowac dzwieku',
+    'error.invalidConfig': 'Nieprawidłowa konfiguracja gry',
+    'error.audioLoad': 'Nie udało się załadowac dźwięku',
 
     // ============================================================
     // Notifications / In-game HUD (rozbudowywane w FAZIE 6b+)
     // ============================================================
     'notif.superCharge': '+{count} SUPER STRZALY!',
     'notif.megaBoss': 'UWAGA: MEGA BOSS!',
-    'notif.victory': 'ZWYCIESTWO!',
+    'notif.victory': 'ZWYCIĘSTWO!',
     'notif.gameOver': 'PRZEGRANA',
     'notif.aura': 'TARCZA AKTYWNA!',
-    'notif.megaBomb': 'MEGA BOMBA — {count} celow!',
-    'notif.freeze': 'FREEZE — {count} wrogow!',
+    'notif.megaBomb': 'MEGA BOMBA — {count} celów!',
+    'notif.freeze': 'FREEZE — {count} wrogów!',
     'notif.magnet': 'MAGNET 5s!',
 
     // ============================================================
     // Profile / Onboarding (FAZA 7b)
     // ============================================================
     'profile.onboarding.welcomeTitle': 'Witaj, dowodco!',
-    'profile.onboarding.welcomeSubtitle': 'Stworz swoj profil zanim ruszysz do walki',
+    'profile.onboarding.welcomeSubtitle': 'Stwórz swój profil zanim ruszysz do walki',
     'profile.onboarding.pickAvatarLabel': 'Wybierz awatara',
     'profile.onboarding.pickFlagLabel': 'Twoja flaga',
     'profile.onboarding.startButton': 'ROZPOCZNIJ',
 
-    'profile.onboarding.nicknameLabel': 'Twoj pseudonim',
+    'profile.onboarding.nicknameLabel': 'Twój pseudonim',
     'profile.onboarding.nicknamePlaceholder': 'np. Mariusz123',
-    'profile.onboarding.nicknameHint': '2-16 znakow: litery i cyfry',
-    'profile.onboarding.nicknameError': 'Pseudonim musi miec 2-16 liter lub cyfr',
+    'profile.onboarding.nicknameHint': '2-16 znaków: litery i cyfry',
+    'profile.onboarding.nicknameError': 'Pseudonim musi mieć 2-16 liter lub cyfr',
 
     'profile.avatar.komandor.name': 'Komandor',
-    'profile.avatar.komandor.desc': 'Doswiadczony taktyk',
+    'profile.avatar.komandor.desc': 'Doświadczony taktyk',
     'profile.avatar.pilotka.name': 'Pilotka',
-    'profile.avatar.pilotka.desc': 'Odwazna zwiadowczyni',
+    'profile.avatar.pilotka.desc': 'Odważna zwiadowczyni',
     'profile.avatar.smyk.name': 'Smyk',
     'profile.avatar.smyk.desc': 'Energiczny rookie',
-    'profile.avatar.inzynier.name': 'Inzynier',
+    'profile.avatar.inzynier.name': 'Inżynier',
     'profile.avatar.inzynier.desc': 'Spokojny strateg',
 
     'profile.flag.pl': 'Polska',
     'profile.flag.fr': 'Francja',
-    'profile.flag.it': 'Wlochy',
+    'profile.flag.it': 'Włochy',
     'profile.flag.de': 'Niemcy',
 };

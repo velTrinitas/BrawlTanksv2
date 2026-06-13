@@ -109,6 +109,19 @@ export const en: typeof pl = {
     'difficulty.nightmare.desc': 'For experts only!',
 
     // ============================================================
+    // Brawler display names (v0.24.0: i18n per brawler id)
+    // ============================================================
+    // English translations (Mariusz decision: twardy→HARDY, pyro→BURNER)
+    'brawler.twardy.name': 'HARDY',
+    'brawler.heavy.name': 'HEAVY',
+    'brawler.scout.name': 'SCOUT',
+    'brawler.sniper.name': 'SNIPER',
+    'brawler.plasma.name': 'TECH',
+    'brawler.pyro.name': 'BURNER',
+    'brawler.shadow.name': 'SHADOW',
+    'brawler.king.name': 'KING',
+
+    // ============================================================
     // Settings
     // ============================================================
     'settings.title': 'Settings',
@@ -144,7 +157,6 @@ export const en: typeof pl = {
     // ============================================================
     // Profile / Onboarding (FAZA 7b)
     // ============================================================
-    // Onboarding screen (IdentityScreen)
     'profile.onboarding.welcomeTitle': 'Welcome, Commander!',
     'profile.onboarding.welcomeSubtitle': 'Create your profile before joining the battle',
     'profile.onboarding.pickAvatarLabel': 'Choose your avatar',
@@ -156,7 +168,6 @@ export const en: typeof pl = {
     'profile.onboarding.nicknameHint': '2-16 characters: letters and digits',
     'profile.onboarding.nicknameError': 'Nickname must be 2-16 letters or digits',
 
-    // Avatar names (translated to EN) + descriptions
     'profile.avatar.komandor.name': 'Commander',
     'profile.avatar.komandor.desc': 'Experienced tactician',
     'profile.avatar.pilotka.name': 'Pilot',
@@ -166,7 +177,6 @@ export const en: typeof pl = {
     'profile.avatar.inzynier.name': 'Engineer',
     'profile.avatar.inzynier.desc': 'Calm strategist',
 
-    // Flag names
     'profile.flag.pl': 'Poland',
     'profile.flag.fr': 'France',
     'profile.flag.it': 'Italy',

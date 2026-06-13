@@ -101,19 +101,32 @@ export const pl = {
     'map.arctic.tagline': 'Lodowa pustynia',
 
     // ============================================================
-    // Difficulty levels
+    // Difficulty levels (v0.24.0: PL labels translated, dorzucone KOSZMAR)
     // ============================================================
-    'difficulty.easy.label': 'EASY',
+    'difficulty.easy.label': 'LATWY',
     'difficulty.easy.desc': 'Mniej wrogow, slabszy boss',
 
-    'difficulty.normal.label': 'NORMAL',
+    'difficulty.normal.label': 'NORMALNY',
     'difficulty.normal.desc': 'Standardowe wyzwanie',
 
-    'difficulty.hard.label': 'HARD',
+    'difficulty.hard.label': 'TRUDNY',
     'difficulty.hard.desc': 'Wiecej wrogow, mocniejszy boss',
 
-    'difficulty.nightmare.label': 'NIGHTMARE',
+    'difficulty.nightmare.label': 'KOSZMAR',
     'difficulty.nightmare.desc': 'Tylko dla najlepszych!',
+
+    // ============================================================
+    // Brawler display names (v0.24.0: i18n per brawler id)
+    // ============================================================
+    // Polskie nazwy zachowane (proper character names)
+    'brawler.twardy.name': 'TWARDY',
+    'brawler.heavy.name': 'PANCERNY',
+    'brawler.scout.name': 'ZWIAD',
+    'brawler.sniper.name': 'SNAJPER',
+    'brawler.plasma.name': 'TECH',
+    'brawler.pyro.name': 'OGNIARZ',
+    'brawler.shadow.name': 'SHADOW',
+    'brawler.king.name': 'KING',
 
     // ============================================================
     // Settings (stub — FAZA 8 wypelni)
@@ -151,7 +164,6 @@ export const pl = {
     // ============================================================
     // Profile / Onboarding (FAZA 7b)
     // ============================================================
-    // Onboarding screen (IdentityScreen)
     'profile.onboarding.welcomeTitle': 'Witaj, dowodco!',
     'profile.onboarding.welcomeSubtitle': 'Stworz swoj profil zanim ruszysz do walki',
     'profile.onboarding.pickAvatarLabel': 'Wybierz awatara',
@@ -163,7 +175,6 @@ export const pl = {
     'profile.onboarding.nicknameHint': '2-16 znakow: litery i cyfry',
     'profile.onboarding.nicknameError': 'Pseudonim musi miec 2-16 liter lub cyfr',
 
-    // Avatar names (zachowane PL — jak character names) + descriptions
     'profile.avatar.komandor.name': 'Komandor',
     'profile.avatar.komandor.desc': 'Doswiadczony taktyk',
     'profile.avatar.pilotka.name': 'Pilotka',
@@ -173,7 +184,6 @@ export const pl = {
     'profile.avatar.inzynier.name': 'Inzynier',
     'profile.avatar.inzynier.desc': 'Spokojny strateg',
 
-    // Flag names
     'profile.flag.pl': 'Polska',
     'profile.flag.fr': 'Francja',
     'profile.flag.it': 'Wlochy',

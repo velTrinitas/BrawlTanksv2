@@ -1,6 +1,10 @@
 /**
  * BrawlerPicker.ts — Ekran 2 game setup (FAZA 6d).
  *
+ * v0.24.0 FAZA 8a update:
+ * - Brawler display names z i18n (klucz: 'brawler.{id}.name')
+ * - Subskrybuje i18n.onLanguageChange dla live re-render gdy zmieni jezyk z Settings
+ *
  * Flow:
  * 1. Gracz widzi 8 brawlerow w gridzie (2x4 mobile / 4x2 tablet+)
  * 2. 4 difficulty pills pod spodem (Easy/Normal/Hard/Nightmare)
@@ -22,7 +26,7 @@
  */
 
 import type { IScreen } from './MainMenu';
-import { t } from '../i18n/i18n';
+import { t, i18n, type TranslationKey } from '../i18n/i18n';
 import { getCtaKey, type ScenarioId } from '../types/Scenario';
 import { type MapId } from '../types/MapType';
 import { DIFFICULTY_CONFIGS, type DifficultyId } from '../types/GameConfig';
@@ -68,7 +72,7 @@ const DAMAGE_DISPLAY: Record<string, number> = {
     TECH:     1.2, OGNIARZ:  0.5, SHADOW:   1.5, KING:     2,
     // English variants (jesli IDs sa po angielsku)
     hardy:    1,   armor:    1.5, scout:    0.8, sniper:   3,
-    fire:     0.5,
+    fire:     0.5, heavy:    1.5, plasma:   1.2, pyro:     0.5,
 };
 
 /**
@@ -85,6 +89,19 @@ function lookupDamage(b: BrawlerForPicker): number | string {
     return '-';
 }
 
+/**
+ * v0.24.0: Resolve translated brawler display name.
+ * Lookup `brawler.{id}.name` key. Fallback to b.name (config) jezeli key nie istnieje
+ * — defensive dla future brawlers added bez aktualizacji i18n.
+ */
+function lookupBrawlerName(b: BrawlerForPicker): string {
+    const key = `brawler.${b.id}.name` as TranslationKey;
+    const translated = t(key);
+    // If t() zwroci ten sam klucz (czyli brak tlumaczenia), fallback to config name
+    if (translated === key) return b.name;
+    return translated;
+}
+
 export interface BrawlerPickerOptions {
     scenario: ScenarioId;
     map: MapId;
@@ -98,6 +115,7 @@ export interface BrawlerPickerOptions {
 
 export class BrawlerPicker implements IScreen {
     private el: HTMLElement | null = null;
+    private langUnsub: (() => void) | null = null;
 
     private readonly scenario: ScenarioId;
     private readonly map: MapId;
@@ -122,9 +140,27 @@ export class BrawlerPicker implements IScreen {
         root.appendChild(this.el);
         this.wireEvents();
         this.applyInitialSelections();
+
+        // v0.24.0: subscribe do language changes dla live re-render
+        // (gdy uzytkownik zmieni jezyk w Settings i wroci do BrawlerPicker —
+        //  ale aktualnie BrawlerPicker jest unmount'owany przy nav, wiec to defensive)
+        this.langUnsub = i18n.onLanguageChange(() => {
+            // Preserve selections, re-render content
+            const root = this.el?.parentElement;
+            if (!root) return;
+            this.el?.remove();
+            this.el = this.render();
+            root.appendChild(this.el);
+            this.wireEvents();
+            this.applyInitialSelections();
+        });
     }
 
     unmount(): void {
+        if (this.langUnsub) {
+            this.langUnsub();
+            this.langUnsub = null;
+        }
         this.el?.remove();
         this.el = null;
     }
@@ -177,7 +213,7 @@ export class BrawlerPicker implements IScreen {
         // DEBUG (Runda 1.10): wyswietl IDs zeby Mariusz mogl zweryfikowac mapping
         if (typeof console !== 'undefined') {
             console.log('[BrawlerPicker DEBUG] Brawler IDs from config:',
-                brawlers.map(b => ({ id: b.id, name: b.name, mappedDamage: lookupDamage(b) }))
+                brawlers.map(b => ({ id: b.id, name: b.name, mappedDamage: lookupDamage(b), i18nName: lookupBrawlerName(b) }))
             );
         }
 
@@ -188,9 +224,12 @@ export class BrawlerPicker implements IScreen {
             // Case-insensitive lookup z fallbackiem na name (Runda 1.9 fix — niektore IDs maja inny case)
             const damage = lookupDamage(b);
 
+            // v0.24.0: i18n lookup dla display name (fallback to b.name jezeli brak klucza)
+            const displayName = lookupBrawlerName(b);
+
             // ALTERNATIVE render: icon path OR emoji fallback (NEVER both — Runda 1 fix)
             const visualHtml = b.icon
-                ? `<img class="bt-brawler-card-icon" src="${b.icon}" alt="${b.name}" loading="lazy">`
+                ? `<img class="bt-brawler-card-icon" src="${b.icon}" alt="${displayName}" loading="lazy">`
                 : (b.emoji ? `<div class="bt-brawler-card-emoji" aria-hidden="true">${b.emoji}</div>` : '');
 
             // Colored name pill + colored icon border (uses b.colorMain from brawlers.ts)
@@ -203,7 +242,7 @@ export class BrawlerPicker implements IScreen {
                     <div class="bt-brawler-card-icon-wrap"${iconBorderStyle}>
                         ${visualHtml}
                     </div>
-                    <div class="bt-brawler-card-name"${nameBgStyle}>${namePrefix}${b.name}</div>
+                    <div class="bt-brawler-card-name"${nameBgStyle}>${namePrefix}${displayName}</div>
                     <div class="bt-brawler-card-stats">
                         <span class="stat"><span class="stat-icon">❤️</span>${hp}</span>
                         <span class="stat-divider" aria-hidden="true">|</span>

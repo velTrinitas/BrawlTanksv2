@@ -1,5 +1,5 @@
 /**
- * MainHub.ts — main menu hub (FAZA 6c + FAZA 7c).
+ * MainHub.ts — main menu hub (FAZA 6c + FAZA 7c + v0.24.0 i18n fix).
  *
  * Layout v0.22.0 (FAZA 7c):
  *   ┌─────────────────────────────────────────────┐
@@ -17,13 +17,10 @@
  *   │  🏆 LB 🔒     │  🛒 SKLEP 🔒                │
  *   └─────────────────────────────────────────────┘
  *
- * FAZA 7c additions:
- * - activeProfile property (injected by MainMenu before mount)
- * - Welcome bar promoted to PROFILE CHIP — wraps avatar + nickname + flag swatch,
- *   whole bar is tappable (klik → toast "Edycja w Ustawieniach")
- * - welcomeName lookup from profile.nickname (fallback 'Brawler' for backward compat)
- * - Continue card uses profile.nickname instead of session.brawlerName
- *   (identity > vehicle: nickname unique, brawler reusable)
+ * v0.24.0 FAZA 8a fix:
+ * - Continue card map name uses i18n lookup zamiast hardcoded session.mapName
+ *   (session.mapName zaszywal PL "PUSTYNIA" niezaleznie od aktualnego jezyka — fix dla EN switch)
+ * - Lookup via MENU_MAP_CARDS[map].nameKey → t(key) — automatyczny EN/PL switch
  */
 
 import type { IScreen } from './MainMenu';
@@ -33,6 +30,8 @@ import type { Profile, FlagId } from '../types/Profile';
 import { AVATARS } from '../config/avatars';
 import { FLAGS, type FlagConfig } from '../config/flags';
 import { showToast } from './toast';
+// v0.24.0: lookup map nameKey z MENU_MAP_CARDS (juz ma i18n keys per design)
+import { MENU_MAP_CARDS } from '../types/MapType';
 
 // ============================================================
 // MainHub
@@ -194,16 +193,35 @@ export class MainHub implements IScreen {
         // Fallback for edge case: no active profile (use 'Brawler' generic)
         const nickname = this.activeProfile?.nickname ?? 'Brawler';
 
+        // v0.24.0 FAZA 8a fix: map name via i18n lookup (not hardcoded session.mapName)
+        // session.mapName zaszywal PL "PUSTYNIA" regardless of current language —
+        // dla EN switch wyglada brzydko "on PUSTYNIA". Fix: lookup nameKey from MENU_MAP_CARDS.
+        const mapName = this.resolveMapName(session.map);
+
         return `
             <button class="bt-hub-continue" type="button" data-action="continue">
                 <span class="bt-hub-continue-icon" aria-hidden="true">🔁</span>
                 <span class="bt-hub-continue-text">${t('hub.continue', {
                     nickname,
-                    map: session.mapName,
+                    map: mapName,
                 })}</span>
                 <span class="bt-hub-continue-arrow" aria-hidden="true">→</span>
             </button>
         `;
+    }
+
+    /**
+     * v0.24.0: resolve translated map name for current language.
+     * Lookup MENU_MAP_CARDS by map id, use nameKey → t() for translation.
+     * Fallback to session.mapName gdy lookup fail (defensive — niemozliwe dla city/desert).
+     */
+    private resolveMapName(mapId: string): string {
+        const card = MENU_MAP_CARDS.find(c => c.id === mapId);
+        if (card) {
+            return t(card.nameKey);
+        }
+        // Defensive fallback (city/desert ZAWSZE sa w MENU_MAP_CARDS, ale TS doesn't know that)
+        return this.lastSession?.mapName ?? mapId.toUpperCase();
     }
 
     /**

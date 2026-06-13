@@ -3082,3 +3082,307 @@
         animation: none !important;
     }
 }
+/* =============================================================
+   29. SETTINGS SCREEN (FAZA 8a — v0.24.0)
+   =============================================================
+   Full-screen settings panel (decyzja A1) z 2 sekcjami:
+   - Audio: 2 volume sliders (Music + SFX), linear 0-100%
+   - Jezyk: 2 buttons PL / EN, side-by-side
+
+   Mobile-first responsive: base 16px padding, desktop dostaje 32px + biggertypography.
+   ============================================================= */
+
+.bt-settings-screen {
+    width: 100%;
+    height: 100%;
+    min-height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+    color: #fff;
+    overflow-y: auto;
+    padding: 16px;
+    font-family: 'Lilita One', cursive, sans-serif;
+}
+
+/* === Header z back button + title === */
+
+.bt-settings-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid rgba(241, 196, 15, 0.3);
+    margin-bottom: 24px;
+}
+
+.bt-settings-back {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;          /* nie kurczy sie pod text */
+    border-radius: 50%;
+    border: 3px solid var(--bt-gold, #f1c40f);
+    background: rgba(0, 0, 0, 0.4);
+    color: var(--bt-gold, #f1c40f);
+    font-size: 1.5rem;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast, 0.15s ease);
+    padding: 0;
+}
+
+.bt-settings-back:hover {
+    background: rgba(241, 196, 15, 0.2);
+    transform: translateX(-2px);
+}
+
+.bt-settings-back:active {
+    transform: translateX(-1px) scale(0.95);
+}
+
+.bt-settings-title {
+    margin: 0;
+    font-size: 1.8rem;
+    letter-spacing: 1px;
+    color: var(--bt-gold, #f1c40f);
+    text-shadow: 2px 2px 0 #000;
+    -webkit-text-stroke: 1px #000;
+}
+
+/* === Content container — max-width dla desktopu === */
+
+.bt-settings-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 600px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* === Section card === */
+
+.bt-settings-section {
+    background: rgba(0, 0, 0, 0.35);
+    border: 2px solid rgba(241, 196, 15, 0.4);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.bt-settings-section-title {
+    margin: 0 0 16px 0;
+    font-size: 1.3rem;
+    color: var(--bt-gold, #f1c40f);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bt-settings-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+/* === Volume slider row === */
+
+.bt-settings-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 50px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.bt-settings-label {
+    font-size: 1rem;
+    color: #fff;
+}
+
+.bt-settings-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+    touch-action: manipulation; /* allow drag on mobile */
+}
+
+/* Slider track — webkit */
+.bt-settings-slider::-webkit-slider-runnable-track {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+}
+
+/* Slider thumb — webkit (Chrome, Safari, Edge) */
+.bt-settings-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--bt-gold, #f1c40f);
+    border: 3px solid var(--bt-navy, #1a252f);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    margin-top: -8px; /* center vertically vs track height 10 */
+    transition: transform var(--transition-fast, 0.15s ease);
+}
+
+.bt-settings-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+.bt-settings-slider::-webkit-slider-thumb:active {
+    transform: scale(1.05);
+}
+
+/* Slider thumb — Firefox */
+.bt-settings-slider::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--bt-gold, #f1c40f);
+    border: 3px solid var(--bt-navy, #1a252f);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    transition: transform var(--transition-fast, 0.15s ease);
+}
+
+.bt-settings-slider::-moz-range-thumb:hover {
+    transform: scale(1.1);
+}
+
+.bt-settings-slider::-moz-range-track {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+}
+
+.bt-settings-value {
+    font-size: 1rem;
+    color: var(--bt-gold, #f1c40f);
+    text-align: right;
+    font-variant-numeric: tabular-nums; /* "100%" i "5%" maja ten sam szeroki rendering */
+}
+
+/* === Language buttons (2x grid) === */
+
+.bt-settings-lang-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.bt-settings-lang-btn {
+    padding: 14px 16px;
+    font-family: inherit;
+    font-size: 1.1rem;
+    background: rgba(0, 0, 0, 0.4);
+    color: rgba(255, 255, 255, 0.7);
+    border: 3px solid rgba(241, 196, 15, 0.3);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast, 0.15s ease);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.bt-settings-lang-btn:hover {
+    border-color: var(--bt-gold, #f1c40f);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.bt-settings-lang-btn:active {
+    transform: translateY(0);
+}
+
+.bt-settings-lang-btn.is-active {
+    background: rgba(241, 196, 15, 0.25);
+    border-color: var(--bt-gold, #f1c40f);
+    color: var(--bt-gold, #f1c40f);
+    box-shadow: 0 0 16px rgba(241, 196, 15, 0.45);
+    cursor: default;
+}
+
+.bt-settings-lang-btn.is-active:hover {
+    transform: none;
+}
+
+.bt-settings-flag {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+/* === Responsive scaling === */
+
+@media (min-width: 768px) {
+    .bt-settings-screen {
+        padding: 32px;
+    }
+
+    .bt-settings-title {
+        font-size: 2.2rem;
+    }
+
+    .bt-settings-section {
+        padding: 28px;
+    }
+
+    .bt-settings-section-title {
+        font-size: 1.5rem;
+    }
+
+    .bt-settings-row {
+        grid-template-columns: 140px 1fr 60px;
+        gap: 20px;
+    }
+
+    .bt-settings-lang-btn {
+        font-size: 1.25rem;
+        padding: 16px 20px;
+    }
+}
+
+/* Small phone safety — narrower row layout */
+@media (max-width: 375px) {
+    .bt-settings-row {
+        grid-template-columns: 90px 1fr 44px;
+        gap: 8px;
+    }
+
+    .bt-settings-label,
+    .bt-settings-value {
+        font-size: 0.95rem;
+    }
+
+    .bt-settings-section {
+        padding: 16px;
+    }
+
+    .bt-settings-section-title {
+        font-size: 1.15rem;
+    }
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+    .bt-settings-back,
+    .bt-settings-lang-btn,
+    .bt-settings-slider::-webkit-slider-thumb,
+    .bt-settings-slider::-moz-range-thumb {
+        transition: none !important;
+    }
+}

@@ -1,5 +1,5 @@
 /**
- * MainMenu.ts — orchestrator dla wszystkich screens menu (FAZA 6c + 6d + 7b + 7c).
+ * MainMenu.ts — orchestrator dla wszystkich screens menu (FAZA 6c + 6d + 7b + 7c + 8a).
  *
  * State machine: zarzadza ktorym screenem jestesmy + transition pomiedzy.
  * Lifecycle: bootstrap() → show('intro') → on START →
@@ -7,12 +7,11 @@
  *            (else) → show('hub')
  *            → on GRAJ → show('scenarioPicker') → on Next → show('brawlerPicker')
  *            → on Play → onGameRequested(config)
+ *            → on USTAWIENIA → show('settings') → on Back → show('hub')
  *
- * v0.22.0 FAZA 7c update:
- * - createMainHub() przekazuje activeProfile do MainHub (driver welcome chip)
- * - createBrawlerPicker().onPlay buduje GameConfig z prawdziwym profileId
- *   z ProfileService.getActiveProfile()?.id (zamiast hardcoded 'default')
- * - Defensive fallback: 'default' gdy brak profilu (edge case dla testow)
+ * v0.24.0 FAZA 8a update:
+ * - Dorzucone 'settings' do ScreenId union
+ * - createSettingsScreen() factory — SettingsScreen z onBack callback wracajacym do 'hub'
  */
 
 import { IntroScreen } from './IntroScreen';
@@ -20,6 +19,7 @@ import { MainHub } from './MainHub';
 import { ScenarioPicker } from './ScenarioPicker';
 import { BrawlerPicker } from './BrawlerPicker';
 import { IdentityScreen } from './IdentityScreen';
+import { SettingsScreen } from './SettingsScreen';
 import { sessionService, type LastSession } from '../services/SessionService';
 import { ProfileService } from '../services/ProfileService';
 import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/GameConfig';
@@ -30,7 +30,7 @@ import type { MapId } from '../types/MapType';
 // Types
 // ============================================================
 
-export type ScreenId = 'intro' | 'identity' | 'hub' | 'scenarioPicker' | 'brawlerPicker';
+export type ScreenId = 'intro' | 'identity' | 'hub' | 'scenarioPicker' | 'brawlerPicker' | 'settings';
 
 export interface IScreen {
     mount(root: HTMLElement): void;
@@ -76,7 +76,7 @@ export class MainMenu {
     /** Wywolane przy klik "JAK GRAC" w hub. FAZA 6e: pokaze instructionsScreen. */
     onHowToPlayRequested: (() => void) | null = null;
 
-    /** Wywolane przy klik "USTAWIENIA" w hub. FAZA 8: pokaze settings UI. */
+    /** Wywolane przy klik "USTAWIENIA" w hub. FAZA 8a: pokaze settings UI. */
     onSettingsRequested: (() => void) | null = null;
 
     constructor(rootSelector: string) {
@@ -181,6 +181,8 @@ export class MainMenu {
                 return this.createScenarioPicker();
             case 'brawlerPicker':
                 return this.createBrawlerPicker();
+            case 'settings':
+                return this.createSettingsScreen();
             default: {
                 const _exhaustive: never = id;
                 throw new Error(`[MainMenu] Unknown screen: ${_exhaustive}`);
@@ -304,5 +306,17 @@ export class MainMenu {
         };
 
         return picker;
+    }
+
+    /**
+     * FAZA 8a: Settings screen factory.
+     * onBack wraca do hub (najczestszy entry point — Settings dostepne z hub button).
+     */
+    private createSettingsScreen(): IScreen {
+        const screen = new SettingsScreen();
+        screen.onBack = () => {
+            this.show('hub');
+        };
+        return screen;
     }
 }

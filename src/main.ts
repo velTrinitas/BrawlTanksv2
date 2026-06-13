@@ -54,7 +54,7 @@ import { GameSession } from './services/GameSession';
 import { scoreService } from './services/ScoreService';
 import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
-import { t } from './i18n/i18n';
+import { t, i18n } from './i18n/i18n';
 
 // === FAZA 6.5.2b: MainMenu jako bootstrap entry point ===
 import { MainMenu } from './ui/MainMenu';
@@ -193,15 +193,18 @@ menu.onContinueRequested = (lastSession: LastSession) => {
 };
 
 menu.onHowToPlayRequested = () => {
-    console.log('[Menu] HowToPlay requested (FAZA 8 will implement)');
+    console.log('[Menu] HowToPlay requested (FAZA 8c will implement)');
 };
 
+// FAZA 8a: settings screen wired up (zamiast console.log placeholder)
 menu.onSettingsRequested = () => {
-    console.log('[Menu] Settings requested (FAZA 8 will implement)');
+    menu.show('settings');
 };
 
 // ============================================================
-// FAZA 7a: Async bootstrap — preload profile sprite cache before menu starts
+// FAZA 7a + FAZA 8a: Async bootstrap
+// - Preload profile sprite cache
+// - Sync i18n z active profile language (per-profile wygrywa nad device-wide localStorage)
 // ============================================================
 (async () => {
     try {
@@ -211,6 +214,12 @@ menu.onSettingsRequested = () => {
         const profile = ProfileService.getActiveProfile();
         if (profile) {
             console.log(`[boot] Active profile: ${profile.avatarId} (flag=${profile.flagId})`);
+
+            // FAZA 8a: sync i18n z active profile language (per-profile wygrywa nad localStorage device-wide)
+            if (profile.language && profile.language !== i18n.getLanguage()) {
+                console.log(`[boot] Syncing i18n to profile language: ${profile.language}`);
+                i18n.setLanguage(profile.language);
+            }
         } else {
             console.log('[boot] No active profile — onboarding triggers in FAZA 7b');
         }
@@ -226,8 +235,10 @@ if (import.meta.env.DEV) {
     (window as unknown as { BT_DEV: unknown }).BT_DEV = {
         ProfileService,
         ProfileSpriteCache,
+        AudioSys,
+        i18n,
     };
-    console.log('[FAZA 7a] window.BT_DEV attached — use for smoke testing');
+    console.log('[FAZA 7a/8a] window.BT_DEV attached — use for smoke testing');
 }
 
 /**

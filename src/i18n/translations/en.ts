@@ -63,6 +63,7 @@ export const en: typeof pl = {
     'scenario.ktb.desc': 'Destroy the Mega Boss',
     'scenario.ktb.cta.desert': 'PLAY !',
     'scenario.ktb.cta.city': 'PLAY !',
+    'scenario.ktb.cta.tropics': 'PLAY !',
 
     'scenario.ctf.name': 'Capture the Flag',
     'scenario.ctf.desc': 'Capture 3 flags',
@@ -88,7 +89,7 @@ export const en: typeof pl = {
     'map.city.tagline': 'Neon megacity',
 
     'map.tropics.name': 'TROPICS',
-    'map.tropics.tagline': 'Jungle & waterfalls',
+    'map.tropics.tagline': 'Caribbean Farmstead',
 
     'map.arctic.name': 'ARCTIC',
     'map.arctic.tagline': 'Frozen wasteland',

@@ -95,7 +95,7 @@ export const pl = {
     'map.city.tagline': 'Neonowe miasto',
 
     'map.tropics.name': 'TROPIKI',
-    'map.tropics.tagline': 'Dzungla i wodospady',
+    'map.tropics.tagline': 'Karaibskie gospodarstwo',
 
     'map.arctic.name': 'ARKTYKA',
     'map.arctic.tagline': 'Lodowa pustynia',

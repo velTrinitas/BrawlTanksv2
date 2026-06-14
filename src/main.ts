@@ -23,8 +23,10 @@ import {
     buildTropicsTexture,
     TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
     TROPICS_CORN_LAYOUT,
+    TROPICS_DIRT_ROAD_PATHS,
 } from './maps/TropicsMap';
 import { CornField } from './maps/tropics/CornField';
+import { DirtRoad } from './maps/tropics/DirtRoad';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -580,6 +582,12 @@ function startGame(config: GameConfig): void {
 
         // Stealth corn fields — analogiczne do desert Oasis,
         // reuse oasisStealthEndTime + enemy.playerStealthed (10s timer).
+        // FAZA T3: Drogi szutrowe — renderowane PRZED corn fields zeby
+        // corn ground patches mogly je przykryc przy nakładaniu się
+        TROPICS_DIRT_ROAD_PATHS.forEach((waypoints, i) => {
+            new DirtRoad(waypoints, worldContainer, 17 + i * 7);
+        });
+
         cornFields = TROPICS_CORN_LAYOUT.map(cf =>
             new CornField(cf.x, cf.y, cf.w, cf.h, cf.seed, worldContainer),
         );

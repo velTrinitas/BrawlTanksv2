@@ -201,15 +201,79 @@ export function buildTropicsTexture(): PIXI.Texture {
  * (Y-sort zIndex) — efekt "chowania za", jak Brawl Stars bushes.
  */
 export const TROPICS_CORN_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> = [
-    { x: WORLD_W * 0.08,  y: WORLD_H * 0.10, w: 200, h: 180, seed: 21 },  // NW corner
-    { x: WORLD_W * 0.78,  y: WORLD_H * 0.78, w: 200, h: 180, seed: 23 },  // SE corner
-    { x: WORLD_W * 0.46,  y: WORLD_H * 0.12, w: 220, h: 200, seed: 29 },  // N-center (większe)
-    { x: WORLD_W * 0.08,  y: WORLD_H * 0.65, w: 200, h: 180, seed: 31 },  // SW flank
-    { x: WORLD_W * 0.78,  y: WORLD_H * 0.48, w: 200, h: 180, seed: 37 },  // E flank
+    { x: WORLD_W * 0.08,    y: WORLD_H * 0.10,    w: 200, h: 180, seed: 21 },  // NW corner (obok drogi 4 horiz)
+    { x: WORLD_W * 0.78,    y: WORLD_H * 0.78,    w: 200, h: 180, seed: 23 },  // SE corner (obok drogi 7)
+    { x: WORLD_W * 0.5367,  y: WORLD_H * 0.12,    w: 220, h: 200, seed: 29 },  // N-center (PRZESUNIETE: obok głównej N-S z prawej, droga 9 prowadzi)
+    { x: WORLD_W * 0.08,    y: WORLD_H * 0.65,    w: 200, h: 180, seed: 31 },  // SW flank (obok drogi 6)
+    { x: WORLD_W * 0.78,    y: WORLD_H * 0.5533,  w: 200, h: 180, seed: 37 },  // E flank (PRZESUNIETE: pod główną E-W, droga 5 prowadzi)
 ];
 
-/** FAZA T3 — Drogi szutrowe (path waypoints). Pusty w T1. */
-export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [];
+/**
+ * FAZA T3 — Drogi szutrowe ORTHOGONAL GRID (path waypoints).
+ * v0.29.0: drogi wylacznie poziome lub pionowe (Manhattan-style),
+ * brak krzywizn ani Catmull-Rom interpolation.
+ *
+ * Layout strategiczny (9 dróg, pola kukurydzy OBOK dróg):
+ *   1. Główna N-S — pionowa linia x=1500, wychodzi POZA mape (y: -200 → 3200)
+ *   2. Główna E-W — pozioma linia y=1500, wychodzi POZA mape (x: -200 → 3200)
+ *   3. L-shape do power pad NW (900, 900) — z głównej E-W
+ *   4. Do corn NW (340, 390) — pozioma z głównej N-S
+ *   5. Do corn E (2440, 1500) — pozioma z głównej E-W
+ *   6. Do corn SW (440, 2040) — pozioma z głównej N-S
+ *   7. Do corn SE (2340, 2430) — pozioma z głównej N-S
+ *   8. Do power pad SE (2100, 2100) — pozioma z głównej N-S (na y=2100)
+ *   9. Do corn N-center (1610, 460) — pozioma z głównej N-S
+ *
+ * KAZDA para sasiednich waypoints MUSI dzielic same x LUB same y.
+ * Diagonalne segmenty wywoluja console.warn w DirtRoad.ts.
+ */
+export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
+    // 1. Główna N-S (pionowa, wychodzi poza mape)
+    [
+        { x: 1500, y: -200 },
+        { x: 1500, y: 3200 },
+    ],
+    // 2. Główna E-W (pozioma, wychodzi poza mape)
+    [
+        { x: -200, y: 1500 },
+        { x: 3200, y: 1500 },
+    ],
+    // 3. Do power pad NW (900, 900) — pozioma z głównej N-S
+    [
+        { x: 1500, y: 900 },
+        { x: 900,  y: 900 },
+    ],
+    // 4. Do corn NW (~340, 390) — pozioma z głównej N-S
+    [
+        { x: 1500, y: 390 },
+        { x: 440,  y: 390 },
+    ],
+    // 5. Do corn E (NOWA pozycja: y=1660+) — pionowy stub z głównej E-W
+    [
+        { x: 2440, y: 1500 },
+        { x: 2440, y: 1660 },
+    ],
+    // 6. Do corn SW (~440, 2040) — pozioma z głównej N-S
+    [
+        { x: 1500, y: 2040 },
+        { x: 440,  y: 2040 },
+    ],
+    // 7. Do corn SE (~2340, 2430) — pozioma z głównej N-S
+    [
+        { x: 1500, y: 2430 },
+        { x: 2340, y: 2430 },
+    ],
+    // 8. Do power pad SE (2100, 2100) — pozioma z głównej N-S
+    [
+        { x: 1500, y: 2100 },
+        { x: 2100, y: 2100 },
+    ],
+    // 9. Do corn N-center (NOWA pozycja: x=1610+) — pozioma z głównej N-S
+    [
+        { x: 1500, y: 460 },
+        { x: 1610, y: 460 },
+    ],
+];
 
 /** FAZA T4 — Budynki gospodarskie (stodola/kurnik/obora). Pusty w T1. */
 export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: number, h: number, type: 'barn' | 'henhouse' | 'cowshed', seed: number }> = [];

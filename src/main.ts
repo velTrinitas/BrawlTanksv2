@@ -24,9 +24,11 @@ import {
     TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
     TROPICS_CORN_LAYOUT,
     TROPICS_DIRT_ROAD_PATHS,
+    TROPICS_FARM_BUILDINGS_LAYOUT,
 } from './maps/TropicsMap';
 import { CornField } from './maps/tropics/CornField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
+import { BarnBuilding } from './maps/tropics/BarnBuilding';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -591,6 +593,24 @@ function startGame(config: GameConfig): void {
         cornFields = TROPICS_CORN_LAYOUT.map(cf =>
             new CornField(cf.x, cf.y, cf.w, cf.h, cf.seed, worldContainer),
         );
+
+        // FAZA T4: Farm buildings (stodoła + kurnik + obora) — ICollidable
+        for (const fb of TROPICS_FARM_BUILDINGS_LAYOUT) {
+            let building: BarnBuilding | null = null;
+            if (fb.type === 'barn') {
+                building = new BarnBuilding(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
+            }
+            // T4b/T4c: dodać 'henhouse' i 'cowshed' branches
+            if (building) {
+                buildings.push(building);
+                solidBuildings.push(building);
+                // v0.32.8: Add extra collidables (side wall sticking-out 32px za x+w)
+                for (const extra of building.getExtraCollidables()) {
+                    buildings.push(extra);
+                    solidBuildings.push(extra);
+                }
+            }
+        }
 
         // Pady — reuse generic HoverRepairPad + PowerHoverPad (city-style)
         // FAZA T10 zastapi custom tropics pads

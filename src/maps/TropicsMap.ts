@@ -273,10 +273,29 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
         { x: 1500, y: 460 },
         { x: 1610, y: 460 },
     ],
+    // 10. Do stodoły NE (T4a) — pionowy stub z głównej E-W do bottom-center stodoły
+    [
+        { x: 2030, y: 1500 },
+        { x: 2030, y: 920 },
+    ],
 ];
 
-/** FAZA T4 — Budynki gospodarskie (stodola/kurnik/obora). Pusty w T1. */
-export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: number, h: number, type: 'barn' | 'henhouse' | 'cowshed', seed: number }> = [];
+/**
+ * FAZA T4 — Budynki gospodarskie (Caribbean farmstead).
+ * v0.30.0 T4a: tylko stodoła. T4b dodaje kurnik, T4c dodaje oborę.
+ *
+ * Layout strategiczny:
+ *   - Stodoła w NE quadrant (gameplay cover blisko medi pad NE)
+ *   - Kurnik tuż obok stodoły (farm cluster, T4b)
+ *   - Obora w SW quadrant (gameplay cover daleko od stodoły, T4c)
+ *
+ * Math-verified: 0 kolizji z drogami, corn fields, pad-ami (Python 2D check).
+ */
+export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: number, h: number, type: 'barn' | 'henhouse' | 'cowshed', seed: number }> = [
+    { x: 1900, y: 700,  w: 260, h: 220, type: 'barn',     seed: 41 },  // T4a: Stodoła NE
+    // T4b → kurnik (1800, 980, 130x110, type: 'henhouse')
+    // T4c → obora (700, 2200, 240x200, type: 'cowshed')
+];
 
 /** FAZA T5 — Domki jednorodzinne. Pusty w T1. */
 export const TROPICS_HOUSES_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> = [];

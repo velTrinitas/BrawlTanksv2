@@ -192,13 +192,20 @@ export function buildTropicsTexture(): PIXI.Texture {
 // LAYOUT EXPORTS — placeholders dla FAZA T2-T10
 // =================================================================
 
-/** FAZA T2 — Stealth zones (lany zboza). 5 stref na mapie, math-verified distances. */
-export const TROPICS_WHEAT_LAYOUT: Array<{ x: number, y: number, rX: number, rY: number, seed: number }> = [
-    { x: WORLD_W * 0.15, y: WORLD_H * 0.15, rX: 130, rY: 85, seed: 21 },  // NW corner — flanking spawn
-    { x: WORLD_W * 0.85, y: WORLD_H * 0.85, rX: 130, rY: 85, seed: 23 },  // SE corner — symmetric
-    { x: WORLD_W * 0.55, y: WORLD_H * 0.20, rX: 150, rY: 95, seed: 29 },  // N-center — strategic mid (bigger)
-    { x: WORLD_W * 0.15, y: WORLD_H * 0.70, rX: 130, rY: 85, seed: 31 },  // SW flank
-    { x: WORLD_W * 0.85, y: WORLD_H * 0.55, rX: 130, rY: 85, seed: 37 },  // E flank
+/**
+ * FAZA T2 — Stealth zones: kwadratowe pola KUKURYDZY (corn fields).
+ * v0.27.4: zmiana z owalnych pol zboza na prostokątne pola kukurydzy.
+ * Format: x/y = TOP-LEFT corner (nie center jak elipsa!), w/h = rozmiar.
+ *
+ * Gracz w polu → 10s stealth (analog Oasis). Plus kukurydza ZASLANIA czolg
+ * (Y-sort zIndex) — efekt "chowania za", jak Brawl Stars bushes.
+ */
+export const TROPICS_CORN_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> = [
+    { x: WORLD_W * 0.08,  y: WORLD_H * 0.10, w: 200, h: 180, seed: 21 },  // NW corner
+    { x: WORLD_W * 0.78,  y: WORLD_H * 0.78, w: 200, h: 180, seed: 23 },  // SE corner
+    { x: WORLD_W * 0.46,  y: WORLD_H * 0.12, w: 220, h: 200, seed: 29 },  // N-center (większe)
+    { x: WORLD_W * 0.08,  y: WORLD_H * 0.65, w: 200, h: 180, seed: 31 },  // SW flank
+    { x: WORLD_W * 0.78,  y: WORLD_H * 0.48, w: 200, h: 180, seed: 37 },  // E flank
 ];
 
 /** FAZA T3 — Drogi szutrowe (path waypoints). Pusty w T1. */

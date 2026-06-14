@@ -22,9 +22,9 @@ import {
 import {
     buildTropicsTexture,
     TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
-    TROPICS_WHEAT_LAYOUT,
+    TROPICS_CORN_LAYOUT,
 } from './maps/TropicsMap';
-import { WheatField } from './maps/tropics/WheatField';
+import { CornField } from './maps/tropics/CornField';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -104,13 +104,13 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
-let wheatFields: WheatField[] = [];
+let cornFields: CornField[] = [];
 let caravan: Caravan | null = null;
 
 // Frame-transient state
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
-let wasInWheatLastFrame: boolean = false;
+let wasInCornLastFrame: boolean = false;
 let wasStealthActiveLastFrame: boolean = false;
 let sandKickFrameCounter: number = 0;
 
@@ -432,12 +432,12 @@ function startGame(config: GameConfig): void {
     sandstormBorder = null;
     quicksands = [];
     oases = [];
-    wheatFields = [];
+    cornFields = [];
     caravan = null;
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
-    wasInWheatLastFrame = false;
+    wasInCornLastFrame = false;
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
 
@@ -570,7 +570,7 @@ function startGame(config: GameConfig): void {
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     } else if (config.map === 'tropics') {
         // ── TROPICS MAP — FAZA T2 (v0.26.0) ─────────────────────────
-        // Base texture + pady + STEALTH WHEAT FIELDS (laneczki zboza).
+        // Base texture + pady + STEALTH CORN FIELDS (pola kukurydzy).
         // FAZA T3-T10 doda: drogi, budynki, domki, wiatrak, skrzynie,
         // drzewa, stajnie, stawy.
         const tropicsTex = buildTropicsTexture();
@@ -578,10 +578,10 @@ function startGame(config: GameConfig): void {
         tropicsSprite.zIndex = -100;
         worldContainer.addChild(tropicsSprite);
 
-        // Stealth wheat fields — analogiczne do desert Oasis,
+        // Stealth corn fields — analogiczne do desert Oasis,
         // reuse oasisStealthEndTime + enemy.playerStealthed (10s timer).
-        wheatFields = TROPICS_WHEAT_LAYOUT.map(w =>
-            new WheatField(w.x, w.y, w.rX, w.rY, w.seed, worldContainer),
+        cornFields = TROPICS_CORN_LAYOUT.map(cf =>
+            new CornField(cf.x, cf.y, cf.w, cf.h, cf.seed, worldContainer),
         );
 
         // Pady — reuse generic HoverRepairPad + PowerHoverPad (city-style)
@@ -773,18 +773,21 @@ app.ticker.add((delta) => {
         }
     }
 
-    // FAZA T2: WheatField stealth — analogiczne do Oasis, reuse oasisStealthEndTime
-    let playerInWheatField = false;
-    for (const wf of wheatFields) {
-        wf.update();
-        if (wf.isPointInside(player.x, player.y)) {
-            playerInWheatField = true;
+    // FAZA T2: CornField stealth — analogiczne do Oasis, reuse oasisStealthEndTime
+    let playerInCornField = false;
+    for (const cf of cornFields) {
+        cf.update();
+        // v0.27.5: Sok — kukurydza rozchyla sie wokol czolga (per-frame check
+        // z quick-reject by bounds w onTankEnter, tani dla pol poza zasiegiem)
+        cf.onTankEnter(player.x, player.y);
+        if (cf.isPointInside(player.x, player.y)) {
+            playerInCornField = true;
         }
     }
 
     const nowMs = Date.now();
-    const playerInAnyStealth = playerInOasis || playerInWheatField;
-    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInWheatLastFrame;
+    const playerInAnyStealth = playerInOasis || playerInCornField;
+    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame;
 
     if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
@@ -794,8 +797,8 @@ app.ticker.add((delta) => {
 
     if (isStealthActive && !wasStealthActiveLastFrame) {
         // Differentiated notif: zboze vs oaza (oaza wygrywa jak oba)
-        if (playerInWheatField && !playerInOasis) {
-            hud.addNotif('🌾 UKRYTY W ZBOZU (10s)!', '#d4b830');
+        if (playerInCornField && !playerInOasis) {
+            hud.addNotif('🌾 UKRYTY W KUKURYDZY (10s)!', '#d4b830');
         } else {
             hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
         }
@@ -810,7 +813,7 @@ app.ticker.add((delta) => {
     }
 
     wasInOasisLastFrame = playerInOasis;
-    wasInWheatLastFrame = playerInWheatField;
+    wasInCornLastFrame = playerInCornField;
     wasStealthActiveLastFrame = isStealthActive;
 
     if (river) river.update();

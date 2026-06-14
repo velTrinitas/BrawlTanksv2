@@ -182,4 +182,8 @@ export const en: typeof pl = {
     'profile.flag.fr': 'France',
     'profile.flag.it': 'Italy',
     'profile.flag.de': 'Germany',
+    'hud.hp': 'HP',
+    'hud.score': 'SCORE',
+    'hud.kills': 'KILLS',
+    'hud.gems': 'GEMS',
 };

@@ -62,7 +62,7 @@ export const pl = {
     'picker.scenarioTitle': 'Wybierz scenariusz',
     'picker.mapTitle': 'Wybierz otoczenie',
     'picker.brawlerTitle': 'Wybierz pojazd',
-    'picker.difficultyTitle': 'POZIOM TRUDNOŚCI',
+    'picker.difficultyTitle': 'POZIOM TRUDU',
     'picker.step': 'Krok {current} z {total}',
 
     // Scenarios — name, description, CTA
@@ -73,7 +73,7 @@ export const pl = {
     'scenario.ktb.cta.tropics': 'GRAJ !',
 
     'scenario.ctf.name': 'Capture the Flag',
-    'scenario.ctf.desc': 'Zdobadź 3 flagi',
+    'scenario.ctf.desc': 'Zdobądź 3 flagi',
     'scenario.ctf.cta': 'GRAJ !',
     'scenario.ctf.mapBadge': 'Mapa: Fortified Ruins',
 
@@ -83,17 +83,17 @@ export const pl = {
     'scenario.castle.mapBadge': 'Mapa: Castle Grounds',
 
     'scenario.save_king.name': 'Save the King',
-    'scenario.save_king.desc': 'Wkrótce dostepne!',
+    'scenario.save_king.desc': 'Wkrótce dostępne!',
     'scenario.save_king.cta': 'GRAJ !',
 
     // ============================================================
     // Maps — display names + taglines
     // ============================================================
     'map.desert.name': 'PUSTYNIA',
-    'map.desert.tagline': 'Egipska pustynia',
+    'map.desert.tagline': 'Złota pustynia faraonów',
 
     'map.city.name': 'CYBERPUNK',
-    'map.city.tagline': 'Neonowe miasto',
+    'map.city.tagline': 'Neonowe miasto przyszłości',
 
     'map.tropics.name': 'TROPIKI',
     'map.tropics.tagline': 'Karaibskie gospodarstwo',
@@ -104,7 +104,7 @@ export const pl = {
     // ============================================================
     // Difficulty levels (v0.24.0: PL labels translated, dorzucone KOSZMAR)
     // ============================================================
-    'difficulty.easy.label': 'ŁATWY',
+    'difficulty.easy.label': 'LATWY',
     'difficulty.easy.desc': 'Mniej wrogów, słabszy boss',
 
     'difficulty.normal.label': 'NORMALNY',
@@ -119,7 +119,6 @@ export const pl = {
     // ============================================================
     // Brawler display names (v0.24.0: i18n per brawler id)
     // ============================================================
-    // Polskie nazwy zachowane (proper character names)
     'brawler.twardy.name': 'TWARDY',
     'brawler.heavy.name': 'PANCERNY',
     'brawler.scout.name': 'ZWIAD',
@@ -146,14 +145,14 @@ export const pl = {
     // ============================================================
     // Errors / Validation
     // ============================================================
-    'error.missingFields': 'Brakuje wymaganych pol',
+    'error.missingFields': 'Brakuje wymaganych pól',
     'error.invalidConfig': 'Nieprawidłowa konfiguracja gry',
-    'error.audioLoad': 'Nie udało się załadowac dźwięku',
+    'error.audioLoad': 'Nie udało się załadować dźwięku',
 
     // ============================================================
     // Notifications / In-game HUD (rozbudowywane w FAZIE 6b+)
     // ============================================================
-    'notif.superCharge': '+{count} SUPER STRZALY!',
+    'notif.superCharge': '+{count} SUPER STRZAŁY!',
     'notif.megaBoss': 'UWAGA: MEGA BOSS!',
     'notif.victory': 'ZWYCIĘSTWO!',
     'notif.gameOver': 'PRZEGRANA',
@@ -187,6 +186,17 @@ export const pl = {
 
     'profile.flag.pl': 'Polska',
     'profile.flag.fr': 'Francja',
-    'profile.flag.it': 'Włochy',
+    'profile.flag.it': 'Wlochy',
     'profile.flag.de': 'Niemcy',
+
+    // ──────────────────────────────────────────────────────────
+    // HUD (v0.27.0 FAZA F-fix3 + Wariant A renaming)
+    // hud.score = WYNIK (centralny pill, sumuje punkty za zabicia)
+    // hud.kills = ZABICI (prawy pill z 💀, liczba zabitych wrogow)
+    // hud.gems = GEMY (lewy pill, zebrane gemy → super charges)
+    // ──────────────────────────────────────────────────────────
+    'hud.hp': 'HP',
+    'hud.score': 'WYNIK',
+    'hud.kills': 'ZABICI',
+    'hud.gems': 'GEMY',
 };

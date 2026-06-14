@@ -4,6 +4,7 @@ import type { SpawnSystem } from '../systems/Spawn';
 import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
 import { POWERS, type PowerId } from '../config/powers';
+import { t as tr } from '../i18n/i18n';
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_TINT_HEX = '#c850ff';
@@ -126,13 +127,18 @@ export class HUD {
         c.stroke();
         
         const PAD = 14, GAP = 10, cy = py + PH / 2;
-        c.fillStyle = 'rgba(255,255,255,0.5)';
-        c.font = `bold 14px "${FONT_FAMILY}",cursive`;
+        // v0.27.0 FAZA F-fix3: HP label 14px → 18px + full white (czytelnosc)
+        const hpLabel = tr('hud.hp');
+        c.fillStyle = '#ffffff';
+        c.font = `bold 18px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
-        c.fillText('HP', px + PAD, cy);
+        c.strokeStyle = 'rgba(0,0,0,0.7)';
+        c.lineWidth = 3;
+        c.strokeText(hpLabel, px + PAD, cy);
+        c.fillText(hpLabel, px + PAD, cy);
         
-        const lblW = c.measureText('HP').width;
+        const lblW = c.measureText(hpLabel).width;
         const numStr = `${Math.ceil(curHP)}/${Math.ceil(maxHP)}`;
         c.font = `32px "${FONT_FAMILY}",cursive`;
         const numW = c.measureText(numStr).width;
@@ -169,6 +175,19 @@ export class HUD {
         c.strokeStyle = 'rgba(46,204,113,0.4)';
         c.lineWidth = 1;
         c.stroke();
+        
+        // v0.27.0 FAZA F-fix4: label "GEMY"/"GEMS" - 11px → 17px (+50%) + mocniejszy obrys
+        c.font = `bold 17px "${FONT_FAMILY}",cursive`;
+        c.fillStyle = '#ffffff';
+        c.textAlign = 'right';
+        c.textBaseline = 'top';
+        c.strokeStyle = 'rgba(0,0,0,0.9)';
+        c.lineWidth = 4;
+        const gemLabel = tr('hud.gems');
+        c.strokeText(gemLabel, px + PW - 8, py + 5);
+        c.fillText(gemLabel, px + PW - 8, py + 5);
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
         
         // Zielony hex gem icon
         const gemCx = px + 22, gemCy = py + PH / 2;
@@ -297,6 +316,17 @@ export class HUD {
         c.beginPath();
         c.roundRect(px, py, PW, PH, r);
         c.fill();
+        
+        // v0.27.0 FAZA F-fix4: label "ZABICI"/"KILLS" - 11px → 17px (+50%) + mocniejszy obrys
+        c.font = `bold 17px "${FONT_FAMILY}",cursive`;
+        c.fillStyle = '#ffffff';
+        c.textAlign = 'right';
+        c.textBaseline = 'top';
+        c.strokeStyle = 'rgba(0,0,0,0.9)';
+        c.lineWidth = 4;
+        const killsLabel = tr('hud.kills');
+        c.strokeText(killsLabel, px + PW - 8, py + 5);
+        c.fillText(killsLabel, px + PW - 8, py + 5);
         
         c.fillStyle = '#e8dcc8';
         c.font = `26px "${FONT_FAMILY}",cursive`;
@@ -680,11 +710,25 @@ export class HUD {
 
         this.drawHPPill(player, 14, 8, 200, 54, 16);
 
+        // Centralny SCORE pill — v0.27.0 Wariant A: label "WYNIK"/"SCORE" w prawym gornym rogu
         const gx2 = Math.round((this.screenW / this.uiScale) / 2 - 100);
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
         c.roundRect(gx2, 8, 200, 54, 16);
         c.fill();
+
+        // v0.27.0 FAZA F-fix4: label "WYNIK" - 11px → 17px (+50%) + mocniejszy obrys
+        c.font = `bold 17px \"${FONT_FAMILY}\",cursive`;
+        c.fillStyle = '#ffffff';
+        c.textAlign = 'right';
+        c.textBaseline = 'top';
+        c.strokeStyle = 'rgba(0,0,0,0.9)';
+        c.lineWidth = 4;
+        const scoreLabel = tr('hud.score');
+        c.strokeText(scoreLabel, gx2 + 200 - 8, 8 + 5);
+        c.fillText(scoreLabel, gx2 + 200 - 8, 8 + 5);
+
+        // Liczba score (zolta, duza, z dark stroke)
         c.fillStyle = '#f1c40f';
         c.font = `32px \"${FONT_FAMILY}\",cursive`;
         c.textAlign = 'left';

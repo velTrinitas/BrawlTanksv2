@@ -41,6 +41,7 @@ import { Henhouse } from './maps/tropics/Henhouse';
 import { Cowshed } from './maps/tropics/Cowshed';
 import { CountryHouse, PALETTE_TEAL, PALETTE_YELLOW, PALETTE_PINK, type CottagePalette } from './maps/tropics/CountryHouse';
 import { Windmill } from './maps/tropics/Windmill';
+import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -119,6 +120,7 @@ let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
 let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
+let tropicalBorder: TropicalBorder | null = null;
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
 let farmFields: IFarmField[] = [];  // v0.36.0 T7.1: generic farm fields (corn + sugarcane + lettuce + pasture)
@@ -449,6 +451,7 @@ function startGame(config: GameConfig): void {
     waterLife = null;
     smallRocks = [];
     sandstormBorder = null;
+    tropicalBorder = null;
     quicksands = [];
     oases = [];
     farmFields = [];
@@ -660,6 +663,13 @@ function startGame(config: GameConfig): void {
             solidBuildings.push(windmill);  // bullet collision (tower body only)
             // Blades są w container z zIndex 1200 — parallax, NIE blokują
         }
+
+        // FAZA T7.3: Tropical border — tonalny gradient + dryfujące particles + edge ripples
+        // (Analog desert SandstormBorder, ale z tropikalną zieloną paletą)
+        // Solid collision wall (4 AABB rects) — player NIE wyjedzie z mapy
+        tropicalBorder = new TropicalBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...tropicalBorder.getCollisionRects());
+        solidBuildings.push(...tropicalBorder.getCollisionRects());
 
         // FAZA T7 crates spawn — przeniesione poza tropics block (wymaga effects + audio)
 
@@ -919,6 +929,7 @@ app.ticker.add((delta) => {
     if (river) river.update();
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
+    if (tropicalBorder) tropicalBorder.update();
 
     if (caravan) {
         const drop = caravan.update(delta);

@@ -283,6 +283,21 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
         { x: 1730, y: 2430 },
         { x: 1730, y: 2400 },
     ],
+    // 12. Do NW cottage T5 — pionowy 190px stub z road #4 (y=390) do top NW cottage (y=580)
+    [
+        { x: 1260, y: 390 },
+        { x: 1260, y: 580 },
+    ],
+    // 13. Do NE cottage T5 — pionowy 60px stub z main E-W (y=1500) do bot NE cottage (y=1440)
+    [
+        { x: 2480, y: 1500 },
+        { x: 2480, y: 1440 },
+    ],
+    // 14. Do SE cottage T5 — pionowy 110px stub z road #8 (y=2100) do bot SE cottage (y=1990)
+    [
+        { x: 1930, y: 2100 },
+        { x: 1930, y: 1990 },
+    ],
 ];
 
 /**
@@ -305,7 +320,11 @@ export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: num
 ];
 
 /** FAZA T5 — Domki jednorodzinne. Pusty w T1. */
-export const TROPICS_HOUSES_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> = [];
+export const TROPICS_HOUSES_LAYOUT: Array<{ x: number, y: number, w: number, h: number, palette: 'teal' | 'yellow' | 'pink', seed: number }> = [
+    { x: 1180, y: 580,  w: 160, h: 140, palette: 'teal',   seed: 131 }, // T5 NW: turkusowa, front N → road #4 (190px), road #12 stub do top
+    { x: 2400, y: 1300, w: 160, h: 140, palette: 'yellow', seed: 157 }, // T5 NE: zolta, front S → main E-W (60px), road #13 stub do bot
+    { x: 1850, y: 1850, w: 160, h: 140, palette: 'pink',   seed: 173 }, // T5 SE: rozowa, front S → road #8 (110px), road #14 stub do bot
+];
 
 /** FAZA T6 — Wiatrak (zwykle 1 dominujacy). Pusty w T1. */
 export const TROPICS_WINDMILL_POSITION: { x: number, y: number, seed: number } | null = null;

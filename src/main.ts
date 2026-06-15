@@ -25,12 +25,14 @@ import {
     TROPICS_CORN_LAYOUT,
     TROPICS_DIRT_ROAD_PATHS,
     TROPICS_FARM_BUILDINGS_LAYOUT,
+    TROPICS_HOUSES_LAYOUT,
 } from './maps/TropicsMap';
 import { CornField } from './maps/tropics/CornField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
 import { BarnBuilding } from './maps/tropics/BarnBuilding';
 import { Henhouse } from './maps/tropics/Henhouse';
 import { Cowshed } from './maps/tropics/Cowshed';
+import { CountryHouse, PALETTE_TEAL, PALETTE_YELLOW, PALETTE_PINK, type CottagePalette } from './maps/tropics/CountryHouse';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -614,6 +616,22 @@ function startGame(config: GameConfig): void {
                     buildings.push(extra);
                     solidBuildings.push(extra);
                 }
+            }
+        }
+
+        // FAZA T5: Country houses (Caribbean cottages) — ICollidable z palette param
+        const paletteMap: Record<'teal' | 'yellow' | 'pink', CottagePalette> = {
+            teal:   PALETTE_TEAL,
+            yellow: PALETTE_YELLOW,
+            pink:   PALETTE_PINK,
+        };
+        for (const hb of TROPICS_HOUSES_LAYOUT) {
+            const cottage = new CountryHouse(hb.x, hb.y, hb.w, hb.h, hb.seed, paletteMap[hb.palette], worldContainer);
+            buildings.push(cottage);
+            solidBuildings.push(cottage);
+            for (const extra of cottage.getExtraCollidables()) {
+                buildings.push(extra);
+                solidBuildings.push(extra);
             }
         }
 

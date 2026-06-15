@@ -326,8 +326,10 @@ export const TROPICS_HOUSES_LAYOUT: Array<{ x: number, y: number, w: number, h: 
     { x: 1850, y: 1850, w: 160, h: 140, palette: 'pink',   seed: 173 }, // T5 SE: rozowa, front S → road #8 (110px), road #14 stub do bot
 ];
 
-/** FAZA T6 — Wiatrak (zwykle 1 dominujacy). Pusty w T1. */
-export const TROPICS_WINDMILL_POSITION: { x: number, y: number, seed: number } | null = null;
+/** FAZA T6 — Wiatrak (1 dominujący landmark W od stodoły). v0.35.1 */
+export const TROPICS_WINDMILL_POSITION: { x: number, y: number, seed: number } | null = {
+    x: 1650, y: 660, seed: 701,
+};
 
 /** FAZA T7 — Skrzynie zniszczalne. Pusty w T1. */
 /**

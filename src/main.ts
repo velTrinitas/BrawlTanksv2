@@ -27,6 +27,7 @@ import {
     TROPICS_FARM_BUILDINGS_LAYOUT,
     TROPICS_HOUSES_LAYOUT,
     TROPICS_CRATES_LAYOUT,
+    TROPICS_WINDMILL_POSITION,
 } from './maps/TropicsMap';
 import { CornField } from './maps/tropics/CornField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
@@ -34,6 +35,7 @@ import { BarnBuilding } from './maps/tropics/BarnBuilding';
 import { Henhouse } from './maps/tropics/Henhouse';
 import { Cowshed } from './maps/tropics/Cowshed';
 import { CountryHouse, PALETTE_TEAL, PALETTE_YELLOW, PALETTE_PINK, type CottagePalette } from './maps/tropics/CountryHouse';
+import { Windmill } from './maps/tropics/Windmill';
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -637,6 +639,15 @@ function startGame(config: GameConfig): void {
                 buildings.push(extra);
                 solidBuildings.push(extra);
             }
+        }
+
+        // FAZA T6: Windmill (1 dominujący landmark NE od stodoły, blades parallax)
+        if (TROPICS_WINDMILL_POSITION) {
+            const wp = TROPICS_WINDMILL_POSITION;
+            const windmill = new Windmill(wp.x, wp.y, wp.seed, worldContainer);
+            buildings.push(windmill);       // player collision (tower body only)
+            solidBuildings.push(windmill);  // bullet collision (tower body only)
+            // Blades są w container z zIndex 1200 — parallax, NIE blokują
         }
 
         // FAZA T7 crates spawn — przeniesione poza tropics block (wymaga effects + audio)

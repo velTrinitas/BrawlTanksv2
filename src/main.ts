@@ -29,6 +29,7 @@ import {
 import { CornField } from './maps/tropics/CornField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
 import { BarnBuilding } from './maps/tropics/BarnBuilding';
+import { Henhouse } from './maps/tropics/Henhouse';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -596,11 +597,13 @@ function startGame(config: GameConfig): void {
 
         // FAZA T4: Farm buildings (stodoła + kurnik + obora) — ICollidable
         for (const fb of TROPICS_FARM_BUILDINGS_LAYOUT) {
-            let building: BarnBuilding | null = null;
+            let building: BarnBuilding | Henhouse | null = null;
             if (fb.type === 'barn') {
                 building = new BarnBuilding(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
+            } else if (fb.type === 'henhouse') {
+                building = new Henhouse(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
             }
-            // T4b/T4c: dodać 'henhouse' i 'cowshed' branches
+            // T4c: dodać 'cowshed' branch
             if (building) {
                 buildings.push(building);
                 solidBuildings.push(building);

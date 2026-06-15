@@ -293,7 +293,9 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
  */
 export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: number, h: number, type: 'barn' | 'henhouse' | 'cowshed', seed: number }> = [
     { x: 1900, y: 700,  w: 260, h: 220, type: 'barn',     seed: 41 },  // T4a: Stodoła NE
-    // T4b → kurnik (1800, 980, 130x110, type: 'henhouse')
+    { x: 500,  y: 1370, w: 130, h: 110, type: 'henhouse', seed: 53 },  // T4b #1: NW od drogi E-W (20px gap)
+    { x: 700,  y: 1900, w: 130, h: 110, type: 'henhouse', seed: 67 },  // T4b #2: SW kwadrant, blisko road #6 + corn SW
+    { x: 2700, y: 1370, w: 130, h: 110, type: 'henhouse', seed: 89 },  // T4b #3: NE od drogi (20px gap)
     // T4c → obora (700, 2200, 240x200, type: 'cowshed')
 ];
 

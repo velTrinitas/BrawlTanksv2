@@ -200,13 +200,29 @@ export function buildTropicsTexture(): PIXI.Texture {
  * Gracz w polu → 10s stealth (analog Oasis). Plus kukurydza ZASLANIA czolg
  * (Y-sort zIndex) — efekt "chowania za", jak Brawl Stars bushes.
  */
-export const TROPICS_CORN_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> = [
-    { x: WORLD_W * 0.08,    y: WORLD_H * 0.10,    w: 200, h: 180, seed: 21 },  // NW corner (obok drogi 4 horiz)
-    { x: WORLD_W * 0.78,    y: WORLD_H * 0.78,    w: 200, h: 180, seed: 23 },  // SE corner (obok drogi 7)
-    { x: WORLD_W * 0.5367,  y: WORLD_H * 0.12,    w: 220, h: 200, seed: 29 },  // N-center (PRZESUNIETE: obok głównej N-S z prawej, droga 9 prowadzi)
-    { x: WORLD_W * 0.08,    y: WORLD_H * 0.65,    w: 200, h: 180, seed: 31 },  // SW flank (obok drogi 6)
-    { x: WORLD_W * 0.78,    y: WORLD_H * 0.5533,  w: 200, h: 180, seed: 37 },  // E flank (PRZESUNIETE: pod główną E-W, droga 5 prowadzi)
+/**
+ * v0.36.0 FAZA T7.1 — 3 typy pól rolniczych + zachowane corn (5 pól total).
+ * Każde pole ma `type` — main.ts spawn loop tworzy odpowiednią entity per type.
+ */
+export type FarmFieldType = 'corn' | 'sugarcane' | 'lettuce' | 'pasture';
+
+export const TROPICS_FARM_FIELDS_LAYOUT: Array<{ type: FarmFieldType; x: number; y: number; w: number; h: number; seed: number }> = [
+    // 🌽 2× corn (keep z T2 oryginalnego setupa)
+    { type: 'corn',      x: WORLD_W * 0.08,    y: WORLD_H * 0.10,    w: 200, h: 180, seed: 21 },  // NW corner
+    { type: 'corn',      x: WORLD_W * 0.08,    y: WORLD_H * 0.65,    w: 200, h: 180, seed: 31 },  // SW flank
+    // 🎋 1× sugarcane (stealth tropical, obok stodoły N-central)
+    { type: 'sugarcane', x: WORLD_W * 0.5367,  y: WORLD_H * 0.12,    w: 220, h: 200, seed: 29 },
+    // 🥬 1× lettuce (rozjeżdżalne warzywa SE corner)
+    { type: 'lettuce',   x: WORLD_W * 0.78,    y: WORLD_H * 0.78,    w: 200, h: 180, seed: 23 },
+    // 🐄 1× pasture + traktor (długie poziome pole E flank, v0.36.1: +40% długości)
+    { type: 'pasture',   x: WORLD_W * 0.70,    y: WORLD_H * 0.5533,  w: 700, h: 200, seed: 37 },
 ];
+
+/** v0.36.0 BACKWARDS COMPAT: zachowany dla kodu, który może referencować corn-only entries. */
+export const TROPICS_CORN_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> =
+    TROPICS_FARM_FIELDS_LAYOUT
+        .filter(f => f.type === 'corn')
+        .map(f => ({ x: f.x, y: f.y, w: f.w, h: f.h, seed: f.seed }));
 
 /**
  * FAZA T3 — Drogi szutrowe ORTHOGONAL GRID (path waypoints).

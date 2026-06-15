@@ -28,8 +28,13 @@ import {
     TROPICS_HOUSES_LAYOUT,
     TROPICS_CRATES_LAYOUT,
     TROPICS_WINDMILL_POSITION,
+    TROPICS_FARM_FIELDS_LAYOUT,
 } from './maps/TropicsMap';
 import { CornField } from './maps/tropics/CornField';
+import { SugarcaneField } from './maps/tropics/SugarcaneField';
+import { LettuceField } from './maps/tropics/LettuceField';
+import { PastureField } from './maps/tropics/PastureField';
+import type { IFarmField } from './maps/tropics/IFarmField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
 import { BarnBuilding } from './maps/tropics/BarnBuilding';
 import { Henhouse } from './maps/tropics/Henhouse';
@@ -116,7 +121,7 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
-let cornFields: CornField[] = [];
+let farmFields: IFarmField[] = [];  // v0.36.0 T7.1: generic farm fields (corn + sugarcane + lettuce + pasture)
 let caravan: Caravan | null = null;
 
 // Frame-transient state
@@ -446,7 +451,7 @@ function startGame(config: GameConfig): void {
     sandstormBorder = null;
     quicksands = [];
     oases = [];
-    cornFields = [];
+    farmFields = [];
     caravan = null;
 
     oasisStealthEndTime = 0;
@@ -600,9 +605,15 @@ function startGame(config: GameConfig): void {
             new DirtRoad(waypoints, worldContainer, 17 + i * 7);
         });
 
-        cornFields = TROPICS_CORN_LAYOUT.map(cf =>
-            new CornField(cf.x, cf.y, cf.w, cf.h, cf.seed, worldContainer),
-        );
+        // v0.36.0 T7.1: WSZYSTKIE 4 typy pól (corn + sugarcane + lettuce + pasture)
+        farmFields = TROPICS_FARM_FIELDS_LAYOUT.map(f => {
+            switch (f.type) {
+                case 'corn':      return new CornField(f.x, f.y, f.w, f.h, f.seed, worldContainer);
+                case 'sugarcane': return new SugarcaneField(f.x, f.y, f.w, f.h, f.seed, worldContainer);
+                case 'lettuce':   return new LettuceField(f.x, f.y, f.w, f.h, f.seed, worldContainer);
+                case 'pasture':   return new PastureField(f.x, f.y, f.w, f.h, f.seed, worldContainer);
+            }
+        });
 
         // FAZA T4: Farm buildings (stodoła + kurnik + obora) — ICollidable
         for (const fb of TROPICS_FARM_BUILDINGS_LAYOUT) {
@@ -857,20 +868,23 @@ app.ticker.add((delta) => {
         }
     }
 
-    // FAZA T2: CornField stealth — analogiczne do Oasis, reuse oasisStealthEndTime
+    // FAZA T2 + T7.1: Farm fields stealth (corn + sugarcane) — analogiczne do Oasis
     let playerInCornField = false;
-    for (const cf of cornFields) {
-        cf.update();
-        // v0.27.5: Sok — kukurydza rozchyla sie wokol czolga (per-frame check
-        // z quick-reject by bounds w onTankEnter, tani dla pol poza zasiegiem)
-        cf.onTankEnter(player.x, player.y);
-        if (cf.isPointInside(player.x, player.y)) {
-            playerInCornField = true;
+    let playerInSugarcaneField = false;
+    for (const ff of farmFields) {
+        ff.update();
+        // Sok rozchylania (corn + sugarcane only — lettuce/pasture overrides) + lettuce crush
+        ff.onTankEnter(player.x, player.y);
+        if (ff.isPointInside(player.x, player.y)) {
+            // Determine field type via class name (corn vs sugarcane vs lettuce/pasture which return false)
+            if (ff instanceof CornField) playerInCornField = true;
+            else if (ff instanceof SugarcaneField) playerInSugarcaneField = true;
         }
     }
+    const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
 
     const nowMs = Date.now();
-    const playerInAnyStealth = playerInOasis || playerInCornField;
+    const playerInAnyStealth = playerInOasis || playerInFarmStealth;
     const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame;
 
     if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
@@ -880,8 +894,10 @@ app.ticker.add((delta) => {
     const isStealthActive = playerInAnyStealth && nowMs < oasisStealthEndTime;
 
     if (isStealthActive && !wasStealthActiveLastFrame) {
-        // Differentiated notif: zboze vs oaza (oaza wygrywa jak oba)
-        if (playerInCornField && !playerInOasis) {
+        // Differentiated notif per field type
+        if (playerInSugarcaneField && !playerInOasis) {
+            hud.addNotif('🎋 UKRYTY W TRZCINIE (10s)!', '#a8d870');
+        } else if (playerInCornField && !playerInOasis) {
             hud.addNotif('🌾 UKRYTY W KUKURYDZY (10s)!', '#d4b830');
         } else {
             hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
@@ -897,7 +913,7 @@ app.ticker.add((delta) => {
     }
 
     wasInOasisLastFrame = playerInOasis;
-    wasInCornLastFrame = playerInCornField;
+    wasInCornLastFrame = playerInFarmStealth;  // v0.36.0: tracks corn + sugarcane combined
     wasStealthActiveLastFrame = isStealthActive;
 
     if (river) river.update();

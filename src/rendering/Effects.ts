@@ -230,6 +230,26 @@ export class EffectsManager {
             speed: 1.5, size: 4, decay: 0.03,
         });
     }
+
+    /** v0.34.0 T7: Wood splinters dla crate hits + destruction */
+    spawnWoodSplinters(x: number, y: number, count: number = 14): void {
+        // Light pine surface chips (~40%)
+        this.spawnParticles(x, y, 0xd4a878, Math.max(1, Math.floor(count * 0.4)), {
+            speed: 5, size: 2, decay: 0.05, scaleDecay: 0.015, spread: 1.0,
+        });
+        // Medium wood tone splinters (~35%)
+        this.spawnParticles(x, y, 0xa07840, Math.max(1, Math.floor(count * 0.35)), {
+            speed: 6, size: 1.7, decay: 0.06, scaleDecay: 0.02, spread: 1.0,
+        });
+        // Dark wood deep splinters (~25%)
+        this.spawnParticles(x, y, 0x6e4a20, Math.max(1, Math.floor(count * 0.25)), {
+            speed: 7, size: 1.3, decay: 0.07, scaleDecay: 0.025, spread: 1.0,
+        });
+        // Dust puff (white-ish, small subtle haze)
+        this.spawnParticles(x, y, 0xefe8d0, Math.max(1, Math.floor(count * 0.15)), {
+            speed: 2.5, size: 3, decay: 0.04, scaleDecay: 0.03,
+        });
+    }
     
     spawnExplosionAndWreck(x: number, y: number, color: number): void {
         this.spawnParticles(x, y, 0xff8800, 15, {

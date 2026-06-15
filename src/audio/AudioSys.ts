@@ -294,6 +294,68 @@ export class AudioSys {
         this.safePlay('pickup_magnet');
     }
 
+    /**
+     * v0.34.0 T7: Procedural crate break sound (Mariusz: "stwórz własny dźwięk,
+     * później zrobimy polish — wezmę dźwięk z elevenLabs").
+     * Web Audio API direct (Howler nie supports procedural). 2 layers:
+     *   1. Low thud (wood structure crack — sawtooth oscillator 140→40 Hz)
+     *   2. High splinter snap (bandpass-filtered white noise burst)
+     */
+    playCrateBreak(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx) return;
+        const t = ctx.currentTime;
+
+        // ── Layer 1: low thud (wood structure break) ──
+        const oscThud = ctx.createOscillator();
+        const gainThud = ctx.createGain();
+        oscThud.type = 'sawtooth';
+        oscThud.frequency.setValueAtTime(150, t);
+        oscThud.frequency.exponentialRampToValueAtTime(40, t + 0.14);
+        gainThud.gain.setValueAtTime(0.30, t);
+        gainThud.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        oscThud.connect(gainThud).connect(ctx.destination);
+        oscThud.start(t);
+        oscThud.stop(t + 0.16);
+
+        // ── Layer 2: high splinter crack (filtered white noise) ──
+        const bufferSize = Math.floor(ctx.sampleRate * 0.18);
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const noiseData = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            // Decaying white noise envelope (front-loaded)
+            noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+        }
+        const noiseSource = ctx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+
+        const noiseFilter = ctx.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.setValueAtTime(2200, t);
+        noiseFilter.frequency.exponentialRampToValueAtTime(1200, t + 0.14);
+        noiseFilter.Q.value = 1.8;
+
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.28, t);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+
+        noiseSource.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
+        noiseSource.start(t);
+
+        // ── Layer 3: subtle subbass thump (deeper crack feel) ──
+        const oscBass = ctx.createOscillator();
+        const gainBass = ctx.createGain();
+        oscBass.type = 'sine';
+        oscBass.frequency.setValueAtTime(80, t);
+        oscBass.frequency.exponentialRampToValueAtTime(35, t + 0.08);
+        gainBass.gain.setValueAtTime(0.18, t);
+        gainBass.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+        oscBass.connect(gainBass).connect(ctx.destination);
+        oscBass.start(t);
+        oscBass.stop(t + 0.10);
+    }
+
     playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze'): void {
         const key = powerId === 'megaBomb' ? 'super_bomb' : `super_${powerId}`;
         this.safePlay(key);

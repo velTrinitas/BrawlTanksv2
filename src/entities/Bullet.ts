@@ -139,11 +139,18 @@ export class Bullet {
         this.x += this.vx * delta;
         this.y += this.vy * delta;
         
-        // Wall collision
+        // Wall collision (+ destructibles routing — v0.34.0 T7 crates)
         for (const b of buildings) {
             if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
-                effects.spawnWallImpact(this.x, this.y);
-                AudioSys.getInstance().playHit('wall'); // v0.7 Sesja 5
+                // Check if collidable is destructible (Crate z takeDamage method)
+                const destructible = b as ICollidable & { takeDamage?: (dmg: number, hitX: number, hitY: number) => void };
+                if (typeof destructible.takeDamage === 'function') {
+                    destructible.takeDamage(this.dmg, this.x, this.y);
+                    // NO wall impact sound — destructible handles own audio
+                } else {
+                    effects.spawnWallImpact(this.x, this.y);
+                    AudioSys.getInstance().playHit('wall');
+                }
                 this.destroy();
                 return;
             }

@@ -330,7 +330,75 @@ export const TROPICS_HOUSES_LAYOUT: Array<{ x: number, y: number, w: number, h: 
 export const TROPICS_WINDMILL_POSITION: { x: number, y: number, seed: number } | null = null;
 
 /** FAZA T7 — Skrzynie zniszczalne. Pusty w T1. */
-export const TROPICS_CRATES_LAYOUT: Array<{ x: number, y: number, size: 'small' | 'medium', seed: number }> = [];
+/**
+ * FAZA T7 — Crates (drewniane skrzynie destruktywne).
+ * v0.34.1: 90 sztuk w 20 grupach (po 4-5 sztuk) — math-verified 0 kolizji.
+ * Brak singles — wszystkie zgrupowane (Mariusz feedback: "wyłącznie zgrupowane w 4-5 sztuk").
+ * Formacje: 2x2 (4 crates), 5_plus (2x2 + center top), L-shape (5 crates).
+ * HP=3 (ENEMY_NORMAL), respawn 60s, player collision PAD=8 (większa granica wjazdu).
+ */
+export const TROPICS_CRATES_LAYOUT: Array<{ x: number, y: number, seed: number }> = [
+    // Group #1 (2x2, 4 crates) NW corner
+    { x: 90,   y: 180,  seed: 301 }, { x: 132,  y: 180,  seed: 302 },
+    { x: 90,   y: 222,  seed: 303 }, { x: 132,  y: 222,  seed: 304 },
+    // Group #2 (5_plus, 5 crates) W flank
+    { x: 130,  y: 720,  seed: 305 }, { x: 172,  y: 720,  seed: 306 },
+    { x: 130,  y: 762,  seed: 307 }, { x: 172,  y: 762,  seed: 308 }, { x: 151,  y: 678,  seed: 309 },
+    // Group #3 (2x2, 4 crates) N central
+    { x: 700,  y: 150,  seed: 310 }, { x: 742,  y: 150,  seed: 311 },
+    { x: 700,  y: 192,  seed: 312 }, { x: 742,  y: 192,  seed: 313 },
+    // Group #4 (L-shape, 5 crates) center NW
+    { x: 850,  y: 1180, seed: 314 }, { x: 892,  y: 1180, seed: 315 }, { x: 934,  y: 1180, seed: 316 },
+    { x: 850,  y: 1222, seed: 317 }, { x: 850,  y: 1264, seed: 318 },
+    // Group #5 (2x2, 4 crates) W center
+    { x: 300,  y: 1100, seed: 319 }, { x: 342,  y: 1100, seed: 320 },
+    { x: 300,  y: 1142, seed: 321 }, { x: 342,  y: 1142, seed: 322 },
+    // Group #6 (5_plus, 5 crates) N (NE)
+    { x: 1700, y: 150,  seed: 323 }, { x: 1742, y: 150,  seed: 324 },
+    { x: 1700, y: 192,  seed: 325 }, { x: 1742, y: 192,  seed: 326 }, { x: 1721, y: 108,  seed: 327 },
+    // Group #7 (2x2, 4 crates) NE corner
+    { x: 2230, y: 200,  seed: 328 }, { x: 2272, y: 200,  seed: 329 },
+    { x: 2230, y: 242,  seed: 330 }, { x: 2272, y: 242,  seed: 331 },
+    // Group #8 (2x2, 4 crates) E flank top
+    { x: 2880, y: 300,  seed: 332 }, { x: 2922, y: 300,  seed: 333 },
+    { x: 2880, y: 342,  seed: 334 }, { x: 2922, y: 342,  seed: 335 },
+    // Group #9 (L-shape, 5 crates) center NE
+    { x: 2200, y: 1000, seed: 336 }, { x: 2242, y: 1000, seed: 337 }, { x: 2284, y: 1000, seed: 338 },
+    { x: 2200, y: 1042, seed: 339 }, { x: 2200, y: 1084, seed: 340 },
+    // Group #10 (5_plus, 5 crates) E flank center
+    { x: 2880, y: 1100, seed: 341 }, { x: 2922, y: 1100, seed: 342 },
+    { x: 2880, y: 1142, seed: 343 }, { x: 2922, y: 1142, seed: 344 }, { x: 2901, y: 1058, seed: 345 },
+    // Group #11 (2x2, 4 crates) W flank SW
+    { x: 140,  y: 1700, seed: 346 }, { x: 182,  y: 1700, seed: 347 },
+    { x: 140,  y: 1742, seed: 348 }, { x: 182,  y: 1742, seed: 349 },
+    // Group #12 (5_plus, 5 crates) N center SW
+    { x: 1100, y: 1620, seed: 350 }, { x: 1142, y: 1620, seed: 351 },
+    { x: 1100, y: 1662, seed: 352 }, { x: 1142, y: 1662, seed: 353 }, { x: 1121, y: 1578, seed: 354 },
+    // Group #13 (2x2, 4 crates) SW corner
+    { x: 200,  y: 2400, seed: 355 }, { x: 242,  y: 2400, seed: 356 },
+    { x: 200,  y: 2442, seed: 357 }, { x: 242,  y: 2442, seed: 358 },
+    // Group #14 (L-shape, 5 crates) S center SW
+    { x: 1100, y: 2700, seed: 359 }, { x: 1142, y: 2700, seed: 360 }, { x: 1184, y: 2700, seed: 361 },
+    { x: 1100, y: 2742, seed: 362 }, { x: 1100, y: 2784, seed: 363 },
+    // Group #15 (2x2, 4 crates) SE-ish SW
+    { x: 1320, y: 2200, seed: 364 }, { x: 1362, y: 2200, seed: 365 },
+    { x: 1320, y: 2242, seed: 366 }, { x: 1362, y: 2242, seed: 367 },
+    // Group #16 (2x2, 4 crates) NW SE
+    { x: 1700, y: 1700, seed: 368 }, { x: 1742, y: 1700, seed: 369 },
+    { x: 1700, y: 1742, seed: 370 }, { x: 1742, y: 1742, seed: 371 },
+    // Group #17 (5_plus, 5 crates) N center SE
+    { x: 2200, y: 1500, seed: 372 }, { x: 2242, y: 1500, seed: 373 },
+    { x: 2200, y: 1542, seed: 374 }, { x: 2242, y: 1542, seed: 375 }, { x: 2221, y: 1458, seed: 376 },
+    // Group #18 (2x2, 4 crates) E flank SE
+    { x: 2880, y: 1750, seed: 377 }, { x: 2922, y: 1750, seed: 378 },
+    { x: 2880, y: 1792, seed: 379 }, { x: 2922, y: 1792, seed: 380 },
+    // Group #19 (5_plus, 5 crates) SE corner
+    { x: 2880, y: 2400, seed: 381 }, { x: 2922, y: 2400, seed: 382 },
+    { x: 2880, y: 2442, seed: 383 }, { x: 2922, y: 2442, seed: 384 }, { x: 2901, y: 2358, seed: 385 },
+    // Group #20 (L-shape, 5 crates) S center SE
+    { x: 1750, y: 2800, seed: 386 }, { x: 1792, y: 2800, seed: 387 }, { x: 1834, y: 2800, seed: 388 },
+    { x: 1750, y: 2842, seed: 389 }, { x: 1750, y: 2884, seed: 390 },
+];
 
 /** FAZA T8 — Drzewa (skupiska). Pusty w T1. */
 export const TROPICS_TREE_CLUSTERS_LAYOUT: Array<{ x: number, y: number, count: number, types: Array<'birch' | 'lime' | 'pine'>, seed: number }> = [];

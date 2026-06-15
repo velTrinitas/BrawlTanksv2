@@ -26,6 +26,7 @@ import {
     TROPICS_DIRT_ROAD_PATHS,
     TROPICS_FARM_BUILDINGS_LAYOUT,
     TROPICS_HOUSES_LAYOUT,
+    TROPICS_CRATES_LAYOUT,
 } from './maps/TropicsMap';
 import { CornField } from './maps/tropics/CornField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
@@ -33,6 +34,7 @@ import { BarnBuilding } from './maps/tropics/BarnBuilding';
 import { Henhouse } from './maps/tropics/Henhouse';
 import { Cowshed } from './maps/tropics/Cowshed';
 import { CountryHouse, PALETTE_TEAL, PALETTE_YELLOW, PALETTE_PINK, type CottagePalette } from './maps/tropics/CountryHouse';
+import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -124,6 +126,7 @@ let sandKickFrameCounter: number = 0;
 
 let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
+let crates: Crate[] = [];  // v0.34.0 T7: destructible crates
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
 let powerSystem: PowerSystem | null = null;
@@ -433,6 +436,7 @@ function startGame(config: GameConfig): void {
     worldContainer.removeChildren();
     buildings = [];
     solidBuildings = [];
+    crates = [];
     river = null;
     bridges = [];
     waterLife = null;
@@ -635,6 +639,8 @@ function startGame(config: GameConfig): void {
             }
         }
 
+        // FAZA T7 crates spawn — przeniesione poza tropics block (wymaga effects + audio)
+
         // Pady — reuse generic HoverRepairPad + PowerHoverPad (city-style)
         // FAZA T10 zastapi custom tropics pads
         mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
@@ -644,6 +650,22 @@ function startGame(config: GameConfig): void {
     effects = new EffectsManager(worldContainer);
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
+
+    // FAZA T7: Destructible crates spawn — tylko na tropics, 90 sztuk w 20 grupach (po 4-5)
+    // v0.34.1 collision split:
+    //   - Crate w solidBuildings[] → bullets hit dokładnie visual size (precyzyjne strzelanie)
+    //   - Extras (PAD=8) w buildings[] → player zatrzymuje się 8px przed visual (większa granica wjazdu)
+    if (config.map === 'tropics') {
+        for (const cl of TROPICS_CRATES_LAYOUT) {
+            const crate = new Crate(cl.x, cl.y, cl.seed, worldContainer, effects, audio);
+            crates.push(crate);
+            solidBuildings.push(crate);  // bullets hit visual (precyzyjne)
+            // Player ma extra padded hitbox (Mariusz feedback: "większa granica wjazdu")
+            for (const extra of crate.getExtraCollidables()) {
+                buildings.push(extra);
+            }
+        }
+    }
 
     const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
 
@@ -1047,6 +1069,11 @@ app.ticker.add((delta) => {
     if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
 
     powerSystem.update(delta, player, enemies, worldContainer, effects);
+
+    // FAZA T7: Update crates (respawn timer per crate)
+    for (const crate of crates) {
+        crate.update(0, 0, 0, 0);
+    }
 
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];

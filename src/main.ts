@@ -30,6 +30,7 @@ import { CornField } from './maps/tropics/CornField';
 import { DirtRoad } from './maps/tropics/DirtRoad';
 import { BarnBuilding } from './maps/tropics/BarnBuilding';
 import { Henhouse } from './maps/tropics/Henhouse';
+import { Cowshed } from './maps/tropics/Cowshed';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
@@ -597,17 +598,18 @@ function startGame(config: GameConfig): void {
 
         // FAZA T4: Farm buildings (stodoła + kurnik + obora) — ICollidable
         for (const fb of TROPICS_FARM_BUILDINGS_LAYOUT) {
-            let building: BarnBuilding | Henhouse | null = null;
+            let building: BarnBuilding | Henhouse | Cowshed | null = null;
             if (fb.type === 'barn') {
                 building = new BarnBuilding(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
             } else if (fb.type === 'henhouse') {
                 building = new Henhouse(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
+            } else if (fb.type === 'cowshed') {
+                building = new Cowshed(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
             }
-            // T4c: dodać 'cowshed' branch
             if (building) {
                 buildings.push(building);
                 solidBuildings.push(building);
-                // v0.32.8: Add extra collidables (side wall sticking-out 32px za x+w)
+                // Extra collidables (side wall sticking-out / front PAD)
                 for (const extra of building.getExtraCollidables()) {
                     buildings.push(extra);
                     solidBuildings.push(extra);

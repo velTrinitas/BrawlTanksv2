@@ -278,6 +278,11 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
         { x: 2030, y: 1500 },
         { x: 2030, y: 920 },
     ],
+    // 11. Do obory T4c — pionowy stub z road #7 (y=2430) do front S obory (y=2400)
+    [
+        { x: 1730, y: 2430 },
+        { x: 1730, y: 2400 },
+    ],
 ];
 
 /**
@@ -296,7 +301,7 @@ export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: num
     { x: 500,  y: 1370, w: 130, h: 110, type: 'henhouse', seed: 53 },  // T4b #1: NW od drogi E-W (20px gap)
     { x: 700,  y: 1900, w: 130, h: 110, type: 'henhouse', seed: 67 },  // T4b #2: SW kwadrant, blisko road #6 + corn SW
     { x: 2700, y: 1370, w: 130, h: 110, type: 'henhouse', seed: 89 },  // T4b #3: NE od drogi (20px gap)
-    // T4c → obora (700, 2200, 240x200, type: 'cowshed')
+    { x: 1610, y: 2200, w: 240, h: 200, type: 'cowshed',  seed: 109 }, // T4c: Obora — front S 30px od road #7 (1500-2340 y=2430), 110px od N-S main road
 ];
 
 /** FAZA T5 — Domki jednorodzinne. Pusty w T1. */

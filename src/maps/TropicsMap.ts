@@ -254,10 +254,10 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
         { x: -200, y: 1500 },
         { x: 3200, y: 1500 },
     ],
-    // 3. Do power pad NW (900, 900) — pozioma z głównej N-S
+    // 3. Do power pad NW (900, 750) — pionowy stub z głównej E-W, kończy się przed pad
     [
-        { x: 1500, y: 900 },
-        { x: 900,  y: 900 },
+        { x: 900, y: 1500 },
+        { x: 900, y: 850 },
     ],
     // 4. Do corn NW (~340, 390) — pozioma z głównej N-S
     [
@@ -279,10 +279,10 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
         { x: 1500, y: 2430 },
         { x: 2340, y: 2430 },
     ],
-    // 8. Do power pad SE (2100, 2100) — pozioma z głównej N-S
+    // 8. Do power pad SE (2250, 2100) — pozioma z głównej N-S, kończy się przed pad
     [
         { x: 1500, y: 2100 },
-        { x: 2100, y: 2100 },
+        { x: 2200, y: 2100 },
     ],
     // 9. Do corn N-center (NOWA pozycja: x=1610+) — pozioma z głównej N-S
     [
@@ -434,12 +434,14 @@ export const TROPICS_HAY_BALES_LAYOUT: Array<{ x: number, y: number, seed: numbe
 // =================================================================
 
 export const TROPICS_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
-    { x: WORLD_W * 0.20, y: WORLD_H * 0.50 },
-    { x: WORLD_W * 0.80, y: WORLD_H * 0.30 },
-    { x: WORLD_W * 0.50, y: WORLD_H * 0.80 },
+    // v0.38.4: przesunięte żeby NIE leżały na drogach
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.54 },    // (600, 1620) — 70px poniżej E-W road
+    { x: WORLD_W * 0.80, y: WORLD_H * 0.30 },    // (2400, 900) — zostaje, było OK
+    { x: WORLD_W * 0.57, y: WORLD_H * 0.84 },    // (1710, 2520) — off N-S + off road #7
 ];
 
 export const TROPICS_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
-    { x: WORLD_W * 0.30, y: WORLD_H * 0.30 },
-    { x: WORLD_W * 0.70, y: WORLD_H * 0.70 },
+    // v0.38.4: przesunięte żeby NIE leżały na drogach
+    { x: WORLD_W * 0.30, y: WORLD_H * 0.23 },    // (900, 700) — 50px clearance nad końcem drogi #3 (y=850)
+    { x: WORLD_W * 0.75, y: WORLD_H * 0.70 },    // (2250, 2100) — 50px wschód od końca drogi #8 (x=2200)
 ];

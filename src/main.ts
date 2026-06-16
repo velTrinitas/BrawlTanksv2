@@ -45,6 +45,8 @@ import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
+import { CloverMediPad } from './maps/tropics/CloverMediPad';
+import { StumpPowerPad } from './maps/tropics/StumpPowerPad';
 import { DesertStormPad } from './maps/desert/DesertStormPad';
 import { Sphinx } from './maps/desert/Sphinx';
 import { RiverNile } from './maps/desert/RiverNile';
@@ -113,8 +115,8 @@ let enemyBullets: EnemyBullet[] = [];
 let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
-let mediPads: Array<HoverRepairPad | DesertHeartPad> = [];
-let powerPads: Array<PowerHoverPad | DesertStormPad> = [];
+let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad> = [];
+let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
@@ -673,10 +675,10 @@ function startGame(config: GameConfig): void {
 
         // FAZA T7 crates spawn — przeniesione poza tropics block (wymaga effects + audio)
 
-        // Pady — reuse generic HoverRepairPad + PowerHoverPad (city-style)
-        // FAZA T10 zastapi custom tropics pads
-        mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
-        powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+        // v0.38.1 T7.x: Tropics agro-themed pads (CLOVER MEDI + STUMP POWER)
+        // Hybrid: Mariusz visual design + drop-in API (range/cooldown/progress)
+        mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new CloverMediPad(p.x, p.y, worldContainer));
+        powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => new StumpPowerPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);

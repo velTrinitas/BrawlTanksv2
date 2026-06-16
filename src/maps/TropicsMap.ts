@@ -329,9 +329,9 @@ export const TROPICS_DIRT_ROAD_PATHS: Array<Array<{ x: number, y: number }>> = [
  */
 export const TROPICS_FARM_BUILDINGS_LAYOUT: Array<{ x: number, y: number, w: number, h: number, type: 'barn' | 'henhouse' | 'cowshed', seed: number }> = [
     { x: 1900, y: 700,  w: 260, h: 220, type: 'barn',     seed: 41 },  // T4a: Stodoła NE
-    { x: 500,  y: 1370, w: 130, h: 110, type: 'henhouse', seed: 53 },  // T4b #1: NW od drogi E-W (20px gap)
+    { x: 500,  y: 1355, w: 130, h: 110, type: 'henhouse', seed: 53 },  // T4b #1: NW od drogi E-W (v0.39.1: y=1370→1355 dla patrol tractor clearance)
     { x: 700,  y: 1900, w: 130, h: 110, type: 'henhouse', seed: 67 },  // T4b #2: SW kwadrant, blisko road #6 + corn SW
-    { x: 2700, y: 1370, w: 130, h: 110, type: 'henhouse', seed: 89 },  // T4b #3: NE od drogi (20px gap)
+    { x: 2700, y: 1355, w: 130, h: 110, type: 'henhouse', seed: 89 },  // T4b #3: NE od drogi (v0.39.1: y=1370→1355 dla patrol tractor clearance)
     { x: 1610, y: 2200, w: 240, h: 200, type: 'cowshed',  seed: 109 }, // T4c: Obora — front S 30px od road #7 (1500-2340 y=2430), 110px od N-S main road
 ];
 
@@ -404,9 +404,11 @@ export const TROPICS_CRATES_LAYOUT: Array<{ x: number, y: number, seed: number }
     // Group #16 (2x2, 4 crates) NW SE
     { x: 1700, y: 1700, seed: 368 }, { x: 1742, y: 1700, seed: 369 },
     { x: 1700, y: 1742, seed: 370 }, { x: 1742, y: 1742, seed: 371 },
-    // Group #17 (5_plus, 5 crates) N center SE
-    { x: 2200, y: 1500, seed: 372 }, { x: 2242, y: 1500, seed: 373 },
-    { x: 2200, y: 1542, seed: 374 }, { x: 2242, y: 1542, seed: 375 }, { x: 2221, y: 1458, seed: 376 },
+    // Group #17 (5_plus, 5 crates) MOVED +76px south z drogi E-W (v0.39.1)
+    // Math: top crate y=1534 → 7px gap od tractor sweep bottom (1527)
+    // Bottom crates y=1618 → bottom y=1660 = exact touch z pasture top (no overlap)
+    { x: 2200, y: 1576, seed: 372 }, { x: 2242, y: 1576, seed: 373 },
+    { x: 2200, y: 1618, seed: 374 }, { x: 2242, y: 1618, seed: 375 }, { x: 2221, y: 1534, seed: 376 },
     // Group #18 (2x2, 4 crates) E flank SE
     { x: 2880, y: 1750, seed: 377 }, { x: 2922, y: 1750, seed: 378 },
     { x: 2880, y: 1792, seed: 379 }, { x: 2922, y: 1792, seed: 380 },
@@ -444,4 +446,27 @@ export const TROPICS_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     // v0.38.4: przesunięte żeby NIE leżały na drogach
     { x: WORLD_W * 0.30, y: WORLD_H * 0.23 },    // (900, 700) — 50px clearance nad końcem drogi #3 (y=850)
     { x: WORLD_W * 0.75, y: WORLD_H * 0.70 },    // (2250, 2100) — 50px wschód od końca drogi #8 (x=2200)
+];
+
+/**
+ * v0.39.1 FAZA T7.2 — PATROL TRACTOR Manhattan waypoints.
+ *
+ * Cross-pattern route przez center junction (1500, 1500). Każdy "leg" składa się z
+ * 2 ortogonalnych segmentów wzdłuż głównych dróg (N-S x=1500 + E-W y=1500).
+ * NIGDY diagonal cuts — tylko Manhattan paths po drogach.
+ *
+ * Total route: 8 waypoints (4 destinations + 4 transit passes through center).
+ * Math-verified clear of all buildings + crates (po przesunięciu Hen #1/#3 +Group #17).
+ *
+ * Loop time: ~7950px @ 0.65 px/frame = ~204s driving + 18s pauzy = ~3.7 min/loop.
+ */
+export const TROPICS_PATROL_WAYPOINTS: Array<{ x: number, y: number, pause?: number }> = [
+    { x: 1500, y: 460,  pause: 4 },     // N destination — corn N-center area
+    { x: 1500, y: 1500 },               // center transit (no pause)
+    { x: 2440, y: 1500, pause: 5 },     // E destination — corn E / pasture area
+    { x: 1500, y: 1500 },               // center transit
+    { x: 1500, y: 2430, pause: 4 },     // S destination — corn SE / lettuce area
+    { x: 1500, y: 1500 },               // center transit
+    { x: 440,  y: 1500, pause: 5 },     // W destination — corn SW area
+    { x: 1500, y: 1500 },               // center transit (loop back to N)
 ];

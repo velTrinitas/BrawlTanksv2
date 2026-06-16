@@ -22,6 +22,7 @@ import {
 import {
     buildTropicsTexture,
     TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
+    TROPICS_PATROL_WAYPOINTS,
     TROPICS_CORN_LAYOUT,
     TROPICS_DIRT_ROAD_PATHS,
     TROPICS_FARM_BUILDINGS_LAYOUT,
@@ -41,6 +42,7 @@ import { Henhouse } from './maps/tropics/Henhouse';
 import { Cowshed } from './maps/tropics/Cowshed';
 import { CountryHouse, PALETTE_TEAL, PALETTE_YELLOW, PALETTE_PINK, type CottagePalette } from './maps/tropics/CountryHouse';
 import { Windmill } from './maps/tropics/Windmill';
+import { PatrolTractor } from './maps/tropics/PatrolTractor';
 import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
@@ -123,6 +125,7 @@ let waterLife: WaterLife | null = null;
 let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
+let patrolTractor: PatrolTractor | null = null;
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
 let farmFields: IFarmField[] = [];  // v0.36.0 T7.1: generic farm fields (corn + sugarcane + lettuce + pasture)
@@ -454,6 +457,7 @@ function startGame(config: GameConfig): void {
     smallRocks = [];
     sandstormBorder = null;
     tropicalBorder = null;
+    patrolTractor = null;
     quicksands = [];
     oases = [];
     farmFields = [];
@@ -679,6 +683,11 @@ function startGame(config: GameConfig): void {
         // Hybrid: Mariusz visual design + drop-in API (range/cooldown/progress)
         mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new CloverMediPad(p.x, p.y, worldContainer));
         powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => new StumpPowerPad(p.x, p.y, worldContainer));
+
+        // v0.39.0 T7.2: Patrol tractor — ambient NPC patrolujący po drogach głównych
+        // 4-waypoint route (N + E + S + W junctions), pauzy 3-5s na każdym
+        // NIE blokuje player (ambient visual), dynamic Y-sort z player
+        patrolTractor = new PatrolTractor(TROPICS_PATROL_WAYPOINTS, worldContainer);
     }
 
     effects = new EffectsManager(worldContainer);
@@ -932,6 +941,7 @@ app.ticker.add((delta) => {
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
     if (tropicalBorder) tropicalBorder.update();
+    if (patrolTractor) patrolTractor.update();
 
     if (caravan) {
         const drop = caravan.update(delta);

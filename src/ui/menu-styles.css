@@ -3083,11 +3083,15 @@
     }
 }
 /* =============================================================
-   29. SETTINGS SCREEN (FAZA 8a — v0.24.0)
+   29. SETTINGS SCREEN (FAZA 8a — v0.24.0, finalized v0.42.0)
    =============================================================
    Full-screen settings panel (decyzja A1) z 2 sekcjami:
    - Audio: 2 volume sliders (Music + SFX), linear 0-100%
    - Jezyk: 2 buttons PL / EN, side-by-side
+
+   v0.42.0 finalize:
+   - Back button: pill z visible "COFNIJ" label (UX 9-12)
+   - Flag swatch: SVG inline (cross-platform consistent)
 
    Mobile-first responsive: base 16px padding, desktop dostaje 32px + biggertypography.
    ============================================================= */
@@ -3117,22 +3121,23 @@
     margin-bottom: 24px;
 }
 
+/* v0.42.0: pill (height 44, padding asymetryczne dla strzałka + tekst) zamiast circle */
 .bt-settings-back {
-    width: 44px;
     height: 44px;
-    min-width: 44px;          /* nie kurczy sie pod text */
-    border-radius: 50%;
+    min-width: 44px;
+    padding: 0 18px 0 12px;
+    border-radius: 22px;
     border: 3px solid var(--bt-gold, #f1c40f);
     background: rgba(0, 0, 0, 0.4);
     color: var(--bt-gold, #f1c40f);
-    font-size: 1.5rem;
     font-family: inherit;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     transition: all var(--transition-fast, 0.15s ease);
-    padding: 0;
+    flex-shrink: 0;
 }
 
 .bt-settings-back:hover {
@@ -3142,6 +3147,19 @@
 
 .bt-settings-back:active {
     transform: translateX(-1px) scale(0.95);
+}
+
+.bt-settings-back-arrow {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.bt-settings-back-label {
+    font-size: 1rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 0 #000;
+    line-height: 1;
 }
 
 .bt-settings-title {
@@ -3213,17 +3231,15 @@
     border-radius: 5px;
     outline: none;
     cursor: pointer;
-    touch-action: manipulation; /* allow drag on mobile */
+    touch-action: manipulation;
 }
 
-/* Slider track — webkit */
 .bt-settings-slider::-webkit-slider-runnable-track {
     height: 10px;
     background: rgba(255, 255, 255, 0.15);
     border-radius: 5px;
 }
 
-/* Slider thumb — webkit (Chrome, Safari, Edge) */
 .bt-settings-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
@@ -3234,7 +3250,7 @@
     border: 3px solid var(--bt-navy, #1a252f);
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-    margin-top: -8px; /* center vertically vs track height 10 */
+    margin-top: -8px;
     transition: transform var(--transition-fast, 0.15s ease);
 }
 
@@ -3246,7 +3262,6 @@
     transform: scale(1.05);
 }
 
-/* Slider thumb — Firefox */
 .bt-settings-slider::-moz-range-thumb {
     width: 26px;
     height: 26px;
@@ -3272,7 +3287,7 @@
     font-size: 1rem;
     color: var(--bt-gold, #f1c40f);
     text-align: right;
-    font-variant-numeric: tabular-nums; /* "100%" i "5%" maja ten sam szeroki rendering */
+    font-variant-numeric: tabular-nums;
 }
 
 /* === Language buttons (2x grid) === */
@@ -3321,9 +3336,24 @@
     transform: none;
 }
 
+/* v0.42.0: SVG flag swatch zamiast emoji.
+   Display block + sizing przez parent container, SVG wypełnia 100%. */
 .bt-settings-flag {
-    font-size: 1.4rem;
-    line-height: 1;
+    display: inline-block;
+    width: 28px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1.5px solid rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    line-height: 0;
+}
+
+.bt-settings-flag svg {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 /* === Responsive scaling === */
@@ -3354,6 +3384,25 @@
         font-size: 1.25rem;
         padding: 16px 20px;
     }
+
+    .bt-settings-back {
+        height: 50px;
+        padding: 0 22px 0 14px;
+        border-radius: 25px;
+    }
+
+    .bt-settings-back-arrow {
+        font-size: 1.7rem;
+    }
+
+    .bt-settings-back-label {
+        font-size: 1.15rem;
+    }
+
+    .bt-settings-flag {
+        width: 32px;
+        height: 22px;
+    }
 }
 
 /* Small phone safety — narrower row layout */
@@ -3374,6 +3423,25 @@
 
     .bt-settings-section-title {
         font-size: 1.15rem;
+    }
+
+    .bt-settings-back {
+        padding: 0 14px 0 10px;
+        gap: 6px;
+    }
+
+    .bt-settings-back-arrow {
+        font-size: 1.35rem;
+    }
+
+    .bt-settings-back-label {
+        font-size: 0.9rem;
+        letter-spacing: 0.5px;
+    }
+
+    .bt-settings-flag {
+        width: 24px;
+        height: 16px;
     }
 }
 

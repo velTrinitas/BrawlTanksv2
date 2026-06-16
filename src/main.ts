@@ -267,6 +267,7 @@ menu.onSettingsRequested = () => {
         console.error('[boot] ProfileSpriteCache init failed — avatars unavailable:', e);
     }
 
+    // v0.42.0: menu.start() triggeruje audio.startIntroMusic() w MainMenu.start()
     menu.start();
 })();
 
@@ -301,6 +302,7 @@ async function tryLockLandscape(): Promise<void> {
 
 /**
  * FAZA 6.5.2b: Po endgame uzytkownik wraca do MainHub.
+ * v0.42.0: hub music restart po powrocie do hub (startHubMusic stopuje gameplay music wewnątrz).
  */
 function returnToMenuFromEnd(): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
@@ -312,7 +314,9 @@ function returnToMenuFromEnd(): void {
     // FAZA 8.5: ukryj touch UI po powrocie do menu
     touchManager.hide();
 
-    audio.stopMusic();
+    // v0.42.0: startHubMusic() stopuje gameplay music wewnątrz (this.stopMusic())
+    // + startuje hub.ogg dla MainHub experience. Idempotent — bezpieczne.
+    audio.startHubMusic();
 
     menu.reshow();
     menu.show('hub');
@@ -607,24 +611,15 @@ function startGame(config: GameConfig): void {
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     } else if (config.map === 'tropics') {
-        // ── TROPICS MAP — FAZA T2 (v0.26.0) ─────────────────────────
-        // Base texture + pady + STEALTH CORN FIELDS (pola kukurydzy).
-        // FAZA T3-T10 doda: drogi, budynki, domki, wiatrak, skrzynie,
-        // drzewa, stajnie, stawy.
         const tropicsTex = buildTropicsTexture();
         const tropicsSprite = new PIXI.Sprite(tropicsTex);
         tropicsSprite.zIndex = -100;
         worldContainer.addChild(tropicsSprite);
 
-        // Stealth corn fields — analogiczne do desert Oasis,
-        // reuse oasisStealthEndTime + enemy.playerStealthed (10s timer).
-        // FAZA T3: Drogi szutrowe — renderowane PRZED corn fields zeby
-        // corn ground patches mogly je przykryc przy nakładaniu się
         TROPICS_DIRT_ROAD_PATHS.forEach((waypoints, i) => {
             new DirtRoad(waypoints, worldContainer, 17 + i * 7);
         });
 
-        // v0.36.0 T7.1: WSZYSTKIE 4 typy pól (corn + sugarcane + lettuce + pasture)
         farmFields = TROPICS_FARM_FIELDS_LAYOUT.map(f => {
             switch (f.type) {
                 case 'corn':      return new CornField(f.x, f.y, f.w, f.h, f.seed, worldContainer);
@@ -634,7 +629,6 @@ function startGame(config: GameConfig): void {
             }
         });
 
-        // FAZA T4: Farm buildings (stodoła + kurnik + obora) — ICollidable
         for (const fb of TROPICS_FARM_BUILDINGS_LAYOUT) {
             let building: BarnBuilding | Henhouse | Cowshed | null = null;
             if (fb.type === 'barn') {
@@ -647,7 +641,6 @@ function startGame(config: GameConfig): void {
             if (building) {
                 buildings.push(building);
                 solidBuildings.push(building);
-                // Extra collidables (side wall sticking-out / front PAD)
                 for (const extra of building.getExtraCollidables()) {
                     buildings.push(extra);
                     solidBuildings.push(extra);
@@ -655,7 +648,6 @@ function startGame(config: GameConfig): void {
             }
         }
 
-        // FAZA T5: Country houses (Caribbean cottages) — ICollidable z palette param
         const paletteMap: Record<'teal' | 'yellow' | 'pink', CottagePalette> = {
             teal:   PALETTE_TEAL,
             yellow: PALETTE_YELLOW,
@@ -671,37 +663,22 @@ function startGame(config: GameConfig): void {
             }
         }
 
-        // FAZA T6: Windmill (1 dominujący landmark NE od stodoły, blades parallax)
         if (TROPICS_WINDMILL_POSITION) {
             const wp = TROPICS_WINDMILL_POSITION;
             const windmill = new Windmill(wp.x, wp.y, wp.seed, worldContainer);
-            buildings.push(windmill);       // player collision (tower body only)
-            solidBuildings.push(windmill);  // bullet collision (tower body only)
-            // Blades są w container z zIndex 1200 — parallax, NIE blokują
+            buildings.push(windmill);
+            solidBuildings.push(windmill);
         }
 
-        // FAZA T7.3: Tropical border — tonalny gradient + dryfujące particles + edge ripples
-        // (Analog desert SandstormBorder, ale z tropikalną zieloną paletą)
-        // Solid collision wall (4 AABB rects) — player NIE wyjedzie z mapy
         tropicalBorder = new TropicalBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...tropicalBorder.getCollisionRects());
         solidBuildings.push(...tropicalBorder.getCollisionRects());
 
-        // FAZA T7 crates spawn — przeniesione poza tropics block (wymaga effects + audio)
-
-        // v0.38.1 T7.x: Tropics agro-themed pads (CLOVER MEDI + STUMP POWER)
-        // Hybrid: Mariusz visual design + drop-in API (range/cooldown/progress)
         mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new CloverMediPad(p.x, p.y, worldContainer));
         powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => new StumpPowerPad(p.x, p.y, worldContainer));
 
-        // v0.39.0 T7.2: Patrol tractor — ambient NPC patrolujący po drogach głównych
-        // 4-waypoint route (N + E + S + W junctions), pauzy 3-5s na każdym
-        // NIE blokuje player (ambient visual), dynamic Y-sort z player
         patrolTractor = new PatrolTractor(TROPICS_PATROL_WAYPOINTS, worldContainer);
 
-        // v0.40.0 T9.0: Stable + Paddock (AAA premium)
-        // Stable NORTH (350, 580) + Paddock SOUTH (350, 820), gap 40px
-        // Collision: stable (1 rect) + paddock fence (5 rects)
         if (TROPICS_STABLE_LAYOUT) {
             stable = new Stable(TROPICS_STABLE_LAYOUT.stableX, TROPICS_STABLE_LAYOUT.stableY, worldContainer);
             buildings.push(stable.getCollisionRect());
@@ -712,8 +689,6 @@ function startGame(config: GameConfig): void {
             buildings.push(...paddockRects);
             solidBuildings.push(...paddockRects);
 
-            // v0.41.4 T9.1: Spawn 3 horses (chestnut + gray + black palettes) w paddock
-            // Defensive try/catch — log error to console jeśli spawn lub update kiedyś crashował
             try {
                 const stableDoor = {
                     x: stable.x + stable.w / 2,
@@ -757,16 +732,11 @@ function startGame(config: GameConfig): void {
     spawnSystem = new SpawnSystem();
     powerSystem = new PowerSystem(worldContainer);
 
-    // FAZA T7: Destructible crates spawn — tylko na tropics, 90 sztuk w 20 grupach (po 4-5)
-    // v0.34.1 collision split:
-    //   - Crate w solidBuildings[] → bullets hit dokładnie visual size (precyzyjne strzelanie)
-    //   - Extras (PAD=8) w buildings[] → player zatrzymuje się 8px przed visual (większa granica wjazdu)
     if (config.map === 'tropics') {
         for (const cl of TROPICS_CRATES_LAYOUT) {
             const crate = new Crate(cl.x, cl.y, cl.seed, worldContainer, effects, audio);
             crates.push(crate);
-            solidBuildings.push(crate);  // bullets hit visual (precyzyjne)
-            // Player ma extra padded hitbox (Mariusz feedback: "większa granica wjazdu")
+            solidBuildings.push(crate);
             for (const extra of crate.getExtraCollidables()) {
                 buildings.push(extra);
             }
@@ -796,6 +766,7 @@ function startGame(config: GameConfig): void {
         tryLockLandscape();
     }
 
+    // v0.42.0: startMusic(map) stopuje intro + hub music wewnątrz (jeden track na raz)
     audio.startMusic(config.map);
 }
 
@@ -871,7 +842,6 @@ async function triggerVictory(): Promise<void> {
 app.ticker.add((delta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
 
-    // v0.23.1: world zoom — viewport widzi 1/zoom razy więcej świata.
     const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     const viewW = hud.screenW / ZOOM;
     const viewH = hud.screenH / ZOOM;
@@ -879,48 +849,34 @@ app.ticker.add((delta) => {
     camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(player.x - viewW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(player.y - viewH / 2)));
 
-    // World container positioned z uwzglednieniem zoom (multiplikacja przez ZOOM)
     worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
     worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
 
-    // ============================================================
-    // FAZA 8.5 + v0.23.1: Touch input bridge
-    // ============================================================
     let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {
-        // Update super button visual feedback per-frame
         touchManager.updateSuperChargedVisual(powerSystem.canActivate());
 
-        // v0.23.1: update selected power icon (🛡️ / 💣 / ❄️)
         const selectedPower = POWERS[powerSystem.selectedPowerId];
         touchManager.updateSelectedPower(selectedPower.emoji);
 
-        // Bridge super-shot tap → tryActivateSuper (edge-triggered)
         if (touchManager.consumeSuperRequest()) {
             tryActivateSuper();
         }
 
-        // Left joystick → moveVector (passed to player.update)
         touchMoveVector = touchManager.moveVector;
 
-        // Right joystick → fake mouse position + isFiring flag
         const aimVec = touchManager.aimVector;
         if (aimVec) {
-            // Project aim vector ~200px from player in screen space (uwzgledniajac zoom)
             const AIM_DISTANCE = 200;
             mouse.screenX = (player.x - camera.x) * ZOOM + aimVec.x * AIM_DISTANCE;
             mouse.screenY = (player.y - camera.y) * ZOOM + aimVec.y * AIM_DISTANCE;
         }
 
-        // v0.23.1 hotfix: crosshair visibility zalezne od aim joystick state
-        // (widoczny gdy palec na prawym sticku, ukryty po release — nie wisi w starym miejscu)
         hud.showCrosshair = aimVec !== null;
 
-        // Continuous fire while right stick active (decision B1: aim+fire combined)
         isMouseDown = touchManager.isFiring;
     }
 
-    // v0.23.1: mouse → world coordinate conversion uwzglednia zoom
     const mouseWorldX = mouse.screenX / ZOOM + camera.x;
     const mouseWorldY = mouse.screenY / ZOOM + camera.y;
 
@@ -952,15 +908,12 @@ app.ticker.add((delta) => {
         }
     }
 
-    // FAZA T2 + T7.1: Farm fields stealth (corn + sugarcane) — analogiczne do Oasis
     let playerInCornField = false;
     let playerInSugarcaneField = false;
     for (const ff of farmFields) {
         ff.update();
-        // Sok rozchylania (corn + sugarcane only — lettuce/pasture overrides) + lettuce crush
         ff.onTankEnter(player.x, player.y);
         if (ff.isPointInside(player.x, player.y)) {
-            // Determine field type via class name (corn vs sugarcane vs lettuce/pasture which return false)
             if (ff instanceof CornField) playerInCornField = true;
             else if (ff instanceof SugarcaneField) playerInSugarcaneField = true;
         }
@@ -978,7 +931,6 @@ app.ticker.add((delta) => {
     const isStealthActive = playerInAnyStealth && nowMs < oasisStealthEndTime;
 
     if (isStealthActive && !wasStealthActiveLastFrame) {
-        // Differentiated notif per field type
         if (playerInSugarcaneField && !playerInOasis) {
             hud.addNotif('🎋 UKRYTY W TRZCINIE (10s)!', '#a8d870');
         } else if (playerInCornField && !playerInOasis) {
@@ -997,7 +949,7 @@ app.ticker.add((delta) => {
     }
 
     wasInOasisLastFrame = playerInOasis;
-    wasInCornLastFrame = playerInFarmStealth;  // v0.36.0: tracks corn + sugarcane combined
+    wasInCornLastFrame = playerInFarmStealth;
     wasStealthActiveLastFrame = isStealthActive;
 
     if (river) river.update();
@@ -1034,7 +986,6 @@ app.ticker.add((delta) => {
 
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
-    // FAZA 8.5: passed touchMoveVector jako 6-th arg (null = fallback do keys.wasd)
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
 
     if (currentSession.config.map === 'desert' && player.isMoving) {
@@ -1192,7 +1143,6 @@ app.ticker.add((delta) => {
 
     powerSystem.update(delta, player, enemies, worldContainer, effects);
 
-    // FAZA T7: Update crates (respawn timer per crate)
     for (const crate of crates) {
         crate.update(0, 0, 0, 0);
     }

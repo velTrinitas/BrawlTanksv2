@@ -15,6 +15,15 @@ import type { MapId } from '../types/MapType';
  * - Decyzja B1: linear 0-100% scaling (no logarithmic taper — prostota dla 9-12)
  * - Decyzja C1: slider na 0 = mute (no separate mute button, M-key zachowany jako global toggle)
  *
+ * v0.42.0 FAZA 8a hub-music expansion:
+ * - intro.mp3 (IntroScreen) + hub.ogg (MainHub + pickers + Settings) jako 2 nowe tracks
+ * - startIntroMusic() / startHubMusic() — separate API od per-map music
+ * - Decyzja: hub.ogg gra przez wszystkie menu screens (MainHub + ScenarioPicker +
+ *   BrawlerPicker + Settings) — single coherent menu music session
+ * - Autoplay policy fallback: jeśli initial play() rejected przez browser
+ *   (pierwsza wizyta, brak user gesture), one-shot listener na pointerdown/keydown
+ *   startuje music przy pierwszym dotknięciu strony (transparent dla użytkownika)
+ *
  * GENTLE FAILURE: brakujace pliki audio NIE crashuja gry.
  */
 
@@ -54,7 +63,17 @@ const SFX_VOL_KEY = 'bt2:audio:sfxVol';
 const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
     city:    ['music_main1.ogg', 'music_main2.mp3'],
     desert:  ['pustynia.mp3'],
-    tropics: ['tropiki.mp3'],  // v0.24.0 FAZA T1 — fallback gentle jak nie ma pliku
+    tropics: ['tropiki.mp3'],
+};
+
+/**
+ * v0.42.0: Menu music tracks (separate od per-map gameplay music).
+ * intro.mp3 = IntroScreen splash autoplay
+ * hub.ogg   = MainHub + pickers + Settings (single coherent menu session)
+ */
+const MENU_TRACKS = {
+    intro: 'intro.mp3',
+    hub:   'hub.ogg',
 };
 
 interface SoundDef {
@@ -91,6 +110,9 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'menu_click', file: 'menu_click.mp3', volume: 0.35 },
 ];
 
+/** Tracks autoplay-pending state — jeśli initial play() rejected, restart przy first gesture. */
+type PendingPlay = { howl: Howl; label: string };
+
 export class AudioSys {
     private static _instance: AudioSys | null = null;
 
@@ -101,6 +123,10 @@ export class AudioSys {
     private currentMusicTrack: Howl | null = null;
     private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1 };
 
+    // v0.42.0: Menu music howls (intro + hub)
+    private introMusic: Howl | null = null;
+    private hubMusic: Howl | null = null;
+
     private muted: boolean = false;
     private gemPickupTimer: number = 0;
 
@@ -108,12 +134,17 @@ export class AudioSys {
     private musicVolMult: number = 1.0;
     private sfxVolMult: number = 1.0;
 
+    // v0.42.0: autoplay-policy fallback
+    private pendingPlay: PendingPlay | null = null;
+    private gestureListenerInstalled: boolean = false;
+
     private constructor() {
         // Load persisted volumes BEFORE preloading (so Howl instances created z correct volumes)
         this.loadVolumes();
 
         this.preloadAll();
         this.initMusic();
+        this.initMenuMusic();
     }
 
     static getInstance(): AudioSys {
@@ -188,6 +219,41 @@ export class AudioSys {
         }
     }
 
+    /**
+     * v0.42.0: Inicjalizuje intro + hub music howls.
+     * Same volume baseline jak gameplay music (decyzja A — konsystencja).
+     * Both loop:true (defensive — jeśli pliki mają audible cut to UX issue, nie code issue).
+     */
+    private initMenuMusic(): void {
+        try {
+            this.introMusic = new Howl({
+                src: [BASE + 'sfx/' + MENU_TRACKS.intro],
+                loop: true,
+                volume: VOLUMES.music * this.musicVolMult,
+                preload: true,
+                onloaderror: (_id, err) => {
+                    console.warn(`[AudioSys] Brak intro music: ${MENU_TRACKS.intro}`, err);
+                },
+            });
+        } catch (e) {
+            console.warn('[AudioSys] Intro music init failed', e);
+        }
+
+        try {
+            this.hubMusic = new Howl({
+                src: [BASE + 'sfx/' + MENU_TRACKS.hub],
+                loop: true,
+                volume: VOLUMES.music * this.musicVolMult,
+                preload: true,
+                onloaderror: (_id, err) => {
+                    console.warn(`[AudioSys] Brak hub music: ${MENU_TRACKS.hub}`, err);
+                },
+            });
+        } catch (e) {
+            console.warn('[AudioSys] Hub music init failed', e);
+        }
+    }
+
     private safePlay(key: string): void {
         const sound = this.sounds.get(key);
         if (!sound) return;
@@ -196,6 +262,68 @@ export class AudioSys {
         } catch (e) {
             console.warn(`[AudioSys] Play failed for ${key}`, e);
         }
+    }
+
+    /**
+     * v0.42.0: Attempt to play music howl. Jeśli browser blokuje (autoplay policy),
+     * zapisuje do pendingPlay i instaluje one-shot gesture listener.
+     * Pierwsze pointerdown/keydown na document re-tryguje play.
+     *
+     * Howler's play() zwraca soundId (number) lub null (jeśli not ready). Promise rejection
+     * pochodzi z underlying HTMLAudioElement — wykrywamy przez Howler events lub
+     * suspended AudioContext state.
+     */
+    private playMusicWithGestureFallback(howl: Howl, label: string): void {
+        try {
+            howl.play();
+
+            // Jeśli Howler.ctx jest suspended (autoplay policy), zaplanuj resume na first gesture.
+            // To pokrywa większość real-world autoplay-block scenarios.
+            const ctx = Howler.ctx;
+            if (ctx && ctx.state === 'suspended') {
+                this.pendingPlay = { howl, label };
+                this.installGestureListener();
+                console.log(`[AudioSys] ${label} music pending — AudioContext suspended, waiting for first gesture`);
+            }
+        } catch (e) {
+            console.warn(`[AudioSys] ${label} music play failed, scheduling for first gesture`, e);
+            this.pendingPlay = { howl, label };
+            this.installGestureListener();
+        }
+    }
+
+    private installGestureListener(): void {
+        if (this.gestureListenerInstalled) return;
+        this.gestureListenerInstalled = true;
+
+        const trigger = () => {
+            // Resume AudioContext jeśli suspended
+            const ctx = Howler.ctx;
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume().catch(() => {});
+            }
+
+            // Retry pending play
+            if (this.pendingPlay) {
+                try {
+                    if (!this.pendingPlay.howl.playing()) {
+                        this.pendingPlay.howl.play();
+                    }
+                    console.log(`[AudioSys] ${this.pendingPlay.label} music started after first user gesture`);
+                } catch (e) {
+                    console.warn('[AudioSys] Pending music play still failed', e);
+                }
+                this.pendingPlay = null;
+            }
+
+            // Cleanup — one-shot only
+            document.removeEventListener('pointerdown', trigger);
+            document.removeEventListener('keydown', trigger);
+            this.gestureListenerInstalled = false;
+        };
+
+        document.addEventListener('pointerdown', trigger, { once: true, passive: true });
+        document.addEventListener('keydown', trigger, { once: true, passive: true });
     }
 
     // ==========================================
@@ -223,6 +351,16 @@ export class AudioSys {
                 } catch {
                     // Howl may be in invalid state — silent fail
                 }
+            }
+        }
+
+        // v0.42.0: also apply do menu music (intro + hub)
+        for (const menuHowl of [this.introMusic, this.hubMusic]) {
+            if (!menuHowl) continue;
+            try {
+                menuHowl.volume(effectiveVol);
+            } catch {
+                // Silent fail
             }
         }
     }
@@ -295,11 +433,7 @@ export class AudioSys {
     }
 
     /**
-     * v0.34.0 T7: Procedural crate break sound (Mariusz: "stwórz własny dźwięk,
-     * później zrobimy polish — wezmę dźwięk z elevenLabs").
-     * Web Audio API direct (Howler nie supports procedural). 2 layers:
-     *   1. Low thud (wood structure crack — sawtooth oscillator 140→40 Hz)
-     *   2. High splinter snap (bandpass-filtered white noise burst)
+     * v0.34.0 T7: Procedural crate break sound.
      */
     playCrateBreak(): void {
         if (this.muted) return;
@@ -324,7 +458,6 @@ export class AudioSys {
         const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const noiseData = noiseBuffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
-            // Decaying white noise envelope (front-loaded)
             noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
         }
         const noiseSource = ctx.createBufferSource();
@@ -343,7 +476,7 @@ export class AudioSys {
         noiseSource.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
         noiseSource.start(t);
 
-        // ── Layer 3: subtle subbass thump (deeper crack feel) ──
+        // ── Layer 3: subtle subbass thump ──
         const oscBass = ctx.createOscillator();
         const gainBass = ctx.createGain();
         oscBass.type = 'sine';
@@ -387,8 +520,87 @@ export class AudioSys {
         this.safePlay('menu_click');
     }
 
+    // ==========================================
+    // v0.42.0 FAZA 8a: Menu music API (intro + hub)
+    // ==========================================
+
+    /**
+     * Start intro music (IntroScreen splash).
+     * Idempotent — wywołanie gdy już gra nic nie zmienia.
+     * Autoplay-policy fallback: jeśli rejected, retry na first gesture.
+     *
+     * Stops gameplay music + hub music first (jeden track music na raz).
+     */
+    startIntroMusic(): void {
+        if (!this.introMusic) {
+            console.warn('[AudioSys] Intro music not loaded');
+            return;
+        }
+        if (this.introMusic.playing()) return; // idempotent
+
+        // Stop other music tracks
+        this.stopMusic();
+        if (this.hubMusic && this.hubMusic.playing()) {
+            try { this.hubMusic.stop(); } catch { /* silent */ }
+        }
+
+        this.playMusicWithGestureFallback(this.introMusic, 'Intro');
+    }
+
+    /**
+     * Start hub music (MainHub + pickers + Settings — wszystkie menu screens).
+     * Idempotent — wywołanie gdy już gra nic nie zmienia.
+     * Wywoływane przy:
+     *  - klik START w IntroScreen (po stopIntroMusic)
+     *  - return z endgame (Victory/GameOver → returnToMenuFromEnd)
+     *
+     * Stops intro music + gameplay music first.
+     */
+    startHubMusic(): void {
+        if (!this.hubMusic) {
+            console.warn('[AudioSys] Hub music not loaded');
+            return;
+        }
+        if (this.hubMusic.playing()) return; // idempotent
+
+        // Stop other music tracks
+        this.stopMusic();
+        if (this.introMusic && this.introMusic.playing()) {
+            try { this.introMusic.stop(); } catch { /* silent */ }
+        }
+
+        this.playMusicWithGestureFallback(this.hubMusic, 'Hub');
+    }
+
+    /**
+     * Stop intro music explicitly (np. przy klik START gdy chcemy instant cut przed startHubMusic).
+     * Idempotent.
+     */
+    stopIntroMusic(): void {
+        if (!this.introMusic) return;
+        try {
+            if (this.introMusic.playing()) {
+                this.introMusic.stop();
+            }
+        } catch { /* silent */ }
+    }
+
+    /**
+     * Stop hub music explicitly (np. przy startGame, choć startMusic(map) i tak to robi via stopMusic).
+     * Idempotent.
+     */
+    stopHubMusic(): void {
+        if (!this.hubMusic) return;
+        try {
+            if (this.hubMusic.playing()) {
+                this.hubMusic.stop();
+            }
+        } catch { /* silent */ }
+    }
+
     /**
      * Start music dla wybranej mapy. Smart random within map pool.
+     * v0.42.0: Stops intro + hub music first (jeden music track w danym momencie).
      */
     startMusic(mapId: MapId = 'city'): void {
         const tracks = this.musicHowlsPerMap[mapId];
@@ -396,6 +608,10 @@ export class AudioSys {
             console.warn(`[AudioSys] No music tracks for map ${mapId}`);
             return;
         }
+
+        // v0.42.0: stop menu music przed startem gameplay music
+        this.stopIntroMusic();
+        this.stopHubMusic();
 
         if (this.currentMusicTrack && this.currentMusicTrack.playing()) {
             this.currentMusicTrack.stop();

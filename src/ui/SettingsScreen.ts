@@ -1,5 +1,5 @@
 /**
- * SettingsScreen.ts — FAZA 8a (v0.24.0).
+ * SettingsScreen.ts — FAZA 8a (v0.24.0, finalized v0.42.0).
  *
  * 2 sekcje:
  *  - Audio: Music volume + SFX volume sliders (decyzja B1: linear 0-100%, C1: no separate mute button)
@@ -10,12 +10,44 @@
  *
  * Audio settings persistowane per-device w localStorage (E2 — environment preference).
  * Language persistowany per-profile w Profile.language (user identity).
+ *
+ * v0.42.0 FAZA 8a finalize:
+ * - Back button: dodany visible label "COFNIJ" obok strzałki (UX 9-12: tylko ikon byl
+ *   zbyt minimalistic dla młodszych graczy)
+ * - Flag swatch: SVG inline zamiast emoji 🇵🇱/🇬🇧 (Windows-Chrome regional indicator
+ *   fallback renderował emoji jako "PL"/"GB" tekst, brak visual flag consistency)
  */
 
 import type { IScreen } from './MainMenu';
 import { AudioSys } from '../audio/AudioSys';
 import { i18n, t, type Language } from '../i18n/i18n';
 import { ProfileService } from '../services/ProfileService';
+
+/**
+ * Inline SVG flagi dla language toggle.
+ * Cross-platform consistent (nie polega na emoji font support).
+ * PL: 2-stripe horizontal (biały/czerwony — barwy państwowe RP).
+ * GB: Union Jack uproszczony do 3-warstwowego layered crosses.
+ *
+ * Nie reuse FLAGS config z ../config/flags bo:
+ *  1. Tam Profile.FlagId = 'pl'|'fr'|'it'|'de' — nie ma 'gb'
+ *  2. Profile flag = player identity (np. Mariusz reprezentuje IT)
+ *  3. Language flag = UI lang (PL/EN są jedynym mapping na flag — różne domeny)
+ */
+const FLAG_SVG_PL = `<svg viewBox="0 0 8 5" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <rect width="8" height="2.5" fill="#ffffff"/>
+    <rect y="2.5" width="8" height="2.5" fill="#dc143c"/>
+</svg>`;
+
+const FLAG_SVG_GB = `<svg viewBox="0 0 60 30" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <rect width="60" height="30" fill="#012169"/>
+    <path d="M0,0 L60,30 M60,0 L0,30" stroke="#ffffff" stroke-width="6"/>
+    <path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" stroke-width="2.5" clip-path="polygon(0 0, 50% 50%, 100% 0, 100% 50%, 50% 50%, 100% 100%, 50% 50%, 0 100%, 0 50%, 50% 50%)"/>
+    <rect x="25" width="10" height="30" fill="#ffffff"/>
+    <rect y="10" width="60" height="10" fill="#ffffff"/>
+    <rect x="27" width="6" height="30" fill="#C8102E"/>
+    <rect y="12" width="60" height="6" fill="#C8102E"/>
+</svg>`;
 
 export class SettingsScreen implements IScreen {
     private rootEl: HTMLElement | null = null;
@@ -67,7 +99,8 @@ export class SettingsScreen implements IScreen {
         this.rootEl.innerHTML = `
             <header class="bt-settings-header">
                 <button class="bt-settings-back" type="button" aria-label="${t('common.back')}">
-                    <span aria-hidden="true">←</span>
+                    <span class="bt-settings-back-arrow" aria-hidden="true">←</span>
+                    <span class="bt-settings-back-label">${t('common.back')}</span>
                 </button>
                 <h2 class="bt-settings-title">${t('settings.title')}</h2>
             </header>
@@ -121,7 +154,7 @@ export class SettingsScreen implements IScreen {
                             data-lang="pl"
                             type="button"
                         >
-                            <span class="bt-settings-flag" aria-hidden="true">🇵🇱</span>
+                            <span class="bt-settings-flag" aria-hidden="true">${FLAG_SVG_PL}</span>
                             ${t('settings.language.pl')}
                         </button>
                         <button
@@ -129,7 +162,7 @@ export class SettingsScreen implements IScreen {
                             data-lang="en"
                             type="button"
                         >
-                            <span class="bt-settings-flag" aria-hidden="true">🇬🇧</span>
+                            <span class="bt-settings-flag" aria-hidden="true">${FLAG_SVG_GB}</span>
                             ${t('settings.language.en')}
                         </button>
                     </div>

@@ -1,8 +1,11 @@
 /**
- * Polskie tlumaczenia — BEZ ZNAKOW DIAKRYTYCZNYCH.
+ * Polskie tlumaczenia.
+ *
+ * v0.27.0+: PL diacritics ODBLOKOWANE (Titan One Latin Extended supports).
+ * Nowe stringi moga uzywac ąćęłńóśźż. Pre-v0.27.0 stringi stopniowo migrowane
+ * per-fix/feature, nie hurtem.
  *
  * Reguly:
- * - Nigdy a/c/e/l/n/o/s/z/z (ani uppercase).
  * - Polszczyzna sensowna, gramatyka zachowana.
  * - Klucze hierarchiczne: 'sekcja.element.wariant'.
  * - Parametry w wartoiach: {nazwaParametru} (substytuowane przez t() w runtime).
@@ -102,7 +105,7 @@ export const pl = {
     'map.arctic.tagline': 'Lodowa pustynia',
 
     // ============================================================
-    // Difficulty levels (v0.24.0: PL labels translated, dorzucone KOSZMAR)
+    // Difficulty levels
     // ============================================================
     'difficulty.easy.label': 'LATWY',
     'difficulty.easy.desc': 'Mniej wrogów, słabszy boss',
@@ -117,7 +120,7 @@ export const pl = {
     'difficulty.nightmare.desc': 'Tylko dla najlepszych!',
 
     // ============================================================
-    // Brawler display names (v0.24.0: i18n per brawler id)
+    // Brawler display names
     // ============================================================
     'brawler.twardy.name': 'TWARDY',
     'brawler.heavy.name': 'PANCERNY',
@@ -129,7 +132,7 @@ export const pl = {
     'brawler.king.name': 'KING',
 
     // ============================================================
-    // Settings (stub — FAZA 8 wypelni)
+    // Settings (v0.42.0 FAZA 8a finalize)
     // ============================================================
     'settings.title': 'Ustawienia',
     'settings.audio': 'Dźwięk',
@@ -140,7 +143,7 @@ export const pl = {
     'settings.language.pl': 'Polski',
     'settings.language.en': 'English',
     'settings.graphics': 'Grafika',
-    'settings.comingSoon': 'Wkrótce dostepne',
+    'settings.comingSoon': 'Wkrótce dostępne',
 
     // ============================================================
     // Errors / Validation
@@ -150,7 +153,7 @@ export const pl = {
     'error.audioLoad': 'Nie udało się załadować dźwięku',
 
     // ============================================================
-    // Notifications / In-game HUD (rozbudowywane w FAZIE 6b+)
+    // Notifications / In-game HUD
     // ============================================================
     'notif.superCharge': '+{count} SUPER STRZAŁY!',
     'notif.megaBoss': 'UWAGA: MEGA BOSS!',
@@ -186,14 +189,11 @@ export const pl = {
 
     'profile.flag.pl': 'Polska',
     'profile.flag.fr': 'Francja',
-    'profile.flag.it': 'Wlochy',
+    'profile.flag.it': 'Włochy',
     'profile.flag.de': 'Niemcy',
 
     // ──────────────────────────────────────────────────────────
-    // HUD (v0.27.0 FAZA F-fix3 + Wariant A renaming)
-    // hud.score = WYNIK (centralny pill, sumuje punkty za zabicia)
-    // hud.kills = ZABICI (prawy pill z 💀, liczba zabitych wrogow)
-    // hud.gems = GEMY (lewy pill, zebrane gemy → super charges)
+    // HUD
     // ──────────────────────────────────────────────────────────
     'hud.hp': 'HP',
     'hud.score': 'WYNIK',

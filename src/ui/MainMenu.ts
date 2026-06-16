@@ -12,6 +12,13 @@
  * v0.24.0 FAZA 8a update:
  * - Dorzucone 'settings' do ScreenId union
  * - createSettingsScreen() factory — SettingsScreen z onBack callback wracajacym do 'hub'
+ *
+ * v0.42.0 FAZA 8a hub-music expansion:
+ * - start() → audio.startIntroMusic() (zaraz przed show('intro'))
+ *   Autoplay-policy fallback handled w AudioSys (one-shot gesture listener)
+ * - createIntroScreen onStartClick → audio.startHubMusic() PRZED show('hub'|'identity')
+ *   Hub music gra przez wszystkie menu screens: identity → hub → pickers → settings
+ * - Audio sterowane z poziomu orchestratora (MainMenu), nie ze screenów — clean separation
  */
 
 import { IntroScreen } from './IntroScreen';
@@ -25,6 +32,7 @@ import { ProfileService } from '../services/ProfileService';
 import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/GameConfig';
 import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
+import { AudioSys } from '../audio/AudioSys';
 
 // ============================================================
 // Types
@@ -92,8 +100,16 @@ export class MainMenu {
         this.rootEl.appendChild(this.containerEl);
     }
 
-    /** Bootstrap — pokaz intro screen. Wywolac raz przy starcie aplikacji. */
+    /**
+     * Bootstrap — pokaz intro screen. Wywolac raz przy starcie aplikacji.
+     * v0.42.0: startuje intro music przed pokazaniem splash screen.
+     * Autoplay-policy fallback handled w AudioSys (one-shot gesture listener).
+     */
     async start(): Promise<void> {
+        // v0.42.0: intro music start (best-effort; if blocked by autoplay policy,
+        // AudioSys instala one-shot gesture listener i uruchomi na pierwszy klik/keydown)
+        AudioSys.getInstance().startIntroMusic();
+
         await this.show('intro');
     }
 
@@ -193,6 +209,11 @@ export class MainMenu {
     private createIntroScreen(): IScreen {
         const screen = new IntroScreen();
         screen.onStartClick = () => {
+            // v0.42.0: klik START = transition od intro music do hub music.
+            // Hub music gra przez WSZYSTKIE pozostałe menu screens (identity → hub → pickers → settings).
+            // startHubMusic() stopuje intro automatically (jeden music track w danym momencie).
+            AudioSys.getInstance().startHubMusic();
+
             // FAZA 7b: on first launch, route to IdentityScreen before MainHub
             if (ProfileService.needsOnboarding()) {
                 this.show('identity');

@@ -423,8 +423,18 @@ export const TROPICS_CRATES_LAYOUT: Array<{ x: number, y: number, seed: number }
 /** FAZA T8 — Drzewa (skupiska). Pusty w T1. */
 export const TROPICS_TREE_CLUSTERS_LAYOUT: Array<{ x: number, y: number, count: number, types: Array<'birch' | 'lime' | 'pine'>, seed: number }> = [];
 
-/** FAZA T9 — Stajnia + zagroda + konie. Pusty w T1. */
-export const TROPICS_STABLE_LAYOUT: { x: number, y: number, paddockW: number, paddockH: number, horseCount: number, seed: number } | null = null;
+/** FAZA T9 — Stajnia + zagroda + konie. T9.0: positions defined. */
+export const TROPICS_STABLE_LAYOUT: {
+    stableX: number; stableY: number;
+    paddockX: number; paddockY: number;
+    horseCount: number;
+    seed: number;
+} | null = {
+    stableX: 350, stableY: 580,    // NORTH (stajnia)
+    paddockX: 350, paddockY: 820,  // SOUTH (paddock), 40px gap
+    horseCount: 3,                  // 3 konie (T9.1 spawn)
+    seed: 911,
+};
 
 /** FAZA T10 — Stawy rybne + walecki siana. Puste w T1. */
 export const TROPICS_FISH_PONDS_LAYOUT: Array<{ x: number, y: number, w: number, h: number, seed: number }> = [];

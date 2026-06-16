@@ -23,6 +23,7 @@ import {
     buildTropicsTexture,
     TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
     TROPICS_PATROL_WAYPOINTS,
+    TROPICS_STABLE_LAYOUT,
     TROPICS_CORN_LAYOUT,
     TROPICS_DIRT_ROAD_PATHS,
     TROPICS_FARM_BUILDINGS_LAYOUT,
@@ -43,6 +44,9 @@ import { Cowshed } from './maps/tropics/Cowshed';
 import { CountryHouse, PALETTE_TEAL, PALETTE_YELLOW, PALETTE_PINK, type CottagePalette } from './maps/tropics/CountryHouse';
 import { Windmill } from './maps/tropics/Windmill';
 import { PatrolTractor } from './maps/tropics/PatrolTractor';
+import { Stable } from './maps/tropics/Stable';
+import { Paddock } from './maps/tropics/Paddock';
+import { Horse, type HorsePaletteType } from './maps/tropics/Horse';
 import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
@@ -126,6 +130,9 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
 let patrolTractor: PatrolTractor | null = null;
+let stable: Stable | null = null;
+let paddock: Paddock | null = null;
+let horses: Horse[] = [];
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
 let farmFields: IFarmField[] = [];  // v0.36.0 T7.1: generic farm fields (corn + sugarcane + lettuce + pasture)
@@ -458,6 +465,9 @@ function startGame(config: GameConfig): void {
     sandstormBorder = null;
     tropicalBorder = null;
     patrolTractor = null;
+    stable = null;
+    paddock = null;
+    horses = [];
     quicksands = [];
     oases = [];
     farmFields = [];
@@ -688,6 +698,59 @@ function startGame(config: GameConfig): void {
         // 4-waypoint route (N + E + S + W junctions), pauzy 3-5s na każdym
         // NIE blokuje player (ambient visual), dynamic Y-sort z player
         patrolTractor = new PatrolTractor(TROPICS_PATROL_WAYPOINTS, worldContainer);
+
+        // v0.40.0 T9.0: Stable + Paddock (AAA premium)
+        // Stable NORTH (350, 580) + Paddock SOUTH (350, 820), gap 40px
+        // Collision: stable (1 rect) + paddock fence (5 rects)
+        if (TROPICS_STABLE_LAYOUT) {
+            stable = new Stable(TROPICS_STABLE_LAYOUT.stableX, TROPICS_STABLE_LAYOUT.stableY, worldContainer);
+            buildings.push(stable.getCollisionRect());
+            solidBuildings.push(stable.getCollisionRect());
+
+            paddock = new Paddock(TROPICS_STABLE_LAYOUT.paddockX, TROPICS_STABLE_LAYOUT.paddockY, worldContainer);
+            const paddockRects = paddock.getCollisionRects();
+            buildings.push(...paddockRects);
+            solidBuildings.push(...paddockRects);
+
+            // v0.41.4 T9.1: Spawn 3 horses (chestnut + gray + black palettes) w paddock
+            // Defensive try/catch — log error to console jeśli spawn lub update kiedyś crashował
+            try {
+                const stableDoor = {
+                    x: stable.x + stable.w / 2,
+                    y: stable.y + stable.h - 8,
+                };
+                const paddockBounds = {
+                    x: paddock.x + 20,
+                    y: paddock.y + 20,
+                    w: paddock.w - 40,
+                    h: paddock.h - 40,
+                };
+                const palettes: HorsePaletteType[] = ['chestnut', 'gray', 'black'];
+                const horseSpawnPositions = [
+                    { x: paddock.x + paddock.w * 0.30, y: paddock.y + paddock.h * 0.40 },
+                    { x: paddock.x + paddock.w * 0.65, y: paddock.y + paddock.h * 0.55 },
+                    { x: paddock.x + paddock.w * 0.45, y: paddock.y + paddock.h * 0.75 },
+                ];
+                for (let i = 0; i < 3; i++) {
+                    try {
+                        const horse = new Horse(
+                            horseSpawnPositions[i].x,
+                            horseSpawnPositions[i].y,
+                            palettes[i],
+                            stableDoor,
+                            paddockBounds,
+                            worldContainer,
+                        );
+                        horse.state = 'idle_paddock';
+                        horses.push(horse);
+                    } catch (err) {
+                        console.error('[T9.1] Failed spawn ' + palettes[i] + ':', err);
+                    }
+                }
+            } catch (err) {
+                console.error('[T9.1] Horse setup error:', err);
+            }
+        }
     }
 
     effects = new EffectsManager(worldContainer);
@@ -942,6 +1005,15 @@ app.ticker.add((delta) => {
     if (sandstormBorder) sandstormBorder.update();
     if (tropicalBorder) tropicalBorder.update();
     if (patrolTractor) patrolTractor.update();
+    if (stable) {
+        try { stable.update(); } catch (err) { console.error('[T9.0] Stable update:', err); }
+    }
+    if (paddock) {
+        try { paddock.update(); } catch (err) { console.error('[T9.0] Paddock update:', err); }
+    }
+    for (const h of horses) {
+        try { h.update(); } catch (err) { console.error('[T9.1] Horse ' + h.paletteType + ' update:', err); }
+    }
 
     if (caravan) {
         const drop = caravan.update(delta);

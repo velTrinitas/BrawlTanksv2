@@ -71,6 +71,7 @@ import { EnemyBullet } from './entities/EnemyBullet';
 import { Heart } from './entities/pickups/Heart';
 import { Gem } from './entities/pickups/Gem';
 import { Magnet } from './entities/pickups/Magnet';
+import { PowerCube } from './entities/pickups/PowerCube'; // v0.44.0 FAZA 8.6
 import { HoverRepairPad } from './maps/HoverRepairPad';
 import { PowerHoverPad } from './maps/PowerHoverPad';
 import { HUD } from './rendering/HUD';
@@ -82,7 +83,11 @@ import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
-import { GameSession } from './services/GameSession';
+import {
+    GameSession,
+    MAX_POWERCUBES_PER_MATCH,
+    POWERCUBE_HP_BONUS_PER_PICKUP,
+} from './services/GameSession';
 import { scoreService } from './services/ScoreService';
 import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
@@ -109,6 +114,10 @@ const OASIS_STEALTH_DURATION_MS = 10000;
 const MOBILE_WORLD_ZOOM = 0.7;
 const DESKTOP_WORLD_ZOOM = 1.0;
 
+// v0.44.0 FAZA 8.6: PowerCube drop chance dla regular enemies
+// Boss = 100% gwarantowany cube (jesli pod capem MAX_POWERCUBES_PER_MATCH)
+const POWERCUBE_REGULAR_DROP_CHANCE = 0.30;
+
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
@@ -121,6 +130,7 @@ let enemyBullets: EnemyBullet[] = [];
 let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
+let powerCubes: PowerCube[] = []; // v0.44.0 FAZA 8.6
 let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad> = [];
 let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad> = [];
 let river: RiverNile | null = null;
@@ -320,7 +330,7 @@ function tryActivateSuper(): void {
             if (killed) {
                 spawnSystem!.registerKill(enemy);
                 currentSession.score += enemy.scoreValue;
-                dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+                handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
                 if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
             }
         }
@@ -399,6 +409,51 @@ function dropGems(x: number, y: number, count: number): void {
     for (let i = 0; i < count; i++) {
         gems.push(new Gem(x, y, worldContainer));
     }
+}
+
+/**
+ * v0.44.0 FAZA 8.6: handle enemy drop — cube vs gems decision logic (port z v4.48).
+ *
+ * - Megaboss: tylko gemy (i tak victory, cube nieprzyda się)
+ * - Boss: pełna pula gemów + gwarantowany cube (jeśli pod capem MAX_POWERCUBES_PER_MATCH)
+ * - Regular: 30% cube / 70% gem (lub 100% gem jeśli cap reached)
+ */
+function handleEnemyDrop(enemy: Enemy): void {
+    if (!currentSession) return;
+
+    const canSpawnCube = currentSession.cubesTotal < MAX_POWERCUBES_PER_MATCH;
+
+    if (enemy.isMegaBoss) {
+        dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+        return;
+    }
+
+    if (enemy.isBoss) {
+        dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+        if (canSpawnCube) {
+            powerCubes.push(new PowerCube(enemy.x + 20, enemy.y, worldContainer));
+        }
+        return;
+    }
+
+    // Regular enemy
+    if (canSpawnCube && Math.random() < POWERCUBE_REGULAR_DROP_CHANCE) {
+        powerCubes.push(new PowerCube(enemy.x, enemy.y, worldContainer));
+    } else {
+        dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+    }
+}
+
+/**
+ * v0.44.0 FAZA 8.6: attach onCubeStolen callback do nowo zespawnowanego enemy.
+ * Wywolywany gdy enemy kradnie cube -> spawn FloatingText "Cube skradziony!".
+ */
+function attachEnemyCubeStolenCallback(enemy: Enemy): void {
+    enemy.onCubeStolen = (cubeX: number, cubeY: number) => {
+        if (effects) {
+            effects.spawnFloatingText(cubeX, cubeY - 20, t('pickup.cubeStolen'), 0xff8c00);
+        }
+    };
 }
 
 function startGame(config: GameConfig): void {
@@ -720,6 +775,7 @@ function startGame(config: GameConfig): void {
     hearts = [];
     gems = [];
     magnets = [];
+    powerCubes = []; // v0.44.0 FAZA 8.6 reset
     isMouseDown = false;
     gameState = 'PLAYING';
 
@@ -749,13 +805,23 @@ async function triggerGameOver(): Promise<void> {
 
     const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
     const finalScore = currentSession?.score ?? 0;
+    const cubesTotal = currentSession?.cubesTotal ?? 0;
+    const dmgBonusPct = Math.round((currentSession?.dmgBonus ?? 0) * 100);
+    const hpCubesPicked = currentSession?.hpCubesPicked ?? 0;
     const statsEl = document.getElementById('gameOverStats')!;
+
+    // v0.44.0 FAZA 8.6: PowerCube stats line (Q4 C: NIE w HUD, tylko post-game)
+    const cubesLine = cubesTotal > 0
+        ? `<div>🟦 PowerCube'y: <b>${cubesTotal}</b>${dmgBonusPct > 0 ? ` (+${dmgBonusPct}% DMG)` : ''}${hpCubesPicked > 0 ? ` (+${(hpCubesPicked * 0.25).toFixed(2)} HP)` : ''}</div>`
+        : '';
+
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
         <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
             <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
             <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
         </div>
+        ${cubesLine}
         <div>⭐ Punkty: <b>${finalScore}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów zabitych: <b>${spawnSystem?.bossKills ?? 0}</b></div>
@@ -782,13 +848,23 @@ async function triggerVictory(): Promise<void> {
 
     const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
     const finalScore = currentSession?.score ?? 0;
+    const cubesTotal = currentSession?.cubesTotal ?? 0;
+    const dmgBonusPct = Math.round((currentSession?.dmgBonus ?? 0) * 100);
+    const hpCubesPicked = currentSession?.hpCubesPicked ?? 0;
     const statsEl = document.getElementById('victoryStats')!;
+
+    // v0.44.0 FAZA 8.6: PowerCube stats line (Q4 C)
+    const cubesLine = cubesTotal > 0
+        ? `<div>🟦 PowerCube'y: <b>${cubesTotal}</b>${dmgBonusPct > 0 ? ` (+${dmgBonusPct}% DMG)` : ''}${hpCubesPicked > 0 ? ` (+${(hpCubesPicked * 0.25).toFixed(2)} HP)` : ''}</div>`
+        : '';
+
     statsEl.innerHTML = `
         <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
         <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
             <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
             <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
         </div>
+        ${cubesLine}
         <div>⭐ Punkty: <b>${finalScore}</b></div>
         <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
         <div>👑 Bossów: <b>${spawnSystem?.bossKills ?? 0}</b></div>
@@ -1037,6 +1113,45 @@ app.ticker.add((delta) => {
         }
     }
 
+    // === v0.44.0 FAZA 8.6: PowerCubes pickup loop ===
+    for (let i = powerCubes.length - 1; i >= 0; i--) {
+        const pc = powerCubes[i];
+        pc.update(delta);
+
+        // Cube ukradziony przez enemy (Enemy.tryStealCube ustawia active=false)
+        if (!pc.active) {
+            pc.destroy();
+            powerCubes.splice(i, 1);
+            continue;
+        }
+
+        // Player pickup collision
+        const dx = player.x - pc.x, dy = player.y - pc.y;
+        const touchR = 22 + pc.radius; // player coll ~22 + cube radius 20 = 42px
+        if (dx * dx + dy * dy < touchR * touchR) {
+            const type = pc.type;
+            currentSession.registerCubePickup(type);
+
+            // FloatingText feedback (literal t() calls dla TypeScript type safety)
+            const isDmg = type === 'dmg';
+            const color = isDmg ? 0xe74c3c : 0x2980b9;
+            const labelText = isDmg ? t('pickup.dmgUp') : t('pickup.hpUp');
+            effects.spawnFloatingText(player.x, player.y - 30, labelText, color);
+
+            // HP variant: heal + maxHp grow (port z v4.48)
+            if (type === 'hp') {
+                player.maxHp += POWERCUBE_HP_BONUS_PER_PICKUP;
+                player.hp = Math.min(player.maxHp, player.hp + POWERCUBE_HP_BONUS_PER_PICKUP);
+            }
+
+            effects.spawnEnemyHitSparks(player.x, player.y, color);
+            audio.playGemPickup();
+
+            pc.destroy();
+            powerCubes.splice(i, 1);
+        }
+    }
+
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
         const angle = player.turret.rotation;
@@ -1054,15 +1169,27 @@ app.ticker.add((delta) => {
 
         audio.playShoot(player.brawler.id);
 
+        // v0.44.0 FAZA 8.6: apply dmgBonus z PowerCubes do każdego bullet
+        const dmgMultiplier = 1 + currentSession.dmgBonus;
+
         if (player.brawler.type === 'spread') {
-            bullets.push(new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot));
-            bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
-            bullets.push(new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer, isSuperShot));
+            const b1 = new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot);
+            const b2 = new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot);
+            const b3 = new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer, isSuperShot);
+            b1.dmg *= dmgMultiplier;
+            b2.dmg *= dmgMultiplier;
+            b3.dmg *= dmgMultiplier;
+            bullets.push(b1, b2, b3);
         } else {
-            bullets.push(new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot));
+            const b = new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot);
+            b.dmg *= dmgMultiplier;
+            bullets.push(b);
             if (isSuperShot) {
-                bullets.push(new Bullet(sX, sY, angle - 0.1, player.brawler, worldContainer, isSuperShot));
-                bullets.push(new Bullet(sX, sY, angle + 0.1, player.brawler, worldContainer, isSuperShot));
+                const b1 = new Bullet(sX, sY, angle - 0.1, player.brawler, worldContainer, isSuperShot);
+                const b2 = new Bullet(sX, sY, angle + 0.1, player.brawler, worldContainer, isSuperShot);
+                b1.dmg *= dmgMultiplier;
+                b2.dmg *= dmgMultiplier;
+                bullets.push(b1, b2);
             }
         }
         lastShotTime = now;
@@ -1096,6 +1223,10 @@ app.ticker.add((delta) => {
     }
 
     const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
+    // v0.44.0 FAZA 8.6: attach cube stolen callback do nowo zespawnowanych enemies
+    for (const newEnemy of spawnResult.newEnemies) {
+        attachEnemyCubeStolenCallback(newEnemy);
+    }
     enemies.push(...spawnResult.newEnemies);
     hearts.push(...spawnResult.newHearts);
     magnets.push(...spawnResult.newMagnets);
@@ -1109,7 +1240,8 @@ app.ticker.add((delta) => {
 
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-        const shotInfo = enemy.update(delta, player.x, player.y, buildings);
+        // v0.44.0 FAZA 8.6: pass powerCubes do AI (stealing logic)
+        const shotInfo = enemy.update(delta, player.x, player.y, buildings, powerCubes);
         if (shotInfo) spawnEnemyShot(shotInfo);
 
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
@@ -1120,7 +1252,7 @@ app.ticker.add((delta) => {
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
                 audio.playExplosion();
-                dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+                handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
                 currentSession.score += enemy.scoreValue;
@@ -1149,7 +1281,7 @@ app.ticker.add((delta) => {
                     audio.playExplosion();
                     spawnSystem.registerKill(enemy);
                     currentSession.score += enemy.scoreValue;
-                    dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
+                    handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
 
                     const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);

@@ -2,17 +2,19 @@ import * as PIXI from 'pixi.js';
 
 /**
  * Effects Manager — centralny system dla wszystkich efektów wizualnych.
- * 
+ *
  * Architektura:
  * - particleContainer: PIXI.ParticleContainer (10× szybsze niż zwykły Container, 1 draw call)
  * - wreckContainer: PIXI.Container dla wraków (potrzebują indywidualnego z-index)
  * - trackContainer: PIXI.Container dla śladów gąsienic
- * 
+ * - floatingTextContainer: PIXI.Container dla world-space pill toasts (v0.44.0 FAZA 8.6)
+ *
  * Wszystkie particles używają jednego sprite z pre-renderowanej tekstury (cache).
- * Pool size: ~500 particles, ~100 track marks aktywnych jednocześnie.
- * 
+ * Pool size: ~500 particles, ~100 track marks, ~20 floating texts aktywnych jednocześnie.
+ *
  * v0.5 Etap 1: dodane spawnMegaBomb + spawnFreezeOverlay dla super powers.
  * v0.18.5 FAZA 5a: dodane spawnSandKick dla pustyni (cząstki piasku za gąsienicami).
+ * v0.44.0 FAZA 8.6: dodane spawnFloatingText (world-space pill toasts, port z v4.48 FloatingText class).
  */
 
 interface Particle {
@@ -37,6 +39,29 @@ interface Wreck {
     timer: number;
     x: number;
     y: number;
+}
+
+/**
+ * v0.44.0 FAZA 8.6: pooled world-space floating text (port z v4.48 FloatingText class).
+ *
+ * Visual:
+ * - Pill background (rounded rect 22px height, padding-aware width)
+ * - Colored accent bar 4px na lewej krawędzi
+ * - Text: bold 15px Titan One/sans-serif, white fill + black stroke
+ *
+ * Animation:
+ * - vy starts -1.6 (float up), decelerated *0.93 per frame
+ * - life starts 1.0, decays 0.0275 per frame (~36 frames lifetime)
+ * - alpha = min(1, life * 2) → fade out in last ~50% of lifetime
+ */
+interface FloatingTextItem {
+    container: PIXI.Container;
+    bgGfx: PIXI.Graphics;
+    accentGfx: PIXI.Graphics;
+    text: PIXI.Text;
+    vy: number;
+    life: number;
+    active: boolean;
 }
 
 let _particleTexture: PIXI.Texture | null = null;
@@ -96,24 +121,26 @@ export class EffectsManager {
     public particleContainer: PIXI.ParticleContainer;
     public wreckContainer: PIXI.Container;
     public trackContainer: PIXI.Container;
-    
+    public floatingTextContainer: PIXI.Container;
+
     /** v0.5 Etap 1: public access needed by spawnMegaBomb / spawnFreezeOverlay */
     public worldContainer: PIXI.Container;
-    
+
     // Pools
     private particles: Particle[] = [];
     private trackMarks: TrackMark[] = [];
     private wrecks: Wreck[] = [];
-    
+    private floatingTexts: FloatingTextItem[] = [];
+
     // Screen shake state
     private shakeIntensity: number = 0;
     private shakeDuration: number = 0;
     public shakeOffsetX: number = 0;
     public shakeOffsetY: number = 0;
-    
+
     constructor(worldContainer: PIXI.Container) {
         this.worldContainer = worldContainer;
-        
+
         this.particleContainer = new PIXI.ParticleContainer(1000, {
             scale: true,
             position: true,
@@ -123,18 +150,24 @@ export class EffectsManager {
             tint: true,
         });
         this.particleContainer.zIndex = 500;
-        
+
         this.wreckContainer = new PIXI.Container();
         this.wreckContainer.sortableChildren = true;
-        
+
         this.trackContainer = new PIXI.Container();
         this.trackContainer.zIndex = -50;
-        
+
+        // v0.44.0 FAZA 8.6: floating text container above everything
+        this.floatingTextContainer = new PIXI.Container();
+        this.floatingTextContainer.zIndex = 600;
+        this.floatingTextContainer.sortableChildren = false;
+
         worldContainer.addChild(this.trackContainer);
         worldContainer.addChild(this.wreckContainer);
         worldContainer.addChild(this.particleContainer);
+        worldContainer.addChild(this.floatingTextContainer);
     }
-    
+
     private getParticle(): Particle {
         for (const p of this.particles) {
             if (!p.active) {
@@ -157,7 +190,7 @@ export class EffectsManager {
         this.particles.push(p);
         return p;
     }
-    
+
     private spawnParticles(x: number, y: number, color: number, count: number, opts: {
         speed?: number;
         size?: number;
@@ -172,7 +205,7 @@ export class EffectsManager {
         const scaleDecay = opts.scaleDecay ?? 0;
         const spread = opts.spread ?? 1.0;
         const baseAngle = opts.baseAngle ?? 0;
-        
+
         for (let i = 0; i < count; i++) {
             const p = this.getParticle();
             const angle = baseAngle + (Math.random() - 0.5) * Math.PI * 2 * spread;
@@ -189,11 +222,11 @@ export class EffectsManager {
             p.scaleDecay = scaleDecay;
         }
     }
-    
+
     // ==========================================
     // PUBLIC API — efekty z listy gracza
     // ==========================================
-    
+
     spawnMuzzleFlash(x: number, y: number, angle: number): void {
         this.spawnParticles(x, y, 0xffee44, 5, {
             speed: 6, size: 3, decay: 0.12,
@@ -211,7 +244,7 @@ export class EffectsManager {
         p.decay = 0.20;
         p.scaleDecay = 0.15;
     }
-    
+
     spawnEnemyHitSparks(x: number, y: number, color: number): void {
         this.spawnParticles(x, y, color, 8, {
             speed: 5, size: 2, decay: 0.08,
@@ -220,7 +253,7 @@ export class EffectsManager {
             speed: 7, size: 1.5, decay: 0.15,
         });
     }
-    
+
     spawnWallImpact(x: number, y: number): void {
         this.spawnParticles(x, y, 0x888888, 6, {
             speed: 3.5, size: 2, decay: 0.06,
@@ -233,24 +266,20 @@ export class EffectsManager {
 
     /** v0.34.0 T7: Wood splinters dla crate hits + destruction */
     spawnWoodSplinters(x: number, y: number, count: number = 14): void {
-        // Light pine surface chips (~40%)
         this.spawnParticles(x, y, 0xd4a878, Math.max(1, Math.floor(count * 0.4)), {
             speed: 5, size: 2, decay: 0.05, scaleDecay: 0.015, spread: 1.0,
         });
-        // Medium wood tone splinters (~35%)
         this.spawnParticles(x, y, 0xa07840, Math.max(1, Math.floor(count * 0.35)), {
             speed: 6, size: 1.7, decay: 0.06, scaleDecay: 0.02, spread: 1.0,
         });
-        // Dark wood deep splinters (~25%)
         this.spawnParticles(x, y, 0x6e4a20, Math.max(1, Math.floor(count * 0.25)), {
             speed: 7, size: 1.3, decay: 0.07, scaleDecay: 0.025, spread: 1.0,
         });
-        // Dust puff (white-ish, small subtle haze)
         this.spawnParticles(x, y, 0xefe8d0, Math.max(1, Math.floor(count * 0.15)), {
             speed: 2.5, size: 3, decay: 0.04, scaleDecay: 0.03,
         });
     }
-    
+
     spawnExplosionAndWreck(x: number, y: number, color: number): void {
         this.spawnParticles(x, y, 0xff8800, 15, {
             speed: 6, size: 4, decay: 0.05,
@@ -273,11 +302,11 @@ export class EffectsManager {
         flash.life = 1.0;
         flash.decay = 0.10;
         flash.scaleDecay = 0.30;
-        
+
         this.spawnWreck(x, y);
         this.shake(8, 12);
     }
-    
+
     private spawnWreck(x: number, y: number): void {
         const sprite = new PIXI.Sprite(getWreckTexture());
         sprite.anchor.set(0.5);
@@ -286,7 +315,7 @@ export class EffectsManager {
         sprite.rotation = Math.random() * Math.PI * 2;
         sprite.zIndex = y + 5;
         this.wreckContainer.addChild(sprite);
-        
+
         const flames: PIXI.Sprite[] = [];
         for (let i = 0; i < 2; i++) {
             const flame = new PIXI.Sprite(getParticleTexture());
@@ -299,7 +328,7 @@ export class EffectsManager {
             this.particleContainer.addChild(flame);
             flames.push(flame);
         }
-        
+
         this.wrecks.push({
             sprite,
             flameSprites: flames,
@@ -307,7 +336,7 @@ export class EffectsManager {
             x, y,
         });
     }
-    
+
     spawnTrackMark(x: number, y: number, angle: number): void {
         let tm: TrackMark | null = null;
         for (const t of this.trackMarks) {
@@ -331,18 +360,18 @@ export class EffectsManager {
         tm.sprite.alpha = 0.7;
         tm.alpha = 0.7;
     }
-    
+
     shake(intensity: number, duration: number): void {
         if (intensity > this.shakeIntensity) {
             this.shakeIntensity = intensity;
             this.shakeDuration = duration;
         }
     }
-    
+
     // ==========================================
     // v0.5 Etap 1 — NOWE METODY (Super Powers)
     // ==========================================
-    
+
     spawnMegaBomb(x: number, y: number): void {
         const flash = this.getParticle();
         flash.sprite.x = x;
@@ -355,13 +384,13 @@ export class EffectsManager {
         flash.life = 1.0;
         flash.decay = 0.06;
         flash.scaleDecay = 0.45;
-        
+
         const ring = new PIXI.Graphics();
         ring.x = x;
         ring.y = y;
         ring.zIndex = 499;
         this.worldContainer.addChild(ring);
-        
+
         this.spawnParticles(x, y, 0xff4400, 20, {
             speed: 7, size: 4, decay: 0.05,
             scaleDecay: 0.02,
@@ -370,32 +399,32 @@ export class EffectsManager {
             speed: 5, size: 3, decay: 0.07,
             scaleDecay: 0.03,
         });
-        
+
         this.shake(15, 25);
-        
+
         let frame = 0;
         const animate = () => {
             frame++;
             const t = frame / 30;
-            
+
             if (t >= 1) {
                 if (ring.parent) ring.parent.removeChild(ring);
                 ring.destroy();
                 return;
             }
-            
+
             const radius = 50 + (200 * t);
             ring.clear();
             ring.lineStyle(8 - t * 6, 0xff4400, 1 - t);
             ring.drawCircle(0, 0, radius);
             ring.lineStyle(4 - t * 3, 0xffaa00, 1 - t);
             ring.drawCircle(0, 0, radius - 6);
-            
+
             requestAnimationFrame(animate);
         };
         animate();
     }
-    
+
     spawnFreezeOverlay(durationFrames: number): void {
         const overlay = new PIXI.Graphics();
         overlay.beginFill(0x66ddff, 0.18);
@@ -403,7 +432,7 @@ export class EffectsManager {
         overlay.endFill();
         overlay.zIndex = 9999;
         this.worldContainer.addChild(overlay);
-        
+
         let frame = 0;
         const animate = () => {
             frame++;
@@ -420,83 +449,148 @@ export class EffectsManager {
         };
         animate();
     }
-    
+
     // ==========================================
     // v0.18.5 FAZA 5a — SAND KICK PARTICLES (DESERT MAP)
     // ==========================================
-    
-    /**
-     * Cząstki piasku rozlatujące się za gąsienicami czołgu podczas jazdy po pustyni.
-     * 
-     * @param x — Player.x (center czołgu)
-     * @param y — Player.y
-     * @param tankAngle — Player.hull.rotation (kierunek jazdy, +X = right)
-     * @param intensity — multiplier (1.0 normal, 1.6 turbo boost) — wpływa na count + speed
-     * 
-     * Implementacja:
-     * - 2 spawn point'y za tankiem (lewa + prawa gąsienica), offset 28px wstecz + ±10px sideways
-     * - 2-3 cząstki per gąsienica (× intensity) = 4-6 (normal) lub 6-10 (turbo) total
-     * - Velocity outward "do tyłu" względem kierunku jazdy + lekki spread sideways
-     * - Random tint z piaskowej palety (6 odcieni)
-     * - Drag system (vx*=0.92 per frame) → naturalne wytracanie pędu
-     * - decay 0.04 → ~25 frame lifetime
-     * - scaleDecay 0.04 → cząstki kurczą się wraz z fade
-     */
+
     spawnSandKick(x: number, y: number, tankAngle: number, intensity: number = 1.0): void {
-        // Kierunek "do tyłu" (przeciwnie do kierunku jazdy)
         const rearDirX = -Math.cos(tankAngle);
         const rearDirY = -Math.sin(tankAngle);
-        // Prostopadle do kierunku (dla left/right track separation)
         const perpX = -Math.sin(tankAngle);
         const perpY = Math.cos(tankAngle);
-        
-        const REAR_OFFSET = 28;      // ile px za centrum tankiem
-        const TRACK_SEPARATION = 10; // ile px sideways między lewym a prawym track
-        
-        // Velocity points "do tyłu" względem ruchu (~PI radians od tankAngle)
+
+        const REAR_OFFSET = 28;
+        const TRACK_SEPARATION = 10;
+
         const baseRearAngle = tankAngle + Math.PI;
-        
-        // Per-track spawn: 2 cząstki normal, 3 cząstki w turbo (per track)
+
         const particlesPerTrack = intensity > 1.2 ? 3 : 2;
-        
+
         for (const trackSide of [-1, 1]) {
             const spawnX = x + rearDirX * REAR_OFFSET + perpX * trackSide * TRACK_SEPARATION;
             const spawnY = y + rearDirY * REAR_OFFSET + perpY * trackSide * TRACK_SEPARATION;
-            
+
             for (let i = 0; i < particlesPerTrack; i++) {
                 const p = this.getParticle();
-                
-                // Random color z palette
                 const color = SAND_KICK_COLORS[Math.floor(Math.random() * SAND_KICK_COLORS.length)];
-                
-                // Velocity: kierunek "do tyłu" + spread ±0.5 rad (~30°)
-                // + side bias: cząstki z lewego tracku lecą lekko bardziej w lewo, prawego — w prawo
+
                 const sideBias = trackSide * 0.3;
                 const angle = baseRearAngle + (Math.random() - 0.5) * 1.0 + sideBias;
                 const speed = (2.0 + Math.random() * 2.0) * intensity;
-                
-                // Random initial position jitter (±3px wokół spawn point — symuluje "kop" całej gąsienicy nie pojedynczego punktu)
+
                 const jitterX = (Math.random() - 0.5) * 6;
                 const jitterY = (Math.random() - 0.5) * 6;
-                
+
                 p.sprite.x = spawnX + jitterX;
                 p.sprite.y = spawnY + jitterY;
                 p.sprite.tint = color;
-                p.sprite.scale.set(1.5 + Math.random() * 1.0);  // 1.5-2.5
+                p.sprite.scale.set(1.5 + Math.random() * 1.0);
                 p.sprite.alpha = 0.85 + Math.random() * 0.15;
                 p.vx = Math.cos(angle) * speed;
                 p.vy = Math.sin(angle) * speed;
                 p.life = 1.0;
-                p.decay = 0.04;       // ~25 frames lifetime
-                p.scaleDecay = 0.04;  // kurczy się
+                p.decay = 0.04;
+                p.scaleDecay = 0.04;
             }
         }
     }
-    
+
+    // ==========================================
+    // v0.44.0 FAZA 8.6 — FLOATING TEXT (PORT Z v4.48)
+    // ==========================================
+
+    /**
+     * Spawnuje world-space pill toast unoszący się w górę z fade.
+     *
+     * @param x — world X (np. player.x lub miejsce eventu)
+     * @param y — world Y (toast pojawi się tutaj, potem unosi się do góry)
+     * @param text — tekst (np. '+DMG! ⚔', 'Cube skradziony!')
+     * @param color — kolor akcent baru + fill (np. 0xe74c3c red dla dmg, 0x2980b9 blue dla hp)
+     *
+     * Visual: pill background (rgba black 55%, rounded 11px) + colored 4px accent bar po lewej +
+     * bold 15px text white z black stroke. Animacja: float up @ vy=-1.6, decel *0.93/frame,
+     * life decay 0.0275/frame (~36 frames ~600ms). Alpha = min(1, life * 2) → fade w ostatnich 50%.
+     */
+    spawnFloatingText(x: number, y: number, text: string, color: number): void {
+        // Reuse z poolu jeśli możliwe
+        let item: FloatingTextItem | null = null;
+        for (const ft of this.floatingTexts) {
+            if (!ft.active) { item = ft; break; }
+        }
+
+        if (!item) {
+            // Stwórz nowy
+            const container = new PIXI.Container();
+            const bgGfx = new PIXI.Graphics();
+            const accentGfx = new PIXI.Graphics();
+            const textObj = new PIXI.Text('', {
+                fontFamily: '"Titan One", "Lilita One", sans-serif',
+                fontSize: 15,
+                fontWeight: 'bold',
+                fill: 0xffffff,
+                stroke: 0x000000,
+                strokeThickness: 3,
+                align: 'center',
+            });
+            textObj.anchor.set(0.5);
+            container.addChild(bgGfx);
+            container.addChild(accentGfx);
+            container.addChild(textObj);
+            this.floatingTextContainer.addChild(container);
+
+            item = {
+                container,
+                bgGfx,
+                accentGfx,
+                text: textObj,
+                vy: 0,
+                life: 0,
+                active: false,
+            };
+            this.floatingTexts.push(item);
+        }
+
+        // Konfiguracja contentu
+        item.text.text = text;
+        item.text.style.fill = 0xffffff; // zawsze białe ze stroke
+        item.text.x = 0;
+        item.text.y = 0;
+
+        // Pomiar szerokości po set text (PIXI.Text caches)
+        const tw = item.text.width;
+        const pw = tw + 16;
+        const ph = 22;
+        const pr = 11;
+
+        // Background pill (rounded rect, semi-transparent black)
+        item.bgGfx.clear();
+        item.bgGfx.beginFill(0x000000, 0.55);
+        item.bgGfx.drawRoundedRect(-pw / 2, -ph / 2, pw, ph, pr);
+        item.bgGfx.endFill();
+
+        // Colored accent bar (4px wide na lewej krawędzi pill)
+        item.accentGfx.clear();
+        item.accentGfx.beginFill(color, 1);
+        // Rysujemy małe rounded rect po lewej (tylko lewa strona zaokrąglona)
+        item.accentGfx.drawRoundedRect(-pw / 2, -ph / 2, 4, ph, pr);
+        item.accentGfx.endFill();
+
+        // Pozycja + reset animacji
+        item.container.x = x;
+        item.container.y = y;
+        item.container.alpha = 1;
+        item.container.visible = true;
+
+        item.vy = -1.6;
+        item.life = 1.0;
+        item.active = true;
+    }
+
     // ==========================================
     // UPDATE — wywoływane co klatkę w gameLoop
     // ==========================================
-    
+
     update(delta: number): void {
         // === Particles ===
         for (const p of this.particles) {
@@ -516,7 +610,7 @@ export class EffectsManager {
                 p.sprite.visible = false;
             }
         }
-        
+
         // === Track marks (fade) ===
         for (const t of this.trackMarks) {
             if (!t.active) continue;
@@ -527,17 +621,17 @@ export class EffectsManager {
                 t.sprite.visible = false;
             }
         }
-        
+
         // === Wrecks ===
         for (let i = this.wrecks.length - 1; i >= 0; i--) {
             const w = this.wrecks[i];
             w.timer -= delta;
-            
+
             for (const flame of w.flameSprites) {
                 flame.scale.set(2.5 + Math.random() * 1.5);
                 flame.alpha = 0.6 + Math.random() * 0.4;
             }
-            
+
             if (w.timer <= 0) {
                 this.wreckContainer.removeChild(w.sprite);
                 w.sprite.destroy();
@@ -553,7 +647,20 @@ export class EffectsManager {
                 }
             }
         }
-        
+
+        // === Floating texts (v0.44.0 FAZA 8.6) ===
+        for (const ft of this.floatingTexts) {
+            if (!ft.active) continue;
+            ft.container.y += ft.vy * delta;
+            ft.vy *= 0.93;
+            ft.life -= 0.0275 * delta;
+            ft.container.alpha = Math.min(1, ft.life * 2);
+            if (ft.life <= 0) {
+                ft.active = false;
+                ft.container.visible = false;
+            }
+        }
+
         // === Screen shake ===
         if (this.shakeDuration > 0) {
             this.shakeOffsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;

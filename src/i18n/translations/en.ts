@@ -196,6 +196,13 @@ export const en: typeof pl = {
     'profile.flag.it': 'Italy',
     'profile.flag.de': 'Germany',
 
+    // ============================================================
+    // Pickups / In-game events (v0.44.0 FAZA 8.6 — PowerCube)
+    // ============================================================
+    'pickup.dmgUp': '+DMG! ⚔',
+    'pickup.hpUp': '+HP! 💙',
+    'pickup.cubeStolen': 'Cube stolen! 👀',
+
     // ──────────────────────────────────────────────────────────
     // HUD
     // ──────────────────────────────────────────────────────────

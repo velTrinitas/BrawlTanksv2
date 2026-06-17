@@ -3454,3 +3454,121 @@
         transition: none !important;
     }
 }
+/* ============================================================
+ * FAZA 8b (v0.43.0) — Settings "Profil" section styles.
+ *
+ * APPEND tylko ten blok na KONIEC menu-styles.css w sekcji 29
+ * (Settings Screen, blisko reszty .bt-settings-*).
+ *
+ * NIE zastępuje istniejących reguł — to czysty append.
+ * ============================================================ */
+
+/* ============================================================
+ * SEKCJA 29.PROFIL — Settings → Profil (FAZA 8b v0.43.0)
+ * ============================================================ */
+
+.bt-settings-profile-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.bt-settings-profile-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bt-settings-profile-current {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: 'Titan One', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 400;
+    color: #f0f0f0;
+    letter-spacing: 0.4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bt-settings-profile-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, #5b8def 0%, #4361c4 100%);
+    color: #ffffff;
+    font-family: 'Titan One', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 400;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    box-shadow:
+        0 3px 0 rgba(0, 0, 0, 0.25),
+        0 6px 14px rgba(91, 141, 239, 0.3);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.bt-settings-profile-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow:
+        0 4px 0 rgba(0, 0, 0, 0.25),
+        0 8px 18px rgba(91, 141, 239, 0.4);
+}
+
+.bt-settings-profile-btn:active {
+    transform: translateY(1px);
+    box-shadow:
+        0 1px 0 rgba(0, 0, 0, 0.25),
+        0 3px 8px rgba(91, 141, 239, 0.25);
+}
+
+/* Tablet/Desktop — pełniejszy spacing */
+@media (min-width: 768px) {
+    .bt-settings-profile-row {
+        padding: 16px 22px;
+    }
+
+    .bt-settings-profile-current {
+        font-size: 1.15rem;
+    }
+
+    .bt-settings-profile-btn {
+        padding: 12px 22px;
+        font-size: 1.0rem;
+    }
+}
+
+/* Mobile narrow (< 380px) — stack vertically jeśli nickname długi */
+@media (max-width: 380px) {
+    .bt-settings-profile-row {
+        flex-wrap: wrap;
+        padding: 12px 14px;
+        gap: 10px;
+    }
+
+    .bt-settings-profile-current {
+        font-size: 0.95rem;
+        flex: 1 1 100%;
+    }
+
+    .bt-settings-profile-btn {
+        flex: 1 1 100%;
+        justify-content: center;
+        padding: 11px 14px;
+        font-size: 0.9rem;
+    }
+}

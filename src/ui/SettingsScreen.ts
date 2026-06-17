@@ -1,21 +1,14 @@
 /**
- * SettingsScreen.ts — FAZA 8a (v0.24.0, finalized v0.42.0).
+ * SettingsScreen.ts — FAZA 8a (v0.24.0, finalized v0.42.0, extended v0.43.0).
  *
- * 2 sekcje:
- *  - Audio: Music volume + SFX volume sliders (decyzja B1: linear 0-100%, C1: no separate mute button)
- *  - Język: PL / EN toggle buttons (decyzja D1: stay-in-place re-render, E2: per-profile persistence)
+ * 3 sekcje (v0.43.0 FAZA 8b: dorzucona sekcja Profil):
+ *  - Profil (NEW): button "✏️ Edytuj profil" → MainMenu direct navigation to ProfileEditScreen
+ *  - Audio: Music + SFX sliders
+ *  - Język: PL / EN toggle buttons
  *
- * Subscribuje do i18n.onLanguageChange dla live UI reload — po klik EN cala
- * Settings screen re-renderuje sie w nowym jezyku bez utraty kontekstu (D1).
- *
- * Audio settings persistowane per-device w localStorage (E2 — environment preference).
- * Language persistowany per-profile w Profile.language (user identity).
- *
- * v0.42.0 FAZA 8a finalize:
- * - Back button: dodany visible label "COFNIJ" obok strzałki (UX 9-12: tylko ikon byl
- *   zbyt minimalistic dla młodszych graczy)
- * - Flag swatch: SVG inline zamiast emoji 🇵🇱/🇬🇧 (Windows-Chrome regional indicator
- *   fallback renderował emoji jako "PL"/"GB" tekst, brak visual flag consistency)
+ * v0.43.0 FAZA 8b ARCHITECTURAL FIX (clean version, debug logs removed):
+ * - onEditProfileClick wstrzykiwany przez MainMenu, MainMenu nawiguje DIRECT
+ *   przez `this.show('profileEdit')`. NIE zaleznosc od main.ts wire.
  */
 
 import type { IScreen } from './MainMenu';
@@ -23,17 +16,7 @@ import { AudioSys } from '../audio/AudioSys';
 import { i18n, t, type Language } from '../i18n/i18n';
 import { ProfileService } from '../services/ProfileService';
 
-/**
- * Inline SVG flagi dla language toggle.
- * Cross-platform consistent (nie polega na emoji font support).
- * PL: 2-stripe horizontal (biały/czerwony — barwy państwowe RP).
- * GB: Union Jack uproszczony do 3-warstwowego layered crosses.
- *
- * Nie reuse FLAGS config z ../config/flags bo:
- *  1. Tam Profile.FlagId = 'pl'|'fr'|'it'|'de' — nie ma 'gb'
- *  2. Profile flag = player identity (np. Mariusz reprezentuje IT)
- *  3. Language flag = UI lang (PL/EN są jedynym mapping na flag — różne domeny)
- */
+/** Inline SVG flagi dla language toggle. */
 const FLAG_SVG_PL = `<svg viewBox="0 0 8 5" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
     <rect width="8" height="2.5" fill="#ffffff"/>
     <rect y="2.5" width="8" height="2.5" fill="#dc143c"/>
@@ -53,8 +36,8 @@ export class SettingsScreen implements IScreen {
     private rootEl: HTMLElement | null = null;
     private langUnsub: (() => void) | null = null;
 
-    /** Wstrzykiwane przez MainMenu — clicked "Powrót" CTA. */
     onBack: (() => void) | null = null;
+    onEditProfileClick: (() => void) | null = null;
 
     mount(root: HTMLElement): void {
         this.rootEl = document.createElement('div');
@@ -63,8 +46,6 @@ export class SettingsScreen implements IScreen {
 
         this.renderContent();
 
-        // D1: subscribe do language changes — kazda zmiana powoduje re-render Settings
-        // (po klik EN cala screen przelacza sie na angielski natychmiast)
         this.langUnsub = i18n.onLanguageChange(() => {
             this.renderContent();
         });
@@ -81,13 +62,6 @@ export class SettingsScreen implements IScreen {
         }
     }
 
-    /**
-     * Re-render full screen content. Wywolane:
-     *  1. Initial mount
-     *  2. Po zmianie jezyka (i18n.onLanguageChange subscription)
-     *
-     * Po renderContent() wywolaj wireEvents() bo innerHTML resetuje wszystkie listeners.
-     */
     private renderContent(): void {
         if (!this.rootEl) return;
 
@@ -95,6 +69,9 @@ export class SettingsScreen implements IScreen {
         const musicVolPct = Math.round(audio.getMusicVolume() * 100);
         const sfxVolPct = Math.round(audio.getSfxVolume() * 100);
         const currentLang = i18n.getLanguage();
+
+        const profile = ProfileService.getActiveProfile();
+        const profileNickname = profile?.nickname ?? '';
 
         this.rootEl.innerHTML = `
             <header class="bt-settings-header">
@@ -106,6 +83,25 @@ export class SettingsScreen implements IScreen {
             </header>
 
             <div class="bt-settings-content">
+
+                ${profile ? `
+                <section class="bt-settings-section">
+                    <h3 class="bt-settings-section-title">
+                        <span class="bt-settings-icon" aria-hidden="true">👤</span>
+                        ${t('settings.profile')}
+                    </h3>
+
+                    <div class="bt-settings-profile-row">
+                        <span class="bt-settings-profile-current">
+                            ${this.escapeHtml(profileNickname)}
+                        </span>
+                        <button class="bt-settings-profile-btn" type="button" data-action="editProfile">
+                            <span aria-hidden="true">✏️</span>
+                            <span>${t('settings.editProfile')}</span>
+                        </button>
+                    </div>
+                </section>
+                ` : ''}
 
                 <section class="bt-settings-section">
                     <h3 class="bt-settings-section-title">
@@ -177,14 +173,18 @@ export class SettingsScreen implements IScreen {
     private wireEvents(): void {
         if (!this.rootEl) return;
 
-        // === Back button (CTA na powrot do MainHub) ===
         const backBtn = this.rootEl.querySelector<HTMLButtonElement>('.bt-settings-back');
         backBtn?.addEventListener('click', () => {
             AudioSys.getInstance().playMenuClick();
             this.onBack?.();
         });
 
-        // === Music volume slider ===
+        const editProfileBtn = this.rootEl.querySelector<HTMLButtonElement>('[data-action="editProfile"]');
+        editProfileBtn?.addEventListener('click', () => {
+            AudioSys.getInstance().playMenuClick();
+            this.onEditProfileClick?.();
+        });
+
         const musicSlider = this.rootEl.querySelector<HTMLInputElement>('#bt-music-vol');
         const musicValueEl = this.rootEl.querySelector<HTMLElement>('[data-for="bt-music-vol"]');
         musicSlider?.addEventListener('input', (e) => {
@@ -194,9 +194,6 @@ export class SettingsScreen implements IScreen {
             if (musicValueEl) musicValueEl.textContent = `${pct}%`;
         });
 
-        // === SFX volume slider ===
-        // 'input' event fires podczas drag, 'change' tylko po release.
-        // Dla SFX preview gramy click sound na 'change' (nie spam podczas slide)
         const sfxSlider = this.rootEl.querySelector<HTMLInputElement>('#bt-sfx-vol');
         const sfxValueEl = this.rootEl.querySelector<HTMLElement>('[data-for="bt-sfx-vol"]');
         sfxSlider?.addEventListener('input', (e) => {
@@ -206,31 +203,35 @@ export class SettingsScreen implements IScreen {
             if (sfxValueEl) sfxValueEl.textContent = `${pct}%`;
         });
 
-        // SFX preview ping na release (audio feedback dla "ile to jest")
         sfxSlider?.addEventListener('change', () => {
             AudioSys.getInstance().playMenuClick();
         });
 
-        // === Language buttons ===
         const langButtons = this.rootEl.querySelectorAll<HTMLButtonElement>('.bt-settings-lang-btn');
         langButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const lang = btn.dataset.lang as Language | undefined;
                 if (!lang || (lang !== 'pl' && lang !== 'en')) return;
-                if (i18n.getLanguage() === lang) return; // idempotent — skip if same
+                if (i18n.getLanguage() === lang) return;
 
                 AudioSys.getInstance().playMenuClick();
 
-                // E2: persist per-profile (active profile gets language updated)
                 const profile = ProfileService.getActiveProfile();
                 if (profile && profile.language !== lang) {
                     ProfileService.updateProfile(profile.id, { language: lang });
                 }
 
-                // Update i18n state → triggers onLanguageChange subscription → renderContent()
-                // (cala Settings screen re-renderuje sie w nowym jezyku)
                 i18n.setLanguage(lang);
             });
         });
+    }
+
+    private escapeHtml(str: string): string {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 }

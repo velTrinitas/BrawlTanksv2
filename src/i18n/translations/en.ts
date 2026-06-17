@@ -48,7 +48,7 @@ export const en: typeof pl = {
     'hub.continueShort': 'Continue',
     'hub.changePlayer': 'Change player',
     'hub.welcome': 'Welcome, {name}!',
-    'hub.editProfile': 'Edit in Settings',
+    'hub.editProfile': 'Edit profile',
 
     // ============================================================
     // Scenario Picker
@@ -110,9 +110,8 @@ export const en: typeof pl = {
     'difficulty.nightmare.desc': 'For experts only!',
 
     // ============================================================
-    // Brawler display names (v0.24.0: i18n per brawler id)
+    // Brawler display names
     // ============================================================
-    // English translations (Mariusz decision: twardy→HARDY, pyro→BURNER)
     'brawler.twardy.name': 'HARDY',
     'brawler.heavy.name': 'HEAVY',
     'brawler.scout.name': 'SCOUT',
@@ -129,6 +128,8 @@ export const en: typeof pl = {
     'settings.audio': 'Audio',
     'settings.music': 'Music',
     'settings.sfx': 'Sound effects',
+    'settings.profile': 'Profile',
+    'settings.editProfile': 'Edit profile',
     'settings.controls': 'Controls',
     'settings.language': 'Language',
     'settings.language.pl': 'Polski',
@@ -169,6 +170,18 @@ export const en: typeof pl = {
     'profile.onboarding.nicknameHint': '2-16 characters: letters and digits',
     'profile.onboarding.nicknameError': 'Nickname must be 2-16 letters or digits',
 
+    // ============================================================
+    // Profile / Edit (v0.43.0 FAZA 8b)
+    // ============================================================
+    'profile.edit.title': 'Edit profile',
+    'profile.edit.subtitle': 'Change your appearance and nickname',
+    'profile.edit.saveButton': 'SAVE CHANGES',
+    'profile.edit.savedToast': 'Profile updated ✓',
+    'profile.edit.nicknameUnchanged': 'Nickname unchanged',
+    'profile.edit.nicknameTaken': 'Nickname taken — choose another',
+    'profile.edit.noProfileTitle': 'No active profile',
+    'profile.edit.noProfileSubtitle': 'Return to menu and create a profile',
+
     'profile.avatar.komandor.name': 'Commander',
     'profile.avatar.komandor.desc': 'Experienced tactician',
     'profile.avatar.pilotka.name': 'Pilot',
@@ -182,6 +195,10 @@ export const en: typeof pl = {
     'profile.flag.fr': 'France',
     'profile.flag.it': 'Italy',
     'profile.flag.de': 'Germany',
+
+    // ──────────────────────────────────────────────────────────
+    // HUD
+    // ──────────────────────────────────────────────────────────
     'hud.hp': 'HP',
     'hud.score': 'SCORE',
     'hud.kills': 'KILLS',

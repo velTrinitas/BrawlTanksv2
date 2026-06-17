@@ -1,14 +1,14 @@
 /**
- * MainHub.ts — main menu hub (FAZA 6c + FAZA 7c + v0.24.0 i18n fix).
+ * MainHub.ts — main menu hub (FAZA 6c + FAZA 7c + v0.24.0 i18n fix + v0.43.0 FAZA 8b profile edit).
  *
  * Layout v0.22.0 (FAZA 7c):
  *   ┌─────────────────────────────────────────────┐
- *   │ [👤] 👋 Witaj, Mariusz!            [🇵🇱]    │  ← Profile chip (whole welcome bar tappable)
+ *   │ [👤] 👋 Witaj, Mariusz!            [🇵🇱]    │  ← Profile chip (tappable → ProfileEditScreen)
  *   ├─────────────────────────────────────────────┤
- *   │  🔁 Kontynuuj jako Mariusz na mapie X   →   │  ← Continue card (uses nickname, not brawler)
+ *   │  🔁 Kontynuuj jako Mariusz na mapie X   →   │  ← Continue card
  *   ├─────────────────────────────────────────────┤
  *   │                                             │
- *   │     ▶️  GRAJ                                │  ← Hero PLAY (unchanged)
+ *   │     ▶️  GRAJ                                │  ← Hero PLAY
  *   │       Nowa rozgrywka                        │
  *   │                                             │
  *   ├─────────────────────────────────────────────┤
@@ -19,18 +19,20 @@
  *
  * v0.24.0 FAZA 8a fix:
  * - Continue card map name uses i18n lookup zamiast hardcoded session.mapName
- *   (session.mapName zaszywal PL "PUSTYNIA" niezaleznie od aktualnego jezyka — fix dla EN switch)
- * - Lookup via MENU_MAP_CARDS[map].nameKey → t(key) — automatyczny EN/PL switch
+ *
+ * v0.43.0 FAZA 8b (Profile management):
+ * - Profile chip click przestał pokazywać toast "Edytuj w Ustawieniach"
+ * - Klik chip → wywołuje onProfileEditClick callback (MainMenu rozsądza do show('profileEdit'))
+ * - 1-tap UX zamiast 2-tap (Settings → Edytuj profil)
  */
 
 import type { IScreen } from './MainMenu';
 import { t } from '../i18n/i18n';
 import type { LastSession } from '../services/SessionService';
-import type { Profile, FlagId } from '../types/Profile';
+import type { Profile } from '../types/Profile';
 import { AVATARS } from '../config/avatars';
 import { FLAGS, type FlagConfig } from '../config/flags';
 import { showToast } from './toast';
-// v0.24.0: lookup map nameKey z MENU_MAP_CARDS (juz ma i18n keys per design)
 import { MENU_MAP_CARDS } from '../types/MapType';
 
 // ============================================================
@@ -40,38 +42,24 @@ import { MENU_MAP_CARDS } from '../types/MapType';
 export class MainHub implements IScreen {
     private el: HTMLElement | null = null;
 
-    /**
-     * Last session (z SessionService) — gdy null, Continue card nie renderuje sie.
-     * Ustawiane przez MainMenu przed mount() (constructor injection style).
-     */
     lastSession: LastSession | null = null;
-
-    /**
-     * FAZA 7c: active profile injected by MainMenu before mount.
-     * Drives welcome chip display (avatar + nickname + flag).
-     * null = fallback ('Brawler' welcome, no chip visuals) — edge case for tests.
-     */
     activeProfile: Profile | null = null;
-
-    /**
-     * Imie wyswietlane w welcome bar.
-     * FAZA 7c: derived from activeProfile.nickname (set in render() if profile exists).
-     */
     welcomeName: string = 'Brawler';
 
     // === Callbacks ===
 
-    /** Klik Hero PLAY → nowa rozgrywka (full menu flow przez pickery). */
     onPlayClick: (() => void) | null = null;
-
-    /** Klik Continue card → instant replay z lastSession. */
     onContinueClick: ((lastSession: LastSession) => void) | null = null;
-
     onHowToPlayClick: (() => void) | null = null;
-    onSettingsClick:  (() => void) | null = null;
+    onSettingsClick: (() => void) | null = null;
+
+    /**
+     * v0.43.0 FAZA 8b: klik profile chip (avatar/nickname/flag bar).
+     * MainMenu routuje do show('profileEdit').
+     */
+    onProfileEditClick: (() => void) | null = null;
 
     mount(root: HTMLElement): void {
-        // FAZA 7c: derive welcomeName from active profile (or fallback)
         if (this.activeProfile) {
             this.welcomeName = this.activeProfile.nickname;
         }
@@ -92,13 +80,9 @@ export class MainHub implements IScreen {
         const root = document.createElement('div');
         root.className = 'bt-hub-screen';
 
-        // === Welcome bar — FAZA 7c: now a profile chip ===
         const welcomeBar = this.renderProfileChip();
-
-        // === Continue card (conditional) ===
         const continueCard = this.lastSession ? this.renderContinueCard(this.lastSession) : '';
 
-        // === Hero PLAY ===
         const heroPlay = `
             <button class="bt-hub-hero-play" type="button" data-action="play">
                 <span class="bt-hub-hero-play-icon" aria-hidden="true">▶</span>
@@ -109,7 +93,6 @@ export class MainHub implements IScreen {
             </button>
         `;
 
-        // === Secondary grid (4 buttons, 2x2 mobile / 4x1 desktop) ===
         const secondaryGrid = `
             <div class="bt-hub-secondary-grid">
                 <button class="bt-hub-secondary-btn" type="button" data-action="howToPlay">
@@ -146,9 +129,9 @@ export class MainHub implements IScreen {
     }
 
     /**
-     * FAZA 7c: profile chip is the welcome bar.
+     * FAZA 7c + v0.43.0 FAZA 8b: profile chip = welcome bar.
      * Layout: [avatar] 👋 Witaj, {nickname}! [flag swatch]
-     * Whole chip tappable → toast (FAZA 8 will open Settings/edit profile).
+     * v0.43.0: klik chip → onProfileEditClick (otwiera ProfileEditScreen).
      */
     private renderProfileChip(): string {
         // Edge case: no profile loaded yet (unlikely after FAZA 7b onboarding, but defensive)
@@ -189,13 +172,7 @@ export class MainHub implements IScreen {
     }
 
     private renderContinueCard(session: LastSession): string {
-        // FAZA 7c: nickname-driven identity (not brawlerName)
-        // Fallback for edge case: no active profile (use 'Brawler' generic)
         const nickname = this.activeProfile?.nickname ?? 'Brawler';
-
-        // v0.24.0 FAZA 8a fix: map name via i18n lookup (not hardcoded session.mapName)
-        // session.mapName zaszywal PL "PUSTYNIA" regardless of current language —
-        // dla EN switch wyglada brzydko "on PUSTYNIA". Fix: lookup nameKey from MENU_MAP_CARDS.
         const mapName = this.resolveMapName(session.map);
 
         return `
@@ -210,24 +187,14 @@ export class MainHub implements IScreen {
         `;
     }
 
-    /**
-     * v0.24.0: resolve translated map name for current language.
-     * Lookup MENU_MAP_CARDS by map id, use nameKey → t() for translation.
-     * Fallback to session.mapName gdy lookup fail (defensive — niemozliwe dla city/desert).
-     */
     private resolveMapName(mapId: string): string {
         const card = MENU_MAP_CARDS.find(c => c.id === mapId);
         if (card) {
             return t(card.nameKey);
         }
-        // Defensive fallback (city/desert ZAWSZE sa w MENU_MAP_CARDS, ale TS doesn't know that)
         return this.lastSession?.mapName ?? mapId.toUpperCase();
     }
 
-    /**
-     * Generates CSS linear-gradient matching PIXI FlagRenderer + IdentityScreen flag swatches.
-     * Same math as IdentityScreen.computeFlagGradient (shared visual language).
-     */
     private computeFlagGradient(config: FlagConfig): string {
         const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
         const p = hex(config.colors.primary);
@@ -274,8 +241,8 @@ export class MainHub implements IScreen {
                     this.onSettingsClick?.();
                     break;
                 case 'profile':
-                    // FAZA 7c: profile chip click — toast informing FAZA 8 will add edit screen
-                    showToast(t('hub.editProfile'), 2200);
+                    // v0.43.0 FAZA 8b: zmiana z toast na otwarcie ProfileEditScreen
+                    this.onProfileEditClick?.();
                     break;
                 case 'leaderboard':
                 case 'shop':

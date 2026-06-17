@@ -135,10 +135,9 @@ let paddock: Paddock | null = null;
 let horses: Horse[] = [];
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
-let farmFields: IFarmField[] = [];  // v0.36.0 T7.1: generic farm fields (corn + sugarcane + lettuce + pasture)
+let farmFields: IFarmField[] = [];
 let caravan: Caravan | null = null;
 
-// Frame-transient state
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
 let wasInCornLastFrame: boolean = false;
@@ -147,7 +146,7 @@ let sandKickFrameCounter: number = 0;
 
 let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
-let crates: Crate[] = [];  // v0.34.0 T7: destructible crates
+let crates: Crate[] = [];
 let effects: EffectsManager | null = null;
 let spawnSystem: SpawnSystem | null = null;
 let powerSystem: PowerSystem | null = null;
@@ -175,36 +174,27 @@ app.stage.addChild(worldContainer);
 
 const hud = new HUD('hudCanvas');
 
-// ============================================================
-// FAZA 6.5.2b: MainMenu bootstrap
-// ============================================================
 const menu = new MainMenu('#bt-menu-root');
 
-// ============================================================
-// FAZA 8.5 + v0.23.1: Touch controls dla mobile
-// ============================================================
 const touchManager = new TouchInputManager();
 touchManager.init();
 touchManager.onSuperRequested = () => {
     tryActivateSuper();
 };
-// v0.23.1: long-press SuperButton → cycle do next power
 touchManager.onCycleRequested = () => {
     if (powerSystem) {
         powerSystem.cycleSelected(1);
     }
 };
 
-// v0.23.1: jeśli touch active — apply mobile gameplay tweaks do HUD
 if (touchManager.isActive) {
-    hud.uiScale = 0.7;             // mniejsze pille HUD
-    hud.showCrosshair = true;      // v0.23.1 hotfix: crosshair JEST potrzebny na mobile (precyzja celowania)
-    hud.crosshairScale = 1.5;      // wiekszy crosshair (dalej od ręki gracza, trzeba lepiej widoczny)
-    hud.showPowerBar = false;      // SuperButton zastepuje dolny power bar
+    hud.uiScale = 0.7;
+    hud.showCrosshair = true;
+    hud.crosshairScale = 1.5;
+    hud.showPowerBar = false;
 }
 
 menu.onGameRequested = (config: GameConfig) => {
-    // FAZA 6.5.2b-fix2: defensive guard dla scenariuszy CTF/Castle
     if (config.scenario === 'ctf' || config.scenario === 'castle') {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
@@ -236,16 +226,17 @@ menu.onHowToPlayRequested = () => {
     console.log('[Menu] HowToPlay requested (FAZA 8c will implement)');
 };
 
-// FAZA 8a: settings screen wired up (zamiast console.log placeholder)
+// FAZA 8a: settings screen wired up
 menu.onSettingsRequested = () => {
     menu.show('settings');
 };
 
-// ============================================================
-// FAZA 7a + FAZA 8a: Async bootstrap
-// - Preload profile sprite cache
-// - Sync i18n z active profile language (per-profile wygrywa nad device-wide localStorage)
-// ============================================================
+// v0.43.0 FAZA 8b: profile edit screen wired up
+// Trigger z 2 miejsc: MainHub profile chip click + SettingsScreen edytuj-profil button
+menu.onProfileEditRequested = () => {
+    menu.show('profileEdit');
+};
+
 (async () => {
     try {
         await ProfileSpriteCache.init(app);
@@ -255,7 +246,6 @@ menu.onSettingsRequested = () => {
         if (profile) {
             console.log(`[boot] Active profile: ${profile.avatarId} (flag=${profile.flagId})`);
 
-            // FAZA 8a: sync i18n z active profile language (per-profile wygrywa nad localStorage device-wide)
             if (profile.language && profile.language !== i18n.getLanguage()) {
                 console.log(`[boot] Syncing i18n to profile language: ${profile.language}`);
                 i18n.setLanguage(profile.language);
@@ -267,11 +257,9 @@ menu.onSettingsRequested = () => {
         console.error('[boot] ProfileSpriteCache init failed — avatars unavailable:', e);
     }
 
-    // v0.42.0: menu.start() triggeruje audio.startIntroMusic() w MainMenu.start()
     menu.start();
 })();
 
-// === FAZA 7a: Dev-only services exposure dla smoke testing ===
 if (import.meta.env.DEV) {
     (window as unknown as { BT_DEV: unknown }).BT_DEV = {
         ProfileService,
@@ -279,14 +267,9 @@ if (import.meta.env.DEV) {
         AudioSys,
         i18n,
     };
-    console.log('[FAZA 7a/8a] window.BT_DEV attached — use for smoke testing');
+    console.log('[FAZA 7a/8a/8b] window.BT_DEV attached — use for smoke testing');
 }
 
-/**
- * v0.23.1: silently lock orientation to landscape (best-effort).
- * Działa tylko gdy app jest installed jako PWA + przegladarka supports orientation lock API.
- * Wszystkie inne scenariusze → no-op (CSS portrait warning overlay zastepuje).
- */
 async function tryLockLandscape(): Promise<void> {
     try {
         const orient = (screen as Screen & { orientation?: { lock?: (orientation: string) => Promise<void> } }).orientation;
@@ -295,15 +278,10 @@ async function tryLockLandscape(): Promise<void> {
             console.log('[v0.23.1] screen.orientation locked to landscape');
         }
     } catch {
-        // Silently fail — orientation lock requires PWA installed mode + Chrome/Edge
-        // CSS portrait overlay handles fallback
+        // Silently fail
     }
 }
 
-/**
- * FAZA 6.5.2b: Po endgame uzytkownik wraca do MainHub.
- * v0.42.0: hub music restart po powrocie do hub (startHubMusic stopuje gameplay music wewnątrz).
- */
 function returnToMenuFromEnd(): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
@@ -311,11 +289,8 @@ function returnToMenuFromEnd(): void {
     gameState = 'MENU';
     currentSession = null;
 
-    // FAZA 8.5: ukryj touch UI po powrocie do menu
     touchManager.hide();
 
-    // v0.42.0: startHubMusic() stopuje gameplay music wewnątrz (this.stopMusic())
-    // + startuje hub.ogg dla MainHub experience. Idempotent — bezpieczne.
     audio.startHubMusic();
 
     menu.reshow();
@@ -383,7 +358,6 @@ window.addEventListener('keyup', e => {
 });
 
 (app.view as HTMLCanvasElement).addEventListener('pointerdown', (e: any) => {
-    // FAZA 8.5: ignore canvas mouse events when touch UI active (touchManager wins)
     if (touchManager.isActive) return;
     if (e.button === 0) isMouseDown = true;
 });
@@ -427,12 +401,6 @@ function dropGems(x: number, y: number, count: number): void {
     }
 }
 
-/**
- * FAZA 6.5.2a: startGame przyjmuje immutable GameConfig.
- * FAZA 7c: ProfileService.recordSessionStart + Player flag override.
- * FAZA 8.5: touchManager.show() po setup.
- * v0.23.1: tryLockLandscape + apply world zoom mobile.
- */
 function startGame(config: GameConfig): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
@@ -440,7 +408,6 @@ function startGame(config: GameConfig): void {
 
     currentSession = new GameSession(config);
 
-    // FAZA 7c: track per-profile play stats (totalGamesPlayed + lastPlayedAt)
     ProfileService.recordSessionStart();
 
     console.log(describeGameConfig(config));
@@ -483,7 +450,6 @@ function startGame(config: GameConfig): void {
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
 
-    // v0.23.1: apply world zoom (mobile = 0.7, desktop = 1.0)
     const worldZoom = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     worldContainer.scale.set(worldZoom);
 
@@ -745,7 +711,6 @@ function startGame(config: GameConfig): void {
 
     const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
 
-    // FAZA 7c: profile flag override - gracz nosi swoja flage zamiast brawler default
     const activeProfile = ProfileService.getActiveProfile();
     player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
 
@@ -758,15 +723,12 @@ function startGame(config: GameConfig): void {
     isMouseDown = false;
     gameState = 'PLAYING';
 
-    // FAZA 8.5: pokaz touch UI gdy gracz wchodzi do gry
     touchManager.show();
 
-    // v0.23.1: best-effort landscape orientation lock (silently fails na desktop / non-PWA)
     if (touchManager.isActive) {
         tryLockLandscape();
     }
 
-    // v0.42.0: startMusic(map) stopuje intro + hub music wewnątrz (jeden track na raz)
     audio.startMusic(config.map);
 }
 
@@ -774,7 +736,6 @@ async function triggerGameOver(): Promise<void> {
     gameState = 'GAMEOVER';
     audio.playGameOver();
 
-    // FAZA 8.5: ukryj touch UI na endgame screens
     touchManager.hide();
 
     if (currentSession) {
@@ -808,7 +769,6 @@ async function triggerVictory(): Promise<void> {
     gameState = 'VICTORY';
     audio.playVictory();
 
-    // FAZA 8.5: ukryj touch UI na endgame screens
     touchManager.hide();
 
     if (currentSession) {

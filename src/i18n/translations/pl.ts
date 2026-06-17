@@ -57,7 +57,7 @@ export const pl = {
     'hub.continueShort': 'Kontynuuj',
     'hub.changePlayer': 'Zmień gracza',
     'hub.welcome': 'Witaj, {name}!',
-    'hub.editProfile': 'Edytuj w Ustawieniach',
+    'hub.editProfile': 'Edytuj profil',
 
     // ============================================================
     // Scenario Picker (Ekran 1)
@@ -132,12 +132,14 @@ export const pl = {
     'brawler.king.name': 'KING',
 
     // ============================================================
-    // Settings (v0.42.0 FAZA 8a finalize)
+    // Settings (v0.42.0 FAZA 8a finalize + v0.43.0 FAZA 8b: profile section)
     // ============================================================
     'settings.title': 'Ustawienia',
     'settings.audio': 'Dźwięk',
     'settings.music': 'Muzyka',
     'settings.sfx': 'Efekty dźwiękowe',
+    'settings.profile': 'Profil',
+    'settings.editProfile': 'Edytuj profil',
     'settings.controls': 'Sterowanie',
     'settings.language': 'Język',
     'settings.language.pl': 'Polski',
@@ -177,6 +179,18 @@ export const pl = {
     'profile.onboarding.nicknamePlaceholder': 'np. Mariusz123',
     'profile.onboarding.nicknameHint': '2-16 znaków: litery i cyfry',
     'profile.onboarding.nicknameError': 'Pseudonim musi mieć 2-16 liter lub cyfr',
+
+    // ============================================================
+    // Profile / Edit (v0.43.0 FAZA 8b)
+    // ============================================================
+    'profile.edit.title': 'Edycja profilu',
+    'profile.edit.subtitle': 'Zmień swój wygląd i pseudonim',
+    'profile.edit.saveButton': 'ZAPISZ ZMIANY',
+    'profile.edit.savedToast': 'Profil zaktualizowany ✓',
+    'profile.edit.nicknameUnchanged': 'Pseudonim niezmieniony',
+    'profile.edit.nicknameTaken': 'Pseudonim zajęty — wybierz inny',
+    'profile.edit.noProfileTitle': 'Brak aktywnego profilu',
+    'profile.edit.noProfileSubtitle': 'Wróć do menu i stwórz profil',
 
     'profile.avatar.komandor.name': 'Komandor',
     'profile.avatar.komandor.desc': 'Doświadczony taktyk',

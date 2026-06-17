@@ -118,6 +118,27 @@ const DESKTOP_WORLD_ZOOM = 1.0;
 // Boss = 100% gwarantowany cube (jesli pod capem MAX_POWERCUBES_PER_MATCH)
 const POWERCUBE_REGULAR_DROP_CHANCE = 0.30;
 
+// ============================================================
+// v0.45.0 FAZA 8.7 — HIT-STOP CONSTANTS
+// ============================================================
+//
+// Hit-stop = frame freeze technique. Po krytycznym hicie, game ticker
+// robi early return przez N klatek — całość zamarza (ruch, AI, particles,
+// bullets, effects). Daje "weight" i satisfaction.
+//
+// Audio NIE pauzuje (dźwięki płyną naturalnie z poza ticker callback).
+// Camera shake "freezes" razem (część ticker), ale to OK — wygląda jak
+// emfaza ciężaru hitu.
+//
+// Triggery (priority: większa wartość wygrywa — `if (frames > current)`):
+// - Mega boss DEATH: 8 frames (~130ms @ 60fps) — finale payoff
+// - Super shot KILL: 4 frames (~65ms) — power moment
+// - Mega boss HIT (alive, damage applied): 3 frames (~50ms) — solid thud
+//
+const HITSTOP_MEGA_BOSS_DEATH = 8;
+const HITSTOP_SUPER_SHOT_KILL = 4;
+const HITSTOP_MEGA_BOSS_HIT = 3;
+
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
@@ -153,6 +174,9 @@ let wasInOasisLastFrame: boolean = false;
 let wasInCornLastFrame: boolean = false;
 let wasStealthActiveLastFrame: boolean = false;
 let sandKickFrameCounter: number = 0;
+
+// v0.45.0 FAZA 8.7: hit-stop frame counter. Gdy > 0, ticker robi early return.
+let hitStopFramesRemaining: number = 0;
 
 let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
@@ -236,13 +260,10 @@ menu.onHowToPlayRequested = () => {
     console.log('[Menu] HowToPlay requested (FAZA 8c will implement)');
 };
 
-// FAZA 8a: settings screen wired up
 menu.onSettingsRequested = () => {
     menu.show('settings');
 };
 
-// v0.43.0 FAZA 8b: profile edit screen wired up
-// Trigger z 2 miejsc: MainHub profile chip click + SettingsScreen edytuj-profil button
 menu.onProfileEditRequested = () => {
     menu.show('profileEdit');
 };
@@ -412,6 +433,21 @@ function dropGems(x: number, y: number, count: number): void {
 }
 
 /**
+ * v0.45.0 FAZA 8.7: trigger hit-stop frame freeze.
+ *
+ * @param frames — ile klatek pauzy (3=mega boss hit, 4=super shot kill, 8=mega boss death)
+ *
+ * Override logic: tylko jeśli przychodzi większa wartość (mega boss death 8 wins
+ * nad super shot kill 4). Bez sumowania — single super shot zabija 5 wrogów =
+ * max 4 frames (nie 5×4).
+ */
+function triggerHitStop(frames: number): void {
+    if (frames > hitStopFramesRemaining) {
+        hitStopFramesRemaining = frames;
+    }
+}
+
+/**
  * v0.44.0 FAZA 8.6: handle enemy drop — cube vs gems decision logic (port z v4.48).
  *
  * - Megaboss: tylko gemy (i tak victory, cube nieprzyda się)
@@ -504,6 +540,7 @@ function startGame(config: GameConfig): void {
     wasInCornLastFrame = false;
     wasStealthActiveLastFrame = false;
     sandKickFrameCounter = 0;
+    hitStopFramesRemaining = 0; // v0.45.0 FAZA 8.7 reset
 
     const worldZoom = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     worldContainer.scale.set(worldZoom);
@@ -810,7 +847,6 @@ async function triggerGameOver(): Promise<void> {
     const hpCubesPicked = currentSession?.hpCubesPicked ?? 0;
     const statsEl = document.getElementById('gameOverStats')!;
 
-    // v0.44.0 FAZA 8.6: PowerCube stats line (Q4 C: NIE w HUD, tylko post-game)
     const cubesLine = cubesTotal > 0
         ? `<div>🟦 PowerCube'y: <b>${cubesTotal}</b>${dmgBonusPct > 0 ? ` (+${dmgBonusPct}% DMG)` : ''}${hpCubesPicked > 0 ? ` (+${(hpCubesPicked * 0.25).toFixed(2)} HP)` : ''}</div>`
         : '';
@@ -853,7 +889,6 @@ async function triggerVictory(): Promise<void> {
     const hpCubesPicked = currentSession?.hpCubesPicked ?? 0;
     const statsEl = document.getElementById('victoryStats')!;
 
-    // v0.44.0 FAZA 8.6: PowerCube stats line (Q4 C)
     const cubesLine = cubesTotal > 0
         ? `<div>🟦 PowerCube'y: <b>${cubesTotal}</b>${dmgBonusPct > 0 ? ` (+${dmgBonusPct}% DMG)` : ''}${hpCubesPicked > 0 ? ` (+${(hpCubesPicked * 0.25).toFixed(2)} HP)` : ''}</div>`
         : '';
@@ -877,6 +912,14 @@ async function triggerVictory(): Promise<void> {
 
 app.ticker.add((delta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
+
+    // === v0.45.0 FAZA 8.7: HIT-STOP ===
+    // Early return jeśli aktywny hit-stop — frame freeze (movement, AI, effects, bullets stoją).
+    // Audio gra naturalnie (poza ticker context).
+    if (hitStopFramesRemaining > 0) {
+        hitStopFramesRemaining--;
+        return;
+    }
 
     const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     const viewW = hud.screenW / ZOOM;
@@ -1118,27 +1161,23 @@ app.ticker.add((delta) => {
         const pc = powerCubes[i];
         pc.update(delta);
 
-        // Cube ukradziony przez enemy (Enemy.tryStealCube ustawia active=false)
         if (!pc.active) {
             pc.destroy();
             powerCubes.splice(i, 1);
             continue;
         }
 
-        // Player pickup collision
         const dx = player.x - pc.x, dy = player.y - pc.y;
-        const touchR = 22 + pc.radius; // player coll ~22 + cube radius 20 = 42px
+        const touchR = 22 + pc.radius;
         if (dx * dx + dy * dy < touchR * touchR) {
             const type = pc.type;
             currentSession.registerCubePickup(type);
 
-            // FloatingText feedback (literal t() calls dla TypeScript type safety)
             const isDmg = type === 'dmg';
             const color = isDmg ? 0xe74c3c : 0x2980b9;
             const labelText = isDmg ? t('pickup.dmgUp') : t('pickup.hpUp');
             effects.spawnFloatingText(player.x, player.y - 30, labelText, color);
 
-            // HP variant: heal + maxHp grow (port z v4.48)
             if (type === 'hp') {
                 player.maxHp += POWERCUBE_HP_BONUS_PER_PICKUP;
                 player.hp = Math.min(player.maxHp, player.hp + POWERCUBE_HP_BONUS_PER_PICKUP);
@@ -1169,7 +1208,6 @@ app.ticker.add((delta) => {
 
         audio.playShoot(player.brawler.id);
 
-        // v0.44.0 FAZA 8.6: apply dmgBonus z PowerCubes do każdego bullet
         const dmgMultiplier = 1 + currentSession.dmgBonus;
 
         if (player.brawler.type === 'spread') {
@@ -1223,7 +1261,6 @@ app.ticker.add((delta) => {
     }
 
     const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
-    // v0.44.0 FAZA 8.6: attach cube stolen callback do nowo zespawnowanych enemies
     for (const newEnemy of spawnResult.newEnemies) {
         attachEnemyCubeStolenCallback(newEnemy);
     }
@@ -1240,7 +1277,6 @@ app.ticker.add((delta) => {
 
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-        // v0.44.0 FAZA 8.6: pass powerCubes do AI (stealing logic)
         const shotInfo = enemy.update(delta, player.x, player.y, buildings, powerCubes);
         if (shotInfo) spawnEnemyShot(shotInfo);
 
@@ -1252,7 +1288,7 @@ app.ticker.add((delta) => {
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
                 audio.playExplosion();
-                handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
+                handleEnemyDrop(enemy);
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
                 currentSession.score += enemy.scoreValue;
@@ -1276,12 +1312,20 @@ app.ticker.add((delta) => {
                 b.destroy();
                 bullets.splice(j, 1);
                 audio.playHit('enemy');
+
+                // v0.45.0 FAZA 8.7: snapshot HP przed takeDamage żeby wykryć
+                // czy damage faktycznie applied (NIE shielded). Shielded mega boss
+                // hits NIE triggerują hit-stop (gold sparks tylko).
+                const hpBefore = enemy.hp;
+                const wasSuperShot = player.isSuperShotActive;
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
+                const damageApplied = enemy.hp < hpBefore || killed;
+
                 if (killed) {
                     audio.playExplosion();
                     spawnSystem.registerKill(enemy);
                     currentSession.score += enemy.scoreValue;
-                    handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
+                    handleEnemyDrop(enemy);
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
 
                     const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
@@ -1289,6 +1333,20 @@ app.ticker.add((delta) => {
                     else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
                     else if (comboNow >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }
                 }
+
+                // v0.45.0 FAZA 8.7: trigger hit-stop based on event priority.
+                // Mega boss DEATH (8) > Super shot KILL (4) > Mega boss HIT alive (3).
+                // triggerHitStop() ma override logic (większa wartość wygrywa).
+                if (damageApplied) {
+                    if (killed && enemy.isMegaBoss) {
+                        triggerHitStop(HITSTOP_MEGA_BOSS_DEATH);
+                    } else if (killed && wasSuperShot) {
+                        triggerHitStop(HITSTOP_SUPER_SHOT_KILL);
+                    } else if (enemy.isMegaBoss) {
+                        triggerHitStop(HITSTOP_MEGA_BOSS_HIT);
+                    }
+                }
+
                 break;
             }
         }

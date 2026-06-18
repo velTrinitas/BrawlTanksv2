@@ -1,5 +1,5 @@
 /**
- * ProfileEditScreen.ts — FAZA 8b (v0.43.0).
+ * ProfileEditScreen.ts — FAZA 8b (v0.43.0) + 9b.3b cloud sync (v0.47.0).
  *
  * Edycja aktywnego profilu: avatar + flag + nickname.
  * Reuse layout IdentityScreen (visual continuity) z różnicami:
@@ -8,22 +8,29 @@
  *  - onConfirm: ProfileService.updateProfile() zamiast createProfile()
  *  - Toast "Profil zaktualizowany ✓" po save
  *
+ * v0.47.0 FAZA 9b.3b — cloud sync:
+ *  - Nickname uniqueness teraz SERVER-SIDE: await isNicknameAvailable(nick, profile.id).
+ *    excludeProfileId = wlasne id (edycja bez kolizji z samym soba).
+ *  - Online + zajety -> toast 'nicknameTaken', NIE zapisujemy.
+ *  - Online + wolny / Offline -> zapis lokalny + void pushProfileToCloud()
+ *    (natychmiastowy cloud sync — rozwiazuje opoznienie session_count/nick o boot).
+ *  - Lokalny listProfiles() check usuniety — server jest authoritative (widzi
+ *    nicki z innych urzadzen, nie tylko z tego localStorage).
+ *
  * Entry points:
  *  1. MainHub profile chip click → menu.show('profileEdit')
  *  2. SettingsScreen sekcja Profil button "✏️ EDYTUJ PROFIL" → menu.show('profileEdit')
  *
  * Defensive: jeśli getActiveProfile() === null (edge case po localStorage clear),
  * screen renderuje fallback "Brak aktywnego profilu" + button powrót do hub.
- *
- * v0.43.0-fix1: AvatarConfig nie ma property `nameKey` — uzywamy bezposredniego klucza
- * i18n `profile.avatar.{id}.name` (klucze sa zdefiniowane w pl.ts + en.ts FAZA 8b).
- * Flag uzywa tego samego patternu: `profile.flag.{id}`.
  */
 
 import type { IScreen } from './MainMenu';
 import { AudioSys } from '../audio/AudioSys';
 import { t } from '../i18n/i18n';
 import { ProfileService } from '../services/ProfileService';
+import { supabaseProfileService } from '../services/SupabaseProfileService';
+import { pushProfileToCloud } from '../services/profileSync';
 import {
     type AvatarId,
     type FlagId,
@@ -51,6 +58,9 @@ export class ProfileEditScreen implements IScreen {
     private selectedFlagId: FlagId;
     private currentNickname: string;
     private originalNickname: string; // dla compare "czy się zmienił"
+
+    /** v0.47.0 FAZA 9b.3b: guard przeciw double-submit podczas async check. */
+    private isSaving: boolean = false;
 
     /** Wstrzykiwane przez MainMenu — wraca do hub po save lub anulowaniu. */
     onBack: (() => void) | null = null;
@@ -133,7 +143,7 @@ export class ProfileEditScreen implements IScreen {
     /**
      * v0.43.0-fix1: zamiast t(avatar.nameKey) uzywamy bezposrednio klucza i18n.
      * AVATARS[avatarId] dostarcza tylko assetPath — nazwa pobierana z translations
-     * pod kluczem profile.avatar.{id}.name (klucze zdefiniowane w pl.ts/en.ts FAZA 8b).
+     * pod kluczem profile.avatar.{id}.name (klucze sa zdefiniowane w pl.ts/en.ts FAZA 8b).
      */
     private renderAvatarSection(): string {
         const cards = AVATAR_IDS.map(avatarId => {
@@ -314,7 +324,7 @@ export class ProfileEditScreen implements IScreen {
         });
 
         this.rootEl.querySelector<HTMLButtonElement>('[data-action="save"]')?.addEventListener('click', () => {
-            this.handleSave();
+            void this.handleSave();
         });
     }
 
@@ -349,13 +359,24 @@ export class ProfileEditScreen implements IScreen {
         if (!saveBtn) return;
 
         const nicknameValid = isValidNickname(this.currentNickname);
-        saveBtn.disabled = !nicknameValid;
+        saveBtn.disabled = !nicknameValid || this.isSaving;
+    }
+
+    /** v0.47.0 FAZA 9b.3b: wizualny stan "zapisuje..." podczas async check. */
+    private setSaveBusy(busy: boolean): void {
+        if (!this.rootEl) return;
+        const saveBtn = this.rootEl.querySelector<HTMLButtonElement>('[data-action="save"]');
+        if (!saveBtn) return;
+        saveBtn.disabled = busy;
+        saveBtn.classList.toggle('is-busy', busy);
     }
 
     /**
-     * Walidacja + persist update + toast + back to hub.
+     * v0.47.0 FAZA 9b.3b: async — walidacja + server nickname check + persist + cloud push.
      */
-    private handleSave(): void {
+    private async handleSave(): Promise<void> {
+        if (this.isSaving) return;
+
         const profile = ProfileService.getActiveProfile();
         if (!profile) {
             console.warn('[ProfileEdit] handleSave called without active profile');
@@ -369,16 +390,27 @@ export class ProfileEditScreen implements IScreen {
             return;
         }
 
-        // Check nickname uniqueness ONLY jeśli nickname się zmienił
-        // (idempotent update — nie blokujemy ZAPISZ gdy nickname jest stary)
+        this.isSaving = true;
+        this.setSaveBusy(true);
+
+        // Server-side uniqueness check ONLY jeśli nickname się zmienił (idempotent).
+        // excludeProfileId = wlasne id (edycja bez kolizji z samym soba).
         if (this.currentNickname !== this.originalNickname) {
-            const taken = ProfileService.listProfiles().some(p =>
-                p.id !== profile.id &&
-                p.nickname.toLowerCase() === this.currentNickname.toLowerCase(),
-            );
-            if (taken) {
-                showToast(t('profile.edit.nicknameTaken'), 2500);
-                return;
+            try {
+                const available = await supabaseProfileService.isNicknameAvailable(
+                    this.currentNickname,
+                    profile.id,
+                );
+                if (!available) {
+                    showToast(t('profile.edit.nicknameTaken'), 2500);
+                    this.isSaving = false;
+                    this.setSaveBusy(false);
+                    this.updateSaveButtonState();
+                    return;
+                }
+            } catch (e) {
+                // Offline -> optimistic: zapisz lokalnie, boot sync zlapie kolizje.
+                console.warn('[ProfileEdit] Nickname check failed (offline?), proceeding optimistically:', e);
             }
         }
 
@@ -391,11 +423,16 @@ export class ProfileEditScreen implements IScreen {
                 nickname: this.currentNickname,
             });
 
+            // v0.47.0 FAZA 9b.3b: natychmiastowy cloud sync (+ flush scores queue).
+            pushProfileToCloud().catch((e) => console.warn('[ProfileEdit] cloud push failed:', e));
+
             showToast(t('profile.edit.savedToast'), 1800);
             this.onBack?.();
         } catch (err) {
             console.error('[ProfileEdit] updateProfile failed:', err);
             showToast(t('error.invalidConfig'), 2500);
+            this.isSaving = false;
+            this.setSaveBusy(false);
         }
     }
 

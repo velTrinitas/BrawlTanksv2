@@ -101,6 +101,9 @@ import { showToast } from './ui/toast';
 import { ProfileSpriteCache } from './rendering/profile/ProfileSpriteCache';
 import { ProfileService } from './services/ProfileService';
 
+// === FAZA 9b.3a: cloud profile sync (push aktywny profil -> oproznia kolejke scores) ===
+import { syncActiveProfileToCloud } from './services/profileSync';
+
 // === FAZA 8.5: Mobile touch controls ===
 import { TouchInputManager } from './input/TouchInputManager';
 
@@ -287,6 +290,10 @@ menu.onProfileEditRequested = () => {
     } catch (e) {
         console.error('[boot] ProfileSpriteCache init failed — avatars unavailable:', e);
     }
+
+    // FAZA 9b.3a: wypchnij aktywny profil do chmury (fire-and-forget, nie blokuje boota).
+    // Profil w bazie -> FK scores.profile_id spelniony -> oproznia kolejke offline z 9b.2.
+    void syncActiveProfileToCloud();
 
     menu.start();
 })();

@@ -1,12 +1,20 @@
 /**
- * IdentityScreen.ts — Onboarding identity picker (FAZA 7b).
+ * IdentityScreen.ts — Onboarding identity picker (FAZA 7b + 9b.3b cloud claim).
  *
  * Compact 3-step screen w jednym widoku:
  *  1. Avatar (2x2 mobile / 4x1 desktop) — wybor postaci-czolgisty
  *  2. Pseudonim (text input) — required, 2-16 alfanumerycznych znakow
  *  3. Flaga (4x1) — narodowa flaga ktora gracz nosi na czolgu
  *
- * Po wyborze wszystkich + klik ROZPOCZNIJ → ProfileService.createProfile() + callback.
+ * Po wyborze wszystkich + klik ROZPOCZNIJ → server-side nickname check →
+ * ProfileService.createProfile() + cloud push + callback.
+ *
+ * v0.47.0 FAZA 9b.3b — atomic nickname claim:
+ *  - PRZED createProfile: await supabaseProfileService.isNicknameAvailable(nick).
+ *  - Online + zajety -> komunikat 'nicknameTaken', NIE tworzymy profilu.
+ *  - Online + wolny / Offline -> tworzymy lokalnie (offline = optimistic: UNIQUE
+ *    constraint + boot sync zlapie kolizje pozniej; onboarding NIE moze paść bez sieci).
+ *  - Po stworzeniu: void pushProfileToCloud() — profil w chmurze od razu (FK dla scores).
  *
  * UX decisions (per FAZA 7b nickname fix):
  *  - Auto-prefill nickname z avatar.displayName po klikniecie awatara (zero-friction
@@ -24,8 +32,6 @@
  * TypeScript note (FAZA 7b fix #2):
  * - i18n key maps uzywaja `as const` zamiast `Record<K, string>` annotation,
  *   zeby TS zachowal literalne typy stringów dla t() narrow-key union.
- *   Reverse pitfall vs FAZA 7a (gdzie `as const` na pl.ts wartosciach
- *   blokowal EN translations — tu kierunek jest odwrotny: chcemy literals).
  */
 
 import type { IScreen } from './MainMenu';
@@ -33,6 +39,8 @@ import { t } from '../i18n/i18n';
 import { AVATAR_IDS, AVATARS } from '../config/avatars';
 import { FLAG_IDS, FLAGS, type FlagConfig } from '../config/flags';
 import { ProfileService } from '../services/ProfileService';
+import { supabaseProfileService } from '../services/SupabaseProfileService';
+import { pushProfileToCloud } from '../services/profileSync';
 import { playUiClick, playUiSelect } from './uiSounds';
 import {
     isValidNickname,
@@ -86,6 +94,9 @@ export class IdentityScreen implements IScreen {
 
     /** True jezeli user recznie zmienil nickname — wtedy avatar click NIE nadpisuje. */
     private nicknameManuallyEdited: boolean = false;
+
+    /** v0.47.0 FAZA 9b.3b: guard przeciw double-submit podczas async check. */
+    private isSubmitting: boolean = false;
 
     /** Wywolane po stworzeniu profilu — MainMenu nawiguje do MainHub. */
     onProfileCreated: (() => void) | null = null;
@@ -259,7 +270,7 @@ export class IdentityScreen implements IScreen {
 
             const startBtn = target.closest<HTMLElement>('[data-action="start"]');
             if (startBtn && !(startBtn as HTMLButtonElement).disabled) {
-                this.handleStartClick();
+                void this.handleStartClick();
             }
         });
 
@@ -324,9 +335,30 @@ export class IdentityScreen implements IScreen {
         this.updateCtaButton();
     }
 
-    private handleStartClick(): void {
+    /**
+     * v0.47.0 FAZA 9b.3b: async — server-side nickname claim przed createProfile.
+     * Offline-tolerant (patrz naglowek pliku).
+     */
+    private async handleStartClick(): Promise<void> {
+        if (this.isSubmitting) return;
         if (!this.selectedAvatarId || !this.selectedFlagId) return;
         if (!isValidNickname(this.nicknameValue)) return;
+
+        this.isSubmitting = true;
+        this.setCtaBusy(true);
+
+        // Server-side uniqueness check (atomic claim). Offline -> optimistic.
+        try {
+            const available = await supabaseProfileService.isNicknameAvailable(this.nicknameValue);
+            if (!available) {
+                this.showNicknameTaken();
+                this.isSubmitting = false;
+                this.updateCtaButton(); // re-enable (fields nadal valid)
+                return;
+            }
+        } catch (e) {
+            console.warn('[IdentityScreen] Nickname check failed (offline?), proceeding optimistically:', e);
+        }
 
         playUiSelect();
 
@@ -340,6 +372,10 @@ export class IdentityScreen implements IScreen {
             language: lang,
         });
         console.log('[IdentityScreen] Profile created:', profile);
+
+        // v0.47.0 FAZA 9b.3b: natychmiastowy push do chmury (+ flush kolejki scores).
+        // Fire-and-forget z catch — race z UNIQUE constraint zlapie boot sync.
+        pushProfileToCloud().catch((e) => console.warn('[IdentityScreen] cloud push failed:', e));
 
         this.onProfileCreated?.();
     }
@@ -370,6 +406,21 @@ export class IdentityScreen implements IScreen {
         }
     }
 
+    /** v0.47.0 FAZA 9b.3b: pokaz komunikat "nick zajety" (po server check). */
+    private showNicknameTaken(): void {
+        if (!this.el) return;
+        const input = this.el.querySelector<HTMLInputElement>('[data-action="nickname"]');
+        const hint = this.el.querySelector<HTMLElement>('[data-role="nickname-hint"]');
+        if (input) {
+            input.classList.remove('is-valid');
+            input.classList.add('is-invalid');
+        }
+        if (hint) {
+            hint.classList.add('is-error');
+            hint.textContent = t('profile.onboarding.nicknameTaken');
+        }
+    }
+
     private updateCtaButton(): void {
         const cta = this.el?.querySelector<HTMLButtonElement>('[data-action="start"]');
         if (!cta) return;
@@ -380,5 +431,14 @@ export class IdentityScreen implements IScreen {
             isValidNickname(this.nicknameValue);
 
         cta.disabled = !allValid;
+        cta.classList.remove('is-busy');
+    }
+
+    /** v0.47.0 FAZA 9b.3b: wizualny stan "sprawdzam..." podczas async check. */
+    private setCtaBusy(busy: boolean): void {
+        const cta = this.el?.querySelector<HTMLButtonElement>('[data-action="start"]');
+        if (!cta) return;
+        cta.disabled = busy;
+        cta.classList.toggle('is-busy', busy);
     }
 }

@@ -169,6 +169,7 @@ export const en: typeof pl = {
     'profile.onboarding.nicknamePlaceholder': 'e.g. Mariusz123',
     'profile.onboarding.nicknameHint': '2-16 characters: letters and digits',
     'profile.onboarding.nicknameError': 'Nickname must be 2-16 letters or digits',
+    'profile.onboarding.nicknameTaken': 'Nickname taken — choose another',
 
     // ============================================================
     // Profile / Edit (v0.43.0 FAZA 8b)

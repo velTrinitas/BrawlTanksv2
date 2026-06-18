@@ -1,8 +1,10 @@
 /**
  * ScoreService.ts — abstraction nad leaderboard storage.
  *
- * FAZA 6 (obecna): LocalStorageScoreService impl (placeholder, no UI exposure).
- * FAZA 7+: RestScoreService impl podmieniona w jednej linijce (Dependency Injection).
+ * FAZA 6: LocalStorageScoreService impl (placeholder, no UI exposure).
+ * FAZA 9b.2: bootstrap podmieniony na SupabaseScoreService (DI, 1 linijka).
+ *            LocalStorageScoreService ZOSTAJE — uzywany przez migracje (9b.4)
+ *            do odczytu istniejacych localStorage wynikow.
  *
  * Dlaczego abstraction od początku:
  * - 10 minut pracy teraz vs 3h refaktoru gdy 50 miejsc w kodzie odwołuje się do localStorage.
@@ -13,6 +15,7 @@
 import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
 import type { DifficultyId, GameConfig } from '../types/GameConfig';
+import { SupabaseScoreService } from './SupabaseScoreService';
 
 /**
  * Pojedynczy wpis score (immutable).
@@ -58,10 +61,16 @@ export interface IScoreService {
 
     /** Wyczyść WSZYSTKIE score (testing / reset). */
     clearAll(): Promise<void>;
+
+    /**
+     * Opcjonalne: wymuś wysłanie zakolejkowanych offline wyników.
+     * Implementuje tylko backend z kolejką (Supabase). LocalStorage pomija.
+     */
+    flushQueue?(): Promise<void>;
 }
 
 // ============================================================
-// LocalStorage Implementation (FAZA 6 — placeholder)
+// LocalStorage Implementation (FAZA 6 — placeholder, zostaje dla migracji 9b.4)
 // ============================================================
 
 const STORAGE_KEY = 'brawltanks.scores.v1';
@@ -89,6 +98,11 @@ export class LocalStorageScoreService implements IScoreService {
 
     private generateEntryId(): string {
         return `score_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+
+    /** Surowy odczyt wszystkich lokalnych wynikow — uzywane przez migracje 9b.4. */
+    getAllRaw(): ScoreEntry[] {
+        return this.load();
     }
 
     async submitScore(score: number, config: GameConfig): Promise<ScoreEntry> {
@@ -145,7 +159,9 @@ export class LocalStorageScoreService implements IScoreService {
 
 /**
  * Domyślna instancja serwisu.
- * FAZA 7+: podmień na RestScoreService gdy backend gotowy:
- *   export const scoreService: IScoreService = new RestScoreService(API_URL);
+ * FAZA 9b.2: Supabase backend (REST + offline queue fallback).
+ *
+ * Powrot do localStorage (np. lokalne testy bez sieci): podmien na
+ *   export const scoreService: IScoreService = new LocalStorageScoreService();
  */
-export const scoreService: IScoreService = new LocalStorageScoreService();
+export const scoreService: IScoreService = new SupabaseScoreService();

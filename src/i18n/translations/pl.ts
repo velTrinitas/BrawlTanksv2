@@ -179,6 +179,7 @@ export const pl = {
     'profile.onboarding.nicknamePlaceholder': 'np. Mariusz123',
     'profile.onboarding.nicknameHint': '2-16 znaków: litery i cyfry',
     'profile.onboarding.nicknameError': 'Pseudonim musi mieć 2-16 liter lub cyfr',
+    'profile.onboarding.nicknameTaken': 'Pseudonim zajęty — wybierz inny',
 
     // ============================================================
     // Profile / Edit (v0.43.0 FAZA 8b)

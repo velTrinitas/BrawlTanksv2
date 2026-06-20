@@ -1,6 +1,10 @@
 /**
  * Statystyki wrogów. Pure data, no logic.
  * Wartości pochodzą z v4.48 (Season 1).
+ *
+ * v0.46.0 HP/DMG Scale x100: hp + dmg + bulletDmg pomnozone x100.
+ * NIETKNIETE: speed, scale, tint, shootIntervalMs, bulletSpeed, scoreValue
+ * (scoreValue zostaje bo score formula sie nie zmienia -> score_version dalej 1).
  */
 
 export interface EnemyConfig {
@@ -18,29 +22,29 @@ export interface EnemyConfig {
 }
 
 export const ENEMY_NORMAL: EnemyConfig = {
-    hp: 3,
+    hp: 300,
     speedMin: 1.5,
     speedMax: 3.0,
     scale: 1.0,
     tint: 0xff4444,         // czerwony
-    dmg: 2,                 // collision damage
+    dmg: 200,               // collision damage
     shootIntervalMs: 1800,  // strzela co 1.8s
     bulletSpeed: 8,
-    bulletDmg: 1,
+    bulletDmg: 100,
     bulletColor: 0xff6644,
     scoreValue: 2,
 };
 
 export const ENEMY_BOSS: EnemyConfig = {
-    hp: 30,                 // 10× zwykły
+    hp: 3000,               // 10× zwykły
     speedMin: 1.0,
     speedMax: 1.8,
     scale: 1.45,
     tint: 0x7d3c98,         // fioletowy
-    dmg: 3,
+    dmg: 300,
     shootIntervalMs: 2200,  // salwa co 2.2s
     bulletSpeed: 7,
-    bulletDmg: 2,
+    bulletDmg: 200,
     bulletColor: 0xc78fff,
     scoreValue: 20,
 };
@@ -62,24 +66,25 @@ export const SPAWN_CONFIG = {
  * 3 fazy AI: rush (>60% HP) → strafe (30-60%) → flee+spread (<30%).
  */
 export const ENEMY_MEGA_BOSS: EnemyConfig = {
-    hp: 20,
+    hp: 2000,
     speedMin: 2.0,
     speedMax: 2.8,
     scale: 2.0,
     tint: 0xf1c40f,         // złoty
-    dmg: 4,                 // collision damage większy
+    dmg: 400,               // collision damage większy
     shootIntervalMs: 1400,  // strzela częściej niż boss
     bulletSpeed: 8,
-    bulletDmg: 2,
+    bulletDmg: 200,
     bulletColor: 0xffdd44,
     scoreValue: 100,        // duża nagroda
 };
 
 /**
  * Heart pickup config.
+ * v0.46.0: healAmount x100 (spojne z Heart.ts instance value).
  */
 export const HEART_CONFIG = {
     spawnIntervalFrames: 360, // co ~8.7s
-    healAmount: 1,
+    healAmount: 100,
     maxOnMap: 3,
 };

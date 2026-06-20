@@ -47,7 +47,8 @@ interface Wreck {
  * Visual:
  * - Pill background (rounded rect 22px height, padding-aware width)
  * - Colored accent bar 4px na lewej krawędzi
- * - Text: bold 15px Titan One/sans-serif, white fill + black stroke
+ * - Text: 16px system-ui (700), white fill + black stroke (v0.46.0: Titan One -> system-ui
+ *   dla czytelnosci — Titan One faux-bold byl masywny/rozmazany przy damage numbers)
  *
  * Animation:
  * - vy starts -1.6 (float up), decelerated *0.93 per frame
@@ -505,12 +506,16 @@ export class EffectsManager {
      *
      * @param x — world X (np. player.x lub miejsce eventu)
      * @param y — world Y (toast pojawi się tutaj, potem unosi się do góry)
-     * @param text — tekst (np. '+DMG! ⚔', 'Cube skradziony!')
+     * @param text — tekst (np. '+DMG! ⚔', 'Cube skradziony!', '150')
      * @param color — kolor akcent baru + fill (np. 0xe74c3c red dla dmg, 0x2980b9 blue dla hp)
      *
      * Visual: pill background (rgba black 55%, rounded 11px) + colored 4px accent bar po lewej +
-     * bold 15px text white z black stroke. Animacja: float up @ vy=-1.6, decel *0.93/frame,
+     * 16px system-ui (700) text white z black stroke. Animacja: float up @ vy=-1.6, decel *0.93/frame,
      * life decay 0.0275/frame (~36 frames ~600ms). Alpha = min(1, life * 2) → fade w ostatnich 50%.
+     *
+     * v0.46.0: font Titan One -> system-ui. Titan One to jednowagowy display font; fontWeight:'bold'
+     * wymuszal faux-bold (rozmazane, masywne, nieczytelne przy malych damage numbers). system-ui ma
+     * realne wagi + jest waski/czytelny dla cyfr.
      */
     spawnFloatingText(x: number, y: number, text: string, color: number): void {
         // Reuse z poolu jeśli możliwe
@@ -525,12 +530,12 @@ export class EffectsManager {
             const bgGfx = new PIXI.Graphics();
             const accentGfx = new PIXI.Graphics();
             const textObj = new PIXI.Text('', {
-                fontFamily: '"Titan One", "Lilita One", sans-serif',
-                fontSize: 15,
-                fontWeight: 'bold',
+                fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+                fontSize: 16,
+                fontWeight: '700',
                 fill: 0xffffff,
                 stroke: 0x000000,
-                strokeThickness: 3,
+                strokeThickness: 4,
                 align: 'center',
             });
             textObj.anchor.set(0.5);

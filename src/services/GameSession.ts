@@ -25,6 +25,7 @@
  * FAZA 6.5.2: MainMenu wpiety -> startGame(config) zastapi startGame() (no args).
  * FAZA 7: profileId wypelni rzeczywisty profil, sessionId trafia do backend score sync.
  * v0.44.0 FAZA 8.6: dorzucony tracking PowerCube (cubesTotal, dmgBonus, hpCubesPicked, dmgCubesPicked).
+ * v0.46.0 HP/DMG x100: POWERCUBE_HP_BONUS_PER_PICKUP 0.25 -> 25 (widoczny bump HP).
  */
 
 import type { GameConfig } from '../types/GameConfig';
@@ -48,14 +49,16 @@ export const MAX_POWERCUBES_PER_MATCH = 10;
 /**
  * Damage bonus per dmg-type pickup. Capped naturalnie przez MAX_POWERCUBES_PER_MATCH:
  * jesli wszystkie 10 cubes typu 'dmg', max dmgBonus = 0.50 (+50% damage).
+ * v0.46.0: NIETKNIETE (procent dziala z kazda skala).
  */
 export const POWERCUBE_DMG_BONUS_PER_PICKUP = 0.05;
 
 /**
- * Health bonus per hp-type pickup. Capped naturalnie: max +2.5 HP (i +2.5 maxHp)
- * jesli wszystkie 10 cubes typu 'hp'.
+ * Health bonus per hp-type pickup.
+ * v0.46.0 HP/DMG x100: 0.25 -> 25. Max +250 HP (i +250 maxHp) jesli wszystkie 10 cubes hp.
+ * Widoczny bump na pasku HP (cel refactora: gracz CZUJE ze uroosl).
  */
-export const POWERCUBE_HP_BONUS_PER_PICKUP = 0.25;
+export const POWERCUBE_HP_BONUS_PER_PICKUP = 25;
 
 export class GameSession {
     /** Immutable game configuration (frozen przez GameConfigBuilder). */
@@ -91,7 +94,7 @@ export class GameSession {
      * 0.05 = +5%, 0.50 = +50% (10 dmg cubes wszystkie zebrane).
      *
      * Aplikowany w main.ts przy tworzeniu kazdego player bullet:
-     * `bullet.dmg *= (1 + currentSession.dmgBonus)`.
+     * `bullet.dmg = Math.round(bullet.dmg * (1 + currentSession.dmgBonus))`.
      */
     public dmgBonus: number = 0;
 
@@ -105,6 +108,14 @@ export class GameSession {
      * Ilosc DMG-type cubes zebranych (dla statystyk game-over).
      */
     public dmgCubesPicked: number = 0;
+
+    // v0.46.0 — staty dla rozbudowanego endcard (8 statow)
+    /** Najwyzszy osiagniety streak combo w meczu (do endcard). */
+    public maxCombo: number = 0;
+    /** Ilosc zebranych apteczek (Heart pickups) — inkrement w main.ts. */
+    public heartsHealed: number = 0;
+    /** Ilosc uzytych supermocy (aura/bomba/freeze) — inkrement w main.ts. */
+    public superPowersUsed: number = 0;
 
     constructor(config: GameConfig) {
         this.config = config;
@@ -145,6 +156,7 @@ export class GameSession {
             this.comboCount = 1;
         }
         this.comboEndTime = now + comboWindowMs;
+        if (this.comboCount > this.maxCombo) this.maxCombo = this.comboCount;
         return this.comboCount;
     }
 

@@ -5,6 +5,12 @@
  * - Brawler display names z i18n (klucz: 'brawler.{id}.name')
  * - Subskrybuje i18n.onLanguageChange dla live re-render gdy zmieni jezyk z Settings
  *
+ * v0.46.0 HP/DMG x100 fix:
+ * - USUNIETY hardcoded DAMAGE_DISPLAY map (stare wartosci sprzed x100, powodowaly
+ *   "bledne dane": HP z configa pokazywal 400/700, a DMG ze starej tabeli 1/1.5).
+ * - DMG czytany bezposrednio z configa (b.dmg) = single source of truth, zawsze spojny
+ *   z brawlers.ts niezaleznie od skali.
+ *
  * Flow:
  * 1. Gracz widzi 8 brawlerow w gridzie (2x4 mobile / 4x2 tablet+)
  * 2. 4 difficulty pills pod spodem (Easy/Normal/Hard/Nightmare)
@@ -40,6 +46,9 @@ import { playUiClick } from './uiSounds';
 /**
  * Minimal flexible brawler shape — picker dziala z dowolnym brawlers.ts
  * zachowujac forward compatibility (brawler config moze ewoluować).
+ *
+ * v0.46.0: `dmg` to realne pole z brawlers.ts (wczesniej picker uzywal hardcoded
+ * mapy bo interfejs mial `damage` ktory nie matchowal configa — usuniete).
  */
 interface BrawlerForPicker {
     id: string;
@@ -49,44 +58,8 @@ interface BrawlerForPicker {
     colorMain?: string;  // tank theme color (used in old main.ts dla name pill + border)
     hp?: number;
     speed?: number;
-    damage?: number;
+    dmg?: number;        // realne pole damage z brawlers.ts (x100 scale od v0.46.0)
     reload?: number;
-}
-
-/**
- * DAMAGE DISPLAY VALUES (Runda 1.10 — defensive mapping z wieloma wariantami casing).
- *
- * Mapping pokrywa: lowercase, Capitalized, UPPERCASE + popularne EN nazwy.
- * Jeśli twoje IDs/names nie matchują żadnego — zobacz console.log w renderBrawlerCards
- * i dodaj brakujące warianty (lub wyślij brawlers.ts zeby Claude wygenerował exact match).
- */
-const DAMAGE_DISPLAY: Record<string, number> = {
-    // Lowercase (Polish IDs as Claude assumed)
-    twardy:   1,   pancerny: 1.5, zwiad:    0.8, snajper:  3,
-    tech:     1.2, ogniarz:  0.5, shadow:   1.5, king:     2,
-    // Capitalized
-    Twardy:   1,   Pancerny: 1.5, Zwiad:    0.8, Snajper:  3,
-    Tech:     1.2, Ogniarz:  0.5, Shadow:   1.5, King:     2,
-    // UPPERCASE
-    TWARDY:   1,   PANCERNY: 1.5, ZWIAD:    0.8, SNAJPER:  3,
-    TECH:     1.2, OGNIARZ:  0.5, SHADOW:   1.5, KING:     2,
-    // English variants (jesli IDs sa po angielsku)
-    hardy:    1,   armor:    1.5, scout:    0.8, sniper:   3,
-    fire:     0.5, heavy:    1.5, plasma:   1.2, pyro:     0.5,
-};
-
-/**
- * Lookup damage display value (Runda 1.9 fix — case-insensitive z fallbackiem).
- * Tries: b.id (raw) → b.id lowercase → b.name lowercase.
- * Returns '-' if no match (NOT b.reload — bo to absolute damage value w niektorych configach).
- */
-function lookupDamage(b: BrawlerForPicker): number | string {
-    if (DAMAGE_DISPLAY[b.id] !== undefined) return DAMAGE_DISPLAY[b.id];
-    const idLower = b.id?.toLowerCase();
-    if (idLower && DAMAGE_DISPLAY[idLower] !== undefined) return DAMAGE_DISPLAY[idLower];
-    const nameLower = b.name?.toLowerCase();
-    if (nameLower && DAMAGE_DISPLAY[nameLower] !== undefined) return DAMAGE_DISPLAY[nameLower];
-    return '-';
 }
 
 /**
@@ -210,19 +183,11 @@ export class BrawlerPicker implements IScreen {
     private renderBrawlerCards(): string {
         const brawlers = BRAWLERS as unknown as BrawlerForPicker[];
 
-        // DEBUG (Runda 1.10): wyswietl IDs zeby Mariusz mogl zweryfikowac mapping
-        if (typeof console !== 'undefined') {
-            console.log('[BrawlerPicker DEBUG] Brawler IDs from config:',
-                brawlers.map(b => ({ id: b.id, name: b.name, mappedDamage: lookupDamage(b), i18nName: lookupBrawlerName(b) }))
-            );
-        }
-
         return brawlers.map(b => {
-            // Stats: zgodnie ze stary projektem — display values per Mariusz spec (Runda 1.7)
+            // Stats czytane bezposrednio z configa (single source of truth, x100 scale).
             const hp = b.hp ?? '-';
             const speed = b.speed ?? '-';
-            // Case-insensitive lookup z fallbackiem na name (Runda 1.9 fix — niektore IDs maja inny case)
-            const damage = lookupDamage(b);
+            const damage = b.dmg ?? '-';
 
             // v0.24.0: i18n lookup dla display name (fallback to b.name jezeli brak klucza)
             const displayName = lookupBrawlerName(b);

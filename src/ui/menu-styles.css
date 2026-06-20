@@ -1894,7 +1894,11 @@
 }
 
 .bt-brawler-card-stats .stat {
-    font-family: var(--font-display);
+    /* v0.46.0: system-ui zamiast Titan One — waski, czytelny font dla 3-cyfrowych
+       wartosci x100 (400/700/200). Titan One (display) byl za szeroki i wartosci
+       wychodzily poza karte. */
+    font-family: var(--font-body);
+    font-weight: 600;
     /* Runda 1.18: unified font-size (stat/icon/divider same per breakpoint) + explicit line-height
        dla descender breathing space (decimal point "." nie obcina sie pod container) */
     font-size: 0.85rem;
@@ -1916,7 +1920,7 @@
 
 .bt-brawler-card-stats .stat-divider {
     color: rgba(255, 255, 255, 0.3);
-    font-family: var(--font-display);
+    font-family: var(--font-body);
     font-size: 0.85rem;
     user-select: none;
 }

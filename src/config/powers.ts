@@ -1,6 +1,9 @@
 /**
  * Super powers config — v0.5 (Sesja 4B Etap 1).
  * Refactor: per-super cooldowns, brak charges-as-cost, aura jako tarcza.
+ *
+ * v0.46.0 HP/DMG Scale x100: MEGA_BOMB_CONFIG.damage x100 + opis.
+ * NIETKNIETE: PICKUP_CONFIG.gemValue (to score, formula bez zmian -> score_version 1).
  */
 
 export type PowerId = 'aura' | 'megaBomb' | 'freeze';
@@ -34,7 +37,7 @@ export const POWERS: Record<PowerId, PowerConfig> = {
         color: 0xff4400,
         cooldownMs: 20000,       // v4.48: 20s
         durationFrames: 0,       // instant
-        description: 'AoE wybuch — 8 obrażeń w promieniu 250px',
+        description: 'AoE wybuch — 800 obrażeń w promieniu 250px',
         implemented: true,
     },
     freeze: {
@@ -51,16 +54,19 @@ export const POWERS: Record<PowerId, PowerConfig> = {
 
 /**
  * Mega Bomb stats.
+ * v0.46.0: damage x100 (8 -> 800). blastRadius to dystans, NIETKNIETY.
  */
 export const MEGA_BOMB_CONFIG = {
     blastRadius: 250,
-    damage: 8,
+    damage: 800,
 };
 
 /**
  * Pickup config (gem, magnet).
  * UWAGA: gemValue zostaje, ale w Etapie 1 gemy NIE ładują super powers.
  * W Etapie 2 będą ładować super-shot broni.
+ *
+ * v0.46.0: gemValue NIETKNIETE (to score, nie HP/DMG).
  */
 export const PICKUP_CONFIG = {
     gemValue: 1,

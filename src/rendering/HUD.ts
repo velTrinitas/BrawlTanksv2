@@ -16,6 +16,13 @@ const SUPER_TINT_HEX = '#c850ff';
  */
 const FONT_FAMILY = 'Titan One';
 
+/**
+ * v0.46.0 HUD typography pass: jednolity rozmiar labeli pilli (HP/WYNIK/ZABICI/SUPER).
+ * Bez bolda — Titan One to font jednowagowy, `bold` wymuszal faux-bold (chunky, niespojny
+ * z naturalna waga liczb). Wszystkie labele = ten sam rozmiar/waga = spojny HUD.
+ */
+const HUD_LABEL_PX = 26;
+
 interface HudNotif {
     text: string;
     color: string;
@@ -80,13 +87,14 @@ export class HUD {
     private drawNotifs(): void {
         if (this.hudNotifs.length === 0) return;
         const c = this.ctx;
-        c.font = `bold 15px "${FONT_FAMILY}",cursive`;
+        c.font = `15px "${FONT_FAMILY}",cursive`;
         this.hudNotifs.forEach((n, i) => {
             if (n.timer <= 0) return;
             n.timer--;
             const alpha = Math.min(1, n.timer / 30) * Math.min(1, (n.maxTimer - n.timer + 20) / 20);
             const pw = c.measureText(n.text).width + 16;
-            const ph = 24, pr = 12, px = 222, py = 8 + i * 28;
+            // v0.46.0: px 222 → 252 (HP pill poszerzony do 230, notify nie moga nachodzic)
+            const ph = 24, pr = 12, px = 252, py = 8 + i * 28;
             c.save();
             c.globalAlpha = alpha;
             c.fillStyle = 'rgba(0,0,0,0.55)';
@@ -116,7 +124,6 @@ export class HUD {
         const rv = t >= 0.5 ? Math.round(46 + (1 - t) * 2 * (255 - 46)) : Math.round(255 + (0.5 - t) * 2 * (231 - 255));
         const gv = t >= 0.5 ? Math.round(204 + (1 - t) * 2 * (165 - 204)) : Math.round(165 + (0.5 - t) * 2 * (76 - 165));
         const bv = t >= 0.5 ? Math.round(113 + (1 - t) * 2 * (0 - 113)) : Math.round((0.5 - t) * 2 * 60);
-        const col = `rgb(${rv},${gv},${bv})`;
         
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
@@ -127,10 +134,10 @@ export class HUD {
         c.stroke();
         
         const PAD = 14, GAP = 10, cy = py + PH / 2;
-        // v0.27.0 FAZA F-fix3: HP label 14px → 18px + full white (czytelnosc)
+        // v0.46.0: label HP — HUD_LABEL_PX bez bolda (spojny z liczba, koniec faux-bold)
         const hpLabel = tr('hud.hp');
         c.fillStyle = '#ffffff';
-        c.font = `bold 18px "${FONT_FAMILY}",cursive`;
+        c.font = `${HUD_LABEL_PX}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.7)';
@@ -140,13 +147,14 @@ export class HUD {
         
         const lblW = c.measureText(hpLabel).width;
         const numStr = `${Math.ceil(curHP)}/${Math.ceil(maxHP)}`;
-        c.font = `32px "${FONT_FAMILY}",cursive`;
+        // v0.46.0 HP/DMG x100: liczba 26px (3-cyfrowe "700/700" mieszcza sie w 230px pill)
+        c.font = `26px "${FONT_FAMILY}",cursive`;
         const numW = c.measureText(numStr).width;
         const numX = px + PW - PAD - numW;
         c.strokeStyle = 'rgba(0,0,0,0.85)';
         c.lineWidth = 4;
         c.strokeText(numStr, numX, cy + 1);
-        c.fillStyle = '#ffffff';  // v0.27.0 FAZA F-fix2: HP value zawsze biala (czytelnosc)
+        c.fillStyle = '#ffffff';
         c.fillText(numStr, numX, cy + 1);
         
         const BH = 12, barX = px + PAD + lblW + GAP, barW = numX - barX - GAP, barY = cy - BH / 2;
@@ -163,147 +171,120 @@ export class HUD {
     }
     
     /**
-     * Gem pill — z progress barem do następnego +3 super charge (v0.5 Etap 2).
+     * v0.46.0 — SCALONY SUPER PILL (zastapil drawGemPill + drawSuperShotPill).
+     *
+     * Decyzja projektowa (FAZA v0.46 HUD redesign): surowa liczba gemow byla niskowartosciowa
+     * (redundancja ze score — gem = +1 pkt; gracz nie dziala na liczbie). Jedyna actionable
+     * info to "ile mam superow + jak blisko nastepnego". Wzorzec Brawl Stars: charge = wizualny
+     * miernik, nie licznik.
+     *
+     * Layout:
+     * - ⚡ ikona + label "SUPER" (gora)
+     * - 6-segmentowy miernik ladunkow: zapalone segmenty = player.superCharges (banked),
+     *   bez liczby (decyzja Mariusza: czysto wizualnie). Batche +3 zapalaja 3 segmenty.
+     * - cienki pasek ladowania (dol): gemsToNext/10 = postep do nastepnego batcha +3.
+     * - gdy superCharges > 0 lub aktywny: pill swieci fioletowo (sygnal "mozesz strzelic").
+     * - gdy aktywny (isSuperShotActive): pulsujace fioletowe tlo.
+     *
+     * gemsCollected dalej trackowany wewnetrznie w SpawnSystem (matematyka batchy) — tylko
+     * DISPLAY licznika usuniety.
      */
-    private drawGemPill(spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
+    private drawSuperPill(player: Player, spawnSystem: SpawnSystem, px: number, py: number, PW: number, PH: number, r: number): void {
         const c = this.ctx;
-        
-        c.fillStyle = 'rgba(8,8,18,0.75)';
-        c.beginPath();
-        c.roundRect(px, py, PW, PH, r);
-        c.fill();
-        c.strokeStyle = 'rgba(46,204,113,0.4)';
-        c.lineWidth = 1;
-        c.stroke();
-        
-        // v0.27.0 FAZA F-fix4: label "GEMY"/"GEMS" - 11px → 17px (+50%) + mocniejszy obrys
-        c.font = `bold 17px "${FONT_FAMILY}",cursive`;
-        c.fillStyle = '#ffffff';
-        c.textAlign = 'right';
-        c.textBaseline = 'top';
-        c.strokeStyle = 'rgba(0,0,0,0.9)';
-        c.lineWidth = 4;
-        const gemLabel = tr('hud.gems');
-        c.strokeText(gemLabel, px + PW - 8, py + 5);
-        c.fillText(gemLabel, px + PW - 8, py + 5);
-        c.textAlign = 'left';
-        c.textBaseline = 'middle';
-        
-        // Zielony hex gem icon
-        const gemCx = px + 22, gemCy = py + PH / 2;
-        const gemR = 11;
-        c.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i - Math.PI / 2;
-            const x = gemCx + gemR * Math.cos(angle);
-            const y = gemCy + gemR * Math.sin(angle);
-            if (i === 0) c.moveTo(x, y);
-            else c.lineTo(x, y);
-        }
-        c.closePath();
-        c.fillStyle = '#2ecc71';
-        c.fill();
-        c.strokeStyle = '#0d4d28';
-        c.lineWidth = 1.5;
-        c.stroke();
-        
-        c.fillStyle = 'rgba(255,255,255,0.5)';
-        c.beginPath();
-        c.ellipse(gemCx - 2, gemCy - 5, 2.5, 1.2, 0, 0, Math.PI * 2);
-        c.fill();
-        
-        // Total gems liczba
-        c.font = `26px "${FONT_FAMILY}",cursive`;
-        c.textAlign = 'left';
-        c.textBaseline = 'middle';
-        c.strokeStyle = 'rgba(0,0,0,0.7)';
-        c.lineWidth = 4;
-        c.strokeText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2 - 5);
-        c.fillStyle = '#2ecc71';
-        c.fillText(String(spawnSystem.gemsCollected), px + 42, py + PH / 2 - 5);
-        
-        // Progress bar X/10 → +3 super (v0.5 Etap 2)
-        // v0.27.0 FAZA F-fix2: 10px za maly na Titan One → 13px + dark stroke dla czytelnosci
-        const gemsToNext = spawnSystem.gemsCollected % GEMS_PER_SUPER_CHARGE_TRIGGER;
-        const progressLabel = `${gemsToNext}/${GEMS_PER_SUPER_CHARGE_TRIGGER} → ⚡`;
-        c.font = `bold 13px "${FONT_FAMILY}",cursive`;
-        c.strokeStyle = 'rgba(0,0,0,0.85)';
-        c.lineWidth = 3;
-        c.strokeText(progressLabel, px + 42, py + PH - 9);
-        c.fillStyle = '#ffffff';
-        c.fillText(progressLabel, px + 42, py + PH - 9);
-        
-        const BAR_X = px + 42;
-        const BAR_W = PW - 50;
-        const BAR_Y = py + PH - 4;
-        const BAR_H = 3;
-        c.fillStyle = 'rgba(255,255,255,0.1)';
-        c.beginPath();
-        c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
-        c.fill();
-        c.fillStyle = SUPER_TINT_HEX;
-        c.beginPath();
-        c.roundRect(BAR_X, BAR_Y, BAR_W * (gemsToNext / GEMS_PER_SUPER_CHARGE_TRIGGER), BAR_H, BAR_H / 2);
-        c.fill();
-    }
-    
-    /**
-     * Super shot pill — pokazuje charges + countdown gdy aktywne (v0.5 Etap 2).
-     */
-    private drawSuperShotPill(player: Player, px: number, py: number, PW: number, PH: number, r: number): void {
-        if (player.superCharges === 0 && !player.isSuperShotActive) return;
-        
-        const c = this.ctx;
+        const charges = player.superCharges;
         const isActive = player.isSuperShotActive;
-        
-        // Background
+        const ready = charges > 0 || isActive;
+        const MAX_PIPS = 6;
+        const PAD = 12;
+
+        // Tlo — pulsujace fioletowe gdy aktywny, ciemne gdy nie
         if (isActive) {
             const pulse = 0.85 + Math.sin(Date.now() / 80) * 0.15;
             c.save();
             c.globalAlpha = pulse;
-            c.fillStyle = 'rgba(200,80,255,0.85)';
+            c.fillStyle = 'rgba(200,80,255,0.55)';
+            c.beginPath();
+            c.roundRect(px, py, PW, PH, r);
+            c.fill();
+            c.restore();
         } else {
-            c.fillStyle = 'rgba(40,15,60,0.85)';
+            c.fillStyle = 'rgba(8,8,18,0.75)';
+            c.beginPath();
+            c.roundRect(px, py, PW, PH, r);
+            c.fill();
+        }
+
+        // Border — swieci gdy gotowy do strzalu
+        if (ready) {
+            const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
+            c.strokeStyle = `rgba(200,80,255,${pulse})`;
+            c.lineWidth = 2.5;
+        } else {
+            c.strokeStyle = 'rgba(200,80,255,0.3)';
+            c.lineWidth = 1;
         }
         c.beginPath();
         c.roundRect(px, py, PW, PH, r);
-        c.fill();
-        if (isActive) c.restore();
-        
-        c.strokeStyle = SUPER_TINT_HEX;
-        c.lineWidth = 2;
-        c.beginPath();
-        c.roundRect(px, py, PW, PH, r);
         c.stroke();
-        
-        // Icon ⚡
-        c.font = `22px "${FONT_FAMILY}",cursive`;
+
+        // Label "SUPER SHOT" + blyskawica na KONCU (v0.46.0).
+        // Mniejszy font niz HUD_LABEL_PX bo 2-wyrazowy label nie zmiesci sie w 26px.
+        const superLabel = 'SUPER SHOT';
+        const SUPER_LABEL_PX = 19;
+        c.font = `${SUPER_LABEL_PX}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
+        c.strokeStyle = 'rgba(0,0,0,0.85)';
+        c.lineWidth = 3;
+        c.strokeText(superLabel, px + PAD, py + 17);
+        c.fillStyle = ready ? '#d8a8ff' : 'rgba(255,255,255,0.7)';
+        c.fillText(superLabel, px + PAD, py + 17);
+
+        // Blyskawica ⚡ na koncu labela
+        const superLblW = c.measureText(superLabel).width;
+        c.font = `${SUPER_LABEL_PX + 2}px "${FONT_FAMILY}",cursive`;
+        c.globalAlpha = ready ? 1 : 0.5;
         c.fillStyle = '#fff';
-        c.fillText('⚡', px + 10, py + PH / 2);
-        
-        // Text
-        if (isActive) {
-            // Countdown: "SUPER X.Xs"
-            const secsLeft = player.superShotSecondsLeft;
-            const text = `SUPER ${secsLeft.toFixed(1)}s`;
-            c.font = `bold 14px "${FONT_FAMILY}",cursive`;
-            c.fillStyle = '#fff';
-            c.strokeStyle = '#000';
-            c.lineWidth = 3;
-            c.strokeText(text, px + 36, py + PH / 2);
-            c.fillStyle = '#fff';
-            c.fillText(text, px + 36, py + PH / 2);
-        } else {
-            // Charges count: "×N"
-            const text = `×${player.superCharges}`;
-            c.font = `bold 18px "${FONT_FAMILY}",cursive`;
-            c.strokeStyle = '#000';
-            c.lineWidth = 3;
-            c.strokeText(text, px + 36, py + PH / 2);
+        c.fillText('⚡', px + PAD + superLblW + 5, py + 17);
+        c.globalAlpha = 1;
+
+        // 6-segmentowy miernik ladunkow (banked charges, bez liczby)
+        const pipCount = Math.min(charges, MAX_PIPS);
+        const PIP_W = 14, PIP_H = 8, PIP_GAP = 4;
+        const pipsY = py + 30;
+        let pipX = px + PAD;
+        for (let i = 0; i < MAX_PIPS; i++) {
+            const lit = i < pipCount;
+            c.beginPath();
+            c.roundRect(pipX, pipsY, PIP_W, PIP_H, 3);
+            if (lit) {
+                c.fillStyle = SUPER_TINT_HEX;
+                c.fill();
+                // subtelny highlight na zapalonym
+                c.fillStyle = 'rgba(255,255,255,0.25)';
+                c.beginPath();
+                c.roundRect(pipX, pipsY, PIP_W, PIP_H / 2, [3, 3, 0, 0]);
+                c.fill();
+            } else {
+                c.fillStyle = 'rgba(255,255,255,0.12)';
+                c.fill();
+            }
+            pipX += PIP_W + PIP_GAP;
+        }
+
+        // Cienki pasek ladowania do nastepnego batcha (+3)
+        const gemsToNext = spawnSystem.gemsCollected % GEMS_PER_SUPER_CHARGE_TRIGGER;
+        const chargeProgress = gemsToNext / GEMS_PER_SUPER_CHARGE_TRIGGER;
+        const BAR_X = px + PAD, BAR_W = PW - PAD * 2, BAR_Y = py + PH - 7, BAR_H = 3;
+        c.fillStyle = 'rgba(255,255,255,0.1)';
+        c.beginPath();
+        c.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
+        c.fill();
+        if (chargeProgress > 0) {
             c.fillStyle = SUPER_TINT_HEX;
-            c.fillText(text, px + 36, py + PH / 2);
+            c.beginPath();
+            c.roundRect(BAR_X, BAR_Y, BAR_W * chargeProgress, BAR_H, BAR_H / 2);
+            c.fill();
         }
     }
     
@@ -317,29 +298,34 @@ export class HUD {
         c.roundRect(px, py, PW, PH, r);
         c.fill();
         
-        // v0.27.0 FAZA F-fix4: label "ZABICI"/"KILLS" - 11px → 17px (+50%) + mocniejszy obrys
-        c.font = `bold 17px "${FONT_FAMILY}",cursive`;
+        const cyMid = py + PH / 2 - 3;  // lekko w gore — miejsce na dolny pasek megabossa
+
+        // Label "KILLS" — lewo, wycentrowane pionowo (spojny wzorzec z SCORE/HP: label lewo, wartosc prawo)
+        c.font = `${HUD_LABEL_PX}px "${FONT_FAMILY}",cursive`;
         c.fillStyle = '#ffffff';
-        c.textAlign = 'right';
-        c.textBaseline = 'top';
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.9)';
         c.lineWidth = 4;
         const killsLabel = tr('hud.kills');
-        c.strokeText(killsLabel, px + PW - 8, py + 5);
-        c.fillText(killsLabel, px + PW - 8, py + 5);
-        
-        c.fillStyle = '#e8dcc8';
-        c.font = `26px "${FONT_FAMILY}",cursive`;
-        c.textAlign = 'left';
-        c.textBaseline = 'middle';
-        c.fillText('💀', px + 14, py + PH / 2);
-        
+        c.strokeText(killsLabel, px + 14, cyMid);
+        c.fillText(killsLabel, px + 14, cyMid);
+
+        // Wartosc "💀 N" — prawo, wycentrowane pionowo (ta sama os co label)
+        const numStr = String(totalKills);
         c.font = `32px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'right';
+        c.textBaseline = 'middle';
+        const numX = px + PW - 14;
         c.strokeStyle = 'rgba(0,0,0,0.7)';
         c.lineWidth = 4;
-        c.strokeText(String(totalKills), px + 56, py + PH / 2);
+        c.strokeText(numStr, numX, cyMid);
         c.fillStyle = '#e8dcc8';
-        c.fillText(String(totalKills), px + 56, py + PH / 2);
+        c.fillText(numStr, numX, cyMid);
+        // Skull tuz przed liczba (right-aligned w jego pozycji)
+        const numW = c.measureText(numStr).width;
+        c.font = `22px "${FONT_FAMILY}",cursive`;
+        c.fillText('💀', numX - numW - 8, cyMid);
         
         const BAR_H = 5;
         const BAR_X = px + 14;
@@ -362,7 +348,7 @@ export class HUD {
             c.save();
             c.globalAlpha = pulse;
             c.fillStyle = '#ff0033';
-            c.font = `bold 13px "${FONT_FAMILY}",cursive`;
+            c.font = `13px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'right';
             c.fillText('💀 ZNISZCZ BOSSÓW!', px + PW - 4, py + PH + 18);
             c.restore();
@@ -455,7 +441,7 @@ export class HUD {
                 c.fill();
                 c.restore();
                 
-                c.font = `bold 22px "${FONT_FAMILY}",cursive`;
+                c.font = `22px "${FONT_FAMILY}",cursive`;
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
                 c.strokeStyle = '#000';
@@ -466,7 +452,7 @@ export class HUD {
             }
             
             // v0.27.0 FAZA F-fix2: 11px za maly dla Titan One → 13px + dark stroke dla kontrastu
-            c.font = `bold 13px "${FONT_FAMILY}",cursive`;
+            c.font = `13px "${FONT_FAMILY}",cursive`;
             c.strokeStyle = 'rgba(0,0,0,0.85)';
             c.lineWidth = 3;
             c.strokeText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
@@ -500,7 +486,7 @@ export class HUD {
             
             c.save();
             c.globalAlpha = pulse;
-            c.font = `bold 24px "${FONT_FAMILY}",cursive`;
+            c.font = `24px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'center';
             c.strokeStyle = '#000';
             c.lineWidth = 5;
@@ -543,7 +529,7 @@ export class HUD {
         c.beginPath();
         c.roundRect(px, py, 200, 32, 10);
         c.fill();
-        c.font = `bold 16px "${FONT_FAMILY}",cursive`;
+        c.font = `16px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.fillStyle = '#fff';
@@ -569,7 +555,7 @@ export class HUD {
         c.beginPath();
         c.roundRect(px, py, 200, 32, 10);
         c.fill();
-        c.font = `bold 16px "${FONT_FAMILY}",cursive`;
+        c.font = `16px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.fillStyle = '#fff';
@@ -607,7 +593,7 @@ export class HUD {
         c.roundRect(bx, by, BW * hpPct, BH / 2, 6);
         c.fill();
         
-        c.font = `bold 18px "${FONT_FAMILY}",cursive`;
+        c.font = `18px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.strokeStyle = '#000';
@@ -642,7 +628,7 @@ export class HUD {
         c.lineWidth = 4;
         c.stroke();
         
-        c.font = `bold 52px "${FONT_FAMILY}",cursive`;
+        c.font = `52px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.strokeStyle = '#000';
@@ -691,6 +677,11 @@ export class HUD {
      * v0.23.1: render() teraz wrappuje HUD pill rendering w c.scale(uiScale).
      * Crosshair + powerbar are conditional na flags (mobile hides them).
      * MegaBossAlert zostaje unscaled (centralna pozycja — wyglada lepiej w full size).
+     *
+     * v0.46.0 HUD redesign:
+     * - HP pill 230px (3-cyfrowe HP)
+     * - SCORE pill: label WYNIK (gora-lewo) → duza zlota liczba (34px, hero leaderboard metric)
+     * - SUPER pill (scalony gem+supershot) zastapil dwa osobne pille w lewej kolumnie
      */
     render(
         player: Player,
@@ -708,44 +699,51 @@ export class HUD {
         c.save();
         c.scale(this.uiScale, this.uiScale);
 
-        this.drawHPPill(player, 14, 8, 200, 54, 16);
+        // HP pill 230px (3-cyfrowe "700/700" sie miesci)
+        this.drawHPPill(player, 14, 8, 230, 54, 16);
 
-        // Centralny SCORE pill — v0.27.0 Wariant A: label "WYNIK"/"SCORE" w prawym gornym rogu
-        const gx2 = Math.round((this.screenW / this.uiScale) / 2 - 100);
-        c.fillStyle = 'rgba(8,8,18,0.75)';
+        // === Centralny SCORE pill (hero leaderboard metric — zloty, prominentny) ===
+        const SW = 230;
+        const gx2 = Math.round((this.screenW / this.uiScale) / 2 - SW / 2);
+        c.fillStyle = 'rgba(8,8,18,0.78)';
         c.beginPath();
-        c.roundRect(gx2, 8, 200, 54, 16);
+        c.roundRect(gx2, 8, SW, 54, 16);
         c.fill();
+        // zlotawy border — sygnalizuje "to sie liczy"
+        c.strokeStyle = 'rgba(241,196,15,0.4)';
+        c.lineWidth = 1.5;
+        c.beginPath();
+        c.roundRect(gx2, 8, SW, 54, 16);
+        c.stroke();
 
-        // v0.27.0 FAZA F-fix4: label "WYNIK" - 11px → 17px (+50%) + mocniejszy obrys
-        c.font = `bold 17px \"${FONT_FAMILY}\",cursive`;
-        c.fillStyle = '#ffffff';
-        c.textAlign = 'right';
-        c.textBaseline = 'top';
-        c.strokeStyle = 'rgba(0,0,0,0.9)';
-        c.lineWidth = 4;
+        // Label "SCORE" — lewo, wycentrowane pionowo (ta sama os co liczba = wyjustowane), zlote
+        // v0.46.0: label tej samej wielkosci co WARTOSC (34px) — req Mariusz
         const scoreLabel = tr('hud.score');
-        c.strokeText(scoreLabel, gx2 + 200 - 8, 8 + 5);
-        c.fillText(scoreLabel, gx2 + 200 - 8, 8 + 5);
-
-        // Liczba score (zolta, duza, z dark stroke)
-        c.fillStyle = '#f1c40f';
-        c.font = `32px \"${FONT_FAMILY}\",cursive`;
+        const scoreCy = 8 + 54 / 2;
+        c.font = `34px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
-        c.strokeStyle = 'rgba(0,0,0,0.7)';
+        c.strokeStyle = 'rgba(0,0,0,0.9)';
         c.lineWidth = 4;
-        c.strokeText(String(score), gx2 + 58, 35);
-        c.fillText(String(score), gx2 + 58, 35);
+        c.strokeText(scoreLabel, gx2 + 14, scoreCy);
+        c.fillStyle = '#f1c40f';
+        c.fillText(scoreLabel, gx2 + 14, scoreCy);
 
-        const kx = (this.screenW / this.uiScale) - 14 - 200;
-        this.drawKillsPill(spawnSystem, kx, 8, 200, 54, 16);
+        // Liczba — duza zlota (34px, hero leaderboard metric), prawo, wycentrowane pionowo
+        c.font = `34px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'right';
+        c.textBaseline = 'middle';
+        c.strokeStyle = 'rgba(0,0,0,0.8)';
+        c.lineWidth = 5;
+        c.strokeText(String(score), gx2 + SW - 14, scoreCy + 1);
+        c.fillStyle = '#f1c40f';
+        c.fillText(String(score), gx2 + SW - 14, scoreCy + 1);
 
-        // Gem counter (lewy, drugi rząd) — z progress barem do +3 charges
-        this.drawGemPill(spawnSystem, 14, 70, 140, 50, 14);
+        const kx = (this.screenW / this.uiScale) - 14 - 230;
+        this.drawKillsPill(spawnSystem, kx, 8, 230, 54, 16);
 
-        // Super shot pill (lewy, trzeci rząd) — gdy są charges lub aktywne
-        this.drawSuperShotPill(player, 14, 126, 140, 38, 12);
+        // === SUPER pill (scalony gem-charge + super charges) — lewa kolumna, drugi rzad ===
+        this.drawSuperPill(player, spawnSystem, 14, 70, 172, 54, 14);
 
         this.drawNotifs();
 
@@ -774,11 +772,12 @@ export class HUD {
         if (this.comboTextTimer > 0) {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);
-            c.font = `bold 22px "${FONT_FAMILY}", cursive`;
+            // v0.46.0: 22px bold (faux-bold mushy) → 30px bez bolda + grubszy obrys (czytelnosc + hype)
+            c.font = `30px "${FONT_FAMILY}", cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
             c.strokeStyle = '#000';
-            c.lineWidth = 5;
+            c.lineWidth = 7;
             c.strokeText(this.comboText, 0, 0);
             c.fillStyle = '#e67e22';
             c.fillText(this.comboText, 0, 0);

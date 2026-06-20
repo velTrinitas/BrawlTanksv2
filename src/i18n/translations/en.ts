@@ -211,4 +211,26 @@ export const en: typeof pl = {
     'hud.score': 'SCORE',
     'hud.kills': 'KILLS',
     'hud.gems': 'GEMS',
+
+    // ============================================================
+    // End screen — Defeat / Victory (v0.46.0 i18n)
+    // ============================================================
+    'end.defeat.title': 'DEFEAT',
+    'end.defeat.subtitle': 'Your tank was destroyed',
+    'end.victory.title': 'VICTORY!',
+    'end.victory.subtitle': 'Mega Boss defeated!',
+    'end.kills': 'Kills',
+    'end.gems': 'Gems',
+    'end.cubes': 'PowerCubes',
+    'end.combo': 'Combo',
+    'end.hearts': 'Medkits',
+    'end.supers': 'Powers',
+    'end.score': 'Score',
+    'end.time': 'Time',
+    'end.bosses': 'Bosses',
+    'end.megaBoss': 'Mega Boss',
+    'end.megaBossDefeated': 'DEFEATED!',
+    'end.dmgBonus': 'DMG',
+    'end.hpBonus': 'HP',
+    'end.backToMenu': 'BACK TO MENU',
 };

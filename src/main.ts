@@ -2,6 +2,8 @@ import * as PIXI from 'pixi.js';
 import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
+import { getBrawlerTextures } from './rendering/SpriteFactory';
+import type { Brawler } from './types/Brawler';
 import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
     MEDI_PAD_POSITIONS, POWER_PAD_POSITIONS,
@@ -343,6 +345,8 @@ function tryActivateSuper(): void {
 
     const result = powerSystem.activate(player, enemies);
     if (!result.activated) return;
+
+    currentSession.superPowersUsed++;
 
     if (result.powerId === 'aura') {
         hud.addNotif('🛡️ TARCZA AKTYWNA!', '#ffdd00');
@@ -832,6 +836,184 @@ function startGame(config: GameConfig): void {
     audio.startMusic(config.map);
 }
 
+// ============================================================
+// v0.46.0 — End screen (Przegrana / Zwyciestwo): redesign + i18n
+// ============================================================
+interface EndScreenData {
+    score: number;
+    kills: number;
+    gems: number;
+    cubesTotal: number;
+    dmgBonusPct: number;
+    hpCubesPicked: number;
+    bosses: number;
+    seconds: number;
+    maxCombo: number;
+    hearts: number;
+    supers: number;
+    tankImg: string;
+}
+
+/**
+ * v0.46.0 — Render wybranego czolgu (hull+turret) do dataURL (PNG) na hero ekranu konca.
+ * Buduje TYMCZASOWY kontener z TYCH SAMYCH tekstur co gra (getBrawlerTextures), lufa do gory,
+ * scale x2 dla ostrosci na karcie, ekstrahuje przez renderer.extract. Tekstury sa cache'owane
+ * i WSPOLDZIELONE z zywym graczem — destroy({children}) NIE niszczy textur (tylko sprite'y).
+ * Zwraca '' przy bledzie -> renderEndScreen fallbackuje do emoji.
+ */
+function renderTankHeroDataURL(brawler: Brawler, damaged: boolean = false): string {
+    try {
+        const tex = getBrawlerTextures(brawler);
+        const temp = new PIXI.Container();
+        const hull = new PIXI.Sprite(tex.hull);
+        hull.anchor.set(0.5);
+        const turret = new PIXI.Sprite(tex.turret);
+        turret.anchor.set(0.5);
+        temp.addChild(hull);
+        temp.addChild(turret);
+
+        // Slady przegranej — wpieczone w obraz (local space czolgu, centered 0,0).
+        if (damaged) {
+            const dmg = new PIXI.Graphics();
+            const scorch = (sx: number, sy: number, r: number) => {
+                dmg.beginFill(0x080808, 0.52); dmg.drawCircle(sx, sy, r); dmg.endFill();
+                dmg.beginFill(0x2c2c2c, 0.4); dmg.drawCircle(sx, sy, r * 0.62); dmg.endFill();
+            };
+            scorch(-8, -5, 13);
+            scorch(17, 7, 10);
+            scorch(-25, 6, 8);
+            // pekniecia (jagged dark)
+            dmg.lineStyle(1.7, 0x000000, 0.6);
+            dmg.moveTo(-6, -15); dmg.lineTo(2, -5); dmg.lineTo(-3, 3); dmg.lineTo(6, 13);
+            dmg.lineStyle(1.2, 0x000000, 0.5);
+            dmg.moveTo(20, -2); dmg.lineTo(26, 6); dmg.lineTo(22, 12);
+            dmg.lineStyle(0);
+            // tlace zarzewie (baked glints)
+            dmg.beginFill(0xff5a1e, 0.85); dmg.drawCircle(-8, -5, 2.4); dmg.endFill();
+            dmg.beginFill(0xffd24a, 0.95); dmg.drawCircle(-8, -5, 1.1); dmg.endFill();
+            dmg.beginFill(0xff5a1e, 0.8); dmg.drawCircle(17, 7, 1.8); dmg.endFill();
+            temp.addChild(dmg);
+        }
+
+        temp.rotation = -Math.PI / 2; // lufa do gory = hero pose
+        temp.scale.set(2);            // x2 = ostry upscale na karcie
+        const canvas = app.renderer.extract.canvas(temp) as HTMLCanvasElement;
+        const url = canvas.toDataURL('image/png');
+        temp.destroy({ children: true }); // niszczy sprite'y/gfx, NIE tekstury (cache)
+        return url;
+    } catch (e) {
+        console.warn('[EndScreen] tank hero render failed:', e);
+        return '';
+    }
+}
+
+/**
+ * Buduje wnetrze ekranu konca gry (defeat/victory) — pelne i18n + premium look.
+ * Karta `.screen` (bialy card) jest rama; tutaj generujemy zawartosc.
+ * Titan One w NATURALNEJ wadze (zero faux-bold); male labele = system-ui (prawdziwa waga 600/700).
+ * Wszystkie stringi przez t() — PL->PL, EN->EN.
+ */
+function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: string): string {
+    const isVictory = kind === 'victory';
+    const accent = isVictory ? '#f1c40f' : '#e74c3c';
+    const subBg = isVictory ? '#27ae60' : '#c0392b';
+    const icon = isVictory ? '🏆' : '💀';
+    const title = isVictory ? t('end.victory.title') : t('end.defeat.title');
+    const subtitle = isVictory ? t('end.victory.subtitle') : t('end.defeat.subtitle');
+
+    const TITAN = "'Titan One', cursive";
+    const SYS = 'system-ui, -apple-system, sans-serif';
+
+    // Ikona gema z gry (asset) zamiast emoji — reszta chipow uzywa emoji.
+    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="" style="width:1.5rem;height:1.5rem;display:block;">`;
+
+    // iconHtml = surowy HTML (emoji-char ALBO <img>) renderowany w ramce ikony.
+    const chip = (iconHtml: string, value: string | number, label: string): string => `
+        <div style="flex:1 1 calc(50% - 8px);min-width:130px;box-sizing:border-box;background:#f1f0f6;border:2px solid #e2e1ea;border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.55rem;line-height:1;display:flex;align-items:center;justify-content:center;width:1.7rem;flex:0 0 auto;">${iconHtml}</span>
+            <div style="display:flex;flex-direction:column;line-height:1.05;min-width:0;">
+                <span style="font-family:${TITAN};font-size:1.45rem;color:#2c3e50;">${value}</span>
+                <span style="font-family:${SYS};font-size:0.68rem;font-weight:600;letter-spacing:0.5px;color:#8a8a99;text-transform:uppercase;">${label}</span>
+            </div>
+        </div>`;
+
+    // Slim bonus-row z PowerCube'ow — tylko gdy realnie cos dropnelo.
+    const bonusRow = (d.dmgBonusPct > 0 || d.hpCubesPicked > 0) ? `
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            ${d.dmgBonusPct > 0 ? `<span style="font-family:${SYS};font-size:0.74rem;font-weight:700;color:#fff;background:#e74c3c;padding:4px 11px;border-radius:11px;white-space:nowrap;">🟦 +${d.dmgBonusPct}% ${t('end.dmgBonus')}</span>` : ''}
+            ${d.hpCubesPicked > 0 ? `<span style="font-family:${SYS};font-size:0.74rem;font-weight:700;color:#fff;background:#2980b9;padding:4px 11px;border-radius:11px;white-space:nowrap;">🟦 +${d.hpCubesPicked * 25} ${t('end.hpBonus')}</span>` : ''}
+        </div>` : '';
+
+    const victoryBadge = isVictory ? `
+        <div style="font-family:${TITAN};font-size:0.95rem;color:#fff;background:#27ae60;padding:6px 18px;border-radius:14px;border:2px solid #2c3e50;box-shadow:2px 2px 0 #2c3e50;margin-top:12px;">🏆 ${t('end.megaBoss')} — ${t('end.megaBossDefeated')}</div>` : '';
+
+    // Hero: czolg gracza (extract z gry) + fake-3D przechyl + dym + plomienie + poswiata. Fallback: emoji.
+    const glow = isVictory ? 'rgba(241,196,15,0.42)' : 'rgba(231,76,60,0.34)';
+    const smoke = isVictory ? 'rgba(150,140,110,0.42)' : 'rgba(58,58,64,0.6)';
+    const flameOuter = isVictory ? 'rgba(255,196,56,0.92)' : 'rgba(255,88,28,0.92)';
+    const flameInner = isVictory ? 'rgba(255,242,168,0.95)' : 'rgba(255,208,72,0.95)';
+
+    // Dym — 6 klebow, rozne rozmiary/predkosci/delay.
+    const smokeDefs = [
+        { x: 0, s: 50, d: 0.0, dur: 2.6 }, { x: -17, s: 38, d: 0.7, dur: 2.9 },
+        { x: 15, s: 42, d: 1.1, dur: 2.4 }, { x: -6, s: 34, d: 1.6, dur: 3.0 },
+        { x: 11, s: 30, d: 2.0, dur: 2.7 }, { x: -13, s: 30, d: 0.4, dur: 3.1 },
+    ];
+    const smokePuffs = smokeDefs.map(p =>
+        `<div style="position:absolute;bottom:40px;left:calc(50% + ${p.x}px);transform:translateX(-50%);width:${p.s}px;height:${p.s}px;border-radius:50%;background:radial-gradient(circle,${smoke} 0%,transparent 70%);animation:esSmoke ${p.dur}s ease-out ${p.d}s infinite backwards;"></div>`
+    ).join('');
+
+    // Plomienie — 4 jezyki ognia u podstawy, flicker.
+    const flameDefs = [
+        { x: 0, w: 30, h: 48, d: 0.0 }, { x: -13, w: 20, h: 34, d: 0.25 },
+        { x: 14, w: 22, h: 38, d: 0.5 }, { x: -4, w: 15, h: 26, d: 0.15 },
+    ];
+    const flames = flameDefs.map(f =>
+        `<div style="position:absolute;z-index:3;bottom:32px;left:calc(50% + ${f.x}px);transform:translateX(-50%);width:${f.w}px;height:${f.h}px;border-radius:50% 50% 48% 48% / 64% 64% 36% 36%;background:radial-gradient(ellipse at 50% 78%, ${flameInner} 0%, ${flameOuter} 46%, transparent 76%);animation:esFlame ${(0.55 + f.d).toFixed(2)}s ease-in-out ${f.d}s infinite backwards;filter:blur(0.5px);"></div>`
+    ).join('');
+
+    const heroZone = d.tankImg ? `
+        <style>
+          @keyframes esSmoke{0%{transform:translateX(-50%) translateY(8px) scale(.5);opacity:0}25%{opacity:.6}100%{transform:translateX(-50%) translateY(-88px) scale(1.8);opacity:0}}
+          @keyframes esFlame{0%,100%{transform:translateX(-50%) scaleY(.82) scaleX(1);opacity:.85}50%{transform:translateX(-50%) scaleY(1.18) scaleX(.92);opacity:1}}
+        </style>
+        <div style="position:relative;width:100%;height:168px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;">
+            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:178px;height:178px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);"></div>
+            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:128px;height:26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);"></div>
+            ${smokePuffs}
+            <img src="${d.tankImg}" alt="" style="position:relative;z-index:2;height:152px;width:auto;filter:drop-shadow(0 7px 8px rgba(0,0,0,0.4));">
+            ${flames}
+        </div>`
+        : `<div style="font-size:3.2rem;line-height:1;margin-bottom:4px;">${icon}</div>`;
+
+    return `
+        <div style="display:flex;flex-direction:column;align-items:center;width:100%;box-sizing:border-box;">
+            ${heroZone}
+            <div style="font-family:${TITAN};font-size:2.4rem;line-height:1;color:${accent};text-transform:uppercase;-webkit-text-stroke:2px #000;text-shadow:4px 4px 0 #000;letter-spacing:1px;text-align:center;">${title}</div>
+            <div style="font-family:${TITAN};font-size:1rem;color:#fff;background:${subBg};padding:7px 22px;border-radius:18px;border:3px solid #2c3e50;box-shadow:3px 3px 0 #2c3e50;margin-top:10px;">${subtitle}</div>
+
+            <div style="text-align:center;margin:18px 0 2px;">
+                <div style="font-family:${SYS};font-size:0.74rem;font-weight:700;letter-spacing:1.5px;color:#9a9aa8;text-transform:uppercase;">${t('end.score')}</div>
+                <div style="font-family:${TITAN};font-size:2.9rem;line-height:1;color:#f1c40f;-webkit-text-stroke:2px #000;text-shadow:3px 3px 0 rgba(0,0,0,0.22);">${d.score}</div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:8px;width:100%;margin-top:12px;">
+                ${chip('💀', d.kills, t('end.kills'))}
+                ${chip(gemIcon, d.gems, t('end.gems'))}
+                ${chip('👑', d.bosses, t('end.bosses'))}
+                ${chip('🔥', `${d.maxCombo}x`, t('end.combo'))}
+                ${chip('🟦', d.cubesTotal, t('end.cubes'))}
+                ${chip('❤️', d.hearts, t('end.hearts'))}
+                ${chip('💥', d.supers, t('end.supers'))}
+                ${chip('⏱️', `${d.seconds}s`, t('end.time'))}
+            </div>
+            ${bonusRow}
+            ${victoryBadge}
+
+            <button class="brawl-btn" id="${btnId}" style="font-size:1.6rem;padding:13px 40px;margin-top:22px;">${t('end.backToMenu')}</button>
+        </div>`;
+}
+
 async function triggerGameOver(): Promise<void> {
     gameState = 'GAMEOVER';
     audio.playGameOver();
@@ -847,29 +1029,25 @@ async function triggerGameOver(): Promise<void> {
         }
     }
 
-    const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
-    const finalScore = currentSession?.score ?? 0;
-    const cubesTotal = currentSession?.cubesTotal ?? 0;
-    const dmgBonusPct = Math.round((currentSession?.dmgBonus ?? 0) * 100);
-    const hpCubesPicked = currentSession?.hpCubesPicked ?? 0;
-    const statsEl = document.getElementById('gameOverStats')!;
-
-    const cubesLine = cubesTotal > 0
-        ? `<div>🟦 PowerCube'y: <b>${cubesTotal}</b>${dmgBonusPct > 0 ? ` (+${dmgBonusPct}% DMG)` : ''}${hpCubesPicked > 0 ? ` (+${(hpCubesPicked * 0.25).toFixed(2)} HP)` : ''}</div>`
-        : '';
-
-    statsEl.innerHTML = `
-        <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
-            <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
-            <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
-        </div>
-        ${cubesLine}
-        <div>⭐ Punkty: <b>${finalScore}</b></div>
-        <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
-        <div>👑 Bossów zabitych: <b>${spawnSystem?.bossKills ?? 0}</b></div>
-    `;
-    document.getElementById('gameOverScreen')!.classList.add('active-screen');
+    const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
+    const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, true) : '';
+    const screenEl = document.getElementById('gameOverScreen')!;
+    screenEl.innerHTML = renderEndScreen('defeat', {
+        score: currentSession?.score ?? 0,
+        kills: spawnSystem?.totalKills ?? 0,
+        gems: spawnSystem?.gemsCollected ?? 0,
+        cubesTotal: currentSession?.cubesTotal ?? 0,
+        dmgBonusPct: Math.round((currentSession?.dmgBonus ?? 0) * 100),
+        hpCubesPicked: currentSession?.hpCubesPicked ?? 0,
+        bosses: spawnSystem?.bossKills ?? 0,
+        seconds: currentSession?.getElapsedSeconds() ?? 0,
+        maxCombo: currentSession?.maxCombo ?? 0,
+        hearts: currentSession?.heartsHealed ?? 0,
+        supers: currentSession?.superPowersUsed ?? 0,
+        tankImg,
+    }, 'retryBtn');
+    document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
+    screenEl.classList.add('active-screen');
     document.body.classList.remove('game-cursor-hidden');
     hud.clear();
 }
@@ -889,30 +1067,25 @@ async function triggerVictory(): Promise<void> {
         }
     }
 
-    const gameSeconds = currentSession?.getElapsedSeconds() ?? 0;
-    const finalScore = currentSession?.score ?? 0;
-    const cubesTotal = currentSession?.cubesTotal ?? 0;
-    const dmgBonusPct = Math.round((currentSession?.dmgBonus ?? 0) * 100);
-    const hpCubesPicked = currentSession?.hpCubesPicked ?? 0;
-    const statsEl = document.getElementById('victoryStats')!;
-
-    const cubesLine = cubesTotal > 0
-        ? `<div>🟦 PowerCube'y: <b>${cubesTotal}</b>${dmgBonusPct > 0 ? ` (+${dmgBonusPct}% DMG)` : ''}${hpCubesPicked > 0 ? ` (+${(hpCubesPicked * 0.25).toFixed(2)} HP)` : ''}</div>`
-        : '';
-
-    statsEl.innerHTML = `
-        <div>💀 Killów: <b>${spawnSystem?.totalKills ?? 0}</b></div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
-            <img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="gem" style="width:36px;height:36px;">
-            <span>Gemów: <b>${spawnSystem?.gemsCollected ?? 0}</b></span>
-        </div>
-        ${cubesLine}
-        <div>⭐ Punkty: <b>${finalScore}</b></div>
-        <div>⏱️ Czas: <b>${gameSeconds}s</b></div>
-        <div>👑 Bossów: <b>${spawnSystem?.bossKills ?? 0}</b></div>
-        <div>🏆 Mega Boss: <b>POKONANY!</b></div>
-    `;
-    document.getElementById('victoryScreen')!.classList.add('active-screen');
+    const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
+    const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, false) : '';
+    const screenEl = document.getElementById('victoryScreen')!;
+    screenEl.innerHTML = renderEndScreen('victory', {
+        score: currentSession?.score ?? 0,
+        kills: spawnSystem?.totalKills ?? 0,
+        gems: spawnSystem?.gemsCollected ?? 0,
+        cubesTotal: currentSession?.cubesTotal ?? 0,
+        dmgBonusPct: Math.round((currentSession?.dmgBonus ?? 0) * 100),
+        hpCubesPicked: currentSession?.hpCubesPicked ?? 0,
+        bosses: spawnSystem?.bossKills ?? 0,
+        seconds: currentSession?.getElapsedSeconds() ?? 0,
+        maxCombo: currentSession?.maxCombo ?? 0,
+        hearts: currentSession?.heartsHealed ?? 0,
+        supers: currentSession?.superPowersUsed ?? 0,
+        tankImg,
+    }, 'playAgainBtn');
+    document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
+    screenEl.classList.add('active-screen');
     document.body.classList.remove('game-cursor-hidden');
     hud.clear();
 }
@@ -1090,9 +1263,9 @@ app.ticker.add((delta) => {
     for (const pad of mediPads) {
         const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
         if (result.healed) {
-            player.hp = Math.min(player.maxHp, player.hp + 1);
+            player.hp = Math.min(player.maxHp, player.hp + 100);
             effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
-            hud.addNotif('🔧 +1 HP', '#2ecc71');
+            hud.addNotif('🔧 +100 HP', '#2ecc71');
             audio.playHeartPickup();
         }
     }
@@ -1115,6 +1288,7 @@ app.ticker.add((delta) => {
         if (dx * dx + dy * dy < (h.radius + 22) * (h.radius + 22)) {
             if (h.pickup(effects)) {
                 player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
+                if (currentSession) currentSession.heartsHealed++;
                 hud.addNotif(`❤️ +${h.healAmount} HP`, '#ff3366');
                 audio.playHeartPickup();
                 hearts.splice(i, 1);
@@ -1221,19 +1395,19 @@ app.ticker.add((delta) => {
             const b1 = new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot);
             const b2 = new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot);
             const b3 = new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer, isSuperShot);
-            b1.dmg *= dmgMultiplier;
-            b2.dmg *= dmgMultiplier;
-            b3.dmg *= dmgMultiplier;
+            b1.dmg = Math.round(b1.dmg * dmgMultiplier);
+            b2.dmg = Math.round(b2.dmg * dmgMultiplier);
+            b3.dmg = Math.round(b3.dmg * dmgMultiplier);
             bullets.push(b1, b2, b3);
         } else {
             const b = new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot);
-            b.dmg *= dmgMultiplier;
+            b.dmg = Math.round(b.dmg * dmgMultiplier);
             bullets.push(b);
             if (isSuperShot) {
                 const b1 = new Bullet(sX, sY, angle - 0.1, player.brawler, worldContainer, isSuperShot);
                 const b2 = new Bullet(sX, sY, angle + 0.1, player.brawler, worldContainer, isSuperShot);
-                b1.dmg *= dmgMultiplier;
-                b2.dmg *= dmgMultiplier;
+                b1.dmg = Math.round(b1.dmg * dmgMultiplier);
+                b2.dmg = Math.round(b2.dmg * dmgMultiplier);
                 bullets.push(b1, b2);
             }
         }
@@ -1327,6 +1501,14 @@ app.ticker.add((delta) => {
                 const wasSuperShot = player.isSuperShotActive;
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
                 const damageApplied = enemy.hp < hpBefore || killed;
+
+                // v0.46.0 HP/DMG x100: floating damage numbers przy trafieniu (premium feel).
+                // Tylko gdy damage faktycznie applied (shielded hit = brak liczby, gold sparks
+                // z takeDamage wystarcza). Super shot = fioletowa liczba (motyw super), reszta biala.
+                if (damageApplied) {
+                    const dmgColor = wasSuperShot ? 0xc850ff : 0xffffff;
+                    effects.spawnFloatingText(hitX, hitY - 15, `${Math.round(b.dmg)}`, dmgColor);
+                }
 
                 if (killed) {
                     audio.playExplosion();

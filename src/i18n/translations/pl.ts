@@ -221,4 +221,26 @@ export const pl = {
     'hud.score': 'WYNIK',
     'hud.kills': 'ZABICI',
     'hud.gems': 'GEMY',
+
+    // ============================================================
+    // End screen — Przegrana / Zwyciestwo (v0.46.0 i18n)
+    // ============================================================
+    'end.defeat.title': 'PRZEGRANA',
+    'end.defeat.subtitle': 'Twój czołg został zniszczony',
+    'end.victory.title': 'ZWYCIĘSTWO!',
+    'end.victory.subtitle': 'Mega Boss pokonany!',
+    'end.kills': 'Pokonani',
+    'end.gems': 'Gemy',
+    'end.cubes': 'PowerCube’y',
+    'end.combo': 'Combo',
+    'end.hearts': 'Apteczki',
+    'end.supers': 'Supermoce',
+    'end.score': 'Punkty',
+    'end.time': 'Czas',
+    'end.bosses': 'Bossowie',
+    'end.megaBoss': 'Mega Boss',
+    'end.megaBossDefeated': 'POKONANY!',
+    'end.dmgBonus': 'DMG',
+    'end.hpBonus': 'HP',
+    'end.backToMenu': 'POWRÓT DO MENU',
 };

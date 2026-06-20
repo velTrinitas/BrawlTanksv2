@@ -4,6 +4,8 @@ import type { EffectsManager } from '../../rendering/Effects';
 /**
  * Heart pickup — leczy gracza po dotknięciu.
  * HOTFIX: +30% większe + różowy glow outline.
+ *
+ * v0.46.0 HP/DMG Scale x100: healAmount 1 -> 100 (spojne z HEART_CONFIG).
  */
 
 let _heartTexture: PIXI.Texture | null = null;
@@ -73,7 +75,7 @@ export class Heart {
     public active: boolean;
     public sprite: PIXI.Sprite;
     public radius: number = 22; // hotfix: większy
-    public healAmount: number = 1;
+    public healAmount: number = 100;
     private bornAt: number;
     private static readonly LIFETIME_MS = 15000;
     

@@ -5,6 +5,11 @@
  * - Display strings przeniesione do src/i18n/translations/
  * - DIFFICULTY_CONFIGS zawiera TranslationKey references
  *
+ * v0.49.0 Scoring v2 (in-progress, score_version bump still pending):
+ * - DIFFICULTY_SCORE_MULTIPLIERS dodane (easy/normal 1.0, hard 1.2, nightmare 1.4).
+ *   Single source of truth dla score formuly. Easy NIE jest karany, Hard+ rewarded.
+ * - getDifficultyMultiplier() helper — uzywany przez GameSession.recomputeScore().
+ *
  * Wzorzec architektoniczny: Menu (FAZA 6) PRODUKUJE GameConfig przez Builder,
  * Game Logic (FAZA 6.5+) KONSUMUJE go jako immutable input.
  *
@@ -51,6 +56,39 @@ export const DIFFICULTY_CONFIGS: Record<DifficultyId, DifficultyConfig> = {
     hard:      { labelKey: 'difficulty.hard.label',      descKey: 'difficulty.hard.desc',      color: '#c0392b' },
     nightmare: { labelKey: 'difficulty.nightmare.label', descKey: 'difficulty.nightmare.desc', color: '#7d1f1f' },
 };
+
+// ============================================================
+// v0.49.0 Scoring v2 — Difficulty multipliers (REWARD-ONLY)
+// ============================================================
+//
+// Easy NIE jest karany (audience 9-12: latwiejszy tryb powinien byc rownie
+// "legitny" co Normal). Hard i Nightmare daja premie za podejmowanie ryzyka.
+//
+// Mnozniki aplikowane na FINALNY subtotal (kills_base + combo + gems) w
+// GameSession.recomputeScore(). Single source of truth — ta mapa + helper
+// ponizej. Jesli zmienisz wartosci, BUMP score_version w SupabaseScoreService.
+
+/**
+ * Score multiplier per difficulty.
+ * - easy:      x1.0 (no penalty)
+ * - normal:    x1.0 (baseline)
+ * - hard:      x1.2 (+20% reward)
+ * - nightmare: x1.4 (+40% reward)
+ */
+export const DIFFICULTY_SCORE_MULTIPLIERS: Record<DifficultyId, number> = {
+    easy:      1.0,
+    normal:    1.0,
+    hard:      1.2,
+    nightmare: 1.4,
+};
+
+/**
+ * Helper — zwraca mnoznik score dla danego poziomu trudnosci.
+ * Uzywany w GameSession.recomputeScore() i getScoreBreakdown().
+ */
+export function getDifficultyMultiplier(difficulty: DifficultyId): number {
+    return DIFFICULTY_SCORE_MULTIPLIERS[difficulty];
+}
 
 /**
  * Builder pattern dla immutable GameConfig.

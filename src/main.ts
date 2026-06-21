@@ -361,7 +361,9 @@ function tryActivateSuper(): void {
             const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
             if (killed) {
                 spawnSystem!.registerKill(enemy);
-                currentSession.score += enemy.scoreValue;
+                // v0.49.0 Scoring v2: mega bomba NIE wola registerKill na GameSession (AOE != skill streak),
+                // ale jesli combo bylo aktywne z poprzedniego bullet killa, mnoznik nadal dziala.
+                currentSession.addKillScore(enemy.scoreValue);
                 handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
                 if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
             }
@@ -1306,7 +1308,7 @@ app.ticker.add((delta) => {
             if (g.pickup(effects)) {
                 const prevTotal = spawnSystem.gemsCollected;
                 spawnSystem.registerGemCollected();
-                currentSession.score += 1;
+                currentSession.addGemScore(1); // v0.49.0 Scoring v2: gem NIE skaluje combo, tylko difficulty
                 audio.playGemPickup();
 
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
@@ -1472,7 +1474,9 @@ app.ticker.add((delta) => {
                 handleEnemyDrop(enemy);
                 enemy.active = false;
                 spawnSystem.registerKill(enemy);
-                currentSession.score += enemy.scoreValue;
+                // v0.49.0 Scoring v2: kolizja = przypadkowy kill (enemy wjechal w gracza),
+                // NIE inkrementuje combo. Jezeli combo bylo aktywne, mnoznik dziala.
+                currentSession.addKillScore(enemy.scoreValue);
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
@@ -1513,11 +1517,14 @@ app.ticker.add((delta) => {
                 if (killed) {
                     audio.playExplosion();
                     spawnSystem.registerKill(enemy);
-                    currentSession.score += enemy.scoreValue;
                     handleEnemyDrop(enemy);
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
 
+                    // v0.49.0 Scoring v2 (opcja A): registerKill PRZED addKillScore.
+                    // Drugi kill w serii dostaje comboMult=1.2 (DOUBLE) bo comboCount
+                    // jest juz inkrementowane do 2 zanim addKillScore zapyta o mnoznik.
                     const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
+                    currentSession.addKillScore(enemy.scoreValue);
                     if (comboNow === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
                     else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
                     else if (comboNow >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }

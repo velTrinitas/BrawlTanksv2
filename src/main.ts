@@ -355,12 +355,12 @@ function tryActivateSuper(): void {
     currentSession.superPowersUsed++;
 
     if (result.powerId === 'aura') {
-        hud.addNotif('🛡️ TARCZA AKTYWNA!', '#ffdd00');
+        hud.addNotif(t('hud.shieldActive'), '#ffdd00');
         effects.shake(4, 6);
         audio.playSuperActivate('aura');
     } else if (result.powerId === 'megaBomb' && result.megaBombTargets) {
         effects.spawnMegaBomb(player.x, player.y);
-        hud.addNotif(`💣 MEGA BOMBA — ${result.megaBombTargets.length} celów!`, '#ff4400');
+        hud.addNotif(t('hud.megaBombHit', { count: result.megaBombTargets.length }), '#ff4400');
         audio.playSuperActivate('megaBomb');
 
         // v0.50.0 Scoring v2.1: track ile zabilo + sum base values dla multi-kill bonus.
@@ -393,14 +393,14 @@ function tryActivateSuper(): void {
         // v0.50.0 Scoring v2.1: multi-kill bonus jezeli zabilo >=3 wrogow w tej bombie.
         if (multiKillCount >= 3) {
             currentSession.addMultiKillBonus(multiKillSumBase, multiKillCount);
-            hud.addNotif(`💥 MULTI KILL ×${multiKillCount}!`, '#ff8800');
+            hud.addNotif(t('hud.multiKill', { count: multiKillCount }), '#ff8800');
         }
     } else if (result.powerId === 'freeze' && result.freezeUntil !== undefined) {
         for (const enemy of enemies) {
             if (enemy.active) enemy.freeze(result.freezeUntil);
         }
         effects.spawnFreezeOverlay(300);
-        hud.addNotif('❄️ MRÓZ NA WSZYSTKICH WROGACH!', '#66ddff');
+        hud.addNotif(t('hud.freezeAll'), '#66ddff');
         effects.shake(3, 8);
         audio.playSuperActivate('freeze');
     }
@@ -415,7 +415,7 @@ window.addEventListener('keydown', e => {
     }
     if (k === 'm') {
         const nowMuted = audio.toggleMute();
-        hud.addNotif(nowMuted ? '🔇 WYCISZONO' : '🔊 DŹWIĘK WŁ.', '#aaaaaa');
+        hud.addNotif(nowMuted ? t('hud.muted') : t('hud.unmuted'), '#aaaaaa');
     }
 });
 window.addEventListener('keyup', e => {
@@ -958,7 +958,11 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
 
     // v0.50.1: gem PNG (256x256, transparent BG) zastapil legacy SVG. object-fit:contain
     // jako safety belt — gdyby aspect ratio kiedys sie zmienilo, ikona dalej bedzie miescic sie w slocie.
-    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:1.5rem;height:1.5rem;display:block;object-fit:contain;">`;
+    // v0.51.0: rozmiar 1.5rem -> 2.25rem (+50%). Emoji w sasiednich chipach (skull/crown/itd)
+    // maja natywne padding glyphs i wygladaja wieksze; gem PNG bez tego paddingu wizualnie ginal.
+    // Powiekszenie tylko gem-icon (span slot 1.7rem nieruszony — flex pozwoli img rozlac sie
+    // o ~0.55rem; gap:10px do tekstu i transparent BG sprawiaja ze nic sie nie roznie).
+    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:2.25rem;height:2.25rem;display:block;object-fit:contain;">`;
 
     // iconHtml = surowy HTML (emoji-char ALBO <img>) renderowany w ramce ikony.
     const chip = (iconHtml: string, value: string | number, label: string): string => `
@@ -1145,7 +1149,7 @@ async function triggerVictory(): Promise<void> {
         const perfectRun = currentSession.applyPerfectRunBonus();
         if (perfectRun.applied) {
             console.log(`[Score] PERFECT RUN bonus applied: +${perfectRun.bonus} pts`);
-            hud.addNotif(`⭐ PERFECT RUN! +${perfectRun.bonus} pkt`, '#f1c40f');
+            hud.addNotif(t('hud.perfectRun', { bonus: perfectRun.bonus }), '#f1c40f');
         }
 
         try {
@@ -1280,18 +1284,18 @@ app.ticker.add((delta) => {
 
     if (isStealthActive && !wasStealthActiveLastFrame) {
         if (playerInSugarcaneField && !playerInOasis) {
-            hud.addNotif('🎋 UKRYTY W TRZCINIE (10s)!', '#a8d870');
+            hud.addNotif(t('hud.stealthSugarcane'), '#a8d870');
         } else if (playerInCornField && !playerInOasis) {
-            hud.addNotif('🌾 UKRYTY W KUKURYDZY (10s)!', '#d4b830');
+            hud.addNotif(t('hud.stealthCorn'), '#d4b830');
         } else {
-            hud.addNotif('🌴 NIEWIDZIALNY (10s)!', '#a8c878');
+            hud.addNotif(t('hud.stealthOasis'), '#a8c878');
         }
         audio.playMagnetPickup();
     } else if (!isStealthActive && wasStealthActiveLastFrame && playerInAnyStealth) {
         // v0.50.1: rozny komunikat zaleznie od powodu zerwania stealth.
         // Strzal -> jasna informacja edukacyjna "STRZAL ZDRADZIL POZYCJE".
         // Natural timeout (10s minelo) -> standardowe "ZOSTALES ZAUWAZONY".
-        const breakMsg = stealthBrokenByShot ? '🔫 STRZAŁ ZDRADZIŁ POZYCJĘ!' : '👁️ ZOSTAŁEŚ ZAUWAŻONY!';
+        const breakMsg = stealthBrokenByShot ? t('hud.shotRevealed') : t('hud.stealthSpotted');
         hud.addNotif(breakMsg, '#ff8855');
         effects.shake(3, 8);
     }
@@ -1330,13 +1334,13 @@ app.ticker.add((delta) => {
         if (drop) {
             if (drop.type === 'gem') {
                 gems.push(new Gem(drop.x, drop.y, worldContainer));
-                hud.addNotif('🐪 Karawana dropiła 💎', '#d97e3a');
+                hud.addNotif(t('hud.caravanGem'), '#d97e3a');
             } else if (drop.type === 'heart') {
                 hearts.push(new Heart(drop.x, drop.y, worldContainer));
-                hud.addNotif('🐪 Karawana dropiła ❤️', '#d97e3a');
+                hud.addNotif(t('hud.caravanHeart'), '#d97e3a');
             } else if (drop.type === 'magnet') {
                 magnets.push(new Magnet(drop.x, drop.y, worldContainer));
-                hud.addNotif('🐪 Karawana dropiła 🧲', '#d97e3a');
+                hud.addNotif(t('hud.caravanMagnet'), '#d97e3a');
             }
             audio.playGemPickup();
         }
@@ -1364,7 +1368,7 @@ app.ticker.add((delta) => {
         if (result.healed) {
             player.hp = Math.min(player.maxHp, player.hp + 100);
             effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
-            hud.addNotif('🔧 +100 HP', '#2ecc71');
+            hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
             audio.playHeartPickup();
         }
     }
@@ -1374,7 +1378,7 @@ app.ticker.add((delta) => {
             player.applyTurboBoost(result.durationMs, result.multiplier);
             effects.spawnEnemyHitSparks(player.x, player.y, 0xff6600);
             effects.shake(5, 8);
-            hud.addNotif('⚡ TURBO ×2 — 5s!', '#ffcc00');
+            hud.addNotif(t('hud.turboBoost', { sec: Math.round(result.durationMs / 1000) }), '#ffcc00');
             audio.playMagnetPickup();
         }
     }
@@ -1388,7 +1392,7 @@ app.ticker.add((delta) => {
             if (h.pickup(effects)) {
                 player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
                 if (currentSession) currentSession.heartsHealed++;
-                hud.addNotif(`❤️ +${h.healAmount} HP`, '#ff3366');
+                hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
                 audio.playHeartPickup();
                 hearts.splice(i, 1);
             }
@@ -1412,7 +1416,7 @@ app.ticker.add((delta) => {
                 const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 if (newTrigger > prevTrigger) {
                     player.addSuperCharge(SUPER_CHARGES_PER_TRIGGER);
-                    hud.addNotif(`⚡ +${SUPER_CHARGES_PER_TRIGGER} SUPER STRZAŁY! (×${player.superCharges})`, '#c850ff');
+                    hud.addNotif(t('hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: player.superCharges }), '#c850ff');
                     effects.shake(4, 8);
                 }
 
@@ -1429,7 +1433,7 @@ app.ticker.add((delta) => {
         if (dx * dx + dy * dy < (m.radius + 22) * (m.radius + 22)) {
             if (m.pickup(effects)) {
                 powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
-                hud.addNotif('🧲 MAGNET 5s!', '#e74c3c');
+                hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
                 audio.playMagnetPickup();
                 magnets.splice(i, 1);
             }
@@ -1661,9 +1665,9 @@ app.ticker.add((delta) => {
                         currentSession.addFrozenKillBonus(enemy.scoreValue);
                     }
 
-                    if (comboNow === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
-                    else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
-                    else if (comboNow >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }
+                    if (comboNow === 2) { hud.comboText = t('hud.comboDouble'); hud.comboTextTimer = 90; }
+                    else if (comboNow === 3) { hud.comboText = t('hud.comboTriple'); hud.comboTextTimer = 100; }
+                    else if (comboNow >= 4) { hud.comboText = t('hud.comboMega'); hud.comboTextTimer = 110; }
                 }
 
                 // v0.45.0 FAZA 8.7: trigger hit-stop based on event priority.

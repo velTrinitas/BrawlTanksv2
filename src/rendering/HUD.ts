@@ -229,7 +229,7 @@ export class HUD {
 
         // Label "SUPER SHOT" + blyskawica na KONCU (v0.46.0).
         // Mniejszy font niz HUD_LABEL_PX bo 2-wyrazowy label nie zmiesci sie w 26px.
-        const superLabel = 'SUPER SHOT';
+        const superLabel = tr('hud.superShot');
         const SUPER_LABEL_PX = 19;
         c.font = `${SUPER_LABEL_PX}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
@@ -350,7 +350,7 @@ export class HUD {
             c.fillStyle = '#ff0033';
             c.font = `13px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'right';
-            c.fillText('💀 ZNISZCZ BOSSÓW!', px + PW - 4, py + PH + 18);
+            c.fillText(tr('hud.killProgressTaunt'), px + PW - 4, py + PH + 18);
             c.restore();
         }
     }
@@ -473,7 +473,7 @@ export class HUD {
         c.font = `12px "${FONT_FAMILY}",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
-        c.fillText('scroll = wybierz   ·   PPM/SPACE = użyj', cx, hintY);
+        c.fillText(tr('hud.powerHint'), cx, hintY);
         
         if (powerSystem.activePowerId !== null) {
             const power = POWERS[powerSystem.activePowerId];
@@ -481,8 +481,8 @@ export class HUD {
             
             const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
             const activeText = power.id === 'aura'
-                ? `🛡️ TARCZA — ${secsLeft.toFixed(1)}s 🛡️`
-                : `❄️ MRÓZ — ${secsLeft.toFixed(1)}s ❄️`;
+                ? tr('hud.auraActive', { sec: secsLeft.toFixed(1) })
+                : tr('hud.freezeActiveStatus', { sec: secsLeft.toFixed(1) });
             
             c.save();
             c.globalAlpha = pulse;
@@ -535,8 +535,9 @@ export class HUD {
         c.fillStyle = '#fff';
         c.strokeStyle = '#000';
         c.lineWidth = 3;
-        c.strokeText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 100, py + 16);
-        c.fillText(`🧲 MAGNET ${remaining.toFixed(1)}s`, px + 100, py + 16);
+        const magnetTxt = tr('hud.magnetStatus', { sec: remaining.toFixed(1) });
+        c.strokeText(magnetTxt, px + 100, py + 16);
+        c.fillText(magnetTxt, px + 100, py + 16);
         c.restore();
     }
     
@@ -561,8 +562,9 @@ export class HUD {
         c.fillStyle = '#fff';
         c.strokeStyle = '#000';
         c.lineWidth = 3;
-        c.strokeText(`⚡ TURBO ×2 ${remaining.toFixed(1)}s`, px + 100, py + 16);
-        c.fillText(`⚡ TURBO ×2 ${remaining.toFixed(1)}s`, px + 100, py + 16);
+        const turboTxt = tr('hud.turboStatus', { sec: remaining.toFixed(1) });
+        c.strokeText(turboTxt, px + 100, py + 16);
+        c.fillText(turboTxt, px + 100, py + 16);
         c.restore();
     }
     
@@ -599,8 +601,12 @@ export class HUD {
         c.strokeStyle = '#000';
         c.lineWidth = 4;
         const phase = megaBoss.getMegaPhase();
-        const phaseTxt = phase === 'rush' ? 'SZARŻA' : phase === 'strafe' ? 'OKRĄŻA' : 'WŚCIEKŁY';
-        const label = `👑 MEGA BOSS — ${phaseTxt}`;
+        const phaseTxt = phase === 'rush'
+            ? tr('hud.megaBossPhaseRush')
+            : phase === 'strafe'
+                ? tr('hud.megaBossPhaseStrafe')
+                : tr('hud.megaBossPhaseEnraged');
+        const label = tr('hud.megaBossLabel', { phase: phaseTxt });
         c.strokeText(label, this.screenW / 2, by + BH / 2);
         c.fillStyle = '#fff';
         c.fillText(label, this.screenW / 2, by + BH / 2);
@@ -633,9 +639,10 @@ export class HUD {
         c.textBaseline = 'middle';
         c.strokeStyle = '#000';
         c.lineWidth = 6;
-        c.strokeText('⚠️ MEGA BOSS NADCHODZI!', 0, 0);
+        const incomingTxt = tr('hud.megaBossIncoming');
+        c.strokeText(incomingTxt, 0, 0);
         c.fillStyle = '#ffdd00';
-        c.fillText('⚠️ MEGA BOSS NADCHODZI!', 0, 0);
+        c.fillText(incomingTxt, 0, 0);
         
         c.restore();
     }

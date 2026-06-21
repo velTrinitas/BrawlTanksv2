@@ -156,6 +156,9 @@ export const pl = {
 
     // ============================================================
     // Notifications / In-game HUD
+    // @deprecated v0.51.0 — przeniesione do namespace hud.* (sekcja na dole pliku).
+    // Klucze ponizej zostawione bezinwazyjnie do osobnego sweep'u po grep'ie
+    // wszystkich call-sites w repo. NIE uzywaj w nowym kodzie.
     // ============================================================
     'notif.superCharge': '+{count} SUPER STRZAŁY!',
     'notif.megaBoss': 'UWAGA: MEGA BOSS!',
@@ -215,7 +218,7 @@ export const pl = {
     'pickup.cubeStolen': 'Cube skradziony! 👀',
 
     // ──────────────────────────────────────────────────────────
-    // HUD
+    // HUD — labele (na pillach)
     // ──────────────────────────────────────────────────────────
     'hud.hp': 'HP',
     'hud.score': 'WYNIK',
@@ -243,4 +246,73 @@ export const pl = {
     'end.dmgBonus': 'DMG',
     'end.hpBonus': 'HP',
     'end.backToMenu': 'POWRÓT DO MENU',
+
+    // ============================================================
+    // HUD notifications (v0.51.0 — i18n migration z main.ts + HUD.ts)
+    //
+    // Konwencja: 'hud.<kategoria><Wariant>'. Parametry: {count}, {hp},
+    // {sec}, {bonus}, {total}, {phase} — substytuowane przez t() runtime.
+    //
+    // Wszystkie stringi wczesniej hardcoded w main.ts (notify popups) i
+    // HUD.ts (canvas-rendered labels/status pille/mega boss bar).
+    // ============================================================
+
+    // Powers (super moce — aktywacja)
+    'hud.shieldActive':   '🛡️ TARCZA AKTYWNA!',
+    'hud.megaBombHit':    '💣 MEGA BOMBA — {count} celów!',
+    'hud.multiKill':      '💥 MULTI KILL ×{count}!',
+    'hud.freezeAll':      '❄️ MRÓZ NA WSZYSTKICH WROGACH!',
+
+    // Mute toggle
+    'hud.muted':          '🔇 WYCISZONO',
+    'hud.unmuted':        '🔊 DŹWIĘK WŁ.',
+
+    // Stealth (kukurydza / trzcina / oaza + zerwanie stealth)
+    'hud.stealthSugarcane': '🎋 UKRYTY W TRZCINIE (10s)!',
+    'hud.stealthCorn':      '🌾 UKRYTY W KUKURYDZY (10s)!',
+    'hud.stealthOasis':     '🌴 NIEWIDZIALNY (10s)!',
+    'hud.stealthSpotted':   '👁️ ZOSTAŁEŚ ZAUWAŻONY!',
+    'hud.shotRevealed':     '🔫 STRZAŁ ZDRADZIŁ POZYCJĘ!',
+
+    // Karawana (Desert)
+    'hud.caravanGem':     '🐪 Karawana dropiła 💎',
+    'hud.caravanHeart':   '🐪 Karawana dropiła ❤️',
+    'hud.caravanMagnet':  '🐪 Karawana dropiła 🧲',
+
+    // Pickupy (heal/turbo/super charge/magnet)
+    'hud.mediPadHeal':    '🔧 +{hp} HP',
+    'hud.heartHeal':      '❤️ +{hp} HP',
+    'hud.turboBoost':     '⚡ TURBO ×2 — {sec}s!',
+    'hud.superCharge':    '⚡ +{count} SUPER STRZAŁY! (×{total})',
+    'hud.magnetActive':   '🧲 MAGNET {sec}s!',
+
+    // Achievement (end-game)
+    'hud.perfectRun':     '⭐ PERFECT RUN! +{bonus} pkt',
+
+    // Combo (PL=EN — gaming convention, dzieciaki znaja terminy z innych gier)
+    'hud.comboDouble':    'DOUBLE!',
+    'hud.comboTriple':    'TRIPLE!',
+    'hud.comboMega':      'MEGA KILL! 💥',
+
+    // ── HUD.ts (canvas-rendered) ──
+
+    // Pille i hinty
+    'hud.superShot':           'SUPER SHOT',
+    'hud.killProgressTaunt':   '💀 ZNISZCZ BOSSÓW!',
+    'hud.powerHint':           'scroll = wybierz   ·   PPM/SPACE = użyj',
+
+    // Active power status (bottom-center, gdy aura/mroz aktywne)
+    'hud.auraActive':          '🛡️ TARCZA — {sec}s 🛡️',
+    'hud.freezeActiveStatus':  '❄️ MRÓZ — {sec}s ❄️',
+
+    // Status pille (prawa kolumna)
+    'hud.magnetStatus':        '🧲 MAGNET {sec}s',
+    'hud.turboStatus':         '⚡ TURBO ×2 {sec}s',
+
+    // Mega boss (fazy + alert + label paska)
+    'hud.megaBossPhaseRush':    'SZARŻA',
+    'hud.megaBossPhaseStrafe':  'OKRĄŻA',
+    'hud.megaBossPhaseEnraged': 'WŚCIEKŁY',
+    'hud.megaBossLabel':        '👑 MEGA BOSS — {phase}',
+    'hud.megaBossIncoming':     '⚠️ MEGA BOSS NADCHODZI!',
 };

@@ -146,6 +146,9 @@ export const en: typeof pl = {
 
     // ============================================================
     // Notifications / HUD
+    // @deprecated v0.51.0 — moved to hud.* namespace (bottom of file).
+    // Kept here as no-op for safety until full repo grep sweep removes them.
+    // DO NOT use in new code.
     // ============================================================
     'notif.superCharge': '+{count} SUPER SHOTS!',
     'notif.megaBoss': 'WARNING: MEGA BOSS!',
@@ -205,7 +208,7 @@ export const en: typeof pl = {
     'pickup.cubeStolen': 'Cube stolen! 👀',
 
     // ──────────────────────────────────────────────────────────
-    // HUD
+    // HUD — labels (on pills)
     // ──────────────────────────────────────────────────────────
     'hud.hp': 'HP',
     'hud.score': 'SCORE',
@@ -233,4 +236,68 @@ export const en: typeof pl = {
     'end.dmgBonus': 'DMG',
     'end.hpBonus': 'HP',
     'end.backToMenu': 'BACK TO MENU',
+
+    // ============================================================
+    // HUD notifications (v0.51.0 — i18n migration from main.ts + HUD.ts)
+    // See pl.ts for full rationale and parameter naming convention.
+    // ============================================================
+
+    // Powers (super activation)
+    'hud.shieldActive':   '🛡️ SHIELD ACTIVATED!',
+    'hud.megaBombHit':    '💣 MEGA BOMB — {count} targets!',
+    'hud.multiKill':      '💥 MULTI KILL ×{count}!',
+    'hud.freezeAll':      '❄️ FREEZE ALL ENEMIES!',
+
+    // Mute toggle
+    'hud.muted':          '🔇 MUTED',
+    'hud.unmuted':        '🔊 SOUND ON',
+
+    // Stealth (sugarcane / corn / oasis + reveal)
+    'hud.stealthSugarcane': '🎋 HIDDEN IN SUGARCANE (10s)!',
+    'hud.stealthCorn':      '🌾 HIDDEN IN CORN (10s)!',
+    'hud.stealthOasis':     '🌴 INVISIBLE (10s)!',
+    'hud.stealthSpotted':   '👁️ YOU HAVE BEEN SPOTTED!',
+    'hud.shotRevealed':     '🔫 SHOT REVEALED YOUR POSITION!',
+
+    // Caravan (Desert)
+    'hud.caravanGem':     '🐪 Caravan dropped 💎',
+    'hud.caravanHeart':   '🐪 Caravan dropped ❤️',
+    'hud.caravanMagnet':  '🐪 Caravan dropped 🧲',
+
+    // Pickups (heal/turbo/super charge/magnet)
+    'hud.mediPadHeal':    '🔧 +{hp} HP',
+    'hud.heartHeal':      '❤️ +{hp} HP',
+    'hud.turboBoost':     '⚡ TURBO ×2 — {sec}s!',
+    'hud.superCharge':    '⚡ +{count} SUPER SHOTS! (×{total})',
+    'hud.magnetActive':   '🧲 MAGNET {sec}s!',
+
+    // Achievement (end-game)
+    'hud.perfectRun':     '⭐ PERFECT RUN! +{bonus} pts',
+
+    // Combo (PL=EN — gaming convention)
+    'hud.comboDouble':    'DOUBLE!',
+    'hud.comboTriple':    'TRIPLE!',
+    'hud.comboMega':      'MEGA KILL! 💥',
+
+    // ── HUD.ts (canvas-rendered) ──
+
+    // Pills and hints
+    'hud.superShot':           'SUPER SHOT',
+    'hud.killProgressTaunt':   '💀 DESTROY BOSSES!',
+    'hud.powerHint':           'scroll = select   ·   RMB/SPACE = use',
+
+    // Active power status (bottom-center, when aura/freeze active)
+    'hud.auraActive':          '🛡️ SHIELD — {sec}s 🛡️',
+    'hud.freezeActiveStatus':  '❄️ FREEZE — {sec}s ❄️',
+
+    // Status pills (right column)
+    'hud.magnetStatus':        '🧲 MAGNET {sec}s',
+    'hud.turboStatus':         '⚡ TURBO ×2 {sec}s',
+
+    // Mega boss (phases + alert + bar label)
+    'hud.megaBossPhaseRush':    'CHARGE',
+    'hud.megaBossPhaseStrafe':  'STRAFING',
+    'hud.megaBossPhaseEnraged': 'ENRAGED',
+    'hud.megaBossLabel':        '👑 MEGA BOSS — {phase}',
+    'hud.megaBossIncoming':     '⚠️ MEGA BOSS INCOMING!',
 };

@@ -181,6 +181,9 @@ let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
 let wasInCornLastFrame: boolean = false;
 let wasStealthActiveLastFrame: boolean = false;
+// v0.50.1 fix: track czy ostatnie zerwanie stealth bylo wynikiem strzalu (anti-cheese Michala).
+// Strzal ze strefy stealth = natychmiastowe wykrycie. Flag pozwala pokazac inny komunikat HUD.
+let stealthBrokenByShot: boolean = false;
 let sandKickFrameCounter: number = 0;
 
 // v0.45.0 FAZA 8.7: hit-stop frame counter. Gdy > 0, ticker robi early return.
@@ -576,6 +579,7 @@ function startGame(config: GameConfig): void {
     wasInOasisLastFrame = false;
     wasInCornLastFrame = false;
     wasStealthActiveLastFrame = false;
+    stealthBrokenByShot = false; // v0.50.1
     sandKickFrameCounter = 0;
     hitStopFramesRemaining = 0; // v0.45.0 FAZA 8.7 reset
 
@@ -952,8 +956,9 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     const TITAN = "'Titan One', cursive";
     const SYS = 'system-ui, -apple-system, sans-serif';
 
-    // Ikona gema z gry (asset) zamiast emoji — reszta chipow uzywa emoji.
-    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.svg" alt="" style="width:1.5rem;height:1.5rem;display:block;">`;
+    // v0.50.1: gem PNG (256x256, transparent BG) zastapil legacy SVG. object-fit:contain
+    // jako safety belt — gdyby aspect ratio kiedys sie zmienilo, ikona dalej bedzie miescic sie w slocie.
+    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:1.5rem;height:1.5rem;display:block;object-fit:contain;">`;
 
     // iconHtml = surowy HTML (emoji-char ALBO <img>) renderowany w ramce ikony.
     const chip = (iconHtml: string, value: string | number, label: string): string => `
@@ -1283,7 +1288,11 @@ app.ticker.add((delta) => {
         }
         audio.playMagnetPickup();
     } else if (!isStealthActive && wasStealthActiveLastFrame && playerInAnyStealth) {
-        hud.addNotif('👁️ ZOSTAŁEŚ ZAUWAŻONY!', '#ff8855');
+        // v0.50.1: rozny komunikat zaleznie od powodu zerwania stealth.
+        // Strzal -> jasna informacja edukacyjna "STRZAL ZDRADZIL POZYCJE".
+        // Natural timeout (10s minelo) -> standardowe "ZOSTALES ZAUWAZONY".
+        const breakMsg = stealthBrokenByShot ? '🔫 STRZAŁ ZDRADZIŁ POZYCJĘ!' : '👁️ ZOSTAŁEŚ ZAUWAŻONY!';
+        hud.addNotif(breakMsg, '#ff8855');
         effects.shake(3, 8);
     }
 
@@ -1294,6 +1303,12 @@ app.ticker.add((delta) => {
     wasInOasisLastFrame = playerInOasis;
     wasInCornLastFrame = playerInFarmStealth;
     wasStealthActiveLastFrame = isStealthActive;
+    // v0.50.1: catch-all reset flag stealthBrokenByShot gdy stealth nieaktywne.
+    // Pokrywa edge case: gracz strzelil ze strefy ale wyszedl ZARAZ -> flag bez reset
+    // -> nastepne wejscie do strefy -> bledny komunikat. Reset tutaj eliminuje problem.
+    if (!isStealthActive) {
+        stealthBrokenByShot = false;
+    }
 
     if (river) river.update();
     if (waterLife) waterLife.update();
@@ -1458,6 +1473,16 @@ app.ticker.add((delta) => {
 
     const now = Date.now();
     if (isMouseDown && now - lastShotTime > player.brawler.reload) {
+        // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
+        // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
+        // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
+        // Naprawia exploit: gracz wpadal w corn/sugarcane/oasis, czekal 10s na "reset",
+        // wyjezdzal, strzelal — przeciwnicy nie widzieli go bo flagger stealth byl aktywny.
+        if (now < oasisStealthEndTime) {
+            oasisStealthEndTime = 0;
+            stealthBrokenByShot = true;
+        }
+
         const angle = player.turret.rotation;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;

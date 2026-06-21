@@ -95,6 +95,9 @@ import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
 import { t, i18n } from './i18n/i18n';
 
+// === v0.50.0 Difficulty Balance v1: per-difficulty enemy stats + spawn config ===
+import { getDifficultyModifiers } from './config/difficulty';
+
 // === FAZA 6.5.2b: MainMenu jako bootstrap entry point ===
 import { MainMenu } from './ui/MainMenu';
 import { showToast } from './ui/toast';
@@ -357,16 +360,37 @@ function tryActivateSuper(): void {
         hud.addNotif(`💣 MEGA BOMBA — ${result.megaBombTargets.length} celów!`, '#ff4400');
         audio.playSuperActivate('megaBomb');
 
+        // v0.50.0 Scoring v2.1: track ile zabilo + sum base values dla multi-kill bonus.
+        let multiKillCount = 0;
+        let multiKillSumBase = 0;
+
         for (const enemy of result.megaBombTargets) {
+            // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (na wszelki wypadek).
+            const wasFrozen = Date.now() < enemy.frozenUntil;
             const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
             if (killed) {
                 spawnSystem!.registerKill(enemy);
                 // v0.49.0 Scoring v2: mega bomba NIE wola registerKill na GameSession (AOE != skill streak),
                 // ale jesli combo bylo aktywne z poprzedniego bullet killa, mnoznik nadal dziala.
                 currentSession.addKillScore(enemy.scoreValue);
+
+                // v0.50.0 Scoring v2.1: frozen kill bonus jezeli enemy byl zamrozony.
+                if (wasFrozen) {
+                    currentSession.addFrozenKillBonus(enemy.scoreValue);
+                }
+
+                multiKillCount++;
+                multiKillSumBase += enemy.scoreValue;
+
                 handleEnemyDrop(enemy); // v0.44.0 FAZA 8.6
                 if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
             }
+        }
+
+        // v0.50.0 Scoring v2.1: multi-kill bonus jezeli zabilo >=3 wrogow w tej bombie.
+        if (multiKillCount >= 3) {
+            currentSession.addMultiKillBonus(multiKillSumBase, multiKillCount);
+            hud.addNotif(`💥 MULTI KILL ×${multiKillCount}!`, '#ff8800');
         }
     } else if (result.powerId === 'freeze' && result.freezeUntil !== undefined) {
         for (const enemy of enemies) {
@@ -800,7 +824,9 @@ function startGame(config: GameConfig): void {
     }
 
     effects = new EffectsManager(worldContainer);
-    spawnSystem = new SpawnSystem();
+    // v0.50.0 Difficulty Balance v1: SpawnSystem dostaje per-difficulty modifiers
+    // (enemy HP/dmg/speed mults + spawn interval + max enemies + boss thresholds).
+    spawnSystem = new SpawnSystem(getDifficultyModifiers(config.difficulty));
     powerSystem = new PowerSystem(worldContainer);
 
     if (config.map === 'tropics') {
@@ -949,42 +975,90 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     const victoryBadge = isVictory ? `
         <div style="font-family:${TITAN};font-size:0.95rem;color:#fff;background:#27ae60;padding:6px 18px;border-radius:14px;border:2px solid #2c3e50;box-shadow:2px 2px 0 #2c3e50;margin-top:12px;">🏆 ${t('end.megaBoss')} — ${t('end.megaBossDefeated')}</div>` : '';
 
-    // Hero: czolg gracza (extract z gry) + fake-3D przechyl + dym + plomienie + poswiata. Fallback: emoji.
+    // v0.50.0 fix — Hero zone rozni sie per outcome:
+    //   - DEFEAT  = palacy sie czolg (smoke + flames) — istniejacy efekt
+    //   - VICTORY = celebracja (confetti + gold sparkles + radial rays) — NOWE
+    // Wczesniej victory mial gold-tinted smoke+flames, czyli czolg wygladal jakby
+    // palil sie zlotymi plomieniami. Visual mismatch z "ZWYCIESTWO!" tytulem.
     const glow = isVictory ? 'rgba(241,196,15,0.42)' : 'rgba(231,76,60,0.34)';
-    const smoke = isVictory ? 'rgba(150,140,110,0.42)' : 'rgba(58,58,64,0.6)';
-    const flameOuter = isVictory ? 'rgba(255,196,56,0.92)' : 'rgba(255,88,28,0.92)';
-    const flameInner = isVictory ? 'rgba(255,242,168,0.95)' : 'rgba(255,208,72,0.95)';
 
-    // Dym — 6 klebow, rozne rozmiary/predkosci/delay.
-    const smokeDefs = [
-        { x: 0, s: 50, d: 0.0, dur: 2.6 }, { x: -17, s: 38, d: 0.7, dur: 2.9 },
-        { x: 15, s: 42, d: 1.1, dur: 2.4 }, { x: -6, s: 34, d: 1.6, dur: 3.0 },
-        { x: 11, s: 30, d: 2.0, dur: 2.7 }, { x: -13, s: 30, d: 0.4, dur: 3.1 },
-    ];
-    const smokePuffs = smokeDefs.map(p =>
-        `<div style="position:absolute;bottom:40px;left:calc(50% + ${p.x}px);transform:translateX(-50%);width:${p.s}px;height:${p.s}px;border-radius:50%;background:radial-gradient(circle,${smoke} 0%,transparent 70%);animation:esSmoke ${p.dur}s ease-out ${p.d}s infinite backwards;"></div>`
-    ).join('');
+    let heroEffects = '';
+    let heroKeyframes = '';
 
-    // Plomienie — 4 jezyki ognia u podstawy, flicker.
-    const flameDefs = [
-        { x: 0, w: 30, h: 48, d: 0.0 }, { x: -13, w: 20, h: 34, d: 0.25 },
-        { x: 14, w: 22, h: 38, d: 0.5 }, { x: -4, w: 15, h: 26, d: 0.15 },
-    ];
-    const flames = flameDefs.map(f =>
-        `<div style="position:absolute;z-index:3;bottom:32px;left:calc(50% + ${f.x}px);transform:translateX(-50%);width:${f.w}px;height:${f.h}px;border-radius:50% 50% 48% 48% / 64% 64% 36% 36%;background:radial-gradient(ellipse at 50% 78%, ${flameInner} 0%, ${flameOuter} 46%, transparent 76%);animation:esFlame ${(0.55 + f.d).toFixed(2)}s ease-in-out ${f.d}s infinite backwards;filter:blur(0.5px);"></div>`
-    ).join('');
+    if (isVictory) {
+        // ── VICTORY: confetti + sparkles + radial rays ──
+        const confettiColors = ['#f1c40f', '#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#e67e22', '#ffffff', '#ff6b9d'];
+
+        // 18 kolorowych pasków opadajacych — staggered delays + rotacje dla varied look
+        const confettiPieces = Array.from({ length: 18 }, (_, i) => {
+            const xPct = (i * 5.3 + 4) % 96;
+            const color = confettiColors[i % confettiColors.length];
+            const delay = ((i * 0.17) % 1.8).toFixed(2);
+            const dur = (1.6 + (i % 4) * 0.25).toFixed(2);
+            const rotEnd = 360 + ((i % 3) * 360);
+            const w = 6 + (i % 3); // 6,7,8 px szer
+            return `<div style="position:absolute;left:${xPct}%;top:-12px;width:${w}px;height:14px;background:${color};animation:esConfetti ${dur}s linear ${delay}s infinite backwards;border-radius:1px;z-index:1;--rotEnd:${rotEnd}deg;"></div>`;
+        }).join('');
+
+        // 6 gold sparkles ✦ — twinkle (scale 0→1→0 + rotate)
+        const sparkleDefs = [
+            { x: 25, y: 28, d: 0.0, s: 1.4 },
+            { x: 75, y: 22, d: 0.5, s: 1.2 },
+            { x: 18, y: 75, d: 0.3, s: 1.0 },
+            { x: 82, y: 68, d: 0.9, s: 1.3 },
+            { x: 50, y: 12, d: 0.7, s: 1.1 },
+            { x: 45, y: 88, d: 1.1, s: 1.5 },
+        ];
+        const sparkles = sparkleDefs.map(s =>
+            `<div style="position:absolute;left:${s.x}%;top:${s.y}%;font-size:${Math.round(18 * s.s)}px;line-height:1;color:#fff8c4;text-shadow:0 0 10px rgba(241,196,15,0.95),0 0 4px rgba(255,255,255,1);animation:esSparkle 1.4s ease-in-out ${s.d}s infinite;pointer-events:none;z-index:3;">✦</div>`
+        ).join('');
+
+        // Radial rays za tankiem — sun-burst pulsuje
+        const rays = `<div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:280px;height:280px;background:radial-gradient(circle at center,rgba(241,196,15,0.35) 0%,rgba(241,196,15,0.12) 30%,transparent 55%);animation:esRays 2.4s ease-in-out infinite;z-index:0;pointer-events:none;"></div>`;
+
+        heroEffects = `${rays}${confettiPieces}${sparkles}`;
+        heroKeyframes = `
+          @keyframes esConfetti{0%{transform:translateY(-30px) rotate(0deg);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(190px) rotate(var(--rotEnd,720deg));opacity:0}}
+          @keyframes esSparkle{0%,100%{transform:scale(0) rotate(0deg);opacity:0}50%{transform:scale(1) rotate(180deg);opacity:1}}
+          @keyframes esRays{0%,100%{opacity:0.55;transform:translateX(-50%) scale(1)}50%{opacity:0.85;transform:translateX(-50%) scale(1.06)}}`;
+    } else {
+        // ── DEFEAT: smoke + flames (existing) ──
+        const smoke = 'rgba(58,58,64,0.6)';
+        const flameOuter = 'rgba(255,88,28,0.92)';
+        const flameInner = 'rgba(255,208,72,0.95)';
+
+        // Dym — 6 klebow, rozne rozmiary/predkosci/delay.
+        const smokeDefs = [
+            { x: 0, s: 50, d: 0.0, dur: 2.6 }, { x: -17, s: 38, d: 0.7, dur: 2.9 },
+            { x: 15, s: 42, d: 1.1, dur: 2.4 }, { x: -6, s: 34, d: 1.6, dur: 3.0 },
+            { x: 11, s: 30, d: 2.0, dur: 2.7 }, { x: -13, s: 30, d: 0.4, dur: 3.1 },
+        ];
+        const smokePuffs = smokeDefs.map(p =>
+            `<div style="position:absolute;bottom:40px;left:calc(50% + ${p.x}px);transform:translateX(-50%);width:${p.s}px;height:${p.s}px;border-radius:50%;background:radial-gradient(circle,${smoke} 0%,transparent 70%);animation:esSmoke ${p.dur}s ease-out ${p.d}s infinite backwards;z-index:1;"></div>`
+        ).join('');
+
+        // Plomienie — 4 jezyki ognia u podstawy, flicker.
+        const flameDefs = [
+            { x: 0, w: 30, h: 48, d: 0.0 }, { x: -13, w: 20, h: 34, d: 0.25 },
+            { x: 14, w: 22, h: 38, d: 0.5 }, { x: -4, w: 15, h: 26, d: 0.15 },
+        ];
+        const flames = flameDefs.map(f =>
+            `<div style="position:absolute;z-index:3;bottom:32px;left:calc(50% + ${f.x}px);transform:translateX(-50%);width:${f.w}px;height:${f.h}px;border-radius:50% 50% 48% 48% / 64% 64% 36% 36%;background:radial-gradient(ellipse at 50% 78%, ${flameInner} 0%, ${flameOuter} 46%, transparent 76%);animation:esFlame ${(0.55 + f.d).toFixed(2)}s ease-in-out ${f.d}s infinite backwards;filter:blur(0.5px);"></div>`
+        ).join('');
+
+        heroEffects = `${smokePuffs}${flames}`;
+        heroKeyframes = `
+          @keyframes esSmoke{0%{transform:translateX(-50%) translateY(8px) scale(.5);opacity:0}25%{opacity:.6}100%{transform:translateX(-50%) translateY(-88px) scale(1.8);opacity:0}}
+          @keyframes esFlame{0%,100%{transform:translateX(-50%) scaleY(.82) scaleX(1);opacity:.85}50%{transform:translateX(-50%) scaleY(1.18) scaleX(.92);opacity:1}}`;
+    }
 
     const heroZone = d.tankImg ? `
-        <style>
-          @keyframes esSmoke{0%{transform:translateX(-50%) translateY(8px) scale(.5);opacity:0}25%{opacity:.6}100%{transform:translateX(-50%) translateY(-88px) scale(1.8);opacity:0}}
-          @keyframes esFlame{0%,100%{transform:translateX(-50%) scaleY(.82) scaleX(1);opacity:.85}50%{transform:translateX(-50%) scaleY(1.18) scaleX(.92);opacity:1}}
-        </style>
-        <div style="position:relative;width:100%;height:168px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;">
-            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:178px;height:178px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);"></div>
-            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:128px;height:26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);"></div>
-            ${smokePuffs}
+        <style>${heroKeyframes}</style>
+        <div style="position:relative;width:100%;height:168px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;overflow:hidden;">
+            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:178px;height:178px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
+            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:128px;height:26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+            ${heroEffects}
             <img src="${d.tankImg}" alt="" style="position:relative;z-index:2;height:152px;width:auto;filter:drop-shadow(0 7px 8px rgba(0,0,0,0.4));">
-            ${flames}
         </div>`
         : `<div style="font-size:3.2rem;line-height:1;margin-bottom:4px;">${icon}</div>`;
 
@@ -1061,6 +1135,14 @@ async function triggerVictory(): Promise<void> {
     touchManager.hide();
 
     if (currentSession) {
+        // v0.50.0 Scoring v2.2: Perfect Run check + apply bonus PRZED submit, zeby
+        // submitowany score juz uwzglednial bonus. Wolane RAZ na koncu matchu.
+        const perfectRun = currentSession.applyPerfectRunBonus();
+        if (perfectRun.applied) {
+            console.log(`[Score] PERFECT RUN bonus applied: +${perfectRun.bonus} pts`);
+            hud.addNotif(`⭐ PERFECT RUN! +${perfectRun.bonus} pkt`, '#f1c40f');
+        }
+
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config);
             console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
@@ -1436,6 +1518,8 @@ app.ticker.add((delta) => {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
                 effects.shake(4, 6);
                 audio.playHit('player');
+                // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
+                currentSession.markDamageTaken();
             }
             eb.destroy();
             enemyBullets.splice(i, 1);
@@ -1468,7 +1552,16 @@ app.ticker.add((delta) => {
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
             const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable);
 
+            // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
+            // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.
+            if (!powerSystem.isInvulnerable) {
+                currentSession.markDamageTaken();
+            }
+
             if (!enemy.isBoss && !enemy.isMegaBoss) {
+                // v0.50.0 Scoring v2.1: snapshot frozen state PRZED enemy.active = false.
+                const wasFrozen = Date.now() < enemy.frozenUntil;
+
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
                 audio.playExplosion();
                 handleEnemyDrop(enemy);
@@ -1477,6 +1570,15 @@ app.ticker.add((delta) => {
                 // v0.49.0 Scoring v2: kolizja = przypadkowy kill (enemy wjechal w gracza),
                 // NIE inkrementuje combo. Jezeli combo bylo aktywne, mnoznik dziala.
                 currentSession.addKillScore(enemy.scoreValue);
+
+                // v0.50.0 Scoring v2.1: ramming kill bonus (+100% baseValue) — swiadomy trade HP <-> score.
+                currentSession.addCollisionKillBonus(enemy.scoreValue);
+
+                // v0.50.0 Scoring v2.1: frozen + collision STACKUJA SIE.
+                if (wasFrozen) {
+                    currentSession.addFrozenKillBonus(enemy.scoreValue);
+                }
+
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
@@ -1503,6 +1605,8 @@ app.ticker.add((delta) => {
                 // hits NIE triggerują hit-stop (gold sparks tylko).
                 const hpBefore = enemy.hp;
                 const wasSuperShot = player.isSuperShotActive;
+                // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (frozen kill bonus).
+                const wasFrozen = Date.now() < enemy.frozenUntil;
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
                 const damageApplied = enemy.hp < hpBefore || killed;
 
@@ -1525,6 +1629,13 @@ app.ticker.add((delta) => {
                     // jest juz inkrementowane do 2 zanim addKillScore zapyta o mnoznik.
                     const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
                     currentSession.addKillScore(enemy.scoreValue);
+
+                    // v0.50.0 Scoring v2.1: frozen kill bonus jezeli enemy byl zamrozony PRZED hit.
+                    // Stackuje sie z combo (oba sa aplikowane do tego samego killa).
+                    if (wasFrozen) {
+                        currentSession.addFrozenKillBonus(enemy.scoreValue);
+                    }
+
                     if (comboNow === 2) { hud.comboText = 'DOUBLE!'; hud.comboTextTimer = 90; }
                     else if (comboNow === 3) { hud.comboText = 'TRIPLE!'; hud.comboTextTimer = 100; }
                     else if (comboNow >= 4) { hud.comboText = 'MEGA KILL! 💥'; hud.comboTextTimer = 110; }

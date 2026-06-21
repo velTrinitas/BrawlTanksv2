@@ -35,11 +35,26 @@ import type { ScoreInsert, ScoreRow } from './supabase/types';
 import { getSupabase } from './supabase/SupabaseClient';
 
 /**
- * Wersja regul scoringu. BUMP na 2 po HP/DMG x100 refactorze (v0.46.0),
- * by leaderboard nie miesal wynikow ze starej i nowej formuly.
- * Jedyne miejsce zmiany — single source of truth.
+ * Wersja regul scoringu. Single source of truth — zmienna na wszystko co wplywa
+ * na finalny `score`. Leaderboard filtruje po `score_version` zeby nie miesac
+ * wynikow z roznych formul (niesprawiedliwe porownanie).
+ *
+ * Historia bumpow:
+ *  - v1 (do v0.48.0): plaska suma `score += gem.value | enemy.scoreValue`,
+ *    bez mnoznikow, bez bonusow.
+ *  - v2 (od v0.50.0): pelny refactor scoringu w fazie Scoring v2 + Difficulty Balance v1:
+ *     - Difficulty score multipliers (Easy/Normal x1.0, Hard x1.2, Nightmare x1.4)
+ *     - Combo score multipliers (DOUBLE x1.2, TRIPLE x1.5, MEGA KILL x2.0 cap)
+ *     - Frozen kill bonus (per-difficulty: +50% / +75% / +100% / +125%)
+ *     - Mega bomb multi-kill bonus (>=3 wrogow: +50% sumy base values)
+ *     - Ramming/collision kill bonus (+100% base value)
+ *     - Perfect Run bonus (no-damage victory: +50/+75/+100/+125 POST diff mult)
+ *     - Realne skalowanie trudnosci (HP/dmg/speed/spawn rate/boss thresholds)
+ *
+ * NASTEPNY BUMP: po anti-cheat fazie (Layer 1+2) zeby wymusic nowe walidacje
+ * server-side, ALBO przy kolejnym duzym balance refactor.
  */
-export const CURRENT_SCORE_VERSION = 1;
+export const CURRENT_SCORE_VERSION = 2;
 
 const QUEUE_KEY = 'brawltanks.scores.queue.v1';
 

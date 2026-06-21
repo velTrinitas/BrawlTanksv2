@@ -65,6 +65,70 @@ const MAX_COMBO_TIER = 4;
 const COMBO_SCORE_MULTIPLIERS = [1.0, 1.0, 1.2, 1.5, 2.0] as const;
 
 // ============================================================
+// v0.50.0 Scoring v2.1 — Skill bonuses (frozen / multi-kill / ramming)
+// ============================================================
+//
+// Trzy nagrody za "swiadomy skill" (nie za przypadkowe killy):
+//
+// 1. FROZEN KILL — premiuje kapitalizacje super powera Freeze.
+//    Skalowane per-difficulty bo na Nightmare freeze jest ratunkiem.
+//    Dziala na WSZYSTKIE rodzaje killow (bullet/mega bomb/collision)
+//    o ile enemy byl frozen w momencie killa.
+//
+// 2. MULTI-KILL — premiuje pozycjonowanie + timing przy odpaleniu Mega Bomby.
+//    Aplikowany RAZ na bombe gdy zabila >=3 wrogow. Bonus = +50% sumy base values.
+//    Stale (nie skalowane) — matematyka grupowania niezalezna od difficulty.
+//
+// 3. RAMMING — premiuje swiadomy trade HP <-> score (collision kill).
+//    +100% base value. Stale. Self-limiting (~6 ramming killow = smierc).
+//
+// Wszystkie bonusy STACKUJA SIE i z comba, i ze soba (np. mega bomb 4 frozen
+// wrogow daje: kill score x combo + frozen bonus per kill + multi-kill bonus).
+// Bonus laduje w scoreFromBonus (4. sub-total), tracking osobny per typ
+// (bonusFrozen / bonusMultiKill / bonusCollision) na potrzeby przyszlego analytics.
+
+const FROZEN_KILL_BONUS_PER_DIFFICULTY: Record<import('../types/GameConfig').DifficultyId, number> = {
+    easy:      0.50,
+    normal:    0.75,
+    hard:      1.00,
+    nightmare: 1.25,
+};
+
+/** Mega bomb musi zabic >= tylu wrogow zeby wyzwolic multi-kill bonus. */
+const MULTI_KILL_THRESHOLD = 3;
+
+/** % bonus dla multi-killa (od sumy base values zabitych wrogow). */
+const MULTI_KILL_BONUS_PCT = 0.50;
+
+/** % bonus dla ramming killa (od base value pojedynczego wroga). */
+const COLLISION_KILL_BONUS_PCT = 1.00;
+
+/**
+ * v0.50.0 Scoring v2.2 — PERFECT RUN bonus.
+ *
+ * Game-end achievement: gracz zwyciezyl bez ANI JEDNEGO trafienia.
+ * Bonus aplikowany POST difficulty mult (jako stala, nie skalowane przez diff).
+ * Dzieki temu liczby ktore gracz widzi (+50 / +75 / +100 / +125) sa dokladnie te
+ * w tabeli ponizej — bez "ukrytego" przemnozenia.
+ *
+ * Implementacja:
+ *   - tookDamageThisMatch flag — SET przy KAZDYM applied damage (heart pickup NIE resetuje)
+ *   - applyPerfectRunBonus() wolane RAZ na koncu (w triggerVictory) przed score submit
+ *   - Aura (powerSystem.isInvulnerable) BLOKUJE damage → Perfect Run ZACHOWANY
+ *     (aura kosztuje cooldown 30s, nie jest free taktyka)
+ *
+ * Stosowane tylko przy Victory:
+ *   - Game over = HP=0 = damage musial byc applied = flag = true, bonus nie zadziala anyway
+ *   - Victory bez damage = rzadki wyczyn = wlasciwy moment na +50..+125 bonus
+ */
+const PERFECT_RUN_BONUS_PER_DIFFICULTY: Record<import('../types/GameConfig').DifficultyId, number> = {
+    easy:      50,
+    normal:    75,
+    hard:      100,
+    nightmare: 125,
+};
+
+// ============================================================
 // v0.44.0 FAZA 8.6 — PowerCube constants
 // ============================================================
 
@@ -91,20 +155,38 @@ export const POWERCUBE_HP_BONUS_PER_PICKUP = 25;
 /**
  * v0.49.0 — Score breakdown struct dla end-screen.
  * Wszystkie liczby PRZED zaokraglaniem do int (do display: Math.round).
- * `total` = round((killsBase + combo + gems) * multiplier).
+ * `total` = round((killsBase + combo + gems + bonus) * multiplier) + staticBonus.
+ *
+ * v0.50.0 — dodane `bonus` (total) + sub-fields per typ skill bonusu
+ * (bonusFrozen / bonusMultiKill / bonusCollision) na potrzeby live breakdown UI.
+ *
+ * v0.50.0 v2.2 — dodane `staticBonus` (Perfect Run — POST difficulty mult,
+ * jako stala dodawana do final score).
  */
 export interface ScoreBreakdown {
-    /** Baza za killy (sum scoreValue, bez combo, bez difficulty). */
+    /** Baza za killy (sum scoreValue, bez combo, bez difficulty, bez skill bonusow). */
     killsBase: number;
     /** Bonus za combo (sum baseValue * (comboMult - 1), bez difficulty). */
     combo: number;
     /** Punkty za gemy (sum gem.value, bez difficulty). */
     gems: number;
-    /** killsBase + combo + gems (przed difficulty). */
+    /** v0.50.0 — sum wszystkich skill bonusow (frozen + multiKill + collision). */
+    bonus: number;
+    /** v0.50.0 — bonus za frozen killy (per-difficulty). */
+    bonusFrozen: number;
+    /** v0.50.0 — bonus za mega bomb multi-kille (>= 3 wrogow). */
+    bonusMultiKill: number;
+    /** v0.50.0 — bonus za ramming killy (collision z graczem). */
+    bonusCollision: number;
+    /** killsBase + combo + gems + bonus (przed difficulty). */
     subtotal: number;
     /** Difficulty multiplier (1.0 / 1.0 / 1.2 / 1.4). */
     multiplier: number;
-    /** round(subtotal * multiplier) — finalny score do submit. */
+    /** v0.50.0 v2.2 — bonusy POST difficulty mult (Perfect Run). NIE skalowane przez diff. */
+    staticBonus: number;
+    /** v0.50.0 v2.2 — Perfect Run bonus (50/75/100/125 per difficulty). 0 gdy nie zdobyty. */
+    bonusPerfectRun: number;
+    /** round(subtotal * multiplier) + staticBonus — finalny score do submit. */
     total: number;
 }
 
@@ -131,6 +213,42 @@ export class GameSession {
 
     /** Suma wartosci gemow (1 per gem na ten moment). */
     public scoreFromGems: number = 0;
+
+    // ────────────────────────────────────────────────────────
+    // v0.50.0 Scoring v2.1 — skill bonuses (frozen / multiKill / collision)
+    // ────────────────────────────────────────────────────────
+
+    /** Suma wszystkich skill bonusow (bonusFrozen + bonusMultiKill + bonusCollision). */
+    public scoreFromBonus: number = 0;
+
+    /** Bonus za zabicia zamrozonych wrogow (skalowane per difficulty). */
+    public bonusFrozen: number = 0;
+
+    /** Bonus za mega bomb multi-killi (>=3 wrogow w jednej bombie). */
+    public bonusMultiKill: number = 0;
+
+    /** Bonus za ramming killy (collision z graczem). */
+    public bonusCollision: number = 0;
+
+    // ────────────────────────────────────────────────────────
+    // v0.50.0 Scoring v2.2 — static bonuses (POST difficulty mult)
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Sub-total bonusow POST difficulty mult. Nie podlega recomputeScore * diff.
+     * Aktualnie tylko Perfect Run. W przyszlosci moga dolaczyc inne game-end achievements.
+     */
+    public scoreFromStaticBonus: number = 0;
+
+    /** Bonus Perfect Run (zwyciestwo bez damage). 0 gdy nie zdobyty albo zdobyty na innym trybie. */
+    public bonusPerfectRun: number = 0;
+
+    /**
+     * Flag — czy gracz dostal damage applied w tym matchu.
+     * SET RAZ przy pierwszym hicie (markDamageTaken), NIE resetowana przez heart pickup.
+     * Aura (isInvulnerable) blokuje damage → flag NIE jest setowana → Perfect Run zachowany.
+     */
+    public tookDamageThisMatch: boolean = false;
 
     /** Aktualny streak combo (1, 2, 3, 4+). Reset gdy comboEndTime < now. */
     public comboCount: number = 0;
@@ -284,33 +402,152 @@ export class GameSession {
         this.recomputeScore();
     }
 
+    // ────────────────────────────────────────────────────────
+    // v0.50.0 Scoring v2.1 — skill bonus methods
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * v0.50.0 — bonus za zabicie zamrozonego wroga (skalowane per difficulty).
+     * Aplikowany OBOK addKillScore (oba stackuja sie). Wolaj gdy wykryto ze enemy.frozenUntil > Date.now()
+     * w momencie kill detection (snapshot PRZED enemy.takeDamage).
+     *
+     * Mnozniki (% dodane do baseValue):
+     *   Easy:      +50%    (0.50 * baseValue)
+     *   Normal:    +75%    (0.75 * baseValue)
+     *   Hard:      +100%   (1.00 * baseValue)
+     *   Nightmare: +125%   (1.25 * baseValue)
+     *
+     * @param baseValue — enemy.scoreValue (2 regular, 20 boss, 100 mega).
+     * @returns ile dodano do scoreFromBonus.
+     */
+    addFrozenKillBonus(baseValue: number): { added: number } {
+        const mult = FROZEN_KILL_BONUS_PER_DIFFICULTY[this.config.difficulty];
+        const bonus = baseValue * mult;
+        this.scoreFromBonus += bonus;
+        this.bonusFrozen += bonus;
+        this.recomputeScore();
+        return { added: bonus };
+    }
+
+    /**
+     * v0.50.0 — bonus za mega bomb multi-kill (>=3 wrogow w jednej bombie).
+     * Wolaj RAZ po pelnej petli mega bomby, z suma base values zabitych wrogow.
+     * Jezeli killCount < MULTI_KILL_THRESHOLD (3), NIE wolaj — wewnetrzny guard
+     * zwraca 0 dla bezpieczenstwa.
+     *
+     * Bonus = +50% sumy base values. Stale dla wszystkich difficulty.
+     *
+     * @param sumBaseValues — sum enemy.scoreValue z wszystkich zabitych w tej bombie.
+     * @param killCount — ile wrogow zabilo (do guarda, normalnie ten sam length co dla sumy).
+     * @returns ile dodano do scoreFromBonus (0 gdy killCount < threshold).
+     */
+    addMultiKillBonus(sumBaseValues: number, killCount: number): { added: number } {
+        if (killCount < MULTI_KILL_THRESHOLD) {
+            return { added: 0 };
+        }
+        const bonus = sumBaseValues * MULTI_KILL_BONUS_PCT;
+        this.scoreFromBonus += bonus;
+        this.bonusMultiKill += bonus;
+        this.recomputeScore();
+        return { added: bonus };
+    }
+
+    /**
+     * v0.50.0 — bonus za ramming kill (collision player <-> enemy w main.ts).
+     * Stale +100% baseValue (czyli kill DOUBLE punkty). Stale dla wszystkich difficulty.
+     *
+     * Self-limiting: ~6 collision killow = smierc gracza (200 dmg per collision vs zwykle ~1500 HP),
+     * wiec nie da sie farmowac. To swiadomy trade HP <-> score.
+     *
+     * @param baseValue — enemy.scoreValue (zwykle regular = 2, kolizje z bossami nie killa).
+     * @returns ile dodano do scoreFromBonus.
+     */
+    addCollisionKillBonus(baseValue: number): { added: number } {
+        const bonus = baseValue * COLLISION_KILL_BONUS_PCT;
+        this.scoreFromBonus += bonus;
+        this.bonusCollision += bonus;
+        this.recomputeScore();
+        return { added: bonus };
+    }
+
+    // ────────────────────────────────────────────────────────
+    // v0.50.0 Scoring v2.2 — Perfect Run flag + bonus
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * v0.50.0 — oznacz ze gracz dostal applied damage w tym matchu (zlamane Perfect Run).
+     * Wolaj w main.ts ZARAZ po `player.takeDamage(...)` gdy `!powerSystem.isInvulnerable`.
+     * Aura blokuje damage → NIE wolaj → flag pozostaje false → Perfect Run zachowany.
+     *
+     * Idempotent: kolejne wolania nic nie zmieniaja (raz true = zawsze true do konca matchu).
+     * Heart pickup NIE resetuje (kara za hit zostaje nawet po heal).
+     */
+    markDamageTaken(): void {
+        this.tookDamageThisMatch = true;
+    }
+
+    /**
+     * v0.50.0 — sprawdz Perfect Run + aplikuj bonus (50/75/100/125 per difficulty).
+     * Wolaj RAZ na koncu matchu w `triggerVictory()` PRZED `scoreService.submitScore(...)`.
+     *
+     * - Jezeli tookDamageThisMatch === true: brak bonusu, return { applied: false, bonus: 0 }
+     * - Jezeli false: bonus dodany do scoreFromStaticBonus + bonusPerfectRun, recompute.
+     *
+     * Nie wolaj w triggerGameOver — gracz zginal = damage applied = flag = true defacto.
+     * Brak guardow przed double-call (caller odpowiada za jednokrotne uzycie).
+     */
+    applyPerfectRunBonus(): { applied: boolean; bonus: number } {
+        if (this.tookDamageThisMatch) {
+            return { applied: false, bonus: 0 };
+        }
+        const bonus = PERFECT_RUN_BONUS_PER_DIFFICULTY[this.config.difficulty];
+        this.scoreFromStaticBonus += bonus;
+        this.bonusPerfectRun += bonus;
+        this.recomputeScore();
+        return { applied: true, bonus };
+    }
+
     /**
      * v0.49.0 — przelicz score z sub-totali + difficulty multiplier.
-     * Wolane automatycznie po addKillScore/addGemScore. Single point of truth dla score.
+     * Wolane automatycznie po addKillScore/addGemScore/addBonus*. Single point of truth dla score.
+     *
+     * v0.50.0 — uwzglednia scoreFromBonus (frozen + multiKill + collision).
+     * v0.50.0 v2.2 — scoreFromStaticBonus dodawane PO multiplier (Perfect Run niezalezne od diff).
+     *
+     * Wzor: score = round((killsBase + combo + gems + bonus) * diff) + staticBonus
      */
     private recomputeScore(): void {
         const diffMult = getDifficultyMultiplier(this.config.difficulty);
-        const subtotal = this.scoreFromKillsBase + this.scoreFromCombo + this.scoreFromGems;
-        this.score = Math.round(subtotal * diffMult);
+        const subtotal = this.scoreFromKillsBase + this.scoreFromCombo + this.scoreFromGems + this.scoreFromBonus;
+        this.score = Math.round(subtotal * diffMult) + this.scoreFromStaticBonus;
     }
 
     /**
      * v0.49.0 — pelny breakdown score do display na end-screen.
      * Liczby PRZED zaokraglaniem do int (caller robi Math.round dla wyswietlenia).
      *
+     * v0.50.0 — dodane skill bonuses (bonus total + bonusFrozen/MultiKill/Collision).
+     * v0.50.0 v2.2 — dodane staticBonus (Perfect Run) i bonusPerfectRun.
+     *
      * Display format (przyklad):
-     *   "Killy 380 · Combo +180 · Gemy 150 · Hard ×1.2 = 852"
+     *   "Killy 380 · Combo +180 · Gemy 150 · Bonusy +95 · Hard ×1.2 · PerfectRun +100 = 1066"
      */
     getScoreBreakdown(): ScoreBreakdown {
         const diffMult = getDifficultyMultiplier(this.config.difficulty);
-        const subtotal = this.scoreFromKillsBase + this.scoreFromCombo + this.scoreFromGems;
+        const subtotal = this.scoreFromKillsBase + this.scoreFromCombo + this.scoreFromGems + this.scoreFromBonus;
         return {
             killsBase: this.scoreFromKillsBase,
             combo: this.scoreFromCombo,
             gems: this.scoreFromGems,
+            bonus: this.scoreFromBonus,
+            bonusFrozen: this.bonusFrozen,
+            bonusMultiKill: this.bonusMultiKill,
+            bonusCollision: this.bonusCollision,
             subtotal,
             multiplier: diffMult,
-            total: Math.round(subtotal * diffMult),
+            staticBonus: this.scoreFromStaticBonus,
+            bonusPerfectRun: this.bonusPerfectRun,
+            total: Math.round(subtotal * diffMult) + this.scoreFromStaticBonus,
         };
     }
 

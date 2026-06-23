@@ -54,6 +54,7 @@ import { Horse, type HorsePaletteType } from './maps/tropics/Horse';
 import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { CyberpunkBorder } from './maps/city/CyberpunkBorder'; // v0.52.0 fix #21
 import { SludgeReactor } from './maps/city/SludgeReactor'; // v0.52.0 phase 2
+import { AntiGravScrap } from './maps/city/AntiGravScrap'; // v0.53.0
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -187,6 +188,8 @@ let cityBillboards: NeonBillboard[] = [];
 
 // v0.52.0 phase 2: SludgeReactor instances (industrial decor + cover)
 let sludgeReactors: SludgeReactor[] = [];
+// v0.53.0: AntiGravScrap instances (levitating scrap cover + junkyard barrier)
+let antiGravScraps: AntiGravScrap[] = [];
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -588,6 +591,7 @@ function startGame(config: GameConfig): void {
     caravan = null;
     cityBillboards = []; // v0.52.0
     sludgeReactors = []; // v0.52.0 phase 2
+    antiGravScraps = []; // v0.53.0
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
@@ -624,6 +628,18 @@ function startGame(config: GameConfig): void {
         buildings.push(reactor1);
         solidBuildings.push(reactor1);
         sludgeReactors.push(reactor1);
+        
+        // v0.53.0: AntiGravScrap — 2 lewitujace zlepy zlomu flankujace reaktor (zapora + junkyard).
+        // Solid cover (buildings + solidBuildings). Bob + electric arcs + detach sparks.
+        const scrapA = new AntiGravScrap(2180, 530, worldContainer);
+        buildings.push(scrapA);
+        solidBuildings.push(scrapA);
+        antiGravScraps.push(scrapA);
+
+        const scrapB = new AntiGravScrap(2380, 1500, worldContainer);
+        buildings.push(scrapB);
+        solidBuildings.push(scrapB);
+        antiGravScraps.push(scrapB);
 
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
@@ -1357,6 +1373,13 @@ app.ticker.add((delta) => {
         sr.setPlayerNear(player.x, player.y);
         sr.update(camera.x, camera.y, viewW, viewH, bullets);
     }
+
+    // v0.53.0: anti-grav scrap — proximity excited state + bullet hit detection
+    for (const sc of antiGravScraps) {
+        sc.setPlayerNear(player.x, player.y);
+        sc.update(camera.x, camera.y, viewW, viewH, bullets);
+    }
+
     if (patrolTractor) patrolTractor.update();
     if (stable) {
         try { stable.update(); } catch (err) { console.error('[T9.0] Stable update:', err); }

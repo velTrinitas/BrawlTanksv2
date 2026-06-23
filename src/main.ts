@@ -58,6 +58,7 @@ import { AntiGravScrap } from './maps/city/AntiGravScrap'; // v0.53.0
 import { HoloTurbine } from './maps/city/HoloTurbine'; // v0.54.0
 import { AirTaxiStation } from './maps/city/AirTaxiStation'; // v0.55.0
 import { PoliceStation } from './maps/city/PoliceStation';   // v0.55.0
+import { SkyTraffic } from './maps/city/SkyTraffic'; // v0.56.0
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -196,6 +197,7 @@ let antiGravScraps: AntiGravScrap[] = [];
 let holoTurbines: HoloTurbine[] = []; // v0.54.0
 let airTaxiStation: AirTaxiStation | null = null; // v0.55.0
 let policeStation: PoliceStation | null = null;   // v0.55.0
+let skyTraffic: SkyTraffic | null = null; // v0.56.0
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -600,6 +602,8 @@ function startGame(config: GameConfig): void {
     antiGravScraps = []; // v0.53.0
     holoTurbines = []; // v0.54.0
     airTaxiStation = null; // v0.55.0
+    skyTraffic?.destroy(); // v0.56.0
+    skyTraffic = null;
     policeStation = null;  // v0.55.0
 
     oasisStealthEndTime = 0;
@@ -680,13 +684,22 @@ function startGame(config: GameConfig): void {
 
         // v0.55.0: Air Taxi / Police hub (prawy-gorny rog). Solid cover.
         // Animacja neonow przez buildings.forEach (brak hit-detection, brak dedykowanej petli).
-        airTaxiStation = new AirTaxiStation(1790, 320, worldContainer);
+        airTaxiStation = new AirTaxiStation(2680, 230, worldContainer);
         buildings.push(airTaxiStation);
         solidBuildings.push(airTaxiStation);
 
-        policeStation = new PoliceStation(1790, 440, worldContainer);
+        policeStation = new PoliceStation(2680, 350, worldContainer);
         buildings.push(policeStation);
         solidBuildings.push(policeStation);
+
+        // v0.56.0: Warstwa B — ruch lotniczy (taksowki + patrol policji). Niekolizyjny.
+        skyTraffic = new SkyTraffic(worldContainer, {
+            yellowA: airTaxiStation.yellowStand,
+            redA: airTaxiStation.redStand,
+            yellowB: { x: 230, y: 2740 },    // baza2 zolta (dolny-lewy, WORLD 3000)
+            redB: { x: 2740, y: 2740 },      // baza2 czerwona (dolny-prawy)
+            policeBase: policeStation.helipad,
+        });
 
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
@@ -1432,6 +1445,9 @@ app.ticker.add((delta) => {
         ht.setPlayerNear(player.x, player.y);
         ht.update(camera.x, camera.y, viewW, viewH, bullets);
     }
+
+    // v0.56.0: Warstwa B — ruch lotniczy (taksowki + patrol policji). Niekolizyjny ambient.
+    skyTraffic?.update();
 
     if (patrolTractor) patrolTractor.update();
     if (stable) {

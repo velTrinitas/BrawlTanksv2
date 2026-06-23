@@ -78,28 +78,42 @@ export function buildCityTexture(): PIXI.Texture {
     // Niekolizyjne, malowane w teksturze (jak drogi/zebry). Hub: x[1790,1940] y[320,520].
     // ============================================================
     // Chodnik L-ksztaltny: od V3 (x1767) i H1 do hubu
-    c.fillStyle = '#1a1d26';
-    c.fillRect(1767, 360, 173, 26);   // poziomy łącznik od drogi V3 do stacji taxi
-    c.fillRect(1850, 410, 26, 130);   // pionowy łącznik taxi → police
-    // Krawędzie chodnika (jasniejsze)
-    c.strokeStyle = '#2a2f3c';
-    c.lineWidth = 2;
-    c.strokeRect(1767, 360, 173, 26);
-    c.strokeRect(1850, 410, 26, 130);
+    // v0.55.0 — Air Taxi / Police hub (prawy-gorny rog WORLD 3000): chodniki + parkingi
+    // ============================================================
+    // v0.56.0 — Air Taxi / Police hub: chodnik (odwrocone L) + 2 rzedy parkingow
+    // Hub: AirTaxi [2680,230], Police [2680,350], prawa sciana x=2830. WORLD 3000.
+    // Chodnik: od prawej sciany hubu w PRAWO, potem w DOL do glownej drogi.
+    // ============================================================
+    const SW = '#1a1d26';        // sidewalk fill
+    const SW_EDGE = '#2a2f3c';   // sidewalk edge
+    // Poziomy odcinek: prawa sciana hubu -> w prawo
+    c.fillStyle = SW;
+    c.fillRect(2830, 300, 70, 26);       // poziom: od x2830 do x2900 (na wysokosci miedzy taxi a police)
+    // Pionowy odcinek: w dol do drogi (dlugi pas po prawej)
+    c.fillRect(2874, 300, 26, 296);      // pion: x2874, schodzi do y660 (do glownej drogi pozio.)
+    // Krawedzie
+    c.strokeStyle = SW_EDGE; c.lineWidth = 2;
+    c.strokeRect(2830, 300, 70, 26);
+    c.strokeRect(2874, 300, 26, 296);
 
-    // Parkingi taksowek (linie miejsc, ponizej hubu y~530-600, poza droga H1 y617)
-    // Żolte sloty (lewa polowa) + czerwone (prawa) — markery, nie kolizja.
-    const drawParkingSlot = (px: number, py: number, color: string) => {
-        c.strokeStyle = color;
-        c.lineWidth = 2;
-        c.setLineDash([6, 4]);
-        c.strokeRect(px, py, 30, 44);
-        c.setLineDash([]);
+    // --- Parkingi: 2 rzedy ponizej hubu. Kolumny: TAXI (zolte+czerwone) lewo | POLICJA (niebieskie) prawo ---
+    const drawSlot = (px: number, py: number, color: string) => {
+        c.strokeStyle = color; c.lineWidth = 2; c.setLineDash([6, 4]);
+        c.strokeRect(px, py, 30, 44); c.setLineDash([]);
     };
-    drawParkingSlot(1790, 532, 'rgba(255,210,30,0.55)');   // żolty 1
-    drawParkingSlot(1824, 532, 'rgba(255,210,30,0.55)');   // żolty 2
-    drawParkingSlot(1875, 532, 'rgba(255,46,77,0.55)');    // czerwony 1
-    drawParkingSlot(1909, 532, 'rgba(255,46,77,0.55)');    // czerwony 2
+    const COL_Y = 'rgba(255,210,30,0.55)';   // zolty taxi
+    const COL_R = 'rgba(255,46,77,0.55)';     // czerwony taxi
+    const COL_B = 'rgba(46,155,255,0.6)';     // niebieski policja
+    // Rzad 1 (y=448): taxi zolty, taxi czerwony | policja, policja
+    drawSlot(2664, 448, COL_Y);
+    drawSlot(2698, 448, COL_R);
+    drawSlot(2760, 448, COL_B);
+    drawSlot(2794, 448, COL_B);
+    // Rzad 2 (y=500): jw.
+    drawSlot(2664, 500, COL_Y);
+    drawSlot(2698, 500, COL_R);
+    drawSlot(2760, 500, COL_B);
+    drawSlot(2794, 500, COL_B);
 
     return PIXI.Texture.from(cv);
 }

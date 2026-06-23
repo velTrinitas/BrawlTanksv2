@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import type { ICollidable } from '../../types/MapType';
 
 /**
  * v0.52.0 fix #21 — Cyberpunk Map Visual Upgrade #2: Map Border (analog TropicalBorder/SandstormBorder).
@@ -8,7 +9,7 @@ import * as PIXI from 'pixi.js';
  * Architektura zgodna z TropicalBorder/SandstormBorder:
  *   - Constructor(worldW, worldH, parent) — dodaje siebie do worldContainer
  *   - getCollisionRects() — zwraca 4 ICollidable strip walls do pushowania na buildings/solidBuildings
- *   - update() — wolane co frame w tickerze (anim scanline + pulse glow)
+ *   - update() — wolane co frame w tickerze (anim pulse pylonow)
  *
  * Visual layers (od najnizszego z-index):
  *   1. Edge glow gradient (60px stripe magenta/cyan od krawedzi do wewnatrz)
@@ -16,25 +17,19 @@ import * as PIXI from 'pixi.js';
  *   3. Neonowe pylony rozstawione co ~250 px wzdluz krawedzi (high glow points)
  *
  * v0.52.0 fix #22: usuniety animowany sweep scanline (raziacy podczas grania).
+ * v0.52.0 fix #23: ICollidable z types/MapType (zamiast lokalnego IBorderCollidable),
+ * usuniete unused 'edge' field w pylonPositions (TS strict noUnusedLocals).
  *
  * Collision: cienki 20px strip na kazdej krawedzi (low conflict z budynkami).
  * Budynki bliskie krawedzi: B1/B7 y=60 → gap 40 do top, B23 end x=1913 → gap 67 do right.
  */
-
-interface IBorderCollidable {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    update(camX: number, camY: number, viewW: number, viewH: number): void;
-}
 
 /**
  * Statyczny prostokat kolizyjny krawedzi mapy. Implementuje ICollidable interface
  * uzywany przez PlayerCollisionSystem / EnemyAvoidance — w==0 budynek skipowany,
  * tu w>0 wiec dziala jak solidny mur.
  */
-class BorderCollisionRect implements IBorderCollidable {
+class BorderCollisionRect implements ICollidable {
     constructor(public x: number, public y: number, public w: number, public h: number) {}
     update(_camX: number, _camY: number, _viewW: number, _viewH: number): void {
         // static — collision boxes never animate
@@ -63,7 +58,7 @@ export class CyberpunkBorder {
     private worldH: number;
     private collisionRects: BorderCollisionRect[];
     private animTime: number = 0;
-    private pylonPositions: Array<{ x: number, y: number, edge: 'top' | 'bottom' | 'left' | 'right' }> = [];
+    private pylonPositions: Array<{ x: number, y: number }> = [];
 
     constructor(worldW: number, worldH: number, parent: PIXI.Container) {
         this.worldW = worldW;
@@ -90,13 +85,13 @@ export class CyberpunkBorder {
         const MARGIN = 100;
         // Top + Bottom
         for (let x = MARGIN; x < this.worldW - MARGIN; x += PYLON_SPACING) {
-            this.pylonPositions.push({ x, y: COLLISION_THICKNESS + 18, edge: 'top' });
-            this.pylonPositions.push({ x, y: this.worldH - COLLISION_THICKNESS - 18, edge: 'bottom' });
+            this.pylonPositions.push({ x, y: COLLISION_THICKNESS + 18 });
+            this.pylonPositions.push({ x, y: this.worldH - COLLISION_THICKNESS - 18 });
         }
         // Left + Right
         for (let y = MARGIN; y < this.worldH - MARGIN; y += PYLON_SPACING) {
-            this.pylonPositions.push({ x: COLLISION_THICKNESS + 18, y, edge: 'left' });
-            this.pylonPositions.push({ x: this.worldW - COLLISION_THICKNESS - 18, y, edge: 'right' });
+            this.pylonPositions.push({ x: COLLISION_THICKNESS + 18, y });
+            this.pylonPositions.push({ x: this.worldW - COLLISION_THICKNESS - 18, y });
         }
     }
 

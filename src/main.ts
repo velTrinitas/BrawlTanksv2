@@ -7,7 +7,9 @@ import type { Brawler } from './types/Brawler';
 import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
     MEDI_PAD_POSITIONS, POWER_PAD_POSITIONS,
+    CITY_BILLBOARDS_LAYOUT, // v0.52.0
 } from './maps/CityMap';
+import { NeonBillboard } from './maps/city/NeonBillboard'; // v0.52.0
 import {
     buildDesertTexture,
     DESERT_PYRAMID_LAYOUT,
@@ -50,6 +52,7 @@ import { Stable } from './maps/tropics/Stable';
 import { Paddock } from './maps/tropics/Paddock';
 import { Horse, type HorsePaletteType } from './maps/tropics/Horse';
 import { TropicalBorder } from './maps/tropics/TropicalBorder';
+import { CyberpunkBorder } from './maps/city/CyberpunkBorder'; // v0.52.0 fix #21
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -168,6 +171,7 @@ let waterLife: WaterLife | null = null;
 let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
+let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
 let patrolTractor: PatrolTractor | null = null;
 let stable: Stable | null = null;
 let paddock: Paddock | null = null;
@@ -176,6 +180,9 @@ let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
 let farmFields: IFarmField[] = [];
 let caravan: Caravan | null = null;
+
+// v0.52.0 Cyberpunk Map Visual Upgrade #1: neon billboardy na dachach
+let cityBillboards: NeonBillboard[] = [];
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -566,6 +573,7 @@ function startGame(config: GameConfig): void {
     smallRocks = [];
     sandstormBorder = null;
     tropicalBorder = null;
+    cyberpunkBorder = null; // v0.52.0 fix #21
     patrolTractor = null;
     stable = null;
     paddock = null;
@@ -574,6 +582,7 @@ function startGame(config: GameConfig): void {
     oases = [];
     farmFields = [];
     caravan = null;
+    cityBillboards = []; // v0.52.0
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
@@ -598,8 +607,17 @@ function startGame(config: GameConfig): void {
             solidBuildings.push(cb);
         });
 
+        // v0.52.0 fix #21: cyberpunk border (ograniczenie wyjazdu z mapy + neon visual)
+        cyberpunkBorder = new CyberpunkBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...cyberpunkBorder.getCollisionRects());
+        solidBuildings.push(...cyberpunkBorder.getCollisionRects());
+
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+
+        // v0.52.0 Cyberpunk Visual Upgrade #1: 7 neon billboardow na dachach wiezowcow
+        cityBillboards = CITY_BILLBOARDS_LAYOUT.map(b =>
+            new NeonBillboard(b.x, b.y, b.w, b.h, b.seed, b.parallax, worldContainer));
     } else if (config.map === 'desert') {
         const desertTex = buildDesertTexture();
         const desertSprite = new PIXI.Sprite(desertTex);
@@ -1318,6 +1336,9 @@ app.ticker.add((delta) => {
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
     if (tropicalBorder) tropicalBorder.update();
+    if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
+    // v0.52.0: cyberpunk billboards (pulse + content rotation + flicker + parallax)
+    for (const bb of cityBillboards) bb.update(delta, camera.x, camera.y, viewW, viewH);
     if (patrolTractor) patrolTractor.update();
     if (stable) {
         try { stable.update(); } catch (err) { console.error('[T9.0] Stable update:', err); }
@@ -1694,5 +1715,12 @@ app.ticker.add((delta) => {
     effects.update(delta);
 
     const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
+    // v0.52.0 fix: force PIXI re-sort children co frame. PIXI sortableChildren=true
+    // powinno robic auto-sort gdy zIndex sie zmienia (przez setter), ale przy zlozonych
+    // scenach z dynamicznymi zIndex (budynki, billboardy, gracz, enemies, bullets, effects)
+    // timing czasem rozjezdza sie z kolejnoscia update'ow. Manual sortChildren przed
+    // hud.render() to O(n log n) dla ~60-100 dzieci = pomijalny perf, gwarantuje correct
+    // pseudo-3D depth.
+    worldContainer.sortChildren();
     hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

@@ -55,6 +55,7 @@ import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { CyberpunkBorder } from './maps/city/CyberpunkBorder'; // v0.52.0 fix #21
 import { SludgeReactor } from './maps/city/SludgeReactor'; // v0.52.0 phase 2
 import { AntiGravScrap } from './maps/city/AntiGravScrap'; // v0.53.0
+import { HoloTurbine } from './maps/city/HoloTurbine'; // v0.54.0
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -190,6 +191,7 @@ let cityBillboards: NeonBillboard[] = [];
 let sludgeReactors: SludgeReactor[] = [];
 // v0.53.0: AntiGravScrap instances (levitating scrap cover + junkyard barrier)
 let antiGravScraps: AntiGravScrap[] = [];
+let holoTurbines: HoloTurbine[] = []; // v0.54.0
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -592,6 +594,7 @@ function startGame(config: GameConfig): void {
     cityBillboards = []; // v0.52.0
     sludgeReactors = []; // v0.52.0 phase 2
     antiGravScraps = []; // v0.53.0
+    holoTurbines = []; // v0.54.0
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
@@ -640,6 +643,34 @@ function startGame(config: GameConfig): void {
         buildings.push(scrapB);
         solidBuildings.push(scrapB);
         antiGravScraps.push(scrapB);
+
+        // v0.54.0: HoloTurbine — 2 turbiny chlodzace z glitchujacym holo, lewa strona (1 gora / 1 dol).
+        // Solid cover (obudowa). Dual hitbox: obudowa=iskry+block, hologram=glitch pass-through.
+        const turbineA = new HoloTurbine(170, 530, worldContainer);   // LEWA GORA
+        buildings.push(turbineA);
+        solidBuildings.push(turbineA);
+        holoTurbines.push(turbineA);
+
+        const turbineB = new HoloTurbine(170, 2000, worldContainer);  // LEWA DOL
+        buildings.push(turbineB);
+        solidBuildings.push(turbineB);
+        holoTurbines.push(turbineB);
+
+        // v0.54.2: +3 HoloTurbine przy narozach (dolny-lewy, gorny-prawy, dolny-prawy)
+        const turbineC = new HoloTurbine(500, 2500, worldContainer);   // dolny-LEWY
+        buildings.push(turbineC);
+        solidBuildings.push(turbineC);
+        holoTurbines.push(turbineC);
+
+        const turbineD = new HoloTurbine(2500, 470, worldContainer);   // gorny-PRAWY
+        buildings.push(turbineD);
+        solidBuildings.push(turbineD);
+        holoTurbines.push(turbineD);
+
+        const turbineE = new HoloTurbine(2500, 2500, worldContainer);  // dolny-PRAWY
+        buildings.push(turbineE);
+        solidBuildings.push(turbineE);
+        holoTurbines.push(turbineE);
 
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
@@ -1378,6 +1409,12 @@ app.ticker.add((delta) => {
     for (const sc of antiGravScraps) {
         sc.setPlayerNear(player.x, player.y);
         sc.update(camera.x, camera.y, viewW, viewH, bullets);
+    }
+
+    // v0.54.0: holo turbines — proximity excited + dual-hitbox (housing sparks + holo glitch)
+    for (const ht of holoTurbines) {
+        ht.setPlayerNear(player.x, player.y);
+        ht.update(camera.x, camera.y, viewW, viewH, bullets);
     }
 
     if (patrolTractor) patrolTractor.update();

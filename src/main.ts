@@ -56,6 +56,8 @@ import { CyberpunkBorder } from './maps/city/CyberpunkBorder'; // v0.52.0 fix #2
 import { SludgeReactor } from './maps/city/SludgeReactor'; // v0.52.0 phase 2
 import { AntiGravScrap } from './maps/city/AntiGravScrap'; // v0.53.0
 import { HoloTurbine } from './maps/city/HoloTurbine'; // v0.54.0
+import { AirTaxiStation } from './maps/city/AirTaxiStation'; // v0.55.0
+import { PoliceStation } from './maps/city/PoliceStation';   // v0.55.0
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -192,6 +194,8 @@ let sludgeReactors: SludgeReactor[] = [];
 // v0.53.0: AntiGravScrap instances (levitating scrap cover + junkyard barrier)
 let antiGravScraps: AntiGravScrap[] = [];
 let holoTurbines: HoloTurbine[] = []; // v0.54.0
+let airTaxiStation: AirTaxiStation | null = null; // v0.55.0
+let policeStation: PoliceStation | null = null;   // v0.55.0
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -595,6 +599,8 @@ function startGame(config: GameConfig): void {
     sludgeReactors = []; // v0.52.0 phase 2
     antiGravScraps = []; // v0.53.0
     holoTurbines = []; // v0.54.0
+    airTaxiStation = null; // v0.55.0
+    policeStation = null;  // v0.55.0
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
@@ -671,6 +677,16 @@ function startGame(config: GameConfig): void {
         buildings.push(turbineE);
         solidBuildings.push(turbineE);
         holoTurbines.push(turbineE);
+
+        // v0.55.0: Air Taxi / Police hub (prawy-gorny rog). Solid cover.
+        // Animacja neonow przez buildings.forEach (brak hit-detection, brak dedykowanej petli).
+        airTaxiStation = new AirTaxiStation(1790, 320, worldContainer);
+        buildings.push(airTaxiStation);
+        solidBuildings.push(airTaxiStation);
+
+        policeStation = new PoliceStation(1790, 440, worldContainer);
+        buildings.push(policeStation);
+        solidBuildings.push(policeStation);
 
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));

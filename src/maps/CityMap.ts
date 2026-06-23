@@ -73,6 +73,34 @@ export function buildCityTexture(): PIXI.Texture {
         }
     });
     
+    // ============================================================
+    // v0.55.0 — Air Taxi / Police hub (prawy-gorny rog): chodniki + parkingi
+    // Niekolizyjne, malowane w teksturze (jak drogi/zebry). Hub: x[1790,1940] y[320,520].
+    // ============================================================
+    // Chodnik L-ksztaltny: od V3 (x1767) i H1 do hubu
+    c.fillStyle = '#1a1d26';
+    c.fillRect(1767, 360, 173, 26);   // poziomy łącznik od drogi V3 do stacji taxi
+    c.fillRect(1850, 410, 26, 130);   // pionowy łącznik taxi → police
+    // Krawędzie chodnika (jasniejsze)
+    c.strokeStyle = '#2a2f3c';
+    c.lineWidth = 2;
+    c.strokeRect(1767, 360, 173, 26);
+    c.strokeRect(1850, 410, 26, 130);
+
+    // Parkingi taksowek (linie miejsc, ponizej hubu y~530-600, poza droga H1 y617)
+    // Żolte sloty (lewa polowa) + czerwone (prawa) — markery, nie kolizja.
+    const drawParkingSlot = (px: number, py: number, color: string) => {
+        c.strokeStyle = color;
+        c.lineWidth = 2;
+        c.setLineDash([6, 4]);
+        c.strokeRect(px, py, 30, 44);
+        c.setLineDash([]);
+    };
+    drawParkingSlot(1790, 532, 'rgba(255,210,30,0.55)');   // żolty 1
+    drawParkingSlot(1824, 532, 'rgba(255,210,30,0.55)');   // żolty 2
+    drawParkingSlot(1875, 532, 'rgba(255,46,77,0.55)');    // czerwony 1
+    drawParkingSlot(1909, 532, 'rgba(255,46,77,0.55)');    // czerwony 2
+
     return PIXI.Texture.from(cv);
 }
 

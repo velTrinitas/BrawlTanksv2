@@ -53,6 +53,7 @@ import { Paddock } from './maps/tropics/Paddock';
 import { Horse, type HorsePaletteType } from './maps/tropics/Horse';
 import { TropicalBorder } from './maps/tropics/TropicalBorder';
 import { CyberpunkBorder } from './maps/city/CyberpunkBorder'; // v0.52.0 fix #21
+import { SludgeReactor } from './maps/city/SludgeReactor'; // v0.52.0 phase 2
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -183,6 +184,9 @@ let caravan: Caravan | null = null;
 
 // v0.52.0 Cyberpunk Map Visual Upgrade #1: neon billboardy na dachach
 let cityBillboards: NeonBillboard[] = [];
+
+// v0.52.0 phase 2: SludgeReactor instances (industrial decor + cover)
+let sludgeReactors: SludgeReactor[] = [];
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -583,6 +587,7 @@ function startGame(config: GameConfig): void {
     farmFields = [];
     caravan = null;
     cityBillboards = []; // v0.52.0
+    sludgeReactors = []; // v0.52.0 phase 2
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
@@ -611,6 +616,14 @@ function startGame(config: GameConfig): void {
         cyberpunkBorder = new CyberpunkBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...cyberpunkBorder.getCollisionRects());
         solidBuildings.push(...cyberpunkBorder.getCollisionRects());
+
+        // v0.52.0 phase 2: SludgeReactor — 1 sztuka na H1 corridor (środek mapy, max exposure)
+        // Niezniszczalny industrial decor + solid cover. Bulgocze passive, EXCITED gdy gracz w 200px,
+        // HIT flash + steam burst + "PRESSURE SPIKE" holo na trafienie pociskiem.
+        const reactor1 = new SludgeReactor(960, 760, worldContainer);
+        buildings.push(reactor1);
+        solidBuildings.push(reactor1);
+        sludgeReactors.push(reactor1);
 
         mediPads = MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
@@ -1339,6 +1352,11 @@ app.ticker.add((delta) => {
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     // v0.52.0: cyberpunk billboards (pulse + content rotation + flicker + parallax)
     for (const bb of cityBillboards) bb.update(delta, camera.x, camera.y, viewW, viewH);
+    // v0.52.0 phase 2: sludge reactors — proximity excited state + bullet hit detection
+    for (const sr of sludgeReactors) {
+        sr.setPlayerNear(player.x, player.y);
+        sr.update(camera.x, camera.y, viewW, viewH, bullets);
+    }
     if (patrolTractor) patrolTractor.update();
     if (stable) {
         try { stable.update(); } catch (err) { console.error('[T9.0] Stable update:', err); }

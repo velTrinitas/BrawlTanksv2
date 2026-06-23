@@ -315,4 +315,12 @@ export const pl = {
     'hud.megaBossPhaseEnraged': 'WŚCIEKŁY',
     'hud.megaBossLabel':        '👑 MEGA BOSS — {phase}',
     'hud.megaBossIncoming':     '⚠️ MEGA BOSS NADCHODZI!',
+
+    // ============================================================
+    // Map objects — world-space diegetic text (v0.52.x)
+    //
+    // Tekst rysowany jako PIXI.Text na obiektach mapy (nie HUD overlay).
+    // SludgeReactor (cyberpunk): holo warning podczas HIT state.
+    // ============================================================
+    'reactor.pressureSpike': 'SKOK CIŚNIENIA',
 };

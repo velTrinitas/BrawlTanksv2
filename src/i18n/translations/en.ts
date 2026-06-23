@@ -300,4 +300,10 @@ export const en: typeof pl = {
     'hud.megaBossPhaseEnraged': 'ENRAGED',
     'hud.megaBossLabel':        '👑 MEGA BOSS — {phase}',
     'hud.megaBossIncoming':     '⚠️ MEGA BOSS INCOMING!',
+
+    // ============================================================
+    // Map objects — world-space diegetic text (v0.52.x)
+    // SludgeReactor (cyberpunk): holo warning during HIT state.
+    // ============================================================
+    'reactor.pressureSpike': 'PRESSURE SPIKE',
 };

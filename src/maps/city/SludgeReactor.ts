@@ -22,6 +22,14 @@ import { t } from '../../i18n/i18n';
  *   - EXCITED (gracz <200 px): bubble speed x2, glow intensywniejszy
  *   - HIT (bullet collision, 600ms timer): glass flash white, steam burst, holo warning
  *
+ * v0.57.0 — Warstwa C1: ESKALACJA + ALARM ECO CRIME.
+ *   - Kazde trafienie pociskiem podbija hitCount (max do CRITICAL_HIT_THRESHOLD).
+ *   - Stopien przegrzania (0..1) wplywa wizualnie: halo coraz bardziej czerwone +
+ *     szybszy puls + gestsza para = reaktor "przegrzewa sie" widocznie przed alarmem.
+ *   - Przy CRITICAL_HIT_THRESHOLD-tym trafieniu (5.) -> faza krytyczna, latch (raz),
+ *     emit onCritical(). main.ts podpina alarm "ECO CRIME — POLICE CHASE" (i w C2 spawn
+ *     wozu poscigowego). Reaktor niezniszczalny -> critical zostaje do konca matchu.
+ *
  * Visual layers (zIndex stack):
  *   -1: glowHalo (pod obiektem, radial gradient pink)
  *    0: tankBase (cylinder bottom + bolts)
@@ -46,11 +54,15 @@ const COLOR_METAL_DARK = 0x2a2a35;    // ciemny metal (base + cap)
 const COLOR_METAL_RUST = 0x6b3a1f;    // zardzewialy metal (rury)
 const COLOR_BOLT = 0x4a4a55;          // bolty mocujace
 const COLOR_HALO = 0xff44aa;          // halo glow color (matches sludge)
+const COLOR_HALO_CRITICAL = 0xff2a1a; // v0.57.0 halo color przy pelnym przegrzaniu (czerwien)
 const COLOR_WARNING = 0xff2266;       // tekst warning (holo)
 
 const HIT_FLASH_DURATION = 36;        // frames (~600 ms @ 60 fps)
 const PROXIMITY_RADIUS = 200;         // px — gracz w tym zasiegu = EXCITED state
 const PROXIMITY_RADIUS_SQ = PROXIMITY_RADIUS * PROXIMITY_RADIUS;
+
+// v0.57.0 — eskalacja: liczba trafien do fazy krytycznej. 5. trafienie = critical.
+const CRITICAL_HIT_THRESHOLD = 5;
 
 interface SludgeBubble {
     relX: number;        // pozycja w cylindrze (-1 to 1 horizontal)
@@ -87,6 +99,11 @@ export class SludgeReactor implements ICollidable {
     public y: number;
     public w: number;
     public h: number;
+
+    // v0.57.0 — callback eskalacji. main.ts ustawia: reactor.onCritical = () => triggerEcoCrimeAlarm().
+    // Wolany RAZ (latch) gdy hitCount osiagnie CRITICAL_HIT_THRESHOLD.
+    public onCritical?: () => void;
+
     private container: PIXI.Container;
     private haloGfx: PIXI.Graphics;
     private baseGfx: PIXI.Graphics;       // static — drawn once (cast shadow + back of base)
@@ -103,6 +120,10 @@ export class SludgeReactor implements ICollidable {
     private animTime: number = 0;
     private hitFlashTimer: number = 0;     // frames remaining of HIT state
     private isPlayerNear: boolean = false; // EXCITED state flag
+
+    // v0.57.0 — eskalacja (Warstwa C1)
+    private hitCount: number = 0;             // liczba trafien pociskiem (clamp do threshold)
+    private criticalLatched: boolean = false; // czy onCritical juz wystrzelil (raz)
 
     // v0.52.0 polish #6: passive ambient steam — wisps unoszące się stale z cap (top of reactor).
     // Cooldown frames do nastepnego spawnu. Krótszy w EXCITED state (więcej steam = bulgotanie).
@@ -209,6 +230,14 @@ export class SludgeReactor implements ICollidable {
                 wasNearSurface: false,
             });
         }
+    }
+
+    /**
+     * v0.57.0 — stopien przegrzania reaktora w zakresie 0..1 (hitCount / threshold).
+     * 0 = nietkniety, 1 = krytyczny (5/5 trafien). Uzywany do wizualnej eskalacji.
+     */
+    private get overheat(): number {
+        return Math.min(1, this.hitCount / CRITICAL_HIT_THRESHOLD);
     }
 
     /**
@@ -487,7 +516,8 @@ export class SludgeReactor implements ICollidable {
         this.sludgeGfx.endFill();
 
         // BG bubbles layer (dim, smaller, "głębiej") — rysowane PRZED fg dla z-order
-        const speedMult = this.isPlayerNear ? 2.0 : 1.0;
+        // v0.57.0: przegrzanie przyspiesza bulgotanie dodatkowo (overheat dorzuca do speed).
+        const speedMult = (this.isPlayerNear ? 2.0 : 1.0) + this.overheat * 1.2;
         for (const b of this.bubbles) {
             if (b.depth !== 'bg') continue;
             const yOsc = Math.sin(this.animTime * b.speed * speedMult + b.phase) * 11;
@@ -644,18 +674,47 @@ export class SludgeReactor implements ICollidable {
         this.glassGfx.lineStyle(1.8, COLOR_METAL_DARK, 1);
         this.glassGfx.drawRect(0, glassTop, W, glassH);
         this.glassGfx.lineStyle(0);
+
+        // v0.57.0 — OVERHEAT GLOW: czerwona poswiata wewnatrz szkla rosnaca z przegrzaniem.
+        // Im wiecej trafien, tym mocniejszy czerwony tint przez cale szklo = reaktor "rozgrzany".
+        const oh = this.overheat;
+        if (oh > 0) {
+            const ohPulse = 0.6 + 0.4 * Math.sin(this.animTime * (4 + oh * 4));
+            this.glassGfx.beginFill(COLOR_HALO_CRITICAL, oh * 0.22 * ohPulse);
+            this.glassGfx.drawRect(0, glassTop, W, glassH);
+            this.glassGfx.endFill();
+        }
     }
 
     /**
      * Halo glow pulse + alpha animation. Wolane per-frame.
      * Pulse 2 Hz w idle, 3.5 Hz w excited state.
+     *
+     * v0.57.0 — eskalacja: przegrzanie podbija czestotliwosc pulsu + intensywnosc,
+     * a kolor halo przesuwa sie ku czerwieni (tint lerp bialy -> COLOR_HALO_CRITICAL).
+     * haloGfx jest baked w rozowym kolorze, wiec czerwien nakladamy przez tint (mnoznik).
      */
     private updateHaloPulse(): void {
-        const baseFreq = this.isPlayerNear ? 3.5 : 2.0;
+        const oh = this.overheat;
+        const baseFreq = (this.isPlayerNear ? 3.5 : 2.0) + oh * 4.0;
         const pulse = 0.7 + 0.3 * Math.sin(this.animTime * baseFreq);
-        // Excited state = jasniejsze halo overall
-        const intensity = this.isPlayerNear ? 1.15 : 0.85;
+        // Excited state = jasniejsze halo overall; przegrzanie dodatkowo podbija
+        const intensity = (this.isPlayerNear ? 1.15 : 0.85) + oh * 0.5;
         this.haloGfx.alpha = pulse * intensity;
+        // Tint ku czerwieni proporcjonalnie do przegrzania (lerp 0xffffff -> red).
+        this.haloGfx.tint = this.lerpColor(0xffffff, COLOR_HALO_CRITICAL, oh * 0.75);
+    }
+
+    /**
+     * Lerp dwoch kolorow 0xRRGGBB po kanalach. t w [0,1].
+     */
+    private lerpColor(a: number, b: number, t: number): number {
+        const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+        const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+        const r = Math.round(ar + (br - ar) * t);
+        const g = Math.round(ag + (bg - ag) * t);
+        const bl = Math.round(ab + (bb - ab) * t);
+        return (r << 16) | (g << 8) | bl;
     }
 
     /**
@@ -791,12 +850,27 @@ export class SludgeReactor implements ICollidable {
     /**
      * Trigger HIT state: timer reset, steam burst, holo warning visible.
      * localHitX/Y są w local container coords (0,0 = top-left reaktora).
+     *
+     * v0.57.0 — eskalacja: kazde trafienie podbija hitCount; przy CRITICAL_HIT_THRESHOLD
+     * (5.) latch + emit onCritical() RAZ. Reaktor niezniszczalny -> zostaje krytyczny.
      */
     private triggerHit(localHitX: number, localHitY: number): void {
         this.hitFlashTimer = HIT_FLASH_DURATION;
         this.lastHitX = localHitX;
         this.lastHitY = localHitY;
         this.spawnSteamBurst(localHitX, localHitY);
+
+        // v0.57.0 — eskalacja
+        if (this.hitCount < CRITICAL_HIT_THRESHOLD) {
+            this.hitCount++;
+            if (this.hitCount >= CRITICAL_HIT_THRESHOLD && !this.criticalLatched) {
+                this.criticalLatched = true;
+                // Mocniejszy burst pary na fazie krytycznej (wizualny payoff).
+                this.spawnSteamBurst(this.w / 2, 6);
+                this.spawnSteamBurst(this.w / 2, 6);
+                this.onCritical?.();
+            }
+        }
     }
 
     /**
@@ -845,14 +919,16 @@ export class SludgeReactor implements ICollidable {
         // v0.52.0 polish #6: passive ambient steam — spawn wisps periodically.
         // EXCITED state = krótszy cooldown (gracz blisko → "bulgotanie intensywniejsze").
         // IDLE = wolniejsze. Random jitter na cooldown żeby nie wyglądało metronomicznie.
+        // v0.57.0: przegrzanie skraca cooldown (gestsza para im blizej krytycznego).
         this.passiveSteamCooldown--;
         if (this.passiveSteamCooldown <= 0) {
             this.spawnPassiveSteamWisp();
+            const ohSpeedup = 1 - this.overheat * 0.5; // do -50% cooldown przy critical
             // Cooldown reset: EXCITED 18-32 frames, IDLE 40-70 frames
             if (this.isPlayerNear) {
-                this.passiveSteamCooldown = 18 + Math.floor(Math.random() * 14);
+                this.passiveSteamCooldown = Math.round((18 + Math.floor(Math.random() * 14)) * ohSpeedup);
             } else {
-                this.passiveSteamCooldown = 40 + Math.floor(Math.random() * 30);
+                this.passiveSteamCooldown = Math.round((40 + Math.floor(Math.random() * 30)) * ohSpeedup);
             }
         }
 
@@ -880,6 +956,12 @@ export class SludgeReactor implements ICollidable {
         const dy = playerY - cy;
         this.isPlayerNear = (dx * dx + dy * dy) < PROXIMITY_RADIUS_SQ;
     }
+
+    /**
+     * v0.57.0 — public gettery stanu eskalacji (dla HUD / debug / C2 spawn logic).
+     */
+    get currentHitCount(): number { return this.hitCount; }
+    get isCritical(): boolean { return this.criticalLatched; }
 
     /**
      * Cleanup — wolane gdy mapa jest niszczona (worldContainer.removeChildren).

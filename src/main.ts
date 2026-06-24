@@ -192,6 +192,7 @@ let cityBillboards: NeonBillboard[] = [];
 
 // v0.52.0 phase 2: SludgeReactor instances (industrial decor + cover)
 let sludgeReactors: SludgeReactor[] = [];
+let ecoCrimeActive = false; // v0.57.0 — alarm krytyczny reaktora (hook dla C2 spawn)
 // v0.53.0: AntiGravScrap instances (levitating scrap cover + junkyard barrier)
 let antiGravScraps: AntiGravScrap[] = [];
 let holoTurbines: HoloTurbine[] = []; // v0.54.0
@@ -495,6 +496,22 @@ function dropGems(x: number, y: number, count: number): void {
 }
 
 /**
+ * v0.57.0 Warstwa C1 — alarm po przegrzaniu reaktora (5 trafien).
+ * Wolany przez reactor1.onCritical (latch w SludgeReactor — odpala sie RAZ).
+ * Ustawia ecoCrimeActive (hook dla C2: spawn wozu poscigowego).
+ *
+ * UWAGA sygnatury (zgodne z reszta main.ts):
+ *   - hud.addNotif(text, cssColor) — kolor to STRING hex (np. '#ff2a1a'), nie number.
+ *   - effects: EffectsManager | null — guard bo callback leci spoza tickera.
+ */
+function triggerEcoCrimeAlarm(): void {
+    if (ecoCrimeActive) return; // bezpiecznik — reaktor i tak latchuje, ale na wszelki wypadek
+    ecoCrimeActive = true;
+    hud.addNotif(t('reactor.ecoCrime'), '#ff2a1a'); // czerwony alarm
+    if (effects) effects.shake(14, 30);             // mocny wstrzas
+}
+
+/**
  * v0.45.0 FAZA 8.7: trigger hit-stop frame freeze.
  *
  * @param frames — ile klatek pauzy (3=mega boss hit, 4=super shot kill, 8=mega boss death)
@@ -599,6 +616,7 @@ function startGame(config: GameConfig): void {
     caravan = null;
     cityBillboards = []; // v0.52.0
     sludgeReactors = []; // v0.52.0 phase 2
+    ecoCrimeActive = false; // v0.57.0 — reset alarmu per match
     antiGravScraps = []; // v0.53.0
     holoTurbines = []; // v0.54.0
     airTaxiStation = null; // v0.55.0
@@ -641,6 +659,7 @@ function startGame(config: GameConfig): void {
         buildings.push(reactor1);
         solidBuildings.push(reactor1);
         sludgeReactors.push(reactor1);
+        reactor1.onCritical = () => triggerEcoCrimeAlarm(); // v0.57.0 Warstwa C1
         
         // v0.53.0: AntiGravScrap — 2 lewitujace zlepy zlomu flankujace reaktor (zapora + junkyard).
         // Solid cover (buildings + solidBuildings). Bob + electric arcs + detach sparks.

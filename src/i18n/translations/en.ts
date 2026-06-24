@@ -306,4 +306,5 @@ export const en: typeof pl = {
     // SludgeReactor (cyberpunk): holo warning during HIT state.
     // ============================================================
     'reactor.pressureSpike': 'PRESSURE SPIKE',
+    'reactor.ecoCrime': 'ECO CRIME — POLICE CHASE',
 };

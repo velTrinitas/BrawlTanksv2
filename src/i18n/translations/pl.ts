@@ -323,4 +323,5 @@ export const pl = {
     // SludgeReactor (cyberpunk): holo warning podczas HIT state.
     // ============================================================
     'reactor.pressureSpike': 'SKOK CIŚNIENIA',
+    'reactor.ecoCrime': 'EKO-PRZESTĘPSTWO — POŚCIG POLICJI',
 };

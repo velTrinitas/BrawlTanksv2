@@ -80,6 +80,38 @@ export const ENEMY_MEGA_BOSS: EnemyConfig = {
 };
 
 /**
+ * v0.58.0 Warstwa C2 — Armored Pursuit Vehicle (woz poscigowy).
+ *
+ * Spawnowany JEDNORAZOWO gdy reaktor osiagnie stan krytyczny (ecoCrimeActive),
+ * wyjezdza z PoliceStation (helipad). NIE przez SpawnSystem — event-driven z main.ts.
+ *
+ * Charakter: napastliwy poscig. Szybszy niz wszyscy (3.2-4.0 vs normal 1.5-3.0,
+ * megaboss 2.0-2.8). Karabin maszynowy: krotki shootIntervalMs (600ms) + burst 3
+ * (logika burst w Enemy.ts dla isPursuit). Niski bulletDmg per pocisk (60) bo
+ * DPS rozlozony na czeste salwy. scoreValue boss-tier (15) — twardy cel wart punktow.
+ *
+ * AI: strafe-dodge (4. sciezka w Enemy.update, isPursuit) — orbituje gracza na
+ * idealnym dystansie ~200px (blizej niz megaboss 280, bo to poscig nie ostrozny boss),
+ * z czestszymi unikami niz megaboss strafe.
+ *
+ * HP 500: powyzej normal (300), znacznie ponizej boss (3000). Twardszy od zwyklego
+ * wroga (kilka trafien), ale nie boss-gabka. Decyzja Mariusza v0.58.0.
+ */
+export const ENEMY_PURSUIT: EnemyConfig = {
+    hp: 500,
+    speedMin: 3.2,
+    speedMax: 4.0,
+    scale: 1.0,            // v0.58.0 fix: rozmiar zwyklego czolgu przeciwnika (bylo 1.25)
+    tint: 0x2c3e50,         // granatowy policyjny (pasuje do PoliceStation)
+    dmg: 250,               // collision ciut wyzej niz normal (200)
+    shootIntervalMs: 500,   // karabin maszynowy — szybkie salwy
+    bulletSpeed: 9,         // szybsze niz normal (8)
+    bulletDmg: 60,          // niski per-pocisk (burst 3 + czeste = DPS rozlozony)
+    bulletColor: 0x4488ff,  // niebieski policyjny
+    scoreValue: 15,         // boss-tier reward (normal=2, boss=20)
+};
+
+/**
  * Heart pickup config.
  * v0.46.0: healAmount x100 (spojne z Heart.ts instance value).
  */

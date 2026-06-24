@@ -77,6 +77,7 @@ import { Caravan } from './maps/desert/Caravan';
 import { MAP_CONFIGS, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
+import { ENEMY_PURSUIT } from './config/enemies'; // v0.58.0 Warstwa C2
 import { Bullet } from './entities/Bullet';
 import { EnemyBullet } from './entities/EnemyBullet';
 import { Heart } from './entities/pickups/Heart';
@@ -193,6 +194,8 @@ let cityBillboards: NeonBillboard[] = [];
 // v0.52.0 phase 2: SludgeReactor instances (industrial decor + cover)
 let sludgeReactors: SludgeReactor[] = [];
 let ecoCrimeActive = false; // v0.57.0 — alarm krytyczny reaktora (hook dla C2 spawn)
+let pursuitSpawned = false; // v0.58.0 Warstwa C2 — woz poscigowy spawniony (jednorazowo per match)
+
 // v0.53.0: AntiGravScrap instances (levitating scrap cover + junkyard barrier)
 let antiGravScraps: AntiGravScrap[] = [];
 let holoTurbines: HoloTurbine[] = []; // v0.54.0
@@ -617,6 +620,8 @@ function startGame(config: GameConfig): void {
     cityBillboards = []; // v0.52.0
     sludgeReactors = []; // v0.52.0 phase 2
     ecoCrimeActive = false; // v0.57.0 — reset alarmu per match
+    pursuitSpawned = false; // v0.58.0 — reset spawnu wozu per match
+
     antiGravScraps = []; // v0.53.0
     holoTurbines = []; // v0.54.0
     airTaxiStation = null; // v0.55.0
@@ -1467,6 +1472,22 @@ app.ticker.add((delta) => {
 
     // v0.56.0: Warstwa B — ruch lotniczy (taksowki + patrol policji). Niekolizyjny ambient.
     skyTraffic?.update();
+
+    // v0.58.0 Warstwa C2 — spawn wozu poscigowego gdy reaktor krytyczny (ecoCrimeActive).
+    // Jednorazowy per match (pursuitSpawned latch). Wyjezdza z PoliceStation (helipad).
+    // Event-driven z main.ts (NIE SpawnSystem — to nie cykliczny spawn, tylko reakcja na event).
+    if (ecoCrimeActive && !pursuitSpawned && policeStation) {
+        pursuitSpawned = true;
+        // v0.58.0 fix: helipad jest w SRODKU hitboxa stacji (woz utykal w scianie).
+        // Spawn PONIZEJ dolnej krawedzi komisariatu (y+h+35) = wyjazd z bramy na otwarta droge.
+        const spawnX = policeStation.x + policeStation.w / 2;       // = 2755 (wysrodkowany)
+        const spawnY = policeStation.y + policeStation.h + 35;      // = 465, ponizej hitboxa (350-430)
+        const woz = new Enemy(spawnX, spawnY, ENEMY_PURSUIT, false, worldContainer, false, true);
+        attachEnemyCubeStolenCallback(woz);
+        enemies.push(woz);
+        hud.addNotif(t('reactor.pursuitIncoming'), '#4488ff');
+        effects.shake(6, 12);
+    }
 
     if (patrolTractor) patrolTractor.update();
     if (stable) {

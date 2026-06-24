@@ -324,4 +324,5 @@ export const pl = {
     // ============================================================
     'reactor.pressureSpike': 'SKOK CIŚNIENIA',
     'reactor.ecoCrime': 'EKO-PRZESTĘPSTWO — POŚCIG POLICJI',
+    'reactor.pursuitIncoming': 'WÓZ POŚCIGOWY NADJEŻDŻA!',
 };

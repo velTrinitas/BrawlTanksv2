@@ -307,4 +307,5 @@ export const en: typeof pl = {
     // ============================================================
     'reactor.pressureSpike': 'PRESSURE SPIKE',
     'reactor.ecoCrime': 'ECO CRIME — POLICE CHASE',
+    'reactor.pursuitIncoming': 'PURSUIT VEHICLE INCOMING!',
 };

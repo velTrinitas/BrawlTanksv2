@@ -12,8 +12,8 @@ export function buildCityTexture(): PIXI.Texture {
     cv.height = WORLD_H;
     const c = cv.getContext('2d')!;
     
-    // Tło ciemne
-    c.fillStyle = '#14141e';
+// Tło ciemne — v0.60.0 rozjasnione o ton (14141e -> 1e1e2a, +10/kanal, zachowany chlodny tint)
+    c.fillStyle = '#1e1e2a';
     c.fillRect(0, 0, WORLD_W, WORLD_H);
     
     // Asfalt — krzyżujące się drogi

@@ -256,6 +256,7 @@ export const en: typeof pl = {
     'hud.stealthSugarcane': '🎋 HIDDEN IN SUGARCANE (10s)!',
     'hud.stealthCorn':      '🌾 HIDDEN IN CORN (10s)!',
     'hud.stealthOasis':     '🌴 INVISIBLE (10s)!',
+    'hud.stealthNeon': 'CRYO-CLOAK! Fog hides your tank',
     'hud.stealthSpotted':   '👁️ YOU HAVE BEEN SPOTTED!',
     'hud.shotRevealed':     '🔫 SHOT REVEALED YOUR POSITION!',
 

@@ -343,8 +343,6 @@ export class SkyTraffic {
         this.padGfx = new PIXI.Graphics();
         this.padGfx.zIndex = Z_SHADOW + 1;
         this.shadowLayer.addChild(this.padGfx);
-        this.drawLandingPad(bases.yellowB, 0xffd21e);
-        this.drawLandingPad(bases.redB, 0xff2e4d);
 
         // ZOLTA taksowka: TR <-> BL
         this.vehicles.push(new AirVehicle('shuttle', [bases.yellowA, bases.yellowB],

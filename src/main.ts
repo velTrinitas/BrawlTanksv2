@@ -61,6 +61,9 @@ import { PoliceStation } from './maps/city/PoliceStation';   // v0.55.0
 import { SkyTraffic } from './maps/city/SkyTraffic'; // v0.56.0
 import { SludgePool } from './maps/city/SludgePool'; // v0.59.0 Warstwa D
 import { OldFactory } from './maps/city/OldFactory'; // v0.59.0
+import { Parking } from './maps/city/Parking'; // v0.60.0 — parkingi (wypelniacze, passable)
+import { GroundClutter } from './maps/city/GroundClutter'; // v0.60.0 — oleje + studzienki
+import { NeonOasisStation } from './maps/city/NeonOasisStation'; // v0.60.0 stealth zone
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -202,14 +205,20 @@ let pursuitSpawned = false; // v0.58.0 Warstwa C2 — woz poscigowy spawniony (j
 let antiGravScraps: AntiGravScrap[] = [];
 let holoTurbines: HoloTurbine[] = []; // v0.54.0
 let airTaxiStation: AirTaxiStation | null = null; // v0.55.0
+let bottomTaxiStations: AirTaxiStation[] = []; // v0.60.0 — dolne stacje single-stand (niekolizyjne)
 let policeStation: PoliceStation | null = null;   // v0.55.0
 let skyTraffic: SkyTraffic | null = null; // v0.56.0
 let oldFactory: OldFactory | null = null; // v0.59.0 — stara fabryka z kominem
 let sludgePools: SludgePool[] = []; // v0.59.0 Warstwa D — toksyczne rozlewiska (slow zone)
+let parkings: Parking[] = []; // v0.60.0 — parkingi (niekolizyjne dekoracje)
+let groundClutter: GroundClutter | null = null; // v0.60.0 — wypelniacze tla (passable)
+let neonStations: NeonOasisStation[] = []; // v0.60.0 — cyberpunk stealth (kriogeniczna myjnia)
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
 let wasInCornLastFrame: boolean = false;
+let wasInNeonLastFrame: boolean = false; // v0.60.0 — stealth NEON-OASIS
+let neonDidShootLastFrame = false; // v0.60.0 TIER 3 — strzal z poprzedniej klatki (panika drona)
 let wasStealthActiveLastFrame: boolean = false;
 // v0.50.1 fix: track czy ostatnie zerwanie stealth bylo wynikiem strzalu (anti-cheese Michala).
 // Strzal ze strefy stealth = natychmiastowe wykrycie. Flag pozwala pokazac inny komunikat HUD.
@@ -629,17 +638,35 @@ function startGame(config: GameConfig): void {
     antiGravScraps = []; // v0.53.0
     holoTurbines = []; // v0.54.0
     airTaxiStation = null; // v0.55.0
+    for (const bts of bottomTaxiStations) bts.destroy(); // v0.60.0
+        bottomTaxiStations = [];
     skyTraffic?.destroy(); // v0.56.0
     skyTraffic = null;
     policeStation = null;  // v0.55.0
     for (const sp of sludgePools) sp.destroy(); // v0.59.0
     sludgePools = [];
+    for (const pk of parkings) pk.destroy(); // v0.60.0
+    parkings = [];
+    
+    groundClutter?.destroy(); // v0.60.0
+    groundClutter = null;
+
     oldFactory = null; // v0.59.0
+
+    for (const ns of neonStations) ns.destroy(); // v0.60.0
+    neonStations = [];
+    for (const ns of neonStations) {
+            ns.onCanCrushed = (ccx, ccy) => {
+                if (effects) effects.spawnEnemyHitSparks(ccx, ccy, 0x39ff8a);
+                audio.playHit('enemy'); // reuse — chrupniecie puszki
+            };
+        }
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
     wasInCornLastFrame = false;
     wasStealthActiveLastFrame = false;
+    neonDidShootLastFrame = false; // v0.60.0
     stealthBrokenByShot = false; // v0.50.1
     sandKickFrameCounter = 0;
     hitStopFramesRemaining = 0; // v0.45.0 FAZA 8.7 reset
@@ -723,12 +750,19 @@ function startGame(config: GameConfig): void {
         buildings.push(policeStation);
         solidBuildings.push(policeStation);
 
-        // v0.56.0: Warstwa B — ruch lotniczy (taksowki + patrol policji). Niekolizyjny.
+        // v0.60.0 — dolne stacje taxi (single-stand, niekolizyjne) zamiast golych markerow.
+        // Math-verified top-left: yellow (188,2691), red (2698,2691); stand center wypada
+        // dokladnie na (230,2740) i (2740,2740) = bazy lotu taksowek.
+        const bottomYellow = new AirTaxiStation(188, 2691, worldContainer, 'single', 0xffd21e);
+        const bottomRed = new AirTaxiStation(2698, 2691, worldContainer, 'single', 0xff2e4d);
+        bottomTaxiStations = [bottomYellow, bottomRed];
+
+        // v0.56.0: Warstwa B — ruch lotniczy. Bazy dolne = standCenter realnych stacji.
         skyTraffic = new SkyTraffic(worldContainer, {
             yellowA: airTaxiStation.yellowStand,
             redA: airTaxiStation.redStand,
-            yellowB: { x: 230, y: 2740 },    // baza2 zolta (dolny-lewy, WORLD 3000)
-            redB: { x: 2740, y: 2740 },      // baza2 czerwona (dolny-prawy)
+            yellowB: bottomYellow.standCenter,   // v0.60.0 — laduje na stacji, nie na markerze
+            redB: bottomRed.standCenter,         // v0.60.0
             policeBase: policeStation.helipad,
         });
 
@@ -751,8 +785,25 @@ function startGame(config: GameConfig): void {
         // Math-verified center (2250,2200) -> top-left (2070,2070), 360x260. Clearance:
         // turbE 104px, scrapB 500px, krawedz 570px. Niezniszczalna, solid cover.
         oldFactory = new OldFactory(2070, 2070, worldContainer);
+        // v0.60.0 — 2 parkingi (passable wypelniacze). Math-verified AABB:
+        //   P1 pod fabryka (2030,2360 420x300) — gap 30px do fabryki, 50px do turbE
+        //   P2 ogromny lewy-srodek (160,1180 820x760) — czysty, gap 60px do turbB
+        parkings = [
+            new Parking(2030, 2360, 420, 300, 41, worldContainer),
+            new Parking(1920, 717, 620, 560, 53, worldContainer),
+        ];
+        // v0.60.0 — oleje + studzienki (najcichszy wypelniacz, passable, math-verified scatter)
+        groundClutter = new GroundClutter(worldContainer);
         buildings.push(oldFactory);
         solidBuildings.push(oldFactory);
+
+        // v0.60.0 — NEON-OASIS: 2 strefy stealth (kriogeniczna myjnia plazmy). Passable.
+        // Math-verified (AABB): stationA center(1460,1130) — najblizszy reaktor 555px;
+        // stationB center(1430,2530) — najblizszy sludgeB 605px. Zero nachodzenia.
+        neonStations = [
+            new NeonOasisStation(2600, 850, 260, 200, 71, worldContainer),
+            new NeonOasisStation(1380, 2300, 260, 200, 89, worldContainer),
+        ];
 
     } else if (config.map === 'desert') {
         const desertTex = buildDesertTexture();
@@ -1401,8 +1452,11 @@ app.ticker.add((delta) => {
             playerInSludge = true;
         }
     }
+    for (const pk of parkings) pk.update(player.x, player.y); // v0.60.0 — puls diod + alarm na najechanie
     player.speedModifier = (playerInQuicksand || playerInSludge) ? 0.5 : 1.0;
-
+    
+    groundClutter?.update(); // v0.60.0 — para z 1-2 studzienek
+    
     for (const enemy of enemies) {
         let enemyInSlow = false;
         for (const qs of quicksands) {
@@ -1424,6 +1478,16 @@ app.ticker.add((delta) => {
         }
     }
 
+    // v0.60.0 — NEON-OASIS stealth (cyberpunk). update z camera dla parallaxu dachu.
+    let playerInNeonStation = false;
+    for (const ns of neonStations) {
+        ns.update(camera.x, camera.y, player.x, player.y, neonDidShootLastFrame, bullets);
+        ns.onTankEnter(player.x, player.y); // fog wakes z gasienic
+        if (ns.isPointInside(player.x, player.y)) {
+            playerInNeonStation = true;
+        }
+    }
+
     let playerInCornField = false;
     let playerInSugarcaneField = false;
     for (const ff of farmFields) {
@@ -1437,8 +1501,8 @@ app.ticker.add((delta) => {
     const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
 
     const nowMs = Date.now();
-    const playerInAnyStealth = playerInOasis || playerInFarmStealth;
-    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame;
+    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation;
+    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame;
 
     if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
@@ -1451,6 +1515,8 @@ app.ticker.add((delta) => {
             hud.addNotif(t('hud.stealthSugarcane'), '#a8d870');
         } else if (playerInCornField && !playerInOasis) {
             hud.addNotif(t('hud.stealthCorn'), '#d4b830');
+} else if (playerInNeonStation) {
+            hud.addNotif(t('hud.stealthNeon'), '#6ad8ff');
         } else {
             hud.addNotif(t('hud.stealthOasis'), '#a8c878');
         }
@@ -1470,6 +1536,7 @@ app.ticker.add((delta) => {
 
     wasInOasisLastFrame = playerInOasis;
     wasInCornLastFrame = playerInFarmStealth;
+    wasInNeonLastFrame = playerInNeonStation; // v0.60.0
     wasStealthActiveLastFrame = isStealthActive;
     // v0.50.1: catch-all reset flag stealthBrokenByShot gdy stealth nieaktywne.
     // Pokrywa edge case: gracz strzelil ze strefy ale wyszedl ZARAZ -> flag bez reset
@@ -1508,6 +1575,8 @@ app.ticker.add((delta) => {
         ht.update(camera.x, camera.y, viewW, viewH, bullets);
     }
 
+    // v0.60.0 — animacja dolnych stacji taxi (niekolizyjne, poza buildings.forEach)
+    for (const bts of bottomTaxiStations) bts.update(camera.x, camera.y, viewW, viewH);
     // v0.56.0: Warstwa B — ruch lotniczy (taksowki + patrol policji). Niekolizyjny ambient.
     skyTraffic?.update();
 
@@ -1734,6 +1803,7 @@ app.ticker.add((delta) => {
             }
         }
         lastShotTime = now;
+        neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
     }
 
     for (let i = bullets.length - 1; i >= 0; i--) {
@@ -1909,6 +1979,8 @@ app.ticker.add((delta) => {
     // timing czasem rozjezdza sie z kolejnoscia update'ow. Manual sortChildren przed
     // hud.render() to O(n log n) dla ~60-100 dzieci = pomijalny perf, gwarantuje correct
     // pseudo-3D depth.
+    // v0.60.0 TIER 3 — reset flagi strzalu po przetworzeniu (uzyta w neonStations.update next frame)
+    neonDidShootLastFrame = false;
     worldContainer.sortChildren();
     hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

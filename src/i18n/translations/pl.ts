@@ -271,6 +271,7 @@ export const pl = {
     'hud.stealthSugarcane': '🎋 UKRYTY W TRZCINIE (10s)!',
     'hud.stealthCorn':      '🌾 UKRYTY W KUKURYDZY (10s)!',
     'hud.stealthOasis':     '🌴 NIEWIDZIALNY (10s)!',
+    'hud.stealthNeon': 'KRIO-KAMUFLAŻ! Mgła ukryła Twój czołg',
     'hud.stealthSpotted':   '👁️ ZOSTAŁEŚ ZAUWAŻONY!',
     'hud.shotRevealed':     '🔫 STRZAŁ ZDRADZIŁ POZYCJĘ!',
 

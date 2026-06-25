@@ -59,6 +59,8 @@ import { HoloTurbine } from './maps/city/HoloTurbine'; // v0.54.0
 import { AirTaxiStation } from './maps/city/AirTaxiStation'; // v0.55.0
 import { PoliceStation } from './maps/city/PoliceStation';   // v0.55.0
 import { SkyTraffic } from './maps/city/SkyTraffic'; // v0.56.0
+import { SludgePool } from './maps/city/SludgePool'; // v0.59.0 Warstwa D
+import { OldFactory } from './maps/city/OldFactory'; // v0.59.0
 import { Crate } from './entities/Crate';
 import { Pyramid } from './maps/desert/Pyramid';
 import { DesertHeartPad } from './maps/desert/DesertHeartPad';
@@ -202,6 +204,8 @@ let holoTurbines: HoloTurbine[] = []; // v0.54.0
 let airTaxiStation: AirTaxiStation | null = null; // v0.55.0
 let policeStation: PoliceStation | null = null;   // v0.55.0
 let skyTraffic: SkyTraffic | null = null; // v0.56.0
+let oldFactory: OldFactory | null = null; // v0.59.0 — stara fabryka z kominem
+let sludgePools: SludgePool[] = []; // v0.59.0 Warstwa D — toksyczne rozlewiska (slow zone)
 
 let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
@@ -628,6 +632,9 @@ function startGame(config: GameConfig): void {
     skyTraffic?.destroy(); // v0.56.0
     skyTraffic = null;
     policeStation = null;  // v0.55.0
+    for (const sp of sludgePools) sp.destroy(); // v0.59.0
+    sludgePools = [];
+    oldFactory = null; // v0.59.0
 
     oasisStealthEndTime = 0;
     wasInOasisLastFrame = false;
@@ -731,6 +738,22 @@ function startGame(config: GameConfig): void {
         // v0.52.0 Cyberpunk Visual Upgrade #1: 7 neon billboardow na dachach wiezowcow
         cityBillboards = CITY_BILLBOARDS_LAYOUT.map(b =>
             new NeonBillboard(b.x, b.y, b.w, b.h, b.seed, b.parallax, worldContainer));
+            // v0.59.0 Warstwa D — 2 toksyczne rozlewiska szlamu (slow zone 0.5x, prostokatne).
+        // Math-verified pozycje (AABB) z dala od reaktora/scrapow/turbin:
+        //   Pool A (duze jezioro) center (1500,1500) 640x440 — srodek mapy, glowny chokepoint
+        //   Pool B (mniejsze) center (750,2100) 400x300 — dolny-lewy kwadrant
+        sludgePools = [
+            new SludgePool(2300, 300, 256, 176, 11, worldContainer),
+            new SludgePool(870, 2300, 160, 120, 27, worldContainer),
+        ];
+
+        // v0.59.0 — stara fabryka z parujacym kominem (post-industrial landmark, lity hitbox).
+        // Math-verified center (2250,2200) -> top-left (2070,2070), 360x260. Clearance:
+        // turbE 104px, scrapB 500px, krawedz 570px. Niezniszczalna, solid cover.
+        oldFactory = new OldFactory(2070, 2070, worldContainer);
+        buildings.push(oldFactory);
+        solidBuildings.push(oldFactory);
+
     } else if (config.map === 'desert') {
         const desertTex = buildDesertTexture();
         const desertSprite = new PIXI.Sprite(desertTex);
@@ -1370,17 +1393,27 @@ app.ticker.add((delta) => {
             playerInQuicksand = true;
         }
     }
-    player.speedModifier = playerInQuicksand ? 0.5 : 1.0;
+// v0.59.0 Warstwa D — toksyczne rozlewiska (slow 0.5x + fluid wakes)
+    let playerInSludge = false;
+    for (const sp of sludgePools) {
+        sp.update(player.x, player.y, player.isMoving); // v0.59.0 AAA #3 — wakes z gasienic
+        if (sp.isPointInside(player.x, player.y)) {
+            playerInSludge = true;
+        }
+    }
+    player.speedModifier = (playerInQuicksand || playerInSludge) ? 0.5 : 1.0;
 
     for (const enemy of enemies) {
-        let enemyInQuicksand = false;
+        let enemyInSlow = false;
         for (const qs of quicksands) {
-            if (qs.isPointInside(enemy.x, enemy.y)) {
-                enemyInQuicksand = true;
-                break;
+            if (qs.isPointInside(enemy.x, enemy.y)) { enemyInSlow = true; break; }
+        }
+        if (!enemyInSlow) {
+            for (const sp of sludgePools) {
+                if (sp.isPointInside(enemy.x, enemy.y)) { enemyInSlow = true; break; }
             }
         }
-        enemy.speedModifier = enemyInQuicksand ? 0.5 : 1.0;
+        enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
     }
 
     let playerInOasis = false;
@@ -1456,6 +1489,11 @@ app.ticker.add((delta) => {
     for (const sr of sludgeReactors) {
         sr.setPlayerNear(player.x, player.y);
         sr.update(camera.x, camera.y, viewW, viewH, bullets);
+    }
+    // v0.59.0 — stara fabryka: animacja + iskry (potrzebuje bullets; jak reaktor).
+    // Fabryka jest tez w buildings, ale tamten update() (bez bullets) jest no-op (guard).
+    if (oldFactory) {
+        oldFactory.update(camera.x, camera.y, viewW, viewH, bullets);
     }
 
     // v0.53.0: anti-grav scrap — proximity excited state + bullet hit detection

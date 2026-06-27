@@ -36,6 +36,11 @@ import {
     TROPICS_WINDMILL_POSITION,
     TROPICS_FARM_FIELDS_LAYOUT,
 } from './maps/TropicsMap';
+import {
+    buildArcticTexture,
+    ARCTIC_MEDI_PAD_POSITIONS, ARCTIC_POWER_PAD_POSITIONS,
+} from './maps/ArcticMap'; // FAZA A (Arctic)
+import { GlacialBorder } from './maps/arctic/GlacialBorder'; // FAZA A (Arctic)
 import { CornField } from './maps/tropics/CornField';
 import { SugarcaneField } from './maps/tropics/SugarcaneField';
 import { LettuceField } from './maps/tropics/LettuceField';
@@ -184,6 +189,7 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
 let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
+let glacialBorder: GlacialBorder | null = null; // FAZA A (Arctic)
 let patrolTractor: PatrolTractor | null = null;
 let stable: Stable | null = null;
 let paddock: Paddock | null = null;
@@ -622,6 +628,7 @@ function startGame(config: GameConfig): void {
     sandstormBorder = null;
     tropicalBorder = null;
     cyberpunkBorder = null; // v0.52.0 fix #21
+    glacialBorder = null; // FAZA A (Arctic)
     patrolTractor = null;
     stable = null;
     paddock = null;
@@ -1026,10 +1033,25 @@ function startGame(config: GameConfig): void {
                         console.error('[T9.1] Failed spawn ' + palettes[i] + ':', err);
                     }
                 }
-            } catch (err) {
+                    } catch (err) {
                 console.error('[T9.1] Horse setup error:', err);
             }
         }
+    } else if (config.map === 'arctic') {
+        // ── FAZA A: Arctic ("Krystaliczny Poranek" / "Kociol Lodowcowy") ──
+        const arcticTex = buildArcticTexture();
+        const arcticSprite = new PIXI.Sprite(arcticTex);
+        arcticSprite.zIndex = -100;
+        worldContainer.addChild(arcticSprite);
+
+        // Granica lodowcowej niecki: static-baked klify + 4 prostokaty kolizji.
+        glacialBorder = new GlacialBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...glacialBorder.getCollisionRects());
+        solidBuildings.push(...glacialBorder.getCollisionRects());
+
+        // FAZA A: generic pady (themed Arctic pady w pozniejszej fazie, jak Tropics T1).
+        mediPads = ARCTIC_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+        powerPads = ARCTIC_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);
@@ -1550,6 +1572,7 @@ app.ticker.add((delta) => {
     if (sandstormBorder) sandstormBorder.update();
     if (tropicalBorder) tropicalBorder.update();
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
+    if (glacialBorder) glacialBorder.update(); // FAZA A (Arctic)
     // v0.52.0: cyberpunk billboards (pulse + content rotation + flicker + parallax)
     for (const bb of cityBillboards) bb.update(delta, camera.x, camera.y, viewW, viewH);
     // v0.52.0 phase 2: sludge reactors — proximity excited state + bullet hit detection

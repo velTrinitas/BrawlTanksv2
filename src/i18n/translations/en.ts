@@ -64,6 +64,7 @@ export const en: typeof pl = {
     'scenario.ktb.cta.desert': 'PLAY !',
     'scenario.ktb.cta.city': 'PLAY !',
     'scenario.ktb.cta.tropics': 'PLAY !',
+    'scenario.ktb.cta.arctic': 'PLAY !',
 
     'scenario.ctf.name': 'Capture the Flag',
     'scenario.ctf.desc': 'Capture 3 flags',

@@ -64,6 +64,7 @@ const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
     city:    ['music_main1.ogg', 'music_main2.mp3'],
     desert:  ['pustynia.mp3'],
     tropics: ['tropiki.mp3'],
+    arctic:  ['arktyka1.ogg', 'arktyka2.mp3'],  // FAZA A — 2-track pool (smart-random). Gentle-fail jesli plikow brak.
 };
 
 /**
@@ -119,9 +120,9 @@ export class AudioSys {
     private sounds: Map<string, Howl> = new Map();
 
     // Music: per-map pool z Howl instancjami
-    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [] };
+    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [] };
     private currentMusicTrack: Howl | null = null;
-    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1 };
+    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1, arctic: -1 };
 
     // v0.42.0: Menu music howls (intro + hub)
     private introMusic: Howl | null = null;

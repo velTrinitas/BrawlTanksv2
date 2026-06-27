@@ -74,6 +74,7 @@ export const pl = {
     'scenario.ktb.cta.desert': 'GRAJ !',
     'scenario.ktb.cta.city': 'GRAJ !',
     'scenario.ktb.cta.tropics': 'GRAJ !',
+    'scenario.ktb.cta.arctic': 'GRAJ !',
 
     'scenario.ctf.name': 'Capture the Flag',
     'scenario.ctf.desc': 'Zdobądź 3 flagi',

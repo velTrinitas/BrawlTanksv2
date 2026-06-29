@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
-import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE } from '../rendering/SpriteFactory';
+import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE, BAKER_ENABLED } from '../rendering/SpriteFactory';
+import { TankSpriteBaker } from '../rendering/TankSpriteBaker';
 import { checkRectCollision } from '../systems/Physics';
 import type { EffectsManager } from '../rendering/Effects';
 import type { ICollidable } from '../types/MapType';
@@ -14,6 +15,10 @@ interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
+
+// FAZA P1 Sprite Baker — display scale gracza w trybie bake (2.5D). 1.25 = +25% vs wrogowie.
+// Flaga wpieczona w teksture hull skaluje sie razem z bryla. Hitbox (main.ts radius) BEZ zmian.
+const BAKE_DISPLAY_SCALE = 1.25;
 
 // Flag — pozycja WEWNATRZ hull (drzewce -25px od center, flag ciagnie w lewo)
 const FLAG_W = 21;
@@ -78,6 +83,12 @@ export class Player {
     private lastMoveAngle: number = 0;
     public isMoving: boolean = false;
 
+    // FAZA P1 Sprite Baker — logiczne katy (nosniki dla main.ts gdy rotacja wpieczona w teksture)
+    private bakerActive: boolean = false;
+    private _turretAngle: number = 0;
+    get turretAngle(): number { return this._turretAngle; }
+    get hullAngle(): number { return this.lastMoveAngle; }
+
     /**
      * Constructor signature (FAZA 7c):
      *   new Player(brawlerData, worldContainer)                       — uses brawler.flag default
@@ -101,6 +112,17 @@ export class Player {
         this.turret = new PIXI.Sprite(tex.turret);
         this.turret.anchor.set(0.5);
 
+        // FAZA P1 Sprite Baker — jesli flaga ON i tekstury upieczone (bake w main.ts startGame),
+        // podmien flat -> 2.5D. Rotacja wpieczona => sprite.rotation=0, podmiana .texture per kat.
+        this.bakerActive = BAKER_ENABLED && TankSpriteBaker.isBaked(this.brawler.id);
+        if (this.bakerActive) {
+            this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, 0);
+            this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, 0);
+            // +25% skala calego czolga (bryla+gasienice+wydech+ring spojnie). Flaga wpieczona
+            // w teksture hull skaluje sie razem. Hitbox (main.ts radius) BEZ zmian — czysto wizualne.
+            this.container.scale.set(BAKE_DISPLAY_SCALE);
+        }
+
         this.superRingGfx = new PIXI.Graphics();
         this.superRingGfx.visible = false;
         this.tracksGfx = new PIXI.Graphics();
@@ -113,6 +135,10 @@ export class Player {
         } else {
             this.drawFlag(this.brawler.flag ?? 'PL');
         }
+
+        // FAZA P1: w trybie bake flaga jest WPIECZONA w teksture hull (per-profil, 1:1 lab),
+        // wiec gasimy overlay zeby nie dublowac (overlay mial nierozwiazywalny problem kompresji 2.5D).
+        if (this.bakerActive) this.flagGfx.visible = false;
 
         // Order: super-ring -> hull -> tracks -> exhaust -> flag -> turret
         this.container.addChild(this.superRingGfx);
@@ -329,8 +355,8 @@ export class Player {
         const phase = (time * speedFactor * 0.04) % 12;
         const trackHalfLen = config.HL / 2;
         const trackY = (config.HW / 2) + (config.TRK_H / 2);
-        const cos = Math.cos(this.hull.rotation);
-        const sin = Math.sin(this.hull.rotation);
+        const cos = Math.cos(this.lastMoveAngle);
+        const sin = Math.sin(this.lastMoveAngle);
 
         this.tracksGfx.lineStyle(1.8, 0xfff5cf, 0.55);
 
@@ -358,8 +384,8 @@ export class Player {
         if (!config.HAS_FLAME && !config.HAS_SMOKE) return;
 
         const time = Date.now();
-        const cos = Math.cos(this.hull.rotation);
-        const sin = Math.sin(this.hull.rotation);
+        const cos = Math.cos(this.lastMoveAngle);
+        const sin = Math.sin(this.lastMoveAngle);
         const rearDirX = -cos;
         const rearDirY = -sin;
         const intensityBase = this.isMoving ? 1.0 : 0.55;
@@ -474,18 +500,28 @@ export class Player {
             if (canMoveX) this.x = nx;
             if (canMoveY) this.y = ny;
             this.lastMoveAngle = Math.atan2(dy, dx);
-            this.hull.rotation = this.lastMoveAngle;
+            if (!this.bakerActive) this.hull.rotation = this.lastMoveAngle;
         }
 
         this.container.x = this.x;
         this.container.y = this.y;
-        this.turret.rotation = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+        this._turretAngle = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+        if (this.bakerActive) {
+            // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
+            this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle);
+            this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
+        } else {
+            this.turret.rotation = this._turretAngle;
+        }
         this.container.zIndex = this.y + 19;
 
-        // Flag — drzewce w (FLAG_POLE_DIST za center hull), w hull local space
-        this.flagGfx.x = -Math.cos(this.hull.rotation) * FLAG_POLE_DIST;
-        this.flagGfx.y = -Math.sin(this.hull.rotation) * FLAG_POLE_DIST;
-        this.flagGfx.rotation = this.hull.rotation;
+        // Flag overlay — TYLKO w trybie flat (OFF). W trybie bake flaga jest wpieczona w teksture
+        // hull (drawHullTop), wiec overlay jest zgaszony (visible=false) i pomijamy obliczenia.
+        if (!this.bakerActive) {
+            this.flagGfx.x = -Math.cos(this.lastMoveAngle) * FLAG_POLE_DIST;
+            this.flagGfx.y = -Math.sin(this.lastMoveAngle) * FLAG_POLE_DIST;
+            this.flagGfx.rotation = this.lastMoveAngle;
+        }
 
         if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
         else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1a252f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="robots" content="noindex">
+
+    <title>LAB — Tank 2.5D</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Titan+One&display=swap" rel="stylesheet">
+
+    <style>
+        html, body {
+            margin: 0; padding: 0; overflow: hidden; background: #2a3640;
+            font-family: 'Titan One', cursive, sans-serif; user-select: none;
+            -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+            width: 100%; height: 100%;
+        }
+        /* Canvas wypełnia ekran; touch-action none = brak scrolla/zoomu na mobile */
+        #lab-canvas {
+            position: absolute; top: 0; left: 0; display: block;
+            touch-action: none; cursor: crosshair;
+        }
+
+        /* Selektor designów (góra) — który czołg zostanie 9. brawlerem */
+        #lab-selector {
+            position: absolute; top: 8px; left: 8px; right: 8px; z-index: 10;
+            display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto;
+        }
+        .lab-sel-btn {
+            font-family: 'Titan One', cursive; font-size: 13px;
+            padding: 6px 10px; color: #eef3f7;
+            background: rgba(20,28,36,0.78); border: 2px solid #555; border-radius: 8px;
+            cursor: pointer; transition: transform 0.08s, background 0.12s;
+            -webkit-text-stroke: 0.4px #000;
+        }
+        .lab-sel-btn:hover { background: rgba(40,52,64,0.9); }
+        .lab-sel-btn.on { background: rgba(60,80,98,0.95); box-shadow: 0 0 0 2px rgba(255,255,255,0.25); transform: translateY(1px); }
+
+        /* Hint sterowania (dół-środek) */
+        #lab-hint {
+            position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 10; pointer-events: none; text-align: center;
+            color: #b8c4ce; font-family: sans-serif; font-size: 12px; letter-spacing: 0.3px;
+            background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 8px; line-height: 1.5;
+        }
+
+        /* Wersja laba (dół-lewo) — analogicznie do gry */
+        #credits {
+            position: fixed; bottom: 12px; left: 12px; z-index: 10; pointer-events: none;
+            padding: 4px 10px; background: rgba(0,0,0,0.45); color: #aaa;
+            border-radius: 6px; font-family: sans-serif; font-size: 11px; letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="lab-canvas"></canvas>
+    <div id="lab-selector"><!-- przyciski brawlerów wstrzykiwane przez lab.ts z BRAWLERS --></div>
+
+    <div id="lab-hint">
+        Desktop: <b>WASD</b> ruch &nbsp;·&nbsp; <b>mysz</b> celowanie &nbsp;·&nbsp; <b>LPM (trzymaj)</b> ogień &nbsp;·&nbsp; <b>SPACE</b> super (5 s) &nbsp;·&nbsp; <b>1–8</b> brawler<br>
+        Mobile: <b>dotknij/przeciągnij</b> = celuj + strzelaj (obrót wieży 360° + pociski)
+    </div>
+
+    <div id="credits">LAB 2.5D · v0.2</div>
+
+    <!-- Izolowane wejście — NIE importuje kodu gry. Kasowanie laba = usuń ten plik + folder. -->
+    <script type="module" src="/src/experimental/tank25d/lab.ts"></script>
+</body>
+</html>

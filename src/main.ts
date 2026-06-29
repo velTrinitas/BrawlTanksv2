@@ -2,7 +2,8 @@ import * as PIXI from 'pixi.js';
 import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
-import { getBrawlerTextures } from './rendering/SpriteFactory';
+import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
+import { TankSpriteBaker } from './rendering/TankSpriteBaker';
 import type { Brawler } from './types/Brawler';
 import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
@@ -290,8 +291,8 @@ menu.onGameRequested = (config: GameConfig) => {
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
         return;
     }
-    menu.hide();
-    startGame(config);
+menu.hide();
+    void startGame(config);
 };
 
 menu.onContinueRequested = (lastSession: LastSession) => {
@@ -309,7 +310,7 @@ menu.onContinueRequested = (lastSession: LastSession) => {
         .setProfileId(ProfileService.getActiveProfile()?.id ?? 'default')
         .build();
     menu.hide();
-    startGame(config);
+    void startGame(config);
 };
 
 menu.onHowToPlayRequested = () => {
@@ -593,7 +594,7 @@ function attachEnemyCubeStolenCallback(enemy: Enemy): void {
     };
 }
 
-function startGame(config: GameConfig): void {
+async function startGame(config: GameConfig): Promise<void> {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
@@ -1072,8 +1073,14 @@ function startGame(config: GameConfig): void {
     }
 
     const brawler = BRAWLERS.find(b => b.id === config.brawlerId) ?? BRAWLERS[0];
-
     const activeProfile = ProfileService.getActiveProfile();
+
+    // FAZA P1 Sprite Baker — bake 2.5D gracza PRZED stworzeniem Player (czolg nie mignie pusty).
+    // Flaga gracza wpieczona w teksture hull (per-profil). Tylko gdy ?baker=1. Idempotentny (cache).
+    if (BAKER_ENABLED) {
+        await TankSpriteBaker.bakeBrawler(app, brawler.id, activeProfile?.flagId ?? null);
+    }
+
     player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
 
     enemies = [];
@@ -1657,7 +1664,7 @@ app.ticker.add((delta) => {
         if (sandKickFrameCounter >= interval) {
             sandKickFrameCounter = 0;
             const intensity = player.hasSpeedBoost ? 1.6 : 1.0;
-            effects.spawnSandKick(player.x, player.y, player.hull.rotation, intensity);
+            effects.spawnSandKick(player.x, player.y, player.hullAngle, intensity);
         }
     } else {
         sandKickFrameCounter = 0;
@@ -1788,7 +1795,7 @@ app.ticker.add((delta) => {
             stealthBrokenByShot = true;
         }
 
-        const angle = player.turret.rotation;
+        const angle = player.turretAngle;
         const sX = player.x + Math.cos(angle) * 45;
         const sY = player.y + Math.sin(angle) * 45;
         effects.spawnMuzzleFlash(sX, sY, angle);

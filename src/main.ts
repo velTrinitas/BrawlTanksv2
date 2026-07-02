@@ -4,6 +4,7 @@ import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
 import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
 import { TankSpriteBaker } from './rendering/TankSpriteBaker';
+import { BulletSpriteBaker } from './rendering/BulletSpriteBaker'; // FAZA P2
 import type { Brawler } from './types/Brawler';
 import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
@@ -167,6 +168,33 @@ const POWERCUBE_REGULAR_DROP_CHANCE = 0.30;
 const HITSTOP_MEGA_BOSS_DEATH = 8;
 const HITSTOP_SUPER_SHOT_KILL = 4;
 const HITSTOP_MEGA_BOSS_HIT = 3;
+
+// === FAZA P2 Sprite Baker — Warstwa 2: lab super layouts (TYLKO ?baker=1 + super) ===
+// Flat path i normal fire NIETKNIETE. Zatwierdzone uklady z laba: pyro 5-cone, shadow 5-spread,
+// sniper 1 super_laser, heavy 2-shell, king 1. twardy/scout/plasma = stary uklad super (3 / 1+2).
+// UWAGA: uklady zmieniaja liczbe pociskow super -> output dmg shift (pyro/shadow w gore, sniper/heavy
+// w dol). Gated ?baker=1, wiec LIVE (default) bez zmian balansu — tuning per-pocisk dmg w playtestach.
+const BAKE_SUPER_LAYOUTS: Record<string, number[]> = {
+    pyro:   [-0.42, -0.21, 0, 0.21, 0.42],
+    shadow: [-0.34, -0.17, 0, 0.17, 0.34],
+    sniper: [0],
+    heavy:  [-0.05, 0.05],
+    king:   [0],
+};
+
+/**
+ * FAZA P2 — offsety katowe jednej salwy. Bake+super+zatwierdzony brawler => uklad z laba.
+ * Inaczej (flat path, bake-normal, super dla niezatwierdzonych) => stara logika (bit-for-bit).
+ */
+function getVolleyOffsets(brawler: Brawler, isSuperShot: boolean): number[] {
+    const bakeActive = BAKER_ENABLED && BulletSpriteBaker.isBaked(brawler.id);
+    if (bakeActive && isSuperShot && BAKE_SUPER_LAYOUTS[brawler.id]) {
+        return BAKE_SUPER_LAYOUTS[brawler.id];
+    }
+    if (brawler.type === 'spread') return [-0.2, 0, 0.2];
+    if (isSuperShot) return [0, -0.1, 0.1];
+    return [0];
+}
 
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
@@ -1079,6 +1107,7 @@ async function startGame(config: GameConfig): Promise<void> {
     // Flaga gracza wpieczona w teksture hull (per-profil). Tylko gdy ?baker=1. Idempotentny (cache).
     if (BAKER_ENABLED) {
         await TankSpriteBaker.bakeBrawler(app, brawler.id, activeProfile?.flagId ?? null);
+        await BulletSpriteBaker.bakeBrawler(app, brawler.id); // FAZA P2 — pociski 2.5D (normal+super)
     }
 
     player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
@@ -1796,8 +1825,13 @@ app.ticker.add((delta) => {
         }
 
         const angle = player.turretAngle;
-        const sX = player.x + Math.cos(angle) * 45;
-        const sY = player.y + Math.sin(angle) * 45;
+        // FAZA P2 — muzzle z czubka lufy 2.5D (per-brawler muzzleDist + camera tilt + Z lift),
+        // gated ?baker=1. Flat path: stare planarne +45 (bit-for-bit nietkniete).
+        const muzzle = BAKER_ENABLED && BulletSpriteBaker.isBaked(player.brawler.id)
+            ? BulletSpriteBaker.getMuzzlePos(player.brawler.id, player.x, player.y, angle)
+            : { x: player.x + Math.cos(angle) * 45, y: player.y + Math.sin(angle) * 45 };
+        const sX = muzzle.x;
+        const sY = muzzle.y;
         effects.spawnMuzzleFlash(sX, sY, angle);
 
         const wasActive = player.isSuperShotActive;
@@ -1812,25 +1846,12 @@ app.ticker.add((delta) => {
 
         const dmgMultiplier = 1 + currentSession.dmgBonus;
 
-        if (player.brawler.type === 'spread') {
-            const b1 = new Bullet(sX, sY, angle - 0.2, player.brawler, worldContainer, isSuperShot);
-            const b2 = new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot);
-            const b3 = new Bullet(sX, sY, angle + 0.2, player.brawler, worldContainer, isSuperShot);
-            b1.dmg = Math.round(b1.dmg * dmgMultiplier);
-            b2.dmg = Math.round(b2.dmg * dmgMultiplier);
-            b3.dmg = Math.round(b3.dmg * dmgMultiplier);
-            bullets.push(b1, b2, b3);
-        } else {
-            const b = new Bullet(sX, sY, angle, player.brawler, worldContainer, isSuperShot);
+        // FAZA P2 — Warstwa 2 super uklady (bake+super); flat/normal = stara logika (3 / 1+2).
+        // dmg per-pocisk * dmgMultiplier (round) jak dotad.
+        for (const off of getVolleyOffsets(player.brawler, isSuperShot)) {
+            const b = new Bullet(sX, sY, angle + off, player.brawler, worldContainer, isSuperShot);
             b.dmg = Math.round(b.dmg * dmgMultiplier);
             bullets.push(b);
-            if (isSuperShot) {
-                const b1 = new Bullet(sX, sY, angle - 0.1, player.brawler, worldContainer, isSuperShot);
-                const b2 = new Bullet(sX, sY, angle + 0.1, player.brawler, worldContainer, isSuperShot);
-                b1.dmg = Math.round(b1.dmg * dmgMultiplier);
-                b2.dmg = Math.round(b2.dmg * dmgMultiplier);
-                bullets.push(b1, b2);
-            }
         }
         lastShotTime = now;
         neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)

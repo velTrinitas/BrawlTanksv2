@@ -20,6 +20,38 @@ const SUPER_TINT = 0xc850ff;
 // Flaga wpieczona w teksture hull skaluje sie razem z bryla. Hitbox (main.ts radius) BEZ zmian.
 const BAKE_DISPLAY_SCALE = 1.25;
 
+// ============================================================
+// FAZA P3 — TANK JUICE (recoil / kick / pitch / taunt bounce)
+// ============================================================
+// Port 1:1 z lab.ts (src/experimental/tank25d/lab.ts) + konsumpcja jak render2d drawTank.
+// TYLKO tryb bake (bakerActive) — flat path nietkniety bit-for-bit. Zero nowych tekstur,
+// zero fill-rate: kilka offsetow/mnoznikow na istniejacych sprite'ach per frame.
+//
+// Konsumpcja (render2d units, *BAKE_DISPLAY_SCALE dla world):
+//   recoil -> barrel/turret cofa sie o recoil*8 wzdluz -turretAngle (Y *CAMERA_TILT_Y)
+//   kick   -> caly czolg (container) jolt o kick px w kierunku przeciwnym do strzalu
+//   pitch  -> container.y -= pitch*3 (nose up gdy pitch>0) + container.scale.y *= 1+pitch*0.015
+const JUICE_RECOIL_DECAY = 0.82;       // recoil *= per frame (lab)
+const JUICE_KICK_DECAY = 0.7;          // chassis kick *= per frame (lab)
+const JUICE_KICK_MAG = 2.4;            // chassis jolt px opposite shot (lab)
+const JUICE_PITCH_SPRING = 9.0;        // pitch spring rate /s (lab) — do targetu podczas jazdy, do 0 poza
+const JUICE_FIRE_PITCH_BUMP = 0.2;     // pitch += on fire (lab)
+const JUICE_RECOIL_BARREL_UNITS = 8;   // barrel pullback = recoil*8 (render2d drawTank)
+const JUICE_PITCH_Z_UNITS = 3;         // pitchZOffset = pitch*3 (render2d drawTank)
+const JUICE_PITCH_TILT_K = 0.015;      // pitchTiltMul = 1 + pitch*0.015 (render2d drawTank)
+const JUICE_TAUNT_IDLE_SEC = 4.0;      // idle seconds before lowrider bounce (lab TAUNT_IDLE)
+const JUICE_BOUNCE_DUR_SEC = 0.55;     // bounce length (lab BOUNCE_DUR)
+const JUICE_TAUNT_PITCH_AMP = 2.6;     // taunt bounce pitch amplitude (lab)
+const JUICE_CAMERA_TILT_Y = 0.866;     // render2d camera tilt (barrel recoil Y compression)
+// DESIGNED (gra = instant-movement, brak labowego velocity integratora). v2 (A+B po playtescie):
+// model TARGET-PITCH zamiast impulsu start/stop. Jadacy czolg trzyma staly squat (nos w gore) przez
+// CALA jazde (odwzorowuje ciaglosc laba, gdzie ACC-ramp laduje pitch przez wiele klatek); na stopie
+// dodatkowy dive. Impuls-only (v1) dawal <1px blysk na 1 klatke = niewidoczny. To JEDYNE stale P3
+// NIE verbatim z lab — dostrajalne.
+const JUICE_PITCH_DRIVE_TARGET = 0.6;  // staly squat podczas jazdy (nose-up). world Y ~= 0.6*3*1.25 = 2.25px
+const JUICE_PITCH_DIVE_ON_STOP = -0.7; // dodatkowy nose-down kop na moment zatrzymania
+const JUICE_PITCH_CLAMP = 0.8;         // clamp pitch od ruchu (recoil/taunt liczone osobno)
+
 // Flag — pozycja WEWNATRZ hull (drzewce -25px od center, flag ciagnie w lewo)
 const FLAG_W = 21;
 const FLAG_H = 13.5;
@@ -88,6 +120,18 @@ export class Player {
     private _turretAngle: number = 0;
     get turretAngle(): number { return this._turretAngle; }
     get hullAngle(): number { return this.lastMoveAngle; }
+
+    // FAZA P3 — juice state (bake mode only). Stale 1:1 z lab.ts.
+    private recoil: number = 0;
+    private kickX: number = 0;
+    private kickY: number = 0;
+    private pitch: number = 0;
+    private idleTimeSec: number = 0;
+    private bounceTimer: number = 0;
+    private wasMoving: boolean = false;
+    private _prevNow: number = performance.now();
+    /** Ustawiane przez main.ts co klatke — supresja tauntu podczas strzelania (lab: !pointer.down). */
+    public firing: boolean = false;
 
     /**
      * Constructor signature (FAZA 7c):
@@ -315,6 +359,63 @@ export class Player {
         return Math.max(0, (this.superEndTime - Date.now()) / 1000);
     }
 
+    /**
+     * FAZA P3 — wolane przez main.ts przy strzale. Recoil (barrel) + chassis kick + pitch bump.
+     * 1:1 z lab.ts fire block. No-op w trybie flat (juice tylko w bake). Ustawia tylko stan;
+     * wizualnie stosowane w update() -> updateJuice().
+     */
+    triggerRecoil(): void {
+        if (!this.bakerActive) return;
+        this.recoil = 1;
+        this.kickX = -Math.cos(this._turretAngle) * JUICE_KICK_MAG;
+        this.kickY = -Math.sin(this._turretAngle) * JUICE_KICK_MAG;
+        this.pitch = Math.min(JUICE_PITCH_CLAMP, this.pitch + JUICE_FIRE_PITCH_BUMP);
+    }
+
+    /**
+     * FAZA P3 — ewolucja stanu juice (recoil/kick decay, pitch spring, taunt bounce). 1:1 z lab.ts
+     * update(). Timing wlasny (performance.now delta) — Player.update nie dostaje delta z main.ts.
+     * frame = dtSec*60 (~1 @60fps) dla per-frame decayow (frame-rate safe przez pow).
+     */
+    private updateJuice(): void {
+        const now = performance.now();
+        let dtSec = (now - this._prevNow) / 1000;
+        this._prevNow = now;
+        if (dtSec > 0.05) dtSec = 0.05;      // cap jak lab (dt clamp)
+        if (dtSec < 0) dtSec = 0;
+        const frame = dtSec * 60;            // ~1 @60fps, dla per-frame decayow
+
+        // Recoil (barrel) + chassis kick decay — per-frame (lab), frame-rate safe.
+        this.recoil *= Math.pow(JUICE_RECOIL_DECAY, frame);
+        this.kickX *= Math.pow(JUICE_KICK_DECAY, frame);
+        this.kickY *= Math.pow(JUICE_KICK_DECAY, frame);
+
+        // Taunt (lowrider bounce): po TAUNT_IDLE_SEC bezruchu (i nie strzelajac) — damped pitch pop.
+        // Re-arms w petli (lab). idleNow: brak ruchu + nie strzela (lab: al===0 && !pointer.down && sp<14).
+        const idleNow = !this.isMoving && !this.firing;
+        this.idleTimeSec = idleNow ? this.idleTimeSec + dtSec : 0;
+        if (idleNow && this.bounceTimer <= 0 && this.idleTimeSec >= JUICE_TAUNT_IDLE_SEC) {
+            this.bounceTimer = JUICE_BOUNCE_DUR_SEC;
+            this.idleTimeSec = 0;
+        }
+
+        if (this.bounceTimer > 0) {
+            // Scripted bounce nadpisuje spring (1:1 lab).
+            this.bounceTimer -= dtSec;
+            const p = 1 - this.bounceTimer / JUICE_BOUNCE_DUR_SEC;
+            this.pitch = JUICE_TAUNT_PITCH_AMP * Math.sin(p * Math.PI * 2.2) * Math.pow(Math.max(0, 1 - p), 0.5);
+        } else {
+            // Suspension squat/dive (v2 A+B): jadacy czolg DAZY do stalego squat (nose-up) przez cala
+            // jazde (widoczny caly czas, nie blysk); na moment zatrzymania dodatkowy dive kop, potem
+            // spring do 0. Spring rate 1:1 lab. To odwzorowuje ciaglosc laba (ACC-ramp laduje pitch).
+            if (!this.isMoving && this.wasMoving) this.pitch += JUICE_PITCH_DIVE_ON_STOP; // kop na hamowanie
+            const target = this.isMoving ? JUICE_PITCH_DRIVE_TARGET : 0;
+            this.pitch += (target - this.pitch) * JUICE_PITCH_SPRING * dtSec;
+            this.pitch = Math.max(-JUICE_PITCH_CLAMP, Math.min(JUICE_PITCH_CLAMP, this.pitch));
+        }
+        this.wasMoving = this.isMoving;
+    }
+
     private updateSuperRing(): void {
         const showRing = this.superCharges > 0 || this.isSuperShotActive;
         if (!showRing) { this.superRingGfx.visible = false; return; }
@@ -503,14 +604,30 @@ export class Player {
             if (!this.bakerActive) this.hull.rotation = this.lastMoveAngle;
         }
 
-        this.container.x = this.x;
-        this.container.y = this.y;
         this._turretAngle = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+
         if (this.bakerActive) {
+            // FAZA P3 — juice: ewolucja stanu + transformy na container/turret (tylko bake).
+            this.updateJuice();
+
+            // kick (caly czolg) + pitch Z offset (nose up gdy pitch>0). render2d units *1.25.
+            this.container.x = this.x + this.kickX * BAKE_DISPLAY_SCALE;
+            this.container.y = this.y + (this.kickY - this.pitch * JUICE_PITCH_Z_UNITS) * BAKE_DISPLAY_SCALE;
+            // pitch tilt: lekka deformacja Y (±1.5% przy clamp, wiecej podczas taunt bounce).
+            this.container.scale.y = BAKE_DISPLAY_SCALE * (1 + this.pitch * JUICE_PITCH_TILT_K);
+
             // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
             this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle);
             this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
+
+            // recoil: caly turret sprite cofa sie wzdluz -turretAngle (barrel wpieczony w teksture
+            // turret). Rozbieznosc vs lab (lab cofa tylko barrel) — czyta sie jako kopniecie.
+            this.turret.x = -Math.cos(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS;
+            this.turret.y = -Math.sin(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS * JUICE_CAMERA_TILT_Y;
         } else {
+            // FLAT PATH — bit-for-bit jak dotad (zero juice).
+            this.container.x = this.x;
+            this.container.y = this.y;
             this.turret.rotation = this._turretAngle;
         }
         this.container.zIndex = this.y + 19;

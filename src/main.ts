@@ -1685,6 +1685,7 @@ app.ticker.add((delta) => {
 
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
+    player.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
     player.update(keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
 
     if (currentSession.config.map === 'desert' && player.isMoving) {
@@ -1853,6 +1854,7 @@ app.ticker.add((delta) => {
             b.dmg = Math.round(b.dmg * dmgMultiplier);
             bullets.push(b);
         }
+        player.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
         lastShotTime = now;
         neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
     }

@@ -1,7 +1,9 @@
 import * as PIXI from 'pixi.js';
-import { getEnemyTextures } from '../rendering/SpriteFactory';
+import { getEnemyTextures, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import { BRAWLERS } from '../config/brawlers';
+import { EnemySpriteBaker, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
+import type { EnemyBulletType } from '../rendering/EnemyBulletSpriteBaker';
 import type { EffectsManager } from '../rendering/Effects';
 import type { EnemyConfig } from '../config/enemies';
 import type { ICollidable } from '../types/MapType';
@@ -16,6 +18,8 @@ export interface EnemyShotInfo {
     color: number;
     burstCount: number;
     burstSpread: number;
+    // FAZA P4 — typ pocisku dla bakera (null => flat, np. pursuit). Enemy ustala z archetypu.
+    bulletType: EnemyBulletType | null;
 }
 
 type MegaBossPhase = 'rush' | 'strafe' | 'flee';
@@ -101,6 +105,14 @@ export class Enemy {
     /** v0.5 Etap 1: freeze timer */
     public frozenUntil: number = 0;
 
+    // FAZA P4 Sprite Baker — archetyp do bake (null => flat path: pursuit ZAWSZE flat, albo flaga OFF).
+    private bakerArch: EnemyArchetype | null = null;
+    // FAZA P4 — additive white overlay na hit-flash (bake mode: baked kolory nie znosza tint=0xffffff,
+    // wiec bialy blysk robimy nakladka ADD tej samej tekstury; widoczna tylko podczas flashTimer).
+    private flashOverlay: PIXI.Sprite | null = null;
+    // FAZA P4 — typ pocisku wynikajacy z archetypu (przekazywany do EnemyShotInfo). null => flat bullet.
+    private bulletType: EnemyBulletType | null = null;
+
     private shootIntervalMs: number;
     private bulletSpeed: number;
     private bulletDmg: number;
@@ -150,8 +162,9 @@ export class Enemy {
         this.bulletColor = config.bulletColor;
 
         if (isMegaBoss) {
-            this.burstCount = 1;
-            this.burstSpread = 0;
+            // FAZA P4 polish: twin barrel => 2 pociski (bylo 1 mimo 2 luf). Snop ciasny (blizniaki).
+            this.burstCount = 2;
+            this.burstSpread = 0.10;
         } else if (isPursuit) {
             // v0.58.0: woz poscigowy = karabin maszynowy (burst 3, ciasny snop)
             this.burstCount = PURSUIT_BURST_COUNT;
@@ -175,20 +188,57 @@ export class Enemy {
 
         this.confusedRotation = Math.random() * Math.PI * 2;
 
+        // FAZA P4 — archetyp + typ pocisku. Kolejnosc: mega > pursuit(flat) > boss > grunt
+        // (mega ma pierwszenstwo, jak wszedzie w tej klasie). Pursuit => null (ZAWSZE flat, poza scope P4).
+        const arch: EnemyArchetype | null = isMegaBoss
+            ? 'mega'
+            : (isPursuit ? null : (isBoss ? 'boss' : 'grunt'));
+        this.bulletType = isMegaBoss
+            ? 'mega_shell'
+            : (isPursuit ? null : (isBoss ? 'boss_shell' : 'enemy_basic'));
+        this.bakerArch = (BAKER_ENABLED && arch !== null && EnemySpriteBaker.isBaked(arch)) ? arch : null;
+
         this.container = new PIXI.Container();
         this.container.x = this.x;
         this.container.y = this.y;
+        // container.scale ZOSTAJE = config.scale (trzyma hpBar/shield/koguty w miejscu). W bake mode
+        // sam sprite hull dostaje displayScale/config.scale, wiec czolg on-screen = content*displayScale,
+        // a HUD wrogow bez zmian.
         this.container.scale.set(config.scale);
 
-        const tex = getEnemyTextures(BRAWLERS[1]);
+        if (this.bakerArch) {
+            // ── BAKE PATH (combined drawTank, kolory wpieczone, rotacja wpieczona) ──
+            const tex0 = EnemySpriteBaker.getTexture(this.bakerArch, 0);
+            const spriteScale = EnemySpriteBaker.getDisplayScale(this.bakerArch) / config.scale;
 
-        this.hull = new PIXI.Sprite(tex.hull);
-        this.hull.anchor.set(0.5);
-        this.hull.tint = this.tintHex;
+            this.hull = new PIXI.Sprite(tex0);
+            this.hull.anchor.set(0.5);
+            this.hull.scale.set(spriteScale);
+            // tint zostaje 0xffffff (baked kolory), rotacja wpieczona (hull.rotation=0, swap tekstury).
 
-        this.turret = new PIXI.Sprite(tex.turret);
-        this.turret.anchor.set(0.5);
-        this.turret.tint = this.tintHex;
+            // Wieza wpieczona w combined teksture -> osobny sprite niepotrzebny. Trzymamy pusty/niewidoczny
+            // (kod nizej pisze do this.turret.tint/rotation — na niewidocznym to no-op, flat path bez zmian).
+            this.turret = new PIXI.Sprite(PIXI.Texture.EMPTY);
+            this.turret.visible = false;
+
+            // Additive white overlay na hit-flash (ta sama tekstura, blend ADD, widoczny tylko podczas flasha).
+            this.flashOverlay = new PIXI.Sprite(tex0);
+            this.flashOverlay.anchor.set(0.5);
+            this.flashOverlay.scale.set(spriteScale);
+            this.flashOverlay.blendMode = PIXI.BLEND_MODES.ADD;
+            this.flashOverlay.visible = false;
+        } else {
+            // ── FLAT PATH (bit-for-bit jak dotad) ──
+            const tex = getEnemyTextures(BRAWLERS[1]);
+
+            this.hull = new PIXI.Sprite(tex.hull);
+            this.hull.anchor.set(0.5);
+            this.hull.tint = this.tintHex;
+
+            this.turret = new PIXI.Sprite(tex.turret);
+            this.turret.anchor.set(0.5);
+            this.turret.tint = this.tintHex;
+        }
 
         this.hpBar = new PIXI.Graphics();
         this.hpBar.y = isMegaBoss ? -65 : -55;
@@ -196,6 +246,7 @@ export class Enemy {
 
         this.container.addChild(this.hull);
         this.container.addChild(this.turret);
+        if (this.flashOverlay) this.container.addChild(this.flashOverlay); // NA hullu, POD hpBar
         this.container.addChild(this.hpBar);
 
         if (isMegaBoss) {
@@ -255,6 +306,7 @@ export class Enemy {
      *
      * Rotacja synchronizowana z hull w update() (this.policeLights.rotation = hull.rotation),
      * wiec belka tylna zawsze jest z tylu pojazdu niezaleznie od kierunku jazdy.
+     * (Pursuit ZAWSZE flat path -> hull.rotation = angleToTarget, wiec koguty dzialaja bez zmian.)
      */
     private drawPoliceLights(): void {
         if (!this.policeLights) return;
@@ -289,6 +341,16 @@ export class Enemy {
 
     getMegaPhase(): MegaBossPhase | null {
         return this.isMegaBoss ? this.megaPhase : null;
+    }
+
+    /**
+     * FAZA P4 — swap baked tekstury na kat (rotacja wpieczona). Nakladka flash podaza za hullem.
+     * Wolane zamiast this.hull.rotation w bake mode.
+     */
+    private applyBakedAngle(angle: number): void {
+        if (!this.bakerArch) return;
+        this.hull.texture = EnemySpriteBaker.getTexture(this.bakerArch, angle);
+        if (this.flashOverlay) this.flashOverlay.texture = this.hull.texture;
     }
 
     /**
@@ -359,32 +421,46 @@ export class Enemy {
         // v0.58.0 Warstwa C2 — koguty migaja stale (przed freeze/stealth returnami),
         // a rotacja podaza za hull (tyl belki zawsze z tylu pojazdu). 1-klatkowy lag
         // rotacji (hull.rotation z poprzedniej klatki) jest niezauwazalny.
+        // (Pursuit ZAWSZE flat -> hull.rotation to prawdziwy kat, bez zmian po P4.)
         if (this.isPursuit && this.policeLights) {
             this.drawPoliceLights();
             this.policeLights.rotation = this.hull.rotation;
         }
 
         if (Date.now() < this.frozenUntil) {
+            // Freeze: multiply tint 0x66ddff dziala tez na baked kolory (cyan cast, czyta sie jako mroz).
             this.hull.tint = 0x66ddff;
             this.turret.tint = 0x66ddff;
+            if (this.flashOverlay) this.flashOverlay.visible = false; // flash stlumiony podczas mrozu (jak flat)
             return null;
         } else if (this.hull.tint === 0x66ddff) {
-            this.hull.tint = this.tintHex;
-            this.turret.tint = this.tintHex;
+            // Reset po mrozie: bake => 0xffffff (baked kolory), flat => tintHex.
+            const base = this.bakerArch ? 0xffffff : this.tintHex;
+            this.hull.tint = base;
+            this.turret.tint = base;
         }
 
         if (this.flashTimer > 0) {
             this.flashTimer -= delta;
             if (this.flashTimer <= 0) {
-                this.hull.tint = this.tintHex;
-                this.turret.tint = this.tintHex;
+                if (this.bakerArch) {
+                    if (this.flashOverlay) this.flashOverlay.visible = false;
+                } else {
+                    this.hull.tint = this.tintHex;
+                    this.turret.tint = this.tintHex;
+                }
             }
         }
 
         if (this.playerStealthed) {
             this.confusedRotation += 0.045 * delta;
-            this.hull.rotation = this.confusedRotation;
-            this.turret.rotation = this.confusedRotation + Math.sin(Date.now() / 280) * 0.65;
+            if (this.bakerArch) {
+                // Combined bake: caly czolg kreci sie confusedRotation (traci niezalezny wobble wiezy — pomijalne).
+                this.applyBakedAngle(this.confusedRotation);
+            } else {
+                this.hull.rotation = this.confusedRotation;
+                this.turret.rotation = this.confusedRotation + Math.sin(Date.now() / 280) * 0.65;
+            }
 
             this.container.x = this.x;
             this.container.y = this.y;
@@ -433,15 +509,15 @@ export class Enemy {
 
             let moveX = 0, moveY = 0;
             if (this.megaPhase === 'rush') {
-                this.burstCount = 1;
-                this.burstSpread = 0;
+                this.burstCount = 2;      // FAZA P4 polish: twin barrel = 2 pociski
+                this.burstSpread = 0.10;
                 if (dist > Enemy.MIN_DIST_TO_PLAYER) {
                     moveX = (dx / dist) * effectiveSpeed;
                     moveY = (dy / dist) * effectiveSpeed;
                 }
             } else if (this.megaPhase === 'strafe') {
-                this.burstCount = 1;
-                this.burstSpread = 0;
+                this.burstCount = 2;      // FAZA P4 polish: twin barrel = 2 pociski
+                this.burstSpread = 0.10;
                 const idealDist = 280;
                 this.megaStrafeAngle += 0.02 * this.megaStrafeDir * delta;
                 if (Math.random() < 0.005) this.megaStrafeDir *= -1;
@@ -521,8 +597,13 @@ export class Enemy {
             }
         }
 
-        this.hull.rotation = angleToTarget;
-        this.turret.rotation = angleToTarget;
+        // FAZA P4 — bake: swap tekstury (rotacja wpieczona); flat: rotacja sprite'ow jak dotad.
+        if (this.bakerArch) {
+            this.applyBakedAngle(angleToTarget);
+        } else {
+            this.hull.rotation = angleToTarget;
+            this.turret.rotation = angleToTarget;
+        }
         this.confusedRotation = angleToTarget;
 
         this.container.x = this.x;
@@ -546,6 +627,7 @@ export class Enemy {
                     color: this.bulletColor,
                     burstCount: this.burstCount,
                     burstSpread: this.burstSpread,
+                    bulletType: this.bulletType,
                 };
             }
         }
@@ -562,8 +644,16 @@ export class Enemy {
         this.hp -= amount;
         this.drawHp();
 
-        this.hull.tint = 0xffffff;
-        this.turret.tint = 0xffffff;
+        if (this.bakerArch) {
+            // Bake: bialy blysk przez additive overlay (baked kolory nie znosza tint=0xffffff).
+            if (this.flashOverlay) {
+                this.flashOverlay.texture = this.hull.texture; // dopasuj do aktualnej pozy
+                this.flashOverlay.visible = true;
+            }
+        } else {
+            this.hull.tint = 0xffffff;
+            this.turret.tint = 0xffffff;
+        }
         this.flashTimer = 4;
 
         effects.spawnEnemyHitSparks(hitX, hitY, this.tintHex);

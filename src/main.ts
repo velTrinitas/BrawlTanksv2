@@ -5,6 +5,8 @@ import { BRAWLERS } from './config/brawlers';
 import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
 import { TankSpriteBaker } from './rendering/TankSpriteBaker';
 import { BulletSpriteBaker } from './rendering/BulletSpriteBaker'; // FAZA P2
+import { EnemySpriteBaker } from './rendering/EnemySpriteBaker'; // FAZA P4
+import { EnemyBulletSpriteBaker } from './rendering/EnemyBulletSpriteBaker'; // FAZA P4
 import type { Brawler } from './types/Brawler';
 import {
     buildCityTexture, CITY_BUILDINGS_LAYOUT, CyberBuilding,
@@ -536,6 +538,7 @@ function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
         enemyBullets.push(new EnemyBullet(
             shot.x, shot.y, shot.angle + offsetAngle,
             shot.speed, shot.dmg, shot.color, worldContainer,
+            shot.bulletType, // FAZA P4 — typ pocisku dla bakera (null => flat)
         ));
     }
 }
@@ -1108,6 +1111,8 @@ async function startGame(config: GameConfig): Promise<void> {
     if (BAKER_ENABLED) {
         await TankSpriteBaker.bakeBrawler(app, brawler.id, activeProfile?.flagId ?? null);
         await BulletSpriteBaker.bakeBrawler(app, brawler.id); // FAZA P2 — pociski 2.5D (normal+super)
+        await EnemySpriteBaker.bakeAll(app);        // FAZA P4 — wrogowie 2.5D (grunt/boss/mega)
+        await EnemyBulletSpriteBaker.bakeAll(app);  // FAZA P4 — pociski wrogow 2.5D
     }
 
     player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
@@ -1151,19 +1156,31 @@ interface EndScreenData {
 
 /**
  * v0.46.0 — Render wybranego czolgu (hull+turret) do dataURL (PNG) na hero ekranu konca.
- * Buduje TYMCZASOWY kontener z TYCH SAMYCH tekstur co gra (getBrawlerTextures), lufa do gory,
+ * Buduje TYMCZASOWY kontener (baked 2.5D gdy ?baker=1, inaczej flat getBrawlerTextures), lufa w PRAWO,
  * scale x2 dla ostrosci na karcie, ekstrahuje przez renderer.extract. Tekstury sa cache'owane
  * i WSPOLDZIELONE z zywym graczem — destroy({children}) NIE niszczy textur (tylko sprite'y).
  * Zwraca '' przy bledzie -> renderEndScreen fallbackuje do emoji.
  */
 function renderTankHeroDataURL(brawler: Brawler, damaged: boolean = false): string {
     try {
-        const tex = getBrawlerTextures(brawler);
         const temp = new PIXI.Container();
-        const hull = new PIXI.Sprite(tex.hull);
+        const hull = new PIXI.Sprite();
         hull.anchor.set(0.5);
-        const turret = new PIXI.Sprite(tex.turret);
+        const turret = new PIXI.Sprite();
         turret.anchor.set(0.5);
+
+        // FAZA P4 — hero 2.5D: gdy ?baker=1 i gracz upieczony, baked tekstury (jak w grze) zamiast
+        // flat placka. Poza JEDZIE W PRAWO: baked bierze angle 0 (barrel-right), flat NIE rotuje temp.
+        const bakerHero = BAKER_ENABLED && TankSpriteBaker.isBaked(brawler.id);
+        if (bakerHero) {
+            const heroAngle = 0; // jazda/lufa w PRAWO (angle 0 = baked barrel-right)
+            hull.texture = TankSpriteBaker.getHullTexture(brawler.id, heroAngle);
+            turret.texture = TankSpriteBaker.getTurretTexture(brawler.id, heroAngle);
+        } else {
+            const tex = getBrawlerTextures(brawler);
+            hull.texture = tex.hull;
+            turret.texture = tex.turret;
+        }
         temp.addChild(hull);
         temp.addChild(turret);
 
@@ -1190,8 +1207,9 @@ function renderTankHeroDataURL(brawler: Brawler, damaged: boolean = false): stri
             temp.addChild(dmg);
         }
 
-        temp.rotation = -Math.PI / 2; // lufa do gory = hero pose
-        temp.scale.set(2);            // x2 = ostry upscale na karcie
+        // Poza "w prawo" dla obu sciezek: flat tekstury sa barrel-right przy rotation 0,
+        // baked wybralo angle 0 -> zadna rotacja temp nie jest potrzebna.
+        temp.scale.set(bakerHero ? 2.2 : 2); // baked = wieksza tekstura -> 2.2 dla podobnego rozmiaru na karcie
         const canvas = app.renderer.extract.canvas(temp) as HTMLCanvasElement;
         const url = canvas.toDataURL('image/png');
         temp.destroy({ children: true }); // niszczy sprite'y/gfx, NIE tekstury (cache)

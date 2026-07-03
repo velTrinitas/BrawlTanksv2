@@ -72,7 +72,7 @@ export const ENEMY_MEGA_BOSS: EnemyConfig = {
     scale: 2.0,
     tint: 0xf1c40f,         // złoty
     dmg: 400,               // collision damage większy
-    shootIntervalMs: 1400,  // strzela częściej niż boss
+    shootIntervalMs: 1000,  // P4: agresywniej (bylo 1400) + twin burst 2 w Enemy.ts = grozny finał
     bulletSpeed: 8,
     bulletDmg: 200,
     bulletColor: 0xffdd44,

@@ -87,7 +87,8 @@ export class Bullet {
         x: number, y: number, angle: number,
         brawlerInfo: Brawler,
         worldContainer: PIXI.Container,
-        isSuper: boolean = false
+        isSuper: boolean = false,
+        superDmgOverride?: number   // FAZA P5 - super v2: dmg per-pocisk niezalezny od brawler.dmg*3 (null => stara logika)
     ) {
         this.x = x; this.y = y;
         this.active = true;
@@ -98,7 +99,7 @@ export class Bullet {
         const baseRadius = RADIUS_MAP[brawlerInfo.id] ?? 6;
         const baseTrail = TRAIL_LEN_MAP[brawlerInfo.id] ?? 0;
 
-        this.dmg = brawlerInfo.dmg * (isSuper ? SUPER_DMG_MULT : 1);
+        this.dmg = superDmgOverride != null ? superDmgOverride : brawlerInfo.dmg * (isSuper ? SUPER_DMG_MULT : 1);
         this.speed = baseSpeed;
         this.radius = baseRadius * (isSuper ? SUPER_RADIUS_MULT : 1);
         this.trailLen = Math.ceil(baseTrail * (isSuper ? SUPER_TRAIL_MULT : 1));

@@ -33,9 +33,9 @@ const BASE = import.meta.env.BASE_URL;
 const SHOOT_TYPE_MAP: Record<string, string> = {
     twardy: 'standard',
     scout:  'standard',
-    shadow: 'standard',
+    shadow: 'shadow',   // P5: custom SFX (Shadow_shot.mp3)
     king:   'standard',
-    heavy:  'heavy',
+    heavy:  'pancerny', // P5: custom SFX (Pancerny_shot.wav)
     sniper: 'sniper',
     plasma: 'plasma',
     pyro:   'plasma',
@@ -88,6 +88,8 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'shoot_heavy',    file: 'shoot_heavy.mp3',    volume: VOLUMES.shoot * 1.1 },
     { key: 'shoot_sniper',   file: 'shoot_sniper.mp3',   volume: VOLUMES.shoot * 0.9 },
     { key: 'shoot_plasma',   file: 'shoot_plasma.mp3',   volume: VOLUMES.shoot },
+    { key: 'shoot_pancerny', file: 'Pancerny_shot.wav',  volume: VOLUMES.shoot * 1.1 }, // P5: custom SFX pancerny
+    { key: 'shoot_shadow',   file: 'Shadow_shot.mp3',    volume: VOLUMES.shoot },        // P5: custom SFX shadow
 
     { key: 'hit_enemy',  file: 'hit_enemy.mp3',  volume: VOLUMES.hit },
     { key: 'hit_wall',   file: 'hit_wall.mp3',   volume: VOLUMES.hit * 0.7 },

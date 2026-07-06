@@ -46,7 +46,7 @@ interface EnemyBulletBakeCfg {
 
 const CFG: Record<EnemyBulletType, EnemyBulletBakeCfg> = {
     enemy_basic: { type: 'enemy_basic', size: 6, tex: 40, spin: 'none' },
-    boss_shell: { type: 'boss_shell', size: 7, tex: 44, spin: 'dir' },
+    boss_shell: { type: 'boss_shell', size: 7, tex: 72, spin: 'dir' }, // tex 72 (bylo 44): rakieta + ogon-kometa
     mega_shell: { type: 'mega_shell', size: 8, tex: 72, spin: 'dir' }, // tex 72 (bylo 48): premium glow ma miejsce
 };
 
@@ -154,6 +154,11 @@ class EnemyBulletSpriteBakerImpl {
             // Baked pointing RIGHT; spin 'dir' orientuje w locie. Trade: lab.html pokaze stary ellipse
             // (dev-only); jesli chcesz parytet lab<->gra, portujemy te funkcje do render2d mega_shell.
             this.drawMegaBombPremium(ctx as unknown as CanvasRenderingContext2D, c, c, cfg.size);
+        } else if (cfg.type === 'boss_shell') {
+            // PREMIUM bespoke: fioletowa rakieta + ogon-kometa (zamiast starej "fasolki"-elipsy).
+            // Origin przesuniety w prawo (tex*0.61), bo ogon ciagnie sie w -X i musi zmiescic sie
+            // w teksturze; pivot (anchor 0.5) zostaje w korpusie rakiety. Baked RIGHT, spin 'dir'.
+            this.drawBossRocketPremium(ctx as unknown as CanvasRenderingContext2D, cfg.tex * 0.61, c, cfg.size);
         } else {
             r2d.drawBullet(ctx as unknown as CanvasRenderingContext2D, b);
         }
@@ -207,6 +212,71 @@ class EnemyBulletSpriteBakerImpl {
         // 5) wiodace jadro (cue kierunku)
         ctx.fillStyle = 'rgba(255,180,40,0.85)';
         ctx.beginPath(); ctx.arc(size * 0.55, 0, size * 0.28, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    /**
+     * PREMIUM boss_shell — fioletowa RAKIETA + ogon-kometa (zamiast starej elipsy "fasolki").
+     * Pure Canvas2D, baked pointing RIGHT (nos +X, ogon -X). Warstwy: (1) ogon-kometa (jasnofioletowy
+     * dymek + 2 klaczki, fade), (2) korpus (fioletowy gradient, zaokraglony tyl), (3) nos-rakieta
+     * (ciemnofioletowy stozek), (4) highlight 3D. Statyczne (bake) — zero performance.now.
+     * origin (ox,oy) przesuniety w prawo przez wywolujacego, zeby ogon zmiescil sie w teksturze.
+     */
+    private drawBossRocketPremium(ctx: CanvasRenderingContext2D, ox: number, oy: number, size: number): void {
+        ctx.save();
+        ctx.translate(ox, oy);
+        const L = size * 3.6;   // wydluzony korpus
+        const H = size * 0.95;
+        const tailLen = L * 1.15;
+
+        // 1) ogon-kometa (za pociskiem, -X)
+        const tail = ctx.createLinearGradient(-L * 0.42, 0, -L * 0.42 - tailLen, 0);
+        tail.addColorStop(0, 'rgba(205,160,255,0.55)');
+        tail.addColorStop(0.45, 'rgba(195,150,250,0.24)');
+        tail.addColorStop(1, 'rgba(185,140,245,0)');
+        ctx.fillStyle = tail;
+        ctx.beginPath();
+        ctx.moveTo(-L * 0.42, -H * 0.9);
+        ctx.quadraticCurveTo(-L * 0.42 - tailLen * 0.55, -H * 0.28, -L * 0.42 - tailLen, 0);
+        ctx.quadraticCurveTo(-L * 0.42 - tailLen * 0.55, H * 0.28, -L * 0.42, H * 0.9);
+        ctx.closePath();
+        ctx.fill();
+        // klaczki dymu
+        ctx.fillStyle = 'rgba(212,175,255,0.28)';
+        ctx.beginPath(); ctx.ellipse(-L * 0.85, 0, size * 0.85, size * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(212,175,255,0.16)';
+        ctx.beginPath(); ctx.ellipse(-L * 1.25, 0, size * 0.65, size * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 2) korpus
+        const g = ctx.createLinearGradient(0, -H, 0, H);
+        g.addColorStop(0, '#caa2f2');
+        g.addColorStop(0.5, '#9b59d0');
+        g.addColorStop(1, '#6a3aa0');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(L * 0.28, -H);
+        ctx.lineTo(-L * 0.38, -H);
+        ctx.quadraticCurveTo(-L * 0.48, 0, -L * 0.38, H);
+        ctx.lineTo(L * 0.28, H);
+        ctx.closePath();
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(70,35,120,0.7)';
+        ctx.stroke();
+
+        // 3) nos-rakieta (ciemnofioletowy stozek, +X)
+        ctx.fillStyle = '#3d1f6b';
+        ctx.beginPath();
+        ctx.moveTo(L * 0.58, 0);
+        ctx.lineTo(L * 0.28, -H * 1.02);
+        ctx.lineTo(L * 0.28, H * 1.02);
+        ctx.closePath();
+        ctx.fill();
+
+        // 4) highlight 3D
+        ctx.fillStyle = 'rgba(255,255,255,0.42)';
+        ctx.beginPath(); ctx.ellipse(-L * 0.05, -H * 0.5, L * 0.20, H * 0.15, 0, 0, Math.PI * 2); ctx.fill();
 
         ctx.restore();
     }

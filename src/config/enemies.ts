@@ -42,7 +42,7 @@ export const ENEMY_BOSS: EnemyConfig = {
     scale: 1.45,
     tint: 0x7d3c98,         // fioletowy
     dmg: 300,
-    shootIntervalMs: 2200,  // salwa co 2.2s
+    shootIntervalMs: 1870,  // P5: 15% szybciej (bylo 2200)
     bulletSpeed: 7,
     bulletDmg: 200,
     bulletColor: 0xc78fff,

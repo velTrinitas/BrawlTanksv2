@@ -197,6 +197,29 @@ function getVolleyOffsets(brawler: Brawler, isSuperShot: boolean): number[] {
     if (isSuperShot) return [0, -0.1, 0.1];
     return [0];
 }
+// === FAZA P5 — Super Shot v2 (rebalans + behaviory), ROZDZIELONE od renderu (?baker) ===
+// Domyslnie OFF => produkcja (flat i bake) bit-for-bit. Test: ?superv2=1. Gdy cala P5 sprawdzona:
+// SUPER_V2_DEFAULT=true (flip = 1 linia, rollback trywialny). Niezalezne od BAKER_ENABLED.
+const SUPER_V2_DEFAULT = false;
+const SUPER_V2_ENABLED: boolean = SUPER_V2_DEFAULT || new URLSearchParams(location.search).has('superv2');
+
+interface SuperProfile { offsets: number[]; dmg: number; }
+const SUPER_PROFILES: Record<string, SuperProfile> = {
+    // --- bez zmian vs live (total 1:1) ---
+    twardy: { offsets: [0, -0.1, 0.1], dmg: 300 },                 // 3 x 300 = 900
+    heavy:  { offsets: [-0.05, 0.05], dmg: 450 },                  // 2 x 450 = 900
+    scout:  { offsets: [0, -0.1, 0.1], dmg: 300 },                 // 3 x 300 = 900
+    plasma: { offsets: [0, -0.1, 0.1], dmg: 360 },                 // 3 x 360 = 1080
+    king:   { offsets: [0, -0.06, 0.06], dmg: 300 },               // 3 x 300 = 900
+    // --- REBALANS P5 Batch 1 ---
+    sniper: { offsets: [-0.06, 0.06], dmg: 450 },                  // 2 x 450 = 900  (bylo 1 x 900)
+    pyro:   { offsets: [-0.42, -0.21, 0, 0.21, 0.42], dmg: 160 },  // 5 x 160 = 800  (bylo 5 x 150 = 750)
+    shadow: { offsets: [-0.2, 0, 0.2], dmg: 300 },                 // 3 x 300 = 900  (bylo 5 x 450 = 2250)
+};
+// FAZA P5 — NORMAL fire tweaks (gated SUPER_V2): heavy = 2 rownolegle pociski (2 lufy), dmg total /2.
+const NORMAL_PROFILES: Record<string, SuperProfile> = {
+    heavy: { offsets: [-0.04, 0.04], dmg: 75 },  // 2 x 75 = 150 (bez zmiany total; efekt 2 luf)
+};
 
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 
@@ -1867,8 +1890,14 @@ app.ticker.add((delta) => {
 
         // FAZA P2 — Warstwa 2 super uklady (bake+super); flat/normal = stara logika (3 / 1+2).
         // dmg per-pocisk * dmgMultiplier (round) jak dotad.
-        for (const off of getVolleyOffsets(player.brawler, isSuperShot)) {
-            const b = new Bullet(sX, sY, angle + off, player.brawler, worldContainer, isSuperShot);
+        // FAZA P5 — super v2 (rozdzielone od renderu): SUPER_V2 + super => SUPER_PROFILES (uklad + dmg
+        // per-pocisk absolutny). Inaczej stara sciezka getVolleyOffsets (bit-for-bit).
+        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES[player.brawler.id] : null;
+        const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[player.brawler.id] : null;
+        const shotProfile = superProfile || normalProfile;
+        const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(player.brawler, isSuperShot);
+        for (const off of volleyOffsets) {
+            const b = new Bullet(sX, sY, angle + off, player.brawler, worldContainer, isSuperShot, shotProfile?.dmg);
             b.dmg = Math.round(b.dmg * dmgMultiplier);
             bullets.push(b);
         }

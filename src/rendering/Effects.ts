@@ -426,6 +426,38 @@ export class EffectsManager {
         animate();
     }
 
+    /**
+     * FAZA P5 Batch 3 — pierscien uderzeniowy (pancerny shockwave-on-hit). Cienki, szybki fade,
+     * bez glow/fill — mobile fill-rate safe (rAF self-destruct ~0.3s). Fioletowy motyw pancernego.
+     */
+    spawnShockwaveRing(x: number, y: number, maxRadius: number, color: number = 0x9b59d0): void {
+        const ring = new PIXI.Graphics();
+        ring.x = x;
+        ring.y = y;
+        ring.zIndex = 498;
+        this.worldContainer.addChild(ring);
+
+        let frame = 0;
+        const DUR = 18; // ~0.3s @60fps (szybki impakt)
+        const animate = () => {
+            frame++;
+            const t = frame / DUR;
+            if (t >= 1) {
+                if (ring.parent) ring.parent.removeChild(ring);
+                ring.destroy();
+                return;
+            }
+            const radius = maxRadius * t;
+            ring.clear();
+            ring.lineStyle(5 - t * 4, color, 1 - t);
+            ring.drawCircle(0, 0, radius);
+            ring.lineStyle(2, 0xd8b8ff, (1 - t) * 0.6);
+            ring.drawCircle(0, 0, radius - 4);
+            requestAnimationFrame(animate);
+        };
+        animate();
+    }
+
     spawnFreezeOverlay(durationFrames: number): void {
         const overlay = new PIXI.Graphics();
         overlay.beginFill(0x66ddff, 0.18);

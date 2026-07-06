@@ -57,6 +57,9 @@ const SUPER_SPARKLE_EVERY_FRAMES = 5;
 // zeby pociski byly spojne wizualnie z powiekszonym czolgiem 2.5D).
 const BULLET_DISPLAY_SCALE = 1.25;
 
+// FAZA P5 Batch 2 — kontekst do update() (breakup spawnuje fragi do bullets[], boomerang namierza gracza).
+export interface BulletCtx { bullets: Bullet[]; playerX: number; playerY: number; }
+
 export class Bullet {
     public x: number;
     public y: number;
@@ -69,6 +72,18 @@ export class Bullet {
     public vy: number;
     public gfx!: PIXI.Graphics;        // flat path display object (undefined w trybie bake)
     public isSuper: boolean;
+
+    // FAZA P5 Batch 2 — behavior system (breakup / boomerang)
+    public behavior: 'straight' | 'breakup' | 'boomerang' | 'shockwave' = 'straight';
+    public maxDist: number = 1000;
+    public shockwaveRadius = 0; public shockwaveDmg = 0; // FAZA P5 Batch 3 (pancerny shockwave-on-hit; czytane w hit handlerze)
+    public hitEnemies: Set<object> = new Set(); // boomerang pierce dedup (per faza)
+    private breakupDist = 0; private fragCount = 0; private fragSpread = 0; private fragDmgMult = 0;
+    private maxOutDist = 0; private returnSpeed = 0;
+    private phase: 'out' | 'back' = 'out';
+    private boomerangLife = 0;
+    private readonly worldContainer: PIXI.Container;
+    private readonly brawlerInfo: Brawler;
 
     private trailLen: number;
     private trail: Array<{ x: number; y: number }> = [];
@@ -94,6 +109,8 @@ export class Bullet {
         this.active = true;
         this.distance = 0;
         this.isSuper = isSuper;
+        this.worldContainer = worldContainer;
+        this.brawlerInfo = brawlerInfo;
 
         const baseSpeed = SPEED_MAP[brawlerInfo.id] ?? 15;
         const baseRadius = RADIUS_MAP[brawlerInfo.id] ?? 6;
@@ -173,7 +190,7 @@ export class Bullet {
         }
     }
 
-    update(delta: number, buildings: ICollidable[], effects: EffectsManager): void {
+    update(delta: number, buildings: ICollidable[], effects: EffectsManager, ctx?: BulletCtx): void {
         if (!this.active) return;
 
         if (this.trailLen > 0) {
@@ -183,25 +200,40 @@ export class Bullet {
             }
         }
 
-        this.x += this.vx * delta;
-        this.y += this.vy * delta;
+        if (this.behavior === 'boomerang') {
+            // FAZA P5 Batch 2 — boomerang: out -> powrot do gracza (pomija sciany).
+            this.stepBoomerang(delta, ctx);
+        } else {
+            this.x += this.vx * delta;
+            this.y += this.vy * delta;
+            this.distance += this.speed * delta;
 
-        // Wall collision (+ destructibles routing — v0.34.0 T7 crates)
-        for (const b of buildings) {
-            if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
-                // Check if collidable is destructible (Crate z takeDamage method)
-                const destructible = b as ICollidable & { takeDamage?: (dmg: number, hitX: number, hitY: number) => void };
-                if (typeof destructible.takeDamage === 'function') {
-                    destructible.takeDamage(this.dmg, this.x, this.y);
-                    // NO wall impact sound — destructible handles own audio
-                } else {
-                    effects.spawnWallImpact(this.x, this.y);
-                    AudioSys.getInstance().playHit('wall');
-                }
+            // FAZA P5 Batch 2 — breakup: na breakupDist rozbij na fragmenty i zgin.
+            if (this.behavior === 'breakup' && this.distance >= this.breakupDist) {
+                if (ctx) this.spawnFrags(ctx);
                 this.destroy();
                 return;
             }
+
+            // Wall collision (+ destructibles routing — v0.34.0 T7 crates)
+            for (const b of buildings) {
+                if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
+                    const destructible = b as ICollidable & { takeDamage?: (dmg: number, hitX: number, hitY: number) => void };
+                    if (typeof destructible.takeDamage === 'function') {
+                        destructible.takeDamage(this.dmg, this.x, this.y);
+                    } else {
+                        effects.spawnWallImpact(this.x, this.y);
+                        AudioSys.getInstance().playHit('wall');
+                    }
+                    this.destroy();
+                    return;
+                }
+            }
+
+            if (this.distance > this.maxDist) { this.destroy(); return; }
         }
+
+        if (!this.active) return; // boomerang moglo zginac (zlapany/safety)
 
         // Display object update (bake = sprite + rotation; flat = gfx).
         if (this.bakerActive && this.sprite) {
@@ -210,15 +242,16 @@ export class Bullet {
             this.sprite.zIndex = this.y + 10;
             if (this.spinMode === 'spin') {
                 this.sprite.rotation = performance.now() * this.spinRate;
+            } else if (this.behavior === 'boomerang' && this.spinMode === 'dir') {
+                this.sprite.rotation = Math.atan2(this.vy, this.vx); // boomerang podaza za wektorem lotu
             }
-            // 'dir' ustawione w konstruktorze (lot prosty), 'none' bez rotacji.
         } else {
             this.gfx.x = this.x;
             this.gfx.y = this.y;
             this.gfx.zIndex = this.y + 10;
         }
 
-        // Render trail (oba tryby; super-trail uzywa per-brawler tintu w bake, legacy fioletu w flat).
+        // Render trail (oba tryby).
         if (this.trailGfx && this.trail.length > 0) {
             this.trailGfx.clear();
             const trailColor = this.isSuper ? this.superTrailColor : this.brawlerColor;
@@ -233,7 +266,7 @@ export class Bullet {
             }
         }
 
-        // Sparkle trail gdy super (Q2🅲️) — kolor per-brawler w bake, fiolet w flat.
+        // Sparkle trail gdy super.
         if (this.isSuper) {
             this.sparkleTimer += delta;
             if (this.sparkleTimer >= SUPER_SPARKLE_EVERY_FRAMES) {
@@ -241,9 +274,70 @@ export class Bullet {
                 effects.spawnEnemyHitSparks(this.x, this.y, this.superTrailColor);
             }
         }
+    }
 
-        this.distance += this.speed * delta;
-        if (this.distance > 1000) this.destroy();
+    /** FAZA P5 Batch 2 — boomerang: faza out do maxOutDist, potem powrot do gracza. */
+    private stepBoomerang(delta: number, ctx?: BulletCtx): void {
+        if (this.phase === 'out') {
+            this.x += this.vx * delta;
+            this.y += this.vy * delta;
+            this.distance += this.speed * delta;
+            if (this.distance >= this.maxOutDist) {
+                this.phase = 'back';
+                this.hitEnemies.clear(); // reset dedup na powrot (1 hit/wroga/kierunek)
+                this.boomerangLife = 0;
+            }
+        } else {
+            const px = ctx ? ctx.playerX : this.x;
+            const py = ctx ? ctx.playerY : this.y;
+            const dx = px - this.x, dy = py - this.y;
+            const d = Math.hypot(dx, dy) || 1;
+            if (d < 34) { this.destroy(); return; } // zlapany przez gracza
+            const rs = this.returnSpeed;
+            this.vx += (dx / d * rs - this.vx) * 0.2;
+            this.vy += (dy / d * rs - this.vy) * 0.2;
+            this.x += this.vx * delta;
+            this.y += this.vy * delta;
+            this.boomerangLife += delta;
+            if (this.boomerangLife > 150) this.destroy(); // safety ~2.5s @60fps
+        }
+    }
+
+    /** FAZA P5 Batch 2 — breakup: spawn fragCount fragmentow (straight, krotki zywot, ulamek dmg). */
+    private spawnFrags(ctx: BulletCtx): void {
+        const base = Math.atan2(this.vy, this.vx);
+        const n = this.fragCount;
+        const fragDmg = this.dmg * this.fragDmgMult;
+        for (let i = 0; i < n; i++) {
+            const a = base + (i - (n - 1) / 2) * this.fragSpread;
+            const frag = new Bullet(this.x, this.y, a, this.brawlerInfo, this.worldContainer, this.isSuper, fragDmg);
+            frag.speed *= 0.85;
+            frag.vx = Math.cos(a) * frag.speed;
+            frag.vy = Math.sin(a) * frag.speed;
+            frag.maxDist = 300;
+            ctx.bullets.push(frag);
+        }
+    }
+
+    /** FAZA P5 Batch 2 — ustaw behavior + params z profilu (po new Bullet w fire loop). */
+    applyBehavior(cfg: { behavior?: 'breakup' | 'boomerang' | 'shockwave'; breakupDist?: number; fragCount?: number; fragSpread?: number; fragDmgMult?: number; maxOutDist?: number; shockwaveRadius?: number; shockwaveDmg?: number; }): void {
+        if (!cfg.behavior) return;
+        this.behavior = cfg.behavior;
+        if (cfg.behavior === 'shockwave') {
+            // shockwave: pocisk leci prosto (straight movement), AoE odpala sie w hit handlerze main.ts.
+            this.shockwaveRadius = cfg.shockwaveRadius ?? 150;
+            this.shockwaveDmg = cfg.shockwaveDmg ?? 225;
+        } else if (cfg.behavior === 'breakup') {
+            this.breakupDist = cfg.breakupDist ?? 220;
+            this.fragCount = cfg.fragCount ?? 5;
+            this.fragSpread = cfg.fragSpread ?? 0.26;
+            this.fragDmgMult = cfg.fragDmgMult ?? 0.35;
+        } else if (cfg.behavior === 'boomerang') {
+            this.maxOutDist = cfg.maxOutDist ?? 400;
+            this.speed *= 1.15; this.vx *= 1.15; this.vy *= 1.15; // FAZA P5 Batch 2 - boomerang 15% szybszy
+            this.returnSpeed = this.speed; // powrot z (podbita) predkoscia lotu (tunable)
+            this.phase = 'out';
+        }
     }
 
     destroy(): void {

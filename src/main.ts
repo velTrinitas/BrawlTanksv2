@@ -200,16 +200,16 @@ function getVolleyOffsets(brawler: Brawler, isSuperShot: boolean): number[] {
 // === FAZA P5 — Super Shot v2 (rebalans + behaviory), ROZDZIELONE od renderu (?baker) ===
 // Domyslnie OFF => produkcja (flat i bake) bit-for-bit. Test: ?superv2=1. Gdy cala P5 sprawdzona:
 // SUPER_V2_DEFAULT=true (flip = 1 linia, rollback trywialny). Niezalezne od BAKER_ENABLED.
-const SUPER_V2_DEFAULT = false;
+const SUPER_V2_DEFAULT = true; // P5 przetestowany -> live dla wszystkich (rollback = false)
 const SUPER_V2_ENABLED: boolean = SUPER_V2_DEFAULT || new URLSearchParams(location.search).has('superv2');
 
-interface SuperProfile { offsets: number[]; dmg: number; }
+interface SuperProfile { offsets: number[]; dmg: number; behavior?: 'breakup' | 'boomerang' | 'shockwave'; breakupDist?: number; fragCount?: number; fragSpread?: number; fragDmgMult?: number; maxOutDist?: number; shockwaveRadius?: number; shockwaveDmg?: number; }
 const SUPER_PROFILES: Record<string, SuperProfile> = {
     // --- bez zmian vs live (total 1:1) ---
-    twardy: { offsets: [0, -0.1, 0.1], dmg: 300 },                 // 3 x 300 = 900
-    heavy:  { offsets: [-0.05, 0.05], dmg: 450 },                  // 2 x 450 = 900
-    scout:  { offsets: [0, -0.1, 0.1], dmg: 300 },                 // 3 x 300 = 900
-    plasma: { offsets: [0, -0.1, 0.1], dmg: 360 },                 // 3 x 360 = 1080
+    twardy: { offsets: [0, -0.1, 0.1], dmg: 300, behavior: 'breakup', breakupDist: 220, fragCount: 5, fragSpread: 0.26, fragDmgMult: 0.35 }, // 3 tracery -> 5 fragow x0.35
+    heavy:  { offsets: [-0.05, 0.05], dmg: 450, behavior: 'shockwave', shockwaveRadius: 150, shockwaveDmg: 225 }, // 2x450 + AoE 225/trafienie (R150)                 // 2 x 450 = 900
+    scout:  { offsets: [-0.12, 0.12], dmg: 200, behavior: 'boomerang', maxOutDist: 600 }, // 2 boomerangi, 200/hit (out+back)
+    plasma: { offsets: [0, -0.1, 0.1], dmg: 300, behavior: 'breakup', breakupDist: 220, fragCount: 5, fragSpread: 0.26, fragDmgMult: 0.35 }, // tech breakup jak twardy
     king:   { offsets: [0, -0.06, 0.06], dmg: 300 },               // 3 x 300 = 900
     // --- REBALANS P5 Batch 1 ---
     sniper: { offsets: [-0.06, 0.06], dmg: 450 },                  // 2 x 450 = 900  (bylo 1 x 900)
@@ -600,6 +600,28 @@ function triggerEcoCrimeAlarm(): void {
 function triggerHitStop(frames: number): void {
     if (frames > hitStopFramesRemaining) {
         hitStopFramesRemaining = frames;
+    }
+}
+
+// FAZA P5 Batch 3 — pancerny shockwave-on-hit: AoE dmg wokol punktu trafienia + pierscien + detonacja.
+// Wzorzec mega bomby: AoE-kille = registerKill(spawnSystem)+addKillScore+drop, ale NIE
+// currentSession.registerKill (AOE != skill streak). Nie splice'uje — outer loop sprząta martwych.
+function triggerShockwave(x: number, y: number, radius: number, dmg: number, source: Enemy): void {
+    const eff = effects, ss = spawnSystem, cs = currentSession;
+    if (!eff || !ss || !cs) return;
+    eff.spawnShockwaveRing(x, y, radius);
+    audio.playShockwave();
+    const r2 = radius * radius;
+    for (const other of enemies) {
+        if (other === source || !other.active) continue;
+        if ((other.x - x) ** 2 + (other.y - y) ** 2 <= r2) {
+            const killed = other.takeDamage(dmg, other.x, other.y, worldContainer, eff);
+            if (killed) {
+                ss.registerKill(other);
+                cs.addKillScore(other.scoreValue);
+                handleEnemyDrop(other);
+            }
+        }
     }
 }
 
@@ -1899,16 +1921,20 @@ app.ticker.add((delta) => {
         for (const off of volleyOffsets) {
             const b = new Bullet(sX, sY, angle + off, player.brawler, worldContainer, isSuperShot, shotProfile?.dmg);
             b.dmg = Math.round(b.dmg * dmgMultiplier);
+            if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
             bullets.push(b);
         }
+        
         player.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
         lastShotTime = now;
         neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
     }
 
+    // FAZA P5 Batch 2 — ctx dla behaviorow (breakup -> fragi do bullets[], boomerang -> namierza gracza).
+    const bulletCtx = { bullets, playerX: player?.x ?? 0, playerY: player?.y ?? 0 };
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.update(delta, solidBuildings, effects);
+        b.update(delta, solidBuildings, effects, bulletCtx);
         if (!b.active) bullets.splice(i, 1);
     }
 
@@ -2003,9 +2029,16 @@ app.ticker.add((delta) => {
             if (!b.active) continue;
             const hitDist = enemy.isMegaBoss ? 60 : enemy.isBoss ? 45 : 30;
             if ((b.x - enemy.x) ** 2 + (b.y - enemy.y) ** 2 < (hitDist + b.radius) ** 2) {
+                // FAZA P5 Batch 2 — boomerang: pierce (nie ginie), 1 hit/wroga/faza.
+                const isBoomerang = b.behavior === 'boomerang';
+                if (isBoomerang && b.hitEnemies.has(enemy)) continue;
                 const hitX = b.x, hitY = b.y;
-                b.destroy();
-                bullets.splice(j, 1);
+                if (isBoomerang) {
+                    b.hitEnemies.add(enemy);
+                } else {
+                    b.destroy();
+                    bullets.splice(j, 1);
+                }
                 audio.playHit('enemy');
 
                 // v0.45.0 FAZA 8.7: snapshot HP przed takeDamage żeby wykryć
@@ -2061,7 +2094,10 @@ app.ticker.add((delta) => {
                         triggerHitStop(HITSTOP_MEGA_BOSS_HIT);
                     }
                 }
-
+                // FAZA P5 Batch 3 — pancerny shockwave-on-hit: AoE + pierscien + detonacja.
+                if (b.behavior === 'shockwave') {
+                    triggerShockwave(hitX, hitY, b.shockwaveRadius, b.shockwaveDmg, enemy);
+                }  
                 break;
             }
         }

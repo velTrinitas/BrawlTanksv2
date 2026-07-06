@@ -35,7 +35,7 @@ const SHOOT_TYPE_MAP: Record<string, string> = {
     scout:  'standard',
     shadow: 'shadow',   // P5: custom SFX (Shadow_shot.mp3)
     king:   'standard',
-    heavy:  'pancerny', // P5: custom SFX (Pancerny_shot.wav)
+    heavy:  'pancerny', // P5: custom SFX (Pancerny_shot.mp3)
     sniper: 'sniper',
     plasma: 'plasma',
     pyro:   'plasma',
@@ -85,10 +85,9 @@ interface SoundDef {
 
 const SOUND_LIST: SoundDef[] = [
     { key: 'shoot_standard', file: 'shoot_standard.mp3', volume: VOLUMES.shoot },
-    { key: 'shoot_heavy',    file: 'shoot_heavy.mp3',    volume: VOLUMES.shoot * 1.1 },
     { key: 'shoot_sniper',   file: 'shoot_sniper.mp3',   volume: VOLUMES.shoot * 0.9 },
     { key: 'shoot_plasma',   file: 'shoot_plasma.mp3',   volume: VOLUMES.shoot },
-    { key: 'shoot_pancerny', file: 'Pancerny_shot.wav',  volume: VOLUMES.shoot * 1.1 }, // P5: custom SFX pancerny
+    { key: 'shoot_pancerny', file: 'Pancerny_shot.mp3',  volume: VOLUMES.shoot * 1.1 }, // P5: custom SFX pancerny
     { key: 'shoot_shadow',   file: 'Shadow_shot.mp3',    volume: VOLUMES.shoot },        // P5: custom SFX shadow
 
     { key: 'hit_enemy',  file: 'hit_enemy.mp3',  volume: VOLUMES.hit },
@@ -96,6 +95,7 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'hit_player', file: 'hit_player.mp3', volume: VOLUMES.hit * 1.1 },
 
     { key: 'explosion', file: 'explosion.mp3', volume: VOLUMES.explosion },
+    { key: 'shockwave', file: 'shockwave.wav', volume: VOLUMES.explosion * 0.9 }, // P5 Batch 3: pancerny detonacja
 
     { key: 'pickup_gem',    file: 'pickup_gem.mp3',    volume: VOLUMES.pickup * 0.6 },
     { key: 'pickup_heart',  file: 'pickup_heart.mp3',  volume: VOLUMES.pickup },
@@ -418,6 +418,10 @@ export class AudioSys {
 
     playExplosion(): void {
         this.safePlay('explosion');
+    }
+
+    playShockwave(): void {
+        this.safePlay('shockwave');
     }
 
     playGemPickup(): void {

@@ -6,7 +6,7 @@ import type { Brawler } from '../types/Brawler';
     // speed/reload NIETKNIETE (to nie skala HP/DMG). Wartosci bazowe = realne z v0.45.0.
     export const BRAWLERS: Brawler[] = [
         { id: 'twardy',  emoji: '🪖', icon: BASE + 'assets/tanks/twardy.jpg',    name: 'Twardy',   colorMain: '#27ae60', hp: 400, speed: 5,   dmg: 100, reload: 400,  type: 'standard', flag: 'PL' },
-        { id: 'heavy',   emoji: '🛡️', icon: BASE + 'assets/tanks/pancerny.jpg',  name: 'Pancerny', colorMain: '#8e44ad', hp: 700, speed: 3.5, dmg: 150, reload: 700,  type: 'standard', flag: 'PL' },
+        { id: 'heavy',   emoji: '🛡️', icon: BASE + 'assets/tanks/pancerny.jpg',  name: 'Pancerny', colorMain: '#8e44ad', hp: 700, speed: 4, dmg: 150, reload: 700,  type: 'standard', flag: 'PL' },
         { id: 'scout',   emoji: '🔍', icon: BASE + 'assets/tanks/zwiadowca.jpg', name: 'Zwiad',    colorMain: '#f1c40f', hp: 200, speed: 7.5, dmg: 80,  reload: 250,  type: 'standard', flag: 'PL' },
         { id: 'sniper',  emoji: '🎯', icon: BASE + 'assets/tanks/snajper.jpg',   name: 'Snajper',  colorMain: '#3498db', hp: 300, speed: 4.5, dmg: 300, reload: 1000, type: 'fast',     flag: 'PL' },
         { id: 'plasma',  emoji: '💻', icon: BASE + 'assets/tanks/tech.jpg',      name: 'Tech',     colorMain: '#71B7F2', hp: 400, speed: 5,   dmg: 120, reload: 500,  type: 'plasma',   flag: 'PL' },

@@ -565,6 +565,7 @@ export class PastureField implements IFarmField {
     private gridRows: number;
     private time: number = 0;
     private blades: GrassBlade[] = [];
+    private _cullHidden = false;  // viewport culling (v0.68.0)
 
     constructor(
         x: number, y: number,
@@ -750,14 +751,32 @@ export class PastureField implements IFarmField {
     // ═══════════════════════════════════════════════════════════
     // UPDATE — grass wind + tractor + mowed track
     // ═══════════════════════════════════════════════════════════
-    public update(): void {
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
         this.time += 1 / 60;
 
-        // ── Wind sway dla non-mowed grass ──
-        for (const b of this.blades) {
-            if (b.mowed) continue;
-            const wave = Math.sin(this.time * 1.5 + b.phaseOffset) * b.baseSwayAmp;
-            b.gfx.skew.x = wave;
+        // Viewport culling (v0.68.0) — ukryj ciezkie warstwy (grass/ground/track) gdy pole poza kadrem.
+        // Traktor updatuje sie dalej (1 tani obiekt) — koszenie postepuje poza kadrem.
+        let offscreen = false;
+        if (camX !== undefined && viewW !== undefined) {
+            const M = 140;
+            offscreen = this.x + this.w < camX - M || this.x > camX + viewW + M
+                     || this.y + this.h < camY! - M || this.y > camY! + viewH! + M;
+            if (offscreen !== this._cullHidden) {
+                this._cullHidden = offscreen;
+                const vis = !offscreen;
+                this.groundContainer.renderable = vis;
+                this.mowedTrackContainer.renderable = vis;
+                this.grassContainer.renderable = vis;
+            }
+        }
+
+        // ── Wind sway dla non-mowed grass (pomin gdy poza kadrem) ──
+        if (!offscreen) {
+            for (const b of this.blades) {
+                if (b.mowed) continue;
+                const wave = Math.sin(this.time * 1.5 + b.phaseOffset) * b.baseSwayAmp;
+                b.gfx.skew.x = wave;
+            }
         }
 
         // ── Tractor update + lane advance ──

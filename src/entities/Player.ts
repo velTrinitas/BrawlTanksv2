@@ -553,6 +553,7 @@ export class Player {
      *   Szybkie (Scout >7) dostaja mocniejszy cap x0.68 — zachowana role + control.
      */
     update(
+        delta: number,
         keys: KeysState,
         mouseWorldX: number,
         mouseWorldY: number,
@@ -591,8 +592,11 @@ export class Player {
 
             const speed = this.currentSpeed * magnitudeScale * platformMult;
 
-            const nx = this.x + (dx / len) * speed;
-            const ny = this.y + (dy / len) * speed;
+            // Krok skalowany delta (frame-rate spojny z Enemy.update). Desktop 60fps: delta~1 =
+            // identycznie jak dotad; mobile <60fps: kompensuje mniej klatek (gracz nie zwalnia wzgledem
+            // wrogow, ktorzy juz uzywaja delta). Bez tego Scout byl doganiany przy spadku FPS.
+            const nx = this.x + (dx / len) * speed * delta;
+            const ny = this.y + (dy / len) * speed * delta;
             let canMoveX = true, canMoveY = true;
             for (const b of buildings) {
                 if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;

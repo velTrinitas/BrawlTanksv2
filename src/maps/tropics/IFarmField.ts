@@ -13,7 +13,7 @@ export interface IFarmField {
     readonly w: number;
     readonly h: number;
 
-    update(): void;
+    update(camX?: number, camY?: number, viewW?: number, viewH?: number): void;
 
     /** True jeśli pole oferuje stealth dla player (corn, sugarcane). False dla lettuce/pasture. */
     isPointInside(px: number, py: number): boolean;

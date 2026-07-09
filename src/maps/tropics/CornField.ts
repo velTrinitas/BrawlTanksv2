@@ -74,6 +74,7 @@ export class CornField {
     private plants: CornPlant[] = [];
     private particles: FloatParticle[] = [];
     private time: number = 0;
+    private _cullHidden = false;  // viewport culling (v0.68.0)
 
     // Współdzielone textury — generowane raz (3 warianty roślin)
     private static plantTextures: PIXI.Texture[] = [];
@@ -274,7 +275,22 @@ export class CornField {
     // ═══════════════════════════════════════════════════════════
     // UPDATE — wind sway + particles drift
     // ═══════════════════════════════════════════════════════════
-    public update(): void {
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
+        // Viewport culling (v0.68.0) — pole poza kadrem: ukryj sprite'y + pomin sway.
+        // Toggle renderable tylko przy zmianie widocznosci (nie co klatke).
+        if (camX !== undefined && viewW !== undefined) {
+            const M = 140;
+            const offscreen = this.x + this.w < camX - M || this.x > camX + viewW + M
+                           || this.y + this.h < camY! - M || this.y > camY! + viewH! + M;
+            if (offscreen !== this._cullHidden) {
+                this._cullHidden = offscreen;
+                const vis = !offscreen;
+                this.groundContainer.renderable = vis;
+                for (const pl of this.plants) pl.sprite.renderable = vis;
+                for (const pt of this.particles) pt.gfx.renderable = vis;
+            }
+            if (offscreen) return;
+        }
         this.time += 1 / 60;
 
         // Wave wind sway (continuous) + bend lerp (impact recovery)

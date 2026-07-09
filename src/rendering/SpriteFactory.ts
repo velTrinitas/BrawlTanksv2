@@ -7,11 +7,12 @@ import type { Brawler } from '../types/Brawler';
 
 export const TANK_CANVAS_SCALE = 1.75;
 
-// FAZA P1 Sprite Baker — feature flag. ?baker=1 w URL wlacza 2.5D bake dla GRACZA (tylko).
-// Domyslnie OFF: gra renderuje flat tekstury bit w bit jak dotad (zero wplywu).
+// FAZA Flip 2.5D — feature flag ODWROCONA na default ON. Caly wizual 2.5D (gracz+juice,
+// wrogowie, pociski, mega bomba, rakieta bossa) jest teraz domyslny dla WSZYSTKICH.
+// Awaryjny fallback: ?baker=0 wymusza stara plaska sciezke (rollback bez rebuilda).
 export const BAKER_ENABLED: boolean =
     typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('baker') === '1';
+    new URLSearchParams(window.location.search).get('baker') !== '0';
 
 export interface BrawlerProgrammaticConfig {
     HL: number; HW: number; TRK_H: number;

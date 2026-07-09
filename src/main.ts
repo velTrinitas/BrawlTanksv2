@@ -296,6 +296,13 @@ let spawnSystem: SpawnSystem | null = null;
 let powerSystem: PowerSystem | null = null;
 let camera = { x: 0, y: 0 };
 
+// Smoothed frame delta (mobile pacing fix). PIXI rawDelta faluje nawet przy maxFPS=60 (FPS 46..60
+// => rawDelta ~0.98..1.3). Bez delty gracz zwalnial przy spadku FPS; z surowa delta krok skakal
+// klatka-do-klatki (szarpanie). Clamp outlierow + wygladzanie wykladnicze = stala UCZCIWA predkosc
+// (Scout dalej ucieka) BEZ szarpania. Srednia zachowana => spawn/timery/score bez zmian.
+let smoothedDelta = 1;
+const DELTA_SMOOTH = 0.2; // waga wygladzania (0.2 = mocne sciecie falowania, min lag). Wieksza = szybsza reakcja, mniej gladko.
+
 const keys = { w: false, a: false, s: false, d: false };
 const mouse = { screenX: window.innerWidth / 2, screenY: window.innerHeight / 2 };
 let lastShotTime = 0;
@@ -303,17 +310,27 @@ let isMouseDown = false;
 
 const audio = AudioSys.getInstance();
 
+const _prefersTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const app = new PIXI.Application({
     resizeTo: window,
     backgroundColor: 0x14141e,
-    antialias: true,
+    antialias: !_prefersTouch, // mobile: MSAA off (fill-rate); baked art juz AA przy bake. Desktop bez zmian.
 });
+// Cap ticker na 60 FPS. A54 ma ekran 120Hz -> PIXI leci uncapped 90-120fps, a przy wahaniu obciazenia
+// FPS skacze (46..93) => PIXI delta skacze 0.5..1.3 => krok ruchu (delta-scaled) zmienia sie 2x/klatke
+// => kamera szarpie swiatem. Cap 60 daje mocnemu A54 zapas na klatke i przypina delta~1.0 (plynnie)
+// + oszczedza baterie. Zero straty wizualnej (60 = plynne). Delty NIE ruszamy (uczciwa predkosc zostaje).
+app.ticker.maxFPS = 60;
 document.body.appendChild(app.view as HTMLCanvasElement);
 (app.view as HTMLCanvasElement).style.position = 'absolute';
 (app.view as HTMLCanvasElement).style.zIndex = '1';
 
 const worldContainer = new PIXI.Container();
-worldContainer.sortableChildren = true;
+// v0.68.0: auto-sort OFF — manual (throttlowany) sortChildren to jedyne zrodlo kolejnosci.
+// Z sortableChildren=true PIXI auto-sortowal na klatkach nieparzystych (throttle), a manual na
+// parzystych — dwie rozne kolejnosci => migotanie z-order skrzyn/budynkow. OFF = na off-frame
+// kolejnosc STOI (stabilna, max 1 klatka opoznienia = niewidoczne). Zero migotania, perf zostaje.
+worldContainer.sortableChildren = false;
 app.stage.addChild(worldContainer);
 
 const hud = new HUD('hudCanvas');
@@ -1509,7 +1526,7 @@ async function triggerVictory(): Promise<void> {
     hud.clear();
 }
 
-app.ticker.add((delta) => {
+app.ticker.add((rawDelta) => {
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
 
     // === v0.45.0 FAZA 8.7: HIT-STOP ===
@@ -1520,10 +1537,19 @@ app.ticker.add((delta) => {
         return;
     }
 
+    // Wygladzona delta (pacing fix): clamp outlierow (0.5..2.0 = 120..30fps) + wygladzanie wykladnicze.
+    // Cala reszta tickera uzywa `delta` (= smoothedDelta), wiec ruch/animacje sa stabilne mimo falowania FPS.
+    const clampedDelta = Math.max(0.5, Math.min(2.0, rawDelta));
+    smoothedDelta += (clampedDelta - smoothedDelta) * DELTA_SMOOTH;
+    const delta = smoothedDelta;
+
     const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     const viewW = hud.screenW / ZOOM;
     const viewH = hud.screenH / ZOOM;
 
+    // Kamera sledzi gracza FLOATEM (bez ~~). ~~ ucinal do px SWIATA, a przy ZOOM 0.7 to nierowne
+    // kroki 2,3,3.. => swiat przewijal sie skokowo mimo gladkiej jazdy. Snap przeniesiony NIZEJ do
+    // przestrzeni EKRANU. Kamera = dokladny target (zero lagu, gracz wysrodkowany).
     camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(player.x - viewW / 2)));
     camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(player.y - viewH / 2)));
 
@@ -1612,7 +1638,7 @@ app.ticker.add((delta) => {
     let playerInCornField = false;
     let playerInSugarcaneField = false;
     for (const ff of farmFields) {
-        ff.update();
+        ff.update(camera.x, camera.y, viewW, viewH);
         ff.onTankEnter(player.x, player.y);
         if (ff.isPointInside(player.x, player.y)) {
             if (ff instanceof CornField) playerInCornField = true;
@@ -1749,7 +1775,7 @@ app.ticker.add((delta) => {
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
     player.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
-    player.update(keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
+    player.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
 
     if (currentSession.config.map === 'desert' && player.isMoving) {
         sandKickFrameCounter++;
@@ -2117,6 +2143,8 @@ app.ticker.add((delta) => {
     // pseudo-3D depth.
     // v0.60.0 TIER 3 — reset flagi strzalu po przetworzeniu (uzyta w neonStations.update next frame)
     neonDidShootLastFrame = false;
+    // v0.68.0: sortableChildren=false (auto-sort OFF) + manual sort CO KLATKE = 1 sort/frame
+    // (oryginal robil 2: auto+manual). Poprawna glebokosc co klatke => zero migotania, taniej niz oryginal.
     worldContainer.sortChildren();
     hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
 });

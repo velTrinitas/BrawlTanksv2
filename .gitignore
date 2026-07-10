@@ -25,3 +25,16 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+# ─────────────────────────────────────────────────────────────
+# Claude Code — append this block to the END of your existing .gitignore
+# Do NOT ignore the whole .claude/ directory: CLAUDE.md, .claude/settings.json,
+# .claude/rules/ and .claude/commands/ are team-shared and MUST be committed.
+# Only the personal/secret bits below are excluded.
+# ─────────────────────────────────────────────────────────────
+
+# Claude Code — personal, machine-local overrides (never commit)
+.claude/settings.local.json
+
+# Environment secrets (never commit)
+.env.development.local
+.env.production.local

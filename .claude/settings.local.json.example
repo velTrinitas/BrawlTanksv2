@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy this to .claude/settings.local.json (gitignored) for personal overrides. Never commit it. allow/deny lists MERGE with settings.json; a deny anywhere still wins. Use this file only to loosen prompts on YOUR machine once you trust a workflow — e.g. auto-allow your local verify scripts. Do NOT put secrets here; put secrets in .env (which is denied above).",
+  "permissions": {
+    "allow": [],
+    "ask": [],
+    "deny": []
+  }
+}

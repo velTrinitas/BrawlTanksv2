@@ -64,9 +64,16 @@
             border-radius: 32px; border: 8px solid #2c3e50; color: #2c3e50;
             pointer-events: auto; 
             box-shadow: 0 20px 0 rgba(0,0,0,0.2), 0 25px 50px rgba(0,0,0,0.5);
-            max-width: 460px; width: 90%; max-height: 90vh; overflow-y: auto;
+            max-width: 760px; width: 94%; max-height: 96vh; overflow-y: auto;
         }
         .active-screen { display: flex; }
+
+        /* v0.70 — endcard 50% wiekszy TYLKO na desktopie (body.bt-desktop ustawia main.ts po
+           detekcji nie-touch). transform:scale => proporcje 1:1 jak mobile, wszystko wieksze.
+           Mobile (touch) bez klasy => zero zmian. transform-origin center => karta zostaje
+           wysrodkowana w #uiLayer. */
+        body.bt-desktop #victoryScreen.screen,
+        body.bt-desktop #gameOverScreen.screen { transform: scale(1.5); }
 
         /* FAZA 6.5.2b-fix1: SCOPED h1/h2 - tylko endcards (NIE global!).
            Wczesniejszy global `h1 { ... }` / `h2 { ... }` nadpisywal styling MainMenu pickers
@@ -147,7 +154,7 @@
         <div class="bt-portrait-warning-subtitle">Brawl Tanks gra się najlepiej w trybie poziomym — szersze pole bitwy widać lepiej 🔄</div>
     </div>
 
-    <div id="credits">Game version: v0.69.0</div>
+    <div id="credits">Game version: v0.70.0</div>
 
     <script type="module" src="/src/main.ts"></script>
 

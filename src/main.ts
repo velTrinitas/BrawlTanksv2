@@ -209,6 +209,13 @@ function getVolleyOffsets(brawler: Brawler, isSuperShot: boolean): number[] {
 const SUPER_V2_DEFAULT = true; // P5 przetestowany -> live dla wszystkich (rollback = false)
 const SUPER_V2_ENABLED: boolean = SUPER_V2_DEFAULT || new URLSearchParams(location.search).has('superv2');
 
+// === End-screen v2 — landscape two-column layout (375px gate) ===
+// Problem: stary single-column endcard nie miescil sie w landscape (~375px wys.) -> scroll do przycisku.
+// v2 uklada tytul + hero + score (lewa) obok siatki statow 4x2 + button (prawa) -> no-scroll, przycisk
+// zawsze widoczny. Cala stylistyka (Titan One, kolory, hero effects, chipy) zachowana 1:1.
+// Domyslnie ON. Escape do starego single-column dla porownania: ?endv1=1. Gdy sprawdzone na Androidzie -> usunac v1.
+const END_V2_ENABLED: boolean = !new URLSearchParams(location.search).has('endv1');
+
 interface SuperProfile { offsets: number[]; dmg: number; behavior?: 'breakup' | 'boomerang' | 'shockwave'; breakupDist?: number; fragCount?: number; fragSpread?: number; fragDmgMult?: number; maxOutDist?: number; shockwaveRadius?: number; shockwaveDmg?: number; }
 const SUPER_PROFILES: Record<string, SuperProfile> = {
     // --- bez zmian vs live (total 1:1) ---
@@ -317,6 +324,9 @@ let isMouseDown = false;
 const audio = AudioSys.getInstance();
 
 const _prefersTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+// Desktop-only marker: endcard v2 skalowany 1.5x TYLKO na desktopie (CSS w index.html).
+// Mobile (touch) zostaje 1:1 — landscape/zoom-locked, nie ma zapasu ekranu na powiekszenie.
+document.body.classList.toggle('bt-desktop', !_prefersTouch);
 const app = new PIXI.Application({
     resizeTo: window,
     backgroundColor: 0x14141e,
@@ -1323,6 +1333,19 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             </div>
         </div>`;
 
+    // v2 (landscape) — kompaktowy mini-kafelek: ikona+liczba w jednym rzedzie, label pod spodem.
+    // Wchodzi 4-w-rzedzie w prawej kolumnie (siatka 4x2). Mniejszy gem (1.3rem) bo pelny 2.25rem
+    // rozwalilby waskie kafelki.
+    const gemIconSm = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:1.3rem;height:1.3rem;display:block;object-fit:contain;">`;
+    const statTile = (iconHtml: string, value: string | number, label: string): string => `
+        <div style="background:#f1f0f6;border:2px solid #e2e1ea;border-radius:12px;padding:6px 3px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center;box-sizing:border-box;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:5px;line-height:1;">
+                <span style="font-size:1.15rem;line-height:1;display:flex;align-items:center;justify-content:center;">${iconHtml}</span>
+                <span style="font-family:${TITAN};font-size:1.3rem;color:#2c3e50;">${value}</span>
+            </div>
+            <span style="font-family:${SYS};font-size:0.58rem;font-weight:700;letter-spacing:0.4px;color:#8a8a99;text-transform:uppercase;">${label}</span>
+        </div>`;
+
     // Slim bonus-row z PowerCube'ow — tylko gdy realnie cos dropnelo.
     const bonusRow = (d.dmgBonusPct > 0 || d.hpCubesPicked > 0) ? `
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
@@ -1420,6 +1443,53 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
         </div>`
         : `<div style="font-size:3.2rem;line-height:1;margin-bottom:4px;">${icon}</div>`;
 
+    // v2 hero — nizszy (136 vs 168) i wezszy dla lewej kolumny landscape. Te same heroEffects/keyframes/glow.
+    // +10% wzgledem 124/112 (Mariusz chce troche wieksza animacje po tescie).
+    const heroZoneV2 = d.tankImg ? `
+        <style>${heroKeyframes}</style>
+        <div style="position:relative;width:100%;height:136px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;">
+            <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:154px;height:154px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
+            <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:110px;height:22px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+            ${heroEffects}
+            <img src="${d.tankImg}" alt="" style="position:relative;z-index:2;height:123px;width:auto;filter:drop-shadow(0 6px 7px rgba(0,0,0,0.4));">
+        </div>`
+        : `<div style="font-size:2.9rem;line-height:1;">${icon}</div>`;
+
+    // === v2 LANDSCAPE — tytul u gory na pelnej szer., ponizej dwie kolumny: (lewa) subtitle+hero+score, ===
+    // === (prawa) siatka statow 4x2 + bonus + badge + button. Cel: brak scrolla @375px, przycisk zawsze widoczny.
+    if (END_V2_ENABLED) {
+        return `
+        <div style="display:flex;flex-direction:column;align-items:center;width:100%;box-sizing:border-box;gap:10px;">
+            <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;width:100%;">
+                <div class="es-title" style="font-family:${TITAN};font-size:2.1rem;line-height:1;color:${accent};text-transform:uppercase;-webkit-text-stroke:2px #000;text-shadow:3px 3px 0 #000;text-align:center;white-space:nowrap;">${title}</div>
+            </div>
+            <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:20px;width:100%;">
+                <div style="flex:0 0 42%;max-width:250px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;">
+                    ${heroZoneV2}
+                    <div style="text-align:center;background:#fdf6d8;border:2px solid #f1c40f;border-radius:14px;padding:4px 22px 6px;box-shadow:2px 2px 0 rgba(0,0,0,0.12);">
+                        <div style="font-family:${SYS};font-size:0.6rem;font-weight:700;letter-spacing:1.2px;color:#b8973a;text-transform:uppercase;">${t('end.score')}</div>
+                        <div style="font-family:${TITAN};font-size:2.4rem;line-height:1;color:#f1c40f;-webkit-text-stroke:2px #000;text-shadow:2px 2px 0 rgba(0,0,0,0.22);">${d.score}</div>
+                    </div>
+                </div>
+                <div style="flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;">
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
+                        ${statTile('💀', d.kills, t('end.kills'))}
+                        ${statTile(gemIconSm, d.gems, t('end.gems'))}
+                        ${statTile('👑', d.bosses, t('end.bosses'))}
+                        ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
+                        ${statTile('🟦', d.cubesTotal, t('end.cubes'))}
+                        ${statTile('❤️', d.hearts, t('end.hearts'))}
+                        ${statTile('💥', d.supers, t('end.supers'))}
+                        ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
+                    </div>
+                    ${bonusRow}
+                    ${victoryBadge}
+                    <button class="brawl-btn" id="${btnId}" style="font-size:1.4rem;padding:11px 34px;margin-top:16px;">${t('end.backToMenu')}</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
     return `
         <div style="display:flex;flex-direction:column;align-items:center;width:100%;box-sizing:border-box;">
             ${heroZone}
@@ -1446,6 +1516,33 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
 
             <button class="brawl-btn" id="${btnId}" style="font-size:1.6rem;padding:13px 40px;margin-top:22px;">${t('end.backToMenu')}</button>
         </div>`;
+}
+
+/**
+ * v2 endcard — tytul dostaje DOKLADNIE szerokosc przycisku (Mariusz: "tej samej szerokosci co button").
+ * Mierzymy button po insercie, liczymy letter-spacing tak, by slowo wypelnilo te szerokosc.
+ * Dzielimy przez n (nie n-1) bo CSS dodaje letter-spacing takze PO ostatniej literze.
+ * rAF: pewnosc, ze layout + font (Titan One) sa gotowe zanim zmierzymy przycisk.
+ */
+function fitEndTitleToButton(screenEl: HTMLElement): void {
+    if (!END_V2_ENABLED) return;
+    const btn = screenEl.querySelector('.brawl-btn') as HTMLElement | null;
+    const titleEl = screenEl.querySelector('.es-title') as HTMLElement | null;
+    if (!btn || !titleEl) return;
+    requestAnimationFrame(() => {
+        titleEl.style.letterSpacing = '0px';
+        titleEl.style.width = 'auto';
+        // offsetWidth (NIE getBoundingClientRect) — mierzy w jednostkach layoutu, ignoruje
+        // ewentalny transform:scale karty (desktop 1.5x). Inaczej letter-spacing wyszedlby przeskalowany.
+        const target = btn.offsetWidth;
+        const natural = titleEl.offsetWidth;
+        const n = (titleEl.textContent ?? '').length;
+        if (n > 1 && target > 0 && natural > 0) {
+            titleEl.style.letterSpacing = `${(target - natural) / n}px`;
+            titleEl.style.width = `${target}px`;
+            titleEl.style.boxSizing = 'border-box';
+        }
+    });
 }
 
 async function triggerGameOver(): Promise<void> {
@@ -1482,6 +1579,7 @@ async function triggerGameOver(): Promise<void> {
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
+    fitEndTitleToButton(screenEl);
     document.body.classList.remove('game-cursor-hidden');
     hud.clear();
 }
@@ -1528,6 +1626,7 @@ async function triggerVictory(): Promise<void> {
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
+    fitEndTitleToButton(screenEl);
     document.body.classList.remove('game-cursor-hidden');
     hud.clear();
 }

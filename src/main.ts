@@ -143,7 +143,13 @@ const COMBO_WINDOW_MS = 2000;
 const OASIS_STEALTH_DURATION_MS = 10000;
 
 // v0.23.1: world zoom dla mobile (kompensuje smaller screen + zwieksza viewable area)
-const MOBILE_WORLD_ZOOM = 0.7;
+// v0.69.0: default 0.7 -> 0.6 = +36% widocznej mapy (Mariusz gra mobile, chce widziec wiecej).
+// Cena: sprite'y -14.3% na ekranie (375px gate) + wiecej kafli w viewport (fill-rate). Walidacja
+// na realnym Androidzie. Override do strojenia bez rebuilda: ?zoom=0.55 / 0.65 itd. (clamp 0.4..1.0).
+const MOBILE_WORLD_ZOOM = (() => {
+    const q = parseFloat(new URLSearchParams(window.location.search).get('zoom') ?? '');
+    return q >= 0.4 && q <= 1.0 ? q : 0.6;
+})();
 const DESKTOP_WORLD_ZOOM = 1.0;
 
 // v0.44.0 FAZA 8.6: PowerCube drop chance dla regular enemies

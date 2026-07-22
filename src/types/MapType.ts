@@ -21,7 +21,9 @@
 import type { TranslationKey } from '../i18n/i18n';
 
 // PLAYABLE maps — uzywane przez game logic (main.ts, AudioSys, Spawn, etc.)
-export type MapId = 'city' | 'desert' | 'tropics' | 'arctic';
+// FAZA CTF F1: 'fortified_ruins' — mapa scenariusza CTF (bez karty w MENU_MAP_CARDS,
+// wybierana wylacznie przez scenario.fixedMapId).
+export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins';
 
 export interface MapConfig {
     id: MapId;
@@ -36,6 +38,7 @@ export const MAP_CONFIGS: Record<MapId, MapConfig> = {
     desert:  { id: 'desert',  name: 'PUSTYNIA',  bg: '#e8d4a2', musicTrack: 'pustynia.mp3',  badge: '#b8720a' },
     tropics: { id: 'tropics', name: 'TROPIKI',   bg: '#6dba4a', musicTrack: 'tropiki.mp3',   badge: '#1a7a40' },
     arctic:  { id: 'arctic',  name: 'ARKTYKA',   bg: '#bcdfec', musicTrack: 'arktyka1.ogg',  badge: '#1a6ea8' },
+    fortified_ruins: { id: 'fortified_ruins', name: 'FORTIFIED RUINS', bg: '#a08a64', musicTrack: 'ctf.ogg', badge: '#b8956a' },
 };
 
 /**
@@ -49,6 +52,7 @@ export function getMapIdFromUrl(): MapId {
     if (m === 'desert') return 'desert';
     if (m === 'tropics') return 'tropics';
     if (m === 'arctic') return 'arctic';
+    if (m === 'fortified_ruins') return 'fortified_ruins';
     return 'city';
 }
 
@@ -159,7 +163,8 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
  * FAZA A: arctic dodane do playable.
  */
 export function isPlayableMapId(id: MenuMapCardId): id is MapId {
-    return id === 'city' || id === 'desert' || id === 'tropics' || id === 'arctic';
+    return id === 'city' || id === 'desert' || id === 'tropics' || id === 'arctic'
+        || id === 'fortified_ruins';
 }
 
 /**

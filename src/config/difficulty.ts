@@ -58,6 +58,15 @@ export interface DifficultyModifiers {
 
     /** Ile regular killow do mega bossa (override SPAWN_CONFIG.megaBossKillThreshold). */
     megaBossKillThreshold: number;
+
+    // ── CTF bomby (v0.73.7) — skalowanie mechaniki bomb bossow per difficulty ──
+
+    /** Odstep miedzy bombami per boss (ms). Nizszy = czesciej = trudniej. */
+    ctfBombIntervalMs: number;
+
+    /** Predkosc lotu bomby (prog/klatke). Wyzszy = szybciej = trudniej. CAP 0.012 (fairness
+     *  dla wolnych czolgow jak Pancerny — nawet Nightmare musi byc unikalny). */
+    ctfBombFlightSpeed: number;
 }
 
 /**
@@ -69,12 +78,18 @@ export interface DifficultyModifiers {
  * |-----------------------|-------|--------|-------|-----------|
  * | enemyHpMult           | 0.85  | 1.0    | 1.10  | 1.20      |
  * | enemyDmgMult          | 0.85  | 1.0    | 1.10  | 1.20      |
- * | enemySpeedMult        | 1.0   | 1.0    | 1.10  | 1.20      |
+ * | enemySpeedMult        | 1.0   | 1.0    | 1.0   | 1.0       |  <- v0.73.7: STALE (fairness wolnych czolgow)
  * | spawnIntervalFrames   | 175   | 150    | 125   | 100       |
  * | timeScaling           | 0.7   | 1.0    | 1.3   | 1.6       |
  * | maxEnemiesOnMap       | 15    | 20     | 25    | 30        |
  * | bossKillTrigger       | 25    | 20     | 17    | 15        |
  * | megaBossKillThreshold | 100   | 100    | 102   | 105       |
+ * | ctfBombIntervalMs     | 5500  | 5000   | 4500  | 3500      |  <- CTF: bomby czesciej wyzej
+ * | ctfBombFlightSpeed    | 0.008 | 0.010  | 0.011 | 0.012     |  <- CTF: cap 0.012 (unik zawsze mozliwy)
+ *
+ * v0.73.7 (decyzja Mariusz): enemySpeedMult ZDJETY ze skalowania (stale 1.0 wszedzie) —
+ * szybsi wrogowie niesprawiedliwie karali wolne czolgi (Pancerny nie ucieka). Trudnosc
+ * wyzej = HP + dmg + gestosc + tempo spawnu, NIE predkosc pościgu.
  *
  * Math verification — czas do mega bossa (base spawn rate, bez time scaling):
  *   Easy:      100 * 2.92s = ~4:52
@@ -95,6 +110,8 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         maxEnemiesOnMap: 15,
         bossKillTrigger: 25,
         megaBossKillThreshold: 100,
+        ctfBombIntervalMs: 5500, // v0.73.7: 7000->5500 (Easy tez widzi bomby, ale lagodnie)
+        ctfBombFlightSpeed: 0.008,
     },
     normal: {
         enemyHpMult: 1.0,
@@ -105,26 +122,32 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         maxEnemiesOnMap: 20,
         bossKillTrigger: 20,
         megaBossKillThreshold: 100,
+        ctfBombIntervalMs: 5000,
+        ctfBombFlightSpeed: 0.010,
     },
     hard: {
         enemyHpMult: 1.10,
         enemyDmgMult: 1.10,
-        enemySpeedMult: 1.10,
+        enemySpeedMult: 1.0, // v0.73.7: zdjete ze skalowania (fairness wolnych czolgow)
         spawnIntervalFrames: 125,
         timeScaling: 1.3,
         maxEnemiesOnMap: 25,
         bossKillTrigger: 17,
         megaBossKillThreshold: 102,
+        ctfBombIntervalMs: 4500,
+        ctfBombFlightSpeed: 0.011,
     },
     nightmare: {
         enemyHpMult: 1.20,
         enemyDmgMult: 1.20,
-        enemySpeedMult: 1.20,
+        enemySpeedMult: 1.0, // v0.73.7: zdjete ze skalowania (fairness wolnych czolgow)
         spawnIntervalFrames: 100,
         timeScaling: 1.6,
         maxEnemiesOnMap: 30,
         bossKillTrigger: 15,
         megaBossKillThreshold: 105,
+        ctfBombIntervalMs: 3500,
+        ctfBombFlightSpeed: 0.012,
     },
 };
 

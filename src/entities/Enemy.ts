@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { getEnemyTextures, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
+import { WORLD_W, WORLD_H } from '../config/constants'; // FAZA CTF F2 — clampy guarda
 import { BRAWLERS } from '../config/brawlers';
 import { EnemySpriteBaker, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
 import type { EnemyBulletType } from '../rendering/EnemyBulletSpriteBaker';
@@ -8,6 +9,32 @@ import type { EffectsManager } from '../rendering/Effects';
 import type { EnemyConfig } from '../config/enemies';
 import type { ICollidable } from '../types/MapType';
 import type { PowerCube } from './pickups/PowerCube';
+
+/**
+ * FAZA CTF F2 — stan straznika flagi.
+ *
+ * Wzorzec "opcjonalny config + early-return branch" (jak industrial props):
+ * Enemy z `guard != null` NIE uzywa standardowego AI — updateGuard() wykonuje
+ * ruch legacy 1:1 (orbita PATROL / poscig CHASE/ALERT), BEZ kolizji ze
+ * srodowiskiem (D4 — legacy guards nie testuja kolizji, tylko clampy).
+ *
+ * Stan maszynowy (state) oraz wartosci per klatke (chaseSpeed wg formuly D2,
+ * fireIntervalMs = 2200 - esc*300) ustawia CtfSystem PRZED enemy.update().
+ */
+export type GuardState = 'patrol' | 'chase' | 'alert';
+
+export interface GuardConfig {
+    flagId: number;          // 0=alfa 1=bravo 2=charlie
+    flagColor: number;       // kolor badge (czytelnosc: czyj straznik)
+    orbitX: number;          // srodek orbity = pozycja startowa flagi
+    orbitY: number;
+    orbitR: number;          // 180 (D4; legacy 160)
+    clampMinX: number;       // 535 — pas strefy domowej (hangar.x + hangar.w + margin)
+    state: GuardState;
+    patrolAngle: number;
+    chaseSpeed: number;      // per klatke z CtfSystem (D2, zero kumulacji legacy-buga)
+    fireIntervalMs: number;  // per klatke z CtfSystem
+}
 
 export interface EnemyShotInfo {
     x: number;
@@ -77,6 +104,17 @@ export class Enemy {
 
     // v0.58.0 Warstwa C2 — pursuit vehicle flag (strafe-dodge AI, spawn z PoliceStation)
     public isPursuit: boolean;
+
+    // FAZA CTF F2 — guard config (null = zwykle AI). Ustawiany po konstruktorze
+    // przez CtfSystem (attachGuard), stan mutowany per klatke.
+    public guard: GuardConfig | null = null;
+    // FAZA CTF F2 — override zasiegu strzalu (ctf boss: 400; null = domyslne 640).
+    public shootRangeOverride: number | null = null;
+
+    // v0.73.7 PERF (minor-GC): scratch-pola dla tryStealCube — mutowane per klatke
+    // zamiast alokacji nowego {targetX,targetY} ×~19 wrogow/klatke (glowny sprawca hitchy).
+    private _stealTX = 0;
+    private _stealTY = 0;
 
     // v0.18.1 FAZA 4b — speed modifier
     public speedModifier: number = 1.0;
@@ -265,6 +303,121 @@ export class Enemy {
         worldContainer.addChild(this.container);
     }
 
+    /**
+     * FAZA CTF F2 — podpiecie configu straznika + badge koloru flagi.
+     * Wolane przez CtfSystem zaraz po utworzeniu Enemy (przed pierwszym update).
+     */
+    public attachGuard(config: GuardConfig): void {
+        this.guard = config;
+        // Badge: tarcza w kolorze flagi nad hp barem — identyfikacja "czyj straznik"
+        // dziala w OBU sciezkach renderu (flat tint + baked, gdzie tint nie dziala).
+        const badge = new PIXI.Graphics();
+        badge.beginFill(0x000000, 0.45);
+        badge.drawCircle(0, 0, 8);
+        badge.endFill();
+        badge.beginFill(config.flagColor);
+        badge.drawCircle(0, 0, 5.5);
+        badge.endFill();
+        badge.lineStyle(1.5, 0xffffff, 0.85);
+        badge.drawCircle(0, 0, 8);
+        badge.lineStyle(0);
+        badge.y = -66;
+        this.container.addChild(badge);
+    }
+
+    /**
+     * FAZA CTF F2 — ruch straznika (legacy ctf.html 1989-2039, wartosci 1:1).
+     *
+     * PATROL: orbita wokol flagi (patrolAngle += 0.008), dojazd do punktu orbity
+     *         z predkoscia chaseSpeed*0.7 gdy dist>8.
+     * CHASE/ALERT: prosto na gracza (chaseSpeed ma juz w sobie mnoznik ALERT z D2),
+     *         stop gdy dist<=30 LUB (guard przy pasie domowym i gracz w bazie).
+     * Clampy: x>=clampMinX (535), world 30..W-30 / 30..H-30. ZERO kolizji env (D4).
+     * Strzal: tylko CHASE/ALERT, dist<500, cooldown fireIntervalMs (z CtfSystem).
+     */
+    private updateGuard(delta: number, playerX: number, playerY: number, buildings: ICollidable[]): EnemyShotInfo | null {
+        const g = this.guard!;
+        let facing: number;
+
+        // F3 (playtest): straznik KOLIDUJE z murami/skalami (per-osiowo, jak zwykly
+        // wrog) — koniec przenikania przez mury fortec przy poscigu. Orbita PATROL
+        // ma 24 px clearance (D4), wiec kolizja nie blokuje krazenia.
+        const tryMove = (mx: number, my: number): void => {
+            const nx = this.x + mx;
+            const ny = this.y + my;
+            let canX = true, canY = true;
+            for (const b of buildings) {
+                if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canX = false;
+                if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 20)) canY = false;
+            }
+            if (canX) this.x = nx;
+            if (canY) this.y = ny;
+        };
+
+        if (g.state === 'patrol') {
+            g.patrolAngle += 0.008 * delta;
+            const tx = g.orbitX + Math.cos(g.patrolAngle) * g.orbitR;
+            const ty = g.orbitY + Math.sin(g.patrolAngle) * g.orbitR;
+            const dx = tx - this.x;
+            const dy = ty - this.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 8) {
+                const spd = g.chaseSpeed * 0.7 * this.speedModifier * delta;
+                tryMove((dx / dist) * spd, (dy / dist) * spd);
+            }
+            facing = Math.atan2(dy, dx);
+        } else {
+            const dx = playerX - this.x;
+            const dy = playerY - this.y;
+            const dist = Math.hypot(dx, dy);
+            const spd = g.chaseSpeed * this.speedModifier * delta;
+            if (dist > 30 && !(this.x < g.clampMinX && playerX < 530)) {
+                tryMove((dx / dist) * spd, (dy / dist) * spd);
+            }
+            facing = Math.atan2(dy, dx);
+        }
+
+        // Clampy legacy 1:1: pas strefy domowej + krawedzie swiata
+        if (this.x < g.clampMinX) this.x = g.clampMinX;
+        this.x = Math.max(30, Math.min(WORLD_W - 30, this.x));
+        this.y = Math.max(30, Math.min(WORLD_H - 30, this.y));
+
+        if (this.bakerArch) {
+            this.applyBakedAngle(facing);
+        } else {
+            this.hull.rotation = facing;
+            this.turret.rotation = facing;
+        }
+        this.confusedRotation = facing;
+
+        this.container.x = this.x;
+        this.container.y = this.y;
+        this.container.zIndex = this.y + 19;
+
+        if (g.state !== 'patrol') {
+            const now = Date.now();
+            const dx = playerX - this.x;
+            const dy = playerY - this.y;
+            const dist = Math.hypot(dx, dy);
+            if (now - this.lastShotTime >= g.fireIntervalMs && dist < 500) {
+                this.lastShotTime = now;
+                const angle = Math.atan2(dy, dx);
+                return {
+                    x: this.x + Math.cos(angle) * 40,
+                    y: this.y + Math.sin(angle) * 40,
+                    angle,
+                    speed: this.bulletSpeed,
+                    dmg: this.bulletDmg,
+                    color: this.bulletColor,
+                    burstCount: 1,
+                    burstSpread: 0,
+                    bulletType: this.bulletType,
+                };
+            }
+        }
+        return null;
+    }
+
     private drawHp(): void {
         this.hpBar.clear();
         const barW = this.isMegaBoss ? 100 : (this.isBoss ? 70 : (this.isPursuit ? 55 : 40));
@@ -361,12 +514,13 @@ export class Enemy {
      * Megaboss SKIPS cube stealing (chronimy phase-based AI).
      * v0.58.0: pursuit SKIPS rowniez (chronimy spojnosc poscigu — woz nie zbacza za cube).
      */
+    // v0.73.7 PERF: zwraca wynik przez pola _stealTX/_stealTY (zero alokacji), nie przez nowy obiekt.
     private tryStealCube(
         playerX: number, playerY: number,
         powerCubes: PowerCube[],
-    ): { targetX: number; targetY: number } {
+    ): void {
         if (this.isMegaBoss || this.isPursuit || powerCubes.length === 0) {
-            return { targetX: playerX, targetY: playerY };
+            this._stealTX = playerX; this._stealTY = playerY; return;
         }
 
         const dxP = playerX - this.x;
@@ -387,11 +541,11 @@ export class Enemy {
         }
 
         if (!nearestCube) {
-            return { targetX: playerX, targetY: playerY };
+            this._stealTX = playerX; this._stealTY = playerY; return;
         }
 
         if (nearestDistSq >= distToPlayerSq * CUBE_CHASE_THRESHOLD) {
-            return { targetX: playerX, targetY: playerY };
+            this._stealTX = playerX; this._stealTY = playerY; return;
         }
 
         // Touch detection — steal cube
@@ -399,10 +553,10 @@ export class Enemy {
         if (nearestDistSq < touchR * touchR) {
             nearestCube.active = false;
             this.onCubeStolen?.(nearestCube.x, nearestCube.y);
-            return { targetX: playerX, targetY: playerY };
+            this._stealTX = playerX; this._stealTY = playerY; return;
         }
 
-        return { targetX: nearestCube.x, targetY: nearestCube.y };
+        this._stealTX = nearestCube.x; this._stealTY = nearestCube.y;
     }
 
     /**
@@ -452,6 +606,13 @@ export class Enemy {
             }
         }
 
+        // FAZA CTF F2 — guard branch PRZED stealth: straznik zawsze wykonuje swoj
+        // stan (orbita nie moze stanac od stealth); detekcje gracza w stealth
+        // rozstrzyga maszyna stanow w CtfSystem (stealth => brak CHASE).
+        if (this.guard) {
+            return this.updateGuard(delta, targetX, targetY, buildings);
+        }
+
         if (this.playerStealthed) {
             this.confusedRotation += 0.045 * delta;
             if (this.bakerArch) {
@@ -476,9 +637,10 @@ export class Enemy {
         }
 
         // v0.44.0 FAZA 8.6: cube stealing override
-        const effectiveTarget = this.tryStealCube(targetX, targetY, powerCubes);
-        const effTargetX = effectiveTarget.targetX;
-        const effTargetY = effectiveTarget.targetY;
+        // v0.73.7 PERF: wynik przez pola _stealTX/_stealTY (zero alokacji per klatke).
+        this.tryStealCube(targetX, targetY, powerCubes);
+        const effTargetX = this._stealTX;
+        const effTargetY = this._stealTY;
 
         // v0.44.1 FIX: detect cube chase mode EARLY (przed movement decision)
         const isChasingCube = effTargetX !== targetX || effTargetY !== targetY;
@@ -614,7 +776,8 @@ export class Enemy {
         if (!isChasingCube) {
             const now = Date.now();
             // v0.58.0: pursuit ma wlasny shoot range (700, bo karabin daleko siegajacy)
-            const shootRange = this.isPursuit ? PURSUIT_SHOOT_RANGE : 640;
+            // FAZA CTF F2: shootRangeOverride (ctf boss = 400, legacy 1:1) ma pierwszenstwo.
+            const shootRange = this.shootRangeOverride ?? (this.isPursuit ? PURSUIT_SHOOT_RANGE : 640);
             if (now - this.lastShotTime >= this.shootIntervalMs && dist < shootRange) {
                 this.lastShotTime = now;
                 const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : (this.isPursuit ? 48 : 40);

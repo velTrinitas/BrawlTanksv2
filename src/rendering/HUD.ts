@@ -15,6 +15,8 @@ const SUPER_TINT_HEX = '#c850ff';
  * Zmiana fontu w przyszlosci = 1 linia tutaj.
  */
 const FONT_FAMILY = 'Titan One';
+// v0.73.7 PERF (minor-GC): stala kolejnosc mocy — module-const zamiast alokacji tablicy co klatke w drawSuperPowerBar.
+const POWER_ORDER: PowerId[] = ['aura', 'megaBomb', 'freeze'];
 
 /**
  * v0.46.0 HUD typography pass: jednolity rozmiar labeli pilli (HP/WYNIK/ZABICI/SUPER).
@@ -28,6 +30,30 @@ interface HudNotif {
     color: string;
     timer: number;
     maxTimer: number;
+}
+
+/**
+ * FAZA CTF F3 — dane CTF dla HUD, ustawiane per klatke przez main.ts.
+ * null = scenariusz bez CTF (zero kosztu, wszystkie draw* wychodza natychmiast).
+ */
+export interface HudCtfInfo {
+    flags: Array<{
+        x: number;
+        y: number;
+        color: number;
+        state: 'idle' | 'carried' | 'captured';
+        name: string;
+    }>;
+    /** Srodek strefy domowej (world coords) — cel strzalki bazy. */
+    hangarX: number;
+    hangarY: number;
+    carrying: boolean;
+    carryColor: number;
+    flagsCaptured: number;
+    /** Transformacja world->screen dla strzalek krawedziowych. */
+    cameraX: number;
+    cameraY: number;
+    zoom: number;
 }
 
 export interface MouseState {
@@ -58,6 +84,9 @@ export class HUD {
     public crosshairScale: number = 1.0;
     /** Czy rysowac dolny SuperPowerBar (centered 3-icon bar). False na mobile (SuperButton zastepuje). */
     public showPowerBar: boolean = true;
+
+    /** FAZA CTF F3 — dane CTF (null poza scenariuszem ctf). Ustawiane per klatke z main.ts. */
+    public ctfInfo: HudCtfInfo | null = null;
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -373,8 +402,9 @@ export class HUD {
         const totalW = ICON_SIZE * 3 + ICON_GAP * 2;
         const startX = cx - totalW / 2;
         
-        const powerOrder: PowerId[] = ['aura', 'megaBomb', 'freeze'];
-        powerOrder.forEach((id, i) => {
+        // v0.73.7 PERF: for-loop na module-const zamiast .forEach (bez alokacji tablicy+domkniecia co klatke).
+        for (let i = 0; i < POWER_ORDER.length; i++) {
+            const id = POWER_ORDER[i];
             const power = POWERS[id];
             const ix = startX + i * (ICON_SIZE + ICON_GAP);
             const iy = iconsBaseY;
@@ -468,8 +498,8 @@ export class HUD {
                 c.closePath();
                 c.fill();
             }
-        });
-        
+        }
+
         c.font = `12px "${FONT_FAMILY}",cursive`;
         c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
@@ -647,6 +677,227 @@ export class HUD {
         c.restore();
     }
     
+    /**
+     * FAZA CTF F3 — panel flag (lewa kolumna, pod SUPER pill).
+     * 3 sloty A/B/C: kolo w kolorze flagi; IDLE = pelne, CARRIED = pulsujacy ring,
+     * CAPTURED = pelne + ✓. Po prawej licznik n/3.
+     * Pozycja (14,132,172,44) w SCALED space — zweryfikowana kolizyjnie @375px
+     * landscape uiScale 0.7 (HP 8-62, SUPER 70-124, panel 132-176; notify x>=252).
+     */
+    private drawCtfFlagPanel(): void {
+        const info = this.ctfInfo;
+        if (!info) return;
+        const c = this.ctx;
+        const px = 14, py = 132, PW = 172, PH = 44, r = 14;
+
+        c.fillStyle = 'rgba(8,8,18,0.75)';
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.fill();
+        c.strokeStyle = 'rgba(241,196,15,0.35)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.stroke();
+
+        const cy = py + PH / 2;
+        let sx = px + 24;
+        for (const f of info.flags) {
+            const col = '#' + f.color.toString(16).padStart(6, '0');
+            if (f.state === 'captured') {
+                c.fillStyle = col;
+                c.beginPath();
+                c.arc(sx, cy, 10, 0, Math.PI * 2);
+                c.fill();
+                c.strokeStyle = '#fff';
+                c.lineWidth = 3;
+                c.beginPath();
+                c.moveTo(sx - 5, cy);
+                c.lineTo(sx - 1.5, cy + 4);
+                c.lineTo(sx + 5, cy - 4.5);
+                c.stroke();
+            } else if (f.state === 'carried') {
+                const pulse = 0.6 + Math.sin(Date.now() / 120) * 0.4;
+                c.save();
+                c.globalAlpha = pulse;
+                c.strokeStyle = col;
+                c.lineWidth = 3.5;
+                c.beginPath();
+                c.arc(sx, cy, 10, 0, Math.PI * 2);
+                c.stroke();
+                c.restore();
+                c.fillStyle = col;
+                c.beginPath();
+                c.arc(sx, cy, 5, 0, Math.PI * 2);
+                c.fill();
+            } else {
+                c.fillStyle = col;
+                c.beginPath();
+                c.arc(sx, cy, 10, 0, Math.PI * 2);
+                c.fill();
+                c.strokeStyle = 'rgba(0,0,0,0.5)';
+                c.lineWidth = 1.5;
+                c.stroke();
+            }
+            sx += 30;
+        }
+
+        // Licznik n/3 (prawo)
+        const cntStr = `${info.flagsCaptured}/3`;
+        c.font = `26px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'right';
+        c.textBaseline = 'middle';
+        c.strokeStyle = 'rgba(0,0,0,0.85)';
+        c.lineWidth = 4;
+        c.strokeText(cntStr, px + PW - 12, cy + 1);
+        c.fillStyle = '#f1c40f';
+        c.fillText(cntStr, px + PW - 12, cy + 1);
+        // Emoji flagi przed licznikiem
+        const cntW = c.measureText(cntStr).width;
+        c.font = `18px "${FONT_FAMILY}",cursive`;
+        c.fillText('🚩', px + PW - 12 - cntW - 6, cy);
+    }
+
+    /**
+     * FAZA CTF F3 — carry banner (top-center pod SCORE, wzorzec drawMegaBossAlert:
+     * puls + kolor flagi). Kompaktowy i STALY podczas niesienia (nie center-screen,
+     * zeby nie zaslanial pola gry). Rysowany w SCALED space — miejsce po megaboss
+     * barze (y78), ktorego w CTF nie ma.
+     */
+    private drawCtfCarryBanner(): void {
+        const info = this.ctfInfo;
+        if (!info || !info.carrying) return;
+        const c = this.ctx;
+        const col = '#' + info.carryColor.toString(16).padStart(6, '0');
+        const cx = (this.screenW / this.uiScale) / 2;
+        // y112: pod SCORE (8-62) i pod 3 wierszami notify (max y=88) — zero kolizji @375px
+        const by = 112, BH = 34, BW = 320;
+
+        const pulse = 0.85 + Math.sin(Date.now() / 140) * 0.15;
+        c.save();
+        c.globalAlpha = pulse;
+        c.fillStyle = 'rgba(0,0,0,0.7)';
+        c.beginPath();
+        c.roundRect(cx - BW / 2, by, BW, BH, 12);
+        c.fill();
+        c.strokeStyle = col;
+        c.lineWidth = 2.5;
+        c.beginPath();
+        c.roundRect(cx - BW / 2, by, BW, BH, 12);
+        c.stroke();
+
+        const bannerTxt = tr('ctf.carryBanner');
+        c.font = `20px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.strokeStyle = 'rgba(0,0,0,0.9)';
+        c.lineWidth = 4;
+        c.strokeText(bannerTxt, cx, by + BH / 2 + 1);
+        c.fillStyle = col;
+        c.fillText(bannerTxt, cx, by + BH / 2 + 1);
+        c.restore();
+    }
+
+    /**
+     * FAZA CTF F3 — strzalki krawedziowe do flag i bazy (WARUNEK GRYWALNOSCI:
+     * przy zoom 0.6 widac ~45%x21% swiata, flagi sa 2200-2700 px od siebie).
+     *
+     * Rysowane UNSCALED (po c.restore() w render) — pelna przestrzen ekranu.
+     * - bez flagi: strzalki do flag IDLE (kolor flagi + dystans w metrach px/10),
+     * - z flaga: TYLKO pulsujaca zlota strzalka do bazy (fokus na dostawie).
+     * Cel na ekranie (z marginesem) => strzalka znika (widac cel bezposrednio).
+     */
+    private drawCtfEdgeArrows(): void {
+        const info = this.ctfInfo;
+        if (!info) return;
+        const c = this.ctx;
+        const M = 34;             // margines krawedzi dla strzalek
+        const ON_SCREEN_PAD = 20; // cel "na ekranie" gdy w tym pasie
+
+        interface ArrowTarget { wx: number; wy: number; color: number; label: string; isBase: boolean }
+        const targets: ArrowTarget[] = [];
+        if (info.carrying) {
+            targets.push({ wx: info.hangarX, wy: info.hangarY, color: 0xf1c40f, label: '🏠', isBase: true });
+        } else {
+            for (const f of info.flags) {
+                if (f.state !== 'idle') continue;
+                targets.push({ wx: f.x, wy: f.y, color: f.color, label: f.name[0], isBase: false });
+            }
+        }
+
+        for (const tgt of targets) {
+            const sx = (tgt.wx - info.cameraX) * info.zoom;
+            const sy = (tgt.wy - info.cameraY) * info.zoom;
+            const onScreen = sx >= -ON_SCREEN_PAD && sx <= this.screenW + ON_SCREEN_PAD
+                && sy >= -ON_SCREEN_PAD && sy <= this.screenH + ON_SCREEN_PAD;
+            if (onScreen) continue;
+
+            // Kierunek od srodka ekranu do celu + clamp punktu do prostokata marginesu
+            const cx = this.screenW / 2;
+            const cyS = this.screenH / 2;
+            const dx = sx - cx;
+            const dy = sy - cyS;
+            const scale = Math.min(
+                (this.screenW / 2 - M) / Math.abs(dx || 0.0001),
+                (this.screenH / 2 - M) / Math.abs(dy || 0.0001),
+            );
+            const ax = cx + dx * scale;
+            const ay = cyS + dy * scale;
+            const ang = Math.atan2(dy, dx);
+            const col = '#' + tgt.color.toString(16).padStart(6, '0');
+            const distM = Math.round(Math.hypot(dx, dy) / info.zoom / 10);
+
+            c.save();
+            if (tgt.isBase) {
+                c.globalAlpha = 0.75 + Math.sin(Date.now() / 130) * 0.25;
+            } else {
+                c.globalAlpha = 0.85;
+            }
+
+            // Grot strzalki (trojkat wskazujacy kierunek celu)
+            c.translate(ax, ay);
+            c.rotate(ang);
+            c.fillStyle = col;
+            c.strokeStyle = 'rgba(0,0,0,0.75)';
+            c.lineWidth = 2.5;
+            c.beginPath();
+            c.moveTo(16, 0);
+            c.lineTo(-4, -10);
+            c.lineTo(-4, 10);
+            c.closePath();
+            c.fill();
+            c.stroke();
+            c.rotate(-ang);
+
+            // Kolo z etykieta (litera flagi / domek bazy) — cofniete od grotu
+            const bx = -Math.cos(ang) * 22;
+            const byA = -Math.sin(ang) * 22;
+            c.fillStyle = 'rgba(0,0,0,0.65)';
+            c.beginPath();
+            c.arc(bx, byA, 15, 0, Math.PI * 2);
+            c.fill();
+            c.strokeStyle = col;
+            c.lineWidth = 2.5;
+            c.stroke();
+            c.font = `15px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillStyle = tgt.isBase ? '#f1c40f' : '#fff';
+            c.fillText(tgt.label, bx, byA + 1);
+
+            // Dystans pod kolem (metry = px/10)
+            const dTxt = `${distM}m`;
+            c.font = `12px "${FONT_FAMILY}",cursive`;
+            c.strokeStyle = 'rgba(0,0,0,0.85)';
+            c.lineWidth = 3;
+            c.strokeText(dTxt, bx, byA + 24);
+            c.fillStyle = col;
+            c.fillText(dTxt, bx, byA + 24);
+
+            c.restore();
+        }
+    }
+
     private drawCrosshair(mouse: MouseState): void {
         const c = this.ctx;
         // v0.23.1 hotfix: scale crosshair (mobile dostaje 1.5x dla lepszej widocznosci)
@@ -752,6 +1003,10 @@ export class HUD {
         // === SUPER pill (scalony gem-charge + super charges) — lewa kolumna, drugi rzad ===
         this.drawSuperPill(player, spawnSystem, 14, 70, 172, 54, 14);
 
+        // FAZA CTF F3 — panel flag (lewa kolumna, trzeci rzad) + carry banner (top-center)
+        this.drawCtfFlagPanel();
+        this.drawCtfCarryBanner();
+
         this.drawNotifs();
 
         // Magnet + turbo status — right-aligned tu tez sa scaled
@@ -770,6 +1025,9 @@ export class HUD {
         c.restore();
 
         // === Unscaled overlays (full screen size, niezależne od uiScale) ===
+
+        // FAZA CTF F3 — strzalki krawedziowe (full-screen space, po restore)
+        this.drawCtfEdgeArrows();
 
         // Crosshair — hidden on mobile (no mouse, joystick zastepuje)
         if (this.showCrosshair) {

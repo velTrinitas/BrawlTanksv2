@@ -45,6 +45,20 @@ import {
     ARCTIC_MEDI_PAD_POSITIONS, ARCTIC_POWER_PAD_POSITIONS,
 } from './maps/ArcticMap'; // FAZA A (Arctic)
 import { GlacialBorder } from './maps/arctic/GlacialBorder'; // FAZA A (Arctic)
+import {
+    buildFortifiedRuinsTexture,
+    FORTIFIED_FORTRESS_WALLS, FORTIFIED_ROCKS_LAYOUT,
+    FORTIFIED_BUSHES_LAYOUT, FORTIFIED_LAKES_LAYOUT,
+    FORTIFIED_FOSA_RECT, FORTIFIED_BRIDGE_RECT,
+    FORTIFIED_HANGAR_RECT, FORTIFIED_PLAYER_SPAWN,
+} from './maps/FortifiedRuinsMap'; // FAZA CTF F1
+import { RuinsBorder } from './maps/fortified/RuinsBorder';   // FAZA CTF F1
+import { RuinBlock } from './maps/fortified/RuinBlock';       // FAZA CTF F1
+import { RuinsFosa } from './maps/fortified/RuinsFosa';       // FAZA CTF F1
+import { RuinsBush } from './maps/fortified/RuinsBush';       // FAZA CTF F1
+import { RuinsLake } from './maps/fortified/RuinsLake';       // FAZA CTF F1
+import { RuinsHangar } from './maps/fortified/RuinsHangar';   // FAZA CTF F1
+import { CtfSystem } from './systems/ctf/CtfSystem';          // FAZA CTF F2
 import { CornField } from './maps/tropics/CornField';
 import { SugarcaneField } from './maps/tropics/SugarcaneField';
 import { LettuceField } from './maps/tropics/LettuceField';
@@ -100,7 +114,7 @@ import { Magnet } from './entities/pickups/Magnet';
 import { PowerCube } from './entities/pickups/PowerCube'; // v0.44.0 FAZA 8.6
 import { HoverRepairPad } from './maps/HoverRepairPad';
 import { PowerHoverPad } from './maps/PowerHoverPad';
-import { HUD } from './rendering/HUD';
+import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
@@ -263,6 +277,28 @@ let paddock: Paddock | null = null;
 let horses: Horse[] = [];
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
+// FAZA CTF F1 — Fortified Ruins (jeziorka NIE maja globala: update via buildings.forEach)
+let ruinsBorder: RuinsBorder | null = null;
+let ruinsFosa: RuinsFosa | null = null;
+let ruinsBushes: RuinsBush[] = [];
+let ruinsHangar: RuinsHangar | null = null;
+let ctfSystem: CtfSystem | null = null; // FAZA CTF F2 — rdzen logiki CTF
+// F3 — bariera kolizyjna WROGOW- only wokol strefy domowej (gracz przejezdza swobodnie).
+let ctfEnemyBarriers: ICollidable[] = [];
+// F3 perf — PRECOMPUTED buildings+bariery dla wrogow (buildings statyczne przez caly
+// mecz CTF). Bez tego spread [...buildings,...barriers] alokowal 40+ elem. tablice
+// KAZDA klatke => skoki GC = szarpanie na mobile. Zbudowane raz w startGame.
+let ctfEnemyBuildings: ICollidable[] | null = null;
+// F3 perf — STALY obiekt HUD CTF (mutowany per klatke zamiast alokacji nowego).
+const ctfHudInfo: HudCtfInfo = {
+    flags: [
+        { x: 0, y: 0, color: 0, state: 'idle', name: '' },
+        { x: 0, y: 0, color: 0, state: 'idle', name: '' },
+        { x: 0, y: 0, color: 0, state: 'idle', name: '' },
+    ],
+    hangarX: 0, hangarY: 0, carrying: false, carryColor: 0xf1c40f,
+    flagsCaptured: 0, cameraX: 0, cameraY: 0, zoom: 1,
+};
 let farmFields: IFarmField[] = [];
 let caravan: Caravan | null = null;
 
@@ -291,6 +327,7 @@ let oasisStealthEndTime: number = 0;
 let wasInOasisLastFrame: boolean = false;
 let wasInCornLastFrame: boolean = false;
 let wasInNeonLastFrame: boolean = false; // v0.60.0 — stealth NEON-OASIS
+let wasInRuinsBushLastFrame: boolean = false; // FAZA CTF F1 — stealth zarosla
 let neonDidShootLastFrame = false; // v0.60.0 TIER 3 — strzal z poprzedniej klatki (panika drona)
 let wasStealthActiveLastFrame: boolean = false;
 // v0.50.1 fix: track czy ostatnie zerwanie stealth bylo wynikiem strzalu (anti-cheese Michala).
@@ -336,7 +373,12 @@ const app = new PIXI.Application({
 // FPS skacze (46..93) => PIXI delta skacze 0.5..1.3 => krok ruchu (delta-scaled) zmienia sie 2x/klatke
 // => kamera szarpie swiatem. Cap 60 daje mocnemu A54 zapas na klatke i przypina delta~1.0 (plynnie)
 // + oszczedza baterie. Zero straty wizualnej (60 = plynne). Delty NIE ruszamy (uczciwa predkosc zostaje).
-app.ticker.maxFPS = 60;
+// TEST (v0.73.7): maxFPS sterowalne z URL (?fps=N) do A/B pacingu na high-refresh (A54 120Hz).
+//   brak param -> 60 (domyslne, produkcja bez zmian) | ?fps=120 -> natywne 120Hz | ?fps=0 -> uncapped.
+// Hipoteza: 60fps-owy content na 120Hz panelu juddery; natywne 120 = kazda klatka=1 vsync = gladko.
+const _fpsParam = new URLSearchParams(window.location.search).get('fps');
+const _maxFps = _fpsParam !== null && !isNaN(parseInt(_fpsParam, 10)) ? parseInt(_fpsParam, 10) : 60;
+app.ticker.maxFPS = _maxFps;
 document.body.appendChild(app.view as HTMLCanvasElement);
 (app.view as HTMLCanvasElement).style.position = 'absolute';
 (app.view as HTMLCanvasElement).style.zIndex = '1';
@@ -350,6 +392,28 @@ worldContainer.sortableChildren = false;
 app.stage.addChild(worldContainer);
 
 const hud = new HUD('hudCanvas');
+
+// ── Diagnostyka wydajnosci (?perf=1) — overlay FPS + liczniki obiektow. ──
+// Cel: znalezc co koreluje z oscylacja "zwalnia/przyspiesza" na mobile bez
+// czytania kodu (zasada mobile-first: dane z realnego urzadzenia, nie zgadywanie).
+const PERF_ENABLED = new URLSearchParams(window.location.search).has('perf');
+let perfEl: HTMLDivElement | null = null;
+let perfFrames = 0, perfMinFps = 9999, perfMaxFps = 0, perfSumMs = 0, perfLastT = 0;
+// Szczyty (od startu meczu) — pokazuja korelacje z najgorsza klatka, nawet gdy juz minela.
+let perfWorstMs = 0, perfPeakEBul = 0, perfPeakBul = 0, perfPeakPart = 0, perfPeakKids = 0, perfPeakEnemies = 0;
+let perfLastHitchT = 0; // DEV-ONLY: czas ostatniej dlugiej klatki (>28ms) — do pomiaru odstepu miedzy hitchami.
+// DEV-ONLY: mikro-profiler klatki — rozbicie kosztu na hud.render vs cala logika callbacku.
+// perfHudMs/perfCbMs opisuja POPRZEDNIA klatke (zapisane na jej koncu), logowane przy hitchu.
+let perfHudMs = 0, perfCbMs = 0, perfCbStart = 0;
+if (PERF_ENABLED) {
+    perfEl = document.createElement('div');
+    perfEl.style.cssText =
+        'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:99999;' +
+        'font:11px/1.35 monospace;color:#0f0;background:rgba(0,0,0,0.72);padding:4px 8px;' +
+        'border-radius:6px;white-space:pre;pointer-events:none;text-align:left;';
+    perfEl.textContent = 'perf: warming up...';
+    document.body.appendChild(perfEl);
+}
 
 const menu = new MainMenu('#bt-menu-root');
 
@@ -372,7 +436,8 @@ if (touchManager.isActive) {
 }
 
 menu.onGameRequested = (config: GameConfig) => {
-    if (config.scenario === 'ctf' || config.scenario === 'castle') {
+    // FAZA CTF F1: ctf odblokowane (mapa fortified_ruins zintegrowana modularnie)
+    if (config.scenario === 'castle') {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
         return;
@@ -382,10 +447,15 @@ menu.hide();
 };
 
 menu.onContinueRequested = (lastSession: LastSession) => {
-    if (lastSession.scenario === 'ctf' || lastSession.scenario === 'castle') {
+    // FAZA CTF F1: ctf odblokowane. Guard na stale sesje sprzed odblokowania:
+    // ctf z placeholderowa mapa != fortified_ruins naprawiamy na wlasciwa.
+    if (lastSession.scenario === 'castle') {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
         return;
+    }
+    if (lastSession.scenario === 'ctf' && lastSession.map !== 'fortified_ruins') {
+        lastSession.map = 'fortified_ruins';
     }
     const config = new GameConfigBuilder()
         .setScenario(lastSession.scenario)
@@ -585,23 +655,74 @@ window.addEventListener('keyup', e => {
     powerSystem.cycleSelected(direction);
 }, { passive: false });
 
+/**
+ * POOLING (v0.73.6) — "pudelko z kubkami" dla pociskow wroga. Zamiast
+ * new EnemyBullet/destroy przy kazdym strzale+trafieniu (churn PIXI => rytmiczne
+ * pauzy GC), reuzywamy instancje. Pula zyje w obrebie meczu (reset w startGame).
+ */
+let enemyBulletPool: EnemyBullet[] = [];
+function spawnEnemyBullet(x: number, y: number, angle: number, speed: number, dmg: number, color: number, bulletType: import('./rendering/EnemyBulletSpriteBaker').EnemyBulletType | null): void {
+    const pooled = enemyBulletPool.pop();
+    if (pooled) {
+        pooled.reset(x, y, angle, speed, dmg, color, bulletType);
+        enemyBullets.push(pooled);
+    } else {
+        enemyBullets.push(new EnemyBullet(x, y, angle, speed, dmg, color, worldContainer, bulletType));
+    }
+}
+
 function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
     const half = (shot.burstCount - 1) / 2;
     for (let i = 0; i < shot.burstCount; i++) {
         const offsetAngle = shot.burstCount > 1
             ? (i - half) * (shot.burstSpread / Math.max(1, shot.burstCount - 1))
             : 0;
-        enemyBullets.push(new EnemyBullet(
+        spawnEnemyBullet(
             shot.x, shot.y, shot.angle + offsetAngle,
-            shot.speed, shot.dmg, shot.color, worldContainer,
+            shot.speed, shot.dmg, shot.color,
             shot.bulletType, // FAZA P4 — typ pocisku dla bakera (null => flat)
-        ));
+        );
+    }
+}
+
+/**
+ * POOLING (v0.73.7) — "pudelko z kubkami" dla pociskow gracza. Reuzycie zamiast
+ * new Bullet/destroy przy kazdym strzale (najwiekszy churn przy "strzelam caly czas").
+ * reset() w Bullet ZERUJE caly stan zachowan (super/bumerang/breakup/shockwave/smuga),
+ * wiec pooled pocisk nie niesie sladu po poprzednim strzale. Pula per mecz.
+ * Zwraca instancje (caller sam robi dmg-mult + applyBehavior + push, jak przy new Bullet).
+ */
+let bulletPool: Bullet[] = [];
+function acquireBullet(x: number, y: number, angle: number, isSuper: boolean, superDmgOverride?: number): Bullet {
+    const pooled = bulletPool.pop();
+    if (pooled) {
+        pooled.reset(x, y, angle, isSuper, superDmgOverride);
+        return pooled;
+    }
+    // Fallback: nowa instancja. brawler staly per mecz -> pooled.reset uzywa this.brawlerInfo.
+    return new Bullet(x, y, angle, player!.brawler, worldContainer, isSuper, superDmgOverride);
+}
+
+/**
+ * POOLING (v0.73.5) — "pudelko z kubkami" dla gemow. Zamiast new Gem/destroy co
+ * kill+pickup (churn PIXI => rytmiczne pauzy GC = szarpanie), reuzywamy instancje.
+ * Pula zyje w obrebie meczu (reset w startGame); w meczu sprite'y gemow nie sa
+ * nigdy niszczone — tylko chowane (visible=false) i wskrzeszane przez reset().
+ */
+let gemPool: Gem[] = [];
+function spawnGem(x: number, y: number): void {
+    const pooled = gemPool.pop();
+    if (pooled) {
+        pooled.reset(x, y);
+        gems.push(pooled);
+    } else {
+        gems.push(new Gem(x, y, worldContainer));
     }
 }
 
 function dropGems(x: number, y: number, count: number): void {
     for (let i = 0; i < count; i++) {
-        gems.push(new Gem(x, y, worldContainer));
+        spawnGem(x, y);
     }
 }
 
@@ -745,6 +866,14 @@ async function startGame(config: GameConfig): Promise<void> {
     horses = [];
     quicksands = [];
     oases = [];
+    ruinsBorder = null;   // FAZA CTF F1
+    ruinsFosa = null;     // FAZA CTF F1
+    ruinsBushes = [];     // FAZA CTF F1
+    ruinsHangar = null;   // FAZA CTF F1
+    ctfSystem?.destroy(); // FAZA CTF F2 — sprzatniecie flag/bomb poprzedniego meczu
+    ctfSystem = null;
+    ctfEnemyBarriers = []; // F3
+    ctfEnemyBuildings = null; // F3 perf
     farmFields = [];
     caravan = null;
     cityBillboards = []; // v0.52.0
@@ -1162,12 +1291,78 @@ async function startGame(config: GameConfig): Promise<void> {
         // FAZA A: generic pady (themed Arctic pady w pozniejszej fazie, jak Tropics T1).
         mediPads = ARCTIC_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
         powerPads = ARCTIC_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+    } else if (config.map === 'fortified_ruins') {
+        // ── FAZA CTF F1: Fortified Ruins (mapa scenariusza CTF) ──
+        // Layout deterministyczny, AABB-verified (scratchpad ctf_f1_aabb.js — 15 checkow PASS).
+        const ruinsTex = buildFortifiedRuinsTexture();
+        const ruinsSprite = new PIXI.Sprite(ruinsTex);
+        ruinsSprite.zIndex = -100;
+        worldContainer.addChild(ruinsSprite);
+
+        // Granica mapy: 4 AABB kolizji (wizual muru baked w teksture gruntu)
+        ruinsBorder = new RuinsBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...ruinsBorder.getCollisionRects());
+        solidBuildings.push(...ruinsBorder.getCollisionRects());
+
+        // Mury fortec (U-shape wokol flag) + 29 skal oslonowych — pelna kolizja
+        for (const wl of FORTIFIED_FORTRESS_WALLS) {
+            const block = new RuinBlock(wl.x, wl.y, wl.w, wl.h, wl.tone, wl.seed, wl.kind, worldContainer);
+            buildings.push(block);
+            solidBuildings.push(block);
+        }
+        for (const rk of FORTIFIED_ROCKS_LAYOUT) {
+            const block = new RuinBlock(rk.x, rk.y, rk.w, rk.h, rk.tone, rk.seed, rk.kind, worldContainer);
+            buildings.push(block);
+            solidBuildings.push(block);
+        }
+
+        // Jeziorka: blokuja czolgi (buildings), pociski przelatuja (BEZ solidBuildings).
+        // Update blikow wody idzie przez buildings.forEach — bez dedykowanej petli.
+        for (const lk of FORTIFIED_LAKES_LAYOUT) {
+            const lake = new RuinsLake(lk.x, lk.y, lk.w, lk.h, lk.seed, worldContainer);
+            buildings.push(lake);
+        }
+
+        // Fosa (slow 0.5x, passable) + zarosla (stealth) + hangar (strefa domowa, wizual)
+        // F3: most (x-pas) wyciety ze strefy slow — przejazd po deskach = pelna predkosc.
+        ruinsFosa = new RuinsFosa(
+            FORTIFIED_FOSA_RECT.x, FORTIFIED_FOSA_RECT.y,
+            FORTIFIED_FOSA_RECT.w, FORTIFIED_FOSA_RECT.h,
+            worldContainer,
+            { x: FORTIFIED_BRIDGE_RECT.x, w: FORTIFIED_BRIDGE_RECT.w },
+        );
+        ruinsBushes = FORTIFIED_BUSHES_LAYOUT.map(b =>
+            new RuinsBush(b.x, b.y, b.r, b.seed, worldContainer));
+        ruinsHangar = new RuinsHangar(worldContainer);
+        // F1.1: bryla wojskowego hangaru jest SOLID (czolgi + pociski)
+        buildings.push(...ruinsHangar.getCollisionRects());
+        solidBuildings.push(...ruinsHangar.getCollisionRects());
+
+        // F3 (playtest): strefa domowa (szachownica) kolizyjna dla WROGOW-only.
+        // 3 cienkie sciany (wschod/polnoc/poludnie) domykaja strefe; zachod = mur mapy.
+        // Trafiaja WYLACZNIE do ctfEnemyBarriers (NIE buildings/solidBuildings) — gracz
+        // wjezdza swobodnie z flaga, wrogowie sa zatrzymani na granicy.
+        const HR = FORTIFIED_HANGAR_RECT;
+        ctfEnemyBarriers = [
+            { x: HR.x + HR.w - 8, y: HR.y - 8, w: 12, h: HR.h + 16, update: () => {} }, // wschod
+            { x: HR.x, y: HR.y - 10, w: HR.w, h: 12, update: () => {} },                 // polnoc
+            { x: HR.x, y: HR.y + HR.h - 2, w: HR.w, h: 12, update: () => {} },           // poludnie
+        ];
+
+        // D6/F3: CTF ma serduszka (playtest: bez nich za trudno). Pady dalej off
+        // (heal glowny = dostawa flagi); serca spawnuja sie przez SpawnSystem.
+        mediPads = [];
+        powerPads = [];
     }
 
     effects = new EffectsManager(worldContainer);
     // v0.50.0 Difficulty Balance v1: SpawnSystem dostaje per-difficulty modifiers
     // (enemy HP/dmg/speed mults + spawn interval + max enemies + boss thresholds).
-    spawnSystem = new SpawnSystem(getDifficultyModifiers(config.difficulty));
+    // FAZA CTF F2 (D7): dla ctf tryb roamer-cap 10 (bossy/mega/hearty/magnesy off).
+    spawnSystem = new SpawnSystem(
+        getDifficultyModifiers(config.difficulty),
+        config.scenario === 'ctf' ? { roamerCap: 10 } : null,
+    );
     powerSystem = new PowerSystem(worldContainer);
 
     if (config.map === 'tropics') {
@@ -1195,20 +1390,61 @@ async function startGame(config: GameConfig): Promise<void> {
 
     player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
 
+    // FAZA CTF F1: spawn w hangarze (200,1500) — legacy 1:1. Player konstruktor
+    // ustawia (800,800); nadpisanie przed pierwsza klatka (container synce w update).
+    if (config.scenario === 'ctf') {
+        player.x = FORTIFIED_PLAYER_SPAWN.x;
+        player.y = FORTIFIED_PLAYER_SPAWN.y;
+    }
+
     enemies = [];
     bullets = [];
+    bulletPool = []; // POOLING: pula pociskow gracza (stare sprite'y znika removeChildren)
     enemyBullets = [];
+    enemyBulletPool = []; // POOLING: pula pociskow wroga (stare sprite'y znika removeChildren)
     hearts = [];
     gems = [];
+    gemPool = []; // POOLING: pula zyje w obrebie meczu (stare sprite'y znika removeChildren)
     magnets = [];
     powerCubes = []; // v0.44.0 FAZA 8.6 reset
     isMouseDown = false;
     gameState = 'PLAYING';
 
+    // Reset szczytow perf-overlay na nowy mecz (?perf=1).
+    perfWorstMs = 0; perfPeakEBul = 0; perfPeakBul = 0; perfPeakPart = 0; perfPeakKids = 0; perfPeakEnemies = 0;
+
     touchManager.show();
 
     if (touchManager.isActive) {
         tryLockLandscape();
+    }
+
+    // ── FAZA CTF F2: inicjalizacja rdzenia CTF (flagi, straznicy, bossy, roamerzy, gemy) ──
+    if (config.scenario === 'ctf' && effects && spawnSystem && currentSession && player) {
+        ctfSystem = new CtfSystem({
+            session: currentSession,
+            worldContainer,
+            enemies,
+            effects,
+            difficulty: getDifficultyModifiers(config.difficulty),
+            hudNotif: (text, cssColor) => hud.addNotif(text, cssColor),
+            onPickupSfx: () => audio.playMagnetPickup(),
+            onCaptureSfx: () => audio.playHeartPickup(),
+            onBombExplosionSfx: () => audio.playExplosion(),
+        });
+        ctfSystem.spawnInitialForces();
+        // F3 perf: zbuduj RAZ tablice kolizji wrogow (buildings statyczne w CTF po tym
+        // punkcie — spawnInitialForces dodaje tylko do enemies, nie do buildings).
+        ctfEnemyBuildings = ctfEnemyBarriers.length > 0
+            ? [...buildings, ...ctfEnemyBarriers]
+            : buildings;
+        // Legacy init 1:1: 10 roamerow + 12 gemow na starcie
+        enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings));
+        for (const e of enemies) attachEnemyCubeStolenCallback(e);
+        for (let i = 0; i < 12; i++) {
+            const pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
+            if (pos) spawnGem(pos.x, pos.y);
+        }
     }
 
     audio.startMusic(config.map);
@@ -1230,6 +1466,8 @@ interface EndScreenData {
     hearts: number;
     supers: number;
     tankImg: string;
+    /** FAZA CTF F2 — zdobyte flagi (null = scenariusz bez flag, tile heartow zostaje). */
+    ctfFlags: number | null;
 }
 
 /**
@@ -1353,8 +1591,12 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.hpCubesPicked > 0 ? `<span style="font-family:${SYS};font-size:0.74rem;font-weight:700;color:#fff;background:#2980b9;padding:4px 11px;border-radius:11px;white-space:nowrap;">🟦 +${d.hpCubesPicked * 25} ${t('end.hpBonus')}</span>` : ''}
         </div>` : '';
 
+    // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
+    const victoryBadgeText = d.ctfFlags !== null
+        ? `🚩 ${t('end.flags')}: ${d.ctfFlags}/3`
+        : `🏆 ${t('end.megaBoss')} — ${t('end.megaBossDefeated')}`;
     const victoryBadge = isVictory ? `
-        <div style="font-family:${TITAN};font-size:0.95rem;color:#fff;background:#27ae60;padding:6px 18px;border-radius:14px;border:2px solid #2c3e50;box-shadow:2px 2px 0 #2c3e50;margin-top:12px;">🏆 ${t('end.megaBoss')} — ${t('end.megaBossDefeated')}</div>` : '';
+        <div style="font-family:${TITAN};font-size:0.95rem;color:#fff;background:#27ae60;padding:6px 18px;border-radius:14px;border:2px solid #2c3e50;box-shadow:2px 2px 0 #2c3e50;margin-top:12px;">${victoryBadgeText}</div>` : '';
 
     // v0.50.0 fix — Hero zone rozni sie per outcome:
     //   - DEFEAT  = palacy sie czolg (smoke + flames) — istniejacy efekt
@@ -1478,7 +1720,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile('👑', d.bosses, t('end.bosses'))}
                         ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
                         ${statTile('🟦', d.cubesTotal, t('end.cubes'))}
-                        ${statTile('❤️', d.hearts, t('end.hearts'))}
+                        ${d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
                         ${statTile('💥', d.supers, t('end.supers'))}
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
                     </div>
@@ -1507,7 +1749,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                 ${chip('👑', d.bosses, t('end.bosses'))}
                 ${chip('🔥', `${d.maxCombo}x`, t('end.combo'))}
                 ${chip('🟦', d.cubesTotal, t('end.cubes'))}
-                ${chip('❤️', d.hearts, t('end.hearts'))}
+                ${d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
                 ${chip('💥', d.supers, t('end.supers'))}
                 ${chip('⏱️', `${d.seconds}s`, t('end.time'))}
             </div>
@@ -1546,12 +1788,17 @@ function fitEndTitleToButton(screenEl: HTMLElement): void {
 }
 
 async function triggerGameOver(): Promise<void> {
+    // FAZA CTF F2 — drop niesionej flagi przy smierci (legacy 1:1: IDLE @gracz + 10 s reset)
+    if (ctfSystem && player) ctfSystem.handlePlayerDeath(player.x, player.y);
     gameState = 'GAMEOVER';
     audio.playGameOver();
 
     touchManager.hide();
 
-    if (currentSession) {
+    if (currentSession && currentSession.config.scenario === 'ctf') {
+        // FAZA CTF F1 (D10): CTF MVP bez submitu do leaderboardu — endcard lokalny.
+        console.log('[Score] CTF: score submit skipped (local endcard only)');
+    } else if (currentSession) {
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config);
             console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
@@ -1576,6 +1823,7 @@ async function triggerGameOver(): Promise<void> {
         hearts: currentSession?.heartsHealed ?? 0,
         supers: currentSession?.superPowersUsed ?? 0,
         tankImg,
+        ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -1599,11 +1847,16 @@ async function triggerVictory(): Promise<void> {
             hud.addNotif(t('hud.perfectRun', { bonus: perfectRun.bonus }), '#f1c40f');
         }
 
-        try {
-            await scoreService.submitScore(currentSession.score, currentSession.config);
-            console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
-        } catch (e) {
-            console.warn('[Score] Submit failed:', e);
+        if (currentSession.config.scenario === 'ctf') {
+            // FAZA CTF F1 (D10): CTF MVP bez submitu do leaderboardu — endcard lokalny.
+            console.log('[Score] CTF: score submit skipped (local endcard only)');
+        } else {
+            try {
+                await scoreService.submitScore(currentSession.score, currentSession.config);
+                console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
+            } catch (e) {
+                console.warn('[Score] Submit failed:', e);
+            }
         }
     }
 
@@ -1623,6 +1876,7 @@ async function triggerVictory(): Promise<void> {
         hearts: currentSession?.heartsHealed ?? 0,
         supers: currentSession?.superPowersUsed ?? 0,
         tankImg,
+        ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -1632,6 +1886,52 @@ async function triggerVictory(): Promise<void> {
 }
 
 app.ticker.add((rawDelta) => {
+    // Perf sampling — mierzy REALNY czas klatki (przed early-returnami), akumuluje
+    // min/max/avg i co 20 klatek wypisuje wraz z licznikami obiektow.
+    if (PERF_ENABLED && perfEl) {
+        const nowT = performance.now();
+        perfCbStart = nowT; // DEV: start pomiaru czasu callbacku tej klatki
+        if (perfLastT > 0) {
+            const ms = nowT - perfLastT;
+            const fps = 1000 / ms;
+            perfSumMs += ms;
+            if (fps < perfMinFps) perfMinFps = fps;
+            if (fps > perfMaxFps) perfMaxFps = fps;
+            if (ms > perfWorstMs) perfWorstMs = ms;
+            const pcNow = effects ? effects.getPerfCounts() : { particles: 0, floatingTexts: 0, trackMarks: 0, poolParticles: 0 };
+            // Detektor dlugich klatek. Loguje kazdy hitch (>28ms) + ODSTEP od poprzedniego.
+            // Dziala tez w preview (prod build) — beacon leci gdy ?perf=1 (na GitHub Pages 404 = noop).
+            if (ms > 28) {
+                const iv = perfLastHitchT > 0 ? (nowT - perfLastHitchT) : 0;
+                perfLastHitchT = nowT;
+                try { navigator.sendBeacon(import.meta.env.BASE_URL + 'perf-log',
+                    `HITCH ${ms.toFixed(0)}ms  hud ${perfHudMs.toFixed(1)} cb ${perfCbMs.toFixed(1)}  interval ${iv.toFixed(0)}ms  enemies ${enemies.length} eBul ${enemyBullets.length} part ${pcNow.particles} kids ${worldContainer.children.length} state ${gameState}`); } catch { /* noop */ }
+            }
+            if (enemyBullets.length > perfPeakEBul) perfPeakEBul = enemyBullets.length;
+            if (bullets.length > perfPeakBul) perfPeakBul = bullets.length;
+            if (pcNow.particles > perfPeakPart) perfPeakPart = pcNow.particles;
+            if (worldContainer.children.length > perfPeakKids) perfPeakKids = worldContainer.children.length;
+            if (enemies.length > perfPeakEnemies) perfPeakEnemies = enemies.length;
+            perfFrames++;
+            if (perfFrames >= 20) {
+                const avg = 1000 / (perfSumMs / perfFrames);
+                const perfText =
+                    `FPS ${avg.toFixed(0)} (min ${perfMinFps.toFixed(0)} / max ${perfMaxFps.toFixed(0)})  worst ${perfWorstMs.toFixed(0)}ms\n` +
+                    `NOW: enemies ${enemies.length}  eBul ${enemyBullets.length}  part ${pcNow.particles}  kids ${worldContainer.children.length}\n` +
+                    `PEAK: enemies ${perfPeakEnemies}  eBul ${perfPeakEBul}  bul ${perfPeakBul}\n` +
+                    `PEAK: part ${perfPeakPart}  kids ${perfPeakKids}  (poolPart ${pcNow.poolParticles})`;
+                perfEl.textContent = perfText;
+                // Przeslij te sama linijke do serwera (czyta Claude Code). Dziala w dev i preview.
+                // sendBeacon = fire-and-forget, nie blokuje klatki. Tylko gdy ?perf=1.
+                {
+                    try { navigator.sendBeacon(import.meta.env.BASE_URL + 'perf-log', perfText); } catch { /* noop */ }
+                }
+                perfFrames = 0; perfSumMs = 0; perfMinFps = 9999; perfMaxFps = 0;
+            }
+        }
+        perfLastT = nowT;
+    }
+
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
 
     // === v0.45.0 FAZA 8.7: HIT-STOP ===
@@ -1705,7 +2005,18 @@ app.ticker.add((rawDelta) => {
         }
     }
     for (const pk of parkings) pk.update(player.x, player.y); // v0.60.0 — puls diod + alarm na najechanie
-    player.speedModifier = (playerInQuicksand || playerInSludge) ? 0.5 : 1.0;
+    // FAZA CTF F1 — fosa: slow 0.5x jak quicksand/sludge (passable)
+    let playerInFosa = false;
+    if (ruinsFosa) {
+        ruinsFosa.update();
+        if (ruinsFosa.isPointInside(player.x, player.y)) {
+            playerInFosa = true;
+        }
+    }
+    // FAZA CTF F2 — carry penalty (x0.90/0.85/0.80 wg eskalacji) MULTIPLIKATYWNIE
+    // ze slow-zone (fosa z flaga = 0.5 * carry) — legacy 1536 1:1.
+    const ctfCarryMult = ctfSystem ? ctfSystem.getCarrySpeedMult() : 1.0;
+    player.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa) ? 0.5 : 1.0) * ctfCarryMult;
     
     groundClutter?.update(); // v0.60.0 — para z 1-2 studzienek
     
@@ -1718,6 +2029,9 @@ app.ticker.add((rawDelta) => {
             for (const sp of sludgePools) {
                 if (sp.isPointInside(enemy.x, enemy.y)) { enemyInSlow = true; break; }
             }
+        }
+        if (!enemyInSlow && ruinsFosa && ruinsFosa.isPointInside(enemy.x, enemy.y)) {
+            enemyInSlow = true; // FAZA CTF F1 — fosa spowalnia tez wrogow (fair play)
         }
         enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
     }
@@ -1740,6 +2054,15 @@ app.ticker.add((rawDelta) => {
         }
     }
 
+    // FAZA CTF F1 — zarosla (stealth kola, wzorzec oasis)
+    let playerInRuinsBush = false;
+    for (const rb of ruinsBushes) {
+        rb.update();
+        if (rb.isPointInside(player.x, player.y)) {
+            playerInRuinsBush = true;
+        }
+    }
+
     let playerInCornField = false;
     let playerInSugarcaneField = false;
     for (const ff of farmFields) {
@@ -1753,8 +2076,8 @@ app.ticker.add((rawDelta) => {
     const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
 
     const nowMs = Date.now();
-    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation;
-    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame;
+    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush;
+    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame;
 
     if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
@@ -1769,6 +2092,8 @@ app.ticker.add((rawDelta) => {
             hud.addNotif(t('hud.stealthCorn'), '#d4b830');
 } else if (playerInNeonStation) {
             hud.addNotif(t('hud.stealthNeon'), '#6ad8ff');
+        } else if (playerInRuinsBush) {
+            hud.addNotif(t('hud.stealthBush'), '#76ab63'); // FAZA CTF F1
         } else {
             hud.addNotif(t('hud.stealthOasis'), '#a8c878');
         }
@@ -1789,6 +2114,7 @@ app.ticker.add((rawDelta) => {
     wasInOasisLastFrame = playerInOasis;
     wasInCornLastFrame = playerInFarmStealth;
     wasInNeonLastFrame = playerInNeonStation; // v0.60.0
+    wasInRuinsBushLastFrame = playerInRuinsBush; // FAZA CTF F1
     wasStealthActiveLastFrame = isStealthActive;
     // v0.50.1: catch-all reset flag stealthBrokenByShot gdy stealth nieaktywne.
     // Pokrywa edge case: gracz strzelil ze strefy ale wyszedl ZARAZ -> flag bez reset
@@ -1797,12 +2123,23 @@ app.ticker.add((rawDelta) => {
         stealthBrokenByShot = false;
     }
 
+    // FAZA CTF F2 — rdzen CTF. Po bloku stealth (enemy.playerStealthed swieze),
+    // przed petla enemies (stany guardow ustawione w TEJ klatce).
+    if (ctfSystem) {
+        const ctfResult = ctfSystem.update(delta, player, powerSystem.isInvulnerable);
+        if (ctfResult.victory) { triggerVictory(); return; }
+        if (ctfResult.playerDied) { triggerGameOver(); return; }
+    }
+
     if (river) river.update();
     if (waterLife) waterLife.update();
     if (sandstormBorder) sandstormBorder.update();
     if (tropicalBorder) tropicalBorder.update();
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     if (glacialBorder) glacialBorder.update(); // FAZA A (Arctic)
+    if (ruinsBorder) ruinsBorder.update();     // FAZA CTF F1 (no-op, spojnosc interfejsu)
+    // FAZA CTF F3 — beacon dostawy: dramatyczny tryb gdy gracz niesie flage
+    if (ruinsHangar) ruinsHangar.update(ctfSystem ? ctfSystem.getCarriedFlag() !== null : false);
     // v0.52.0: cyberpunk billboards (pulse + content rotation + flicker + parallax)
     for (const bb of cityBillboards) bb.update(delta, camera.x, camera.y, viewW, viewH);
     // v0.52.0 phase 2: sludge reactors — proximity excited state + bullet hit detection
@@ -1864,7 +2201,7 @@ app.ticker.add((rawDelta) => {
         const drop = caravan.update(delta);
         if (drop) {
             if (drop.type === 'gem') {
-                gems.push(new Gem(drop.x, drop.y, worldContainer));
+                spawnGem(drop.x, drop.y);
                 hud.addNotif(t('hud.caravanGem'), '#d97e3a');
             } else if (drop.type === 'heart') {
                 hearts.push(new Heart(drop.x, drop.y, worldContainer));
@@ -1935,7 +2272,7 @@ app.ticker.add((rawDelta) => {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
         g.update(delta, player.x, player.y);
-        if (!g.active) { gems.splice(i, 1); continue; }
+        if (!g.active) { gems.splice(i, 1); gemPool.push(g); continue; } // POOLING: zwrot do puli
         const dx = player.x - g.x, dy = player.y - g.y;
         if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
             if (g.pickup(effects)) {
@@ -1953,6 +2290,7 @@ app.ticker.add((rawDelta) => {
                 }
 
                 gems.splice(i, 1);
+                gemPool.push(g); // POOLING: zwrot do puli po zebraniu
             }
         }
     }
@@ -2050,7 +2388,7 @@ app.ticker.add((rawDelta) => {
         const shotProfile = superProfile || normalProfile;
         const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(player.brawler, isSuperShot);
         for (const off of volleyOffsets) {
-            const b = new Bullet(sX, sY, angle + off, player.brawler, worldContainer, isSuperShot, shotProfile?.dmg);
+            const b = acquireBullet(sX, sY, angle + off, isSuperShot, shotProfile?.dmg); // POOLING
             b.dmg = Math.round(b.dmg * dmgMultiplier);
             if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
             bullets.push(b);
@@ -2066,13 +2404,22 @@ app.ticker.add((rawDelta) => {
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects, bulletCtx);
-        if (!b.active) bullets.splice(i, 1);
+        if (!b.active) { bullets.splice(i, 1); bulletPool.push(b); } // POOLING: zwrot do puli
     }
 
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         eb.update(delta, solidBuildings, effects);
-        if (!eb.active) { enemyBullets.splice(i, 1); continue; }
+        if (!eb.active) { enemyBullets.splice(i, 1); enemyBulletPool.push(eb); continue; } // POOLING
+        // FAZA CTF F2 — strefa domowa: pociski wroga gina na x<450 (legacy 4456 1:1).
+        // F3 (playtest): + "swiete altary" — pociski gina takze w kieszeni flagi
+        // (100 px), zeby boss nie zestrzeliwal gracza podczas podnoszenia flagi.
+        if (ctfSystem && (eb.x < 450 || ctfSystem.isInFlagSafePocket(eb.x, eb.y))) {
+            eb.deactivate();
+            enemyBullets.splice(i, 1);
+            enemyBulletPool.push(eb); // POOLING
+            continue;
+        }
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {
             const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable);
@@ -2086,8 +2433,9 @@ app.ticker.add((rawDelta) => {
                 // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
                 currentSession.markDamageTaken();
             }
-            eb.destroy();
+            eb.deactivate();
             enemyBullets.splice(i, 1);
+            enemyBulletPool.push(eb); // POOLING
             if (playerDied) { triggerGameOver(); return; }
         }
     }
@@ -2107,9 +2455,13 @@ app.ticker.add((rawDelta) => {
         crate.update(0, 0, 0, 0);
     }
 
+    // F3 — wrogowie (roamerzy + straznicy) koliduja z bariera strefy domowej;
+    // gracz uzywa czystego `buildings`, wiec wjezdza do bazy z flaga swobodnie.
+    // F3 perf: tablica PRECOMPUTED w startGame (zero alokacji per-klatka).
+    const enemyBuildings = ctfEnemyBuildings ?? buildings;
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-        const shotInfo = enemy.update(delta, player.x, player.y, buildings, powerCubes);
+        const shotInfo = enemy.update(delta, player.x, player.y, enemyBuildings, powerCubes);
         if (shotInfo) spawnEnemyShot(shotInfo);
 
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
@@ -2167,8 +2519,9 @@ app.ticker.add((rawDelta) => {
                 if (isBoomerang) {
                     b.hitEnemies.add(enemy);
                 } else {
-                    b.destroy();
+                    b.deactivate();
                     bullets.splice(j, 1);
+                    bulletPool.push(b); // POOLING: zwrot do puli po trafieniu
                 }
                 audio.playHit('enemy');
 
@@ -2251,5 +2604,39 @@ app.ticker.add((rawDelta) => {
     // v0.68.0: sortableChildren=false (auto-sort OFF) + manual sort CO KLATKE = 1 sort/frame
     // (oryginal robil 2: auto+manual). Poprawna glebokosc co klatke => zero migotania, taniej niz oryginal.
     worldContainer.sortChildren();
-    hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+
+    // FAZA CTF F3 — dane CTF dla HUD (panel flag + carry banner + edge arrows).
+    // Edge arrows to WARUNEK grywalnosci przy zoom 0.6 (flagi 2200-2700 px od siebie).
+    // F3 perf: MUTUJEMY staly obiekt (ctfHudInfo) zamiast alokowac nowy + .map co klatke
+    // (poprzednio: obiekt + tablica + 3 obiekty na klatke => skoki GC = szarpanie mobile).
+    if (ctfSystem && currentSession.ctf) {
+        const carried = ctfSystem.getCarriedFlag();
+        const sysFlags = ctfSystem.flags;
+        for (let fi = 0; fi < sysFlags.length; fi++) {
+            const f = sysFlags[fi];
+            const slot = ctfHudInfo.flags[fi];
+            slot.x = f.x; slot.y = f.y; slot.color = f.color; slot.state = f.state; slot.name = f.name;
+        }
+        ctfHudInfo.hangarX = ctfSystem.hangarRect.x + ctfSystem.hangarRect.w / 2;
+        ctfHudInfo.hangarY = ctfSystem.hangarRect.y + ctfSystem.hangarRect.h / 2;
+        ctfHudInfo.carrying = carried !== null;
+        ctfHudInfo.carryColor = carried ? carried.color : 0xf1c40f;
+        ctfHudInfo.flagsCaptured = currentSession.ctf.flagsCaptured;
+        ctfHudInfo.cameraX = camera.x;
+        ctfHudInfo.cameraY = camera.y;
+        ctfHudInfo.zoom = ZOOM;
+        hud.ctfInfo = ctfHudInfo;
+    } else {
+        hud.ctfInfo = null;
+    }
+
+    // DEV-ONLY: mikro-profiler — czas hud.render() + calego callbacku (do rozbicia hitcha).
+    if (PERF_ENABLED) {
+        const _hudT = performance.now();
+        hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+        perfHudMs = performance.now() - _hudT;
+        perfCbMs = performance.now() - perfCbStart;
+    } else {
+        hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+    }
 });

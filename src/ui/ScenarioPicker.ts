@@ -229,10 +229,10 @@ export class ScenarioPicker implements IScreen {
         } else {
             // CTF / Castle / STK — fixed map, hide section
             this.hideMapSection();
-            // Auto-select fixed map (cast as MapId — w obecnej fazie tylko KTB ma faktyczna playable mapa,
-            // CTF/Castle uzywaja external HTML files → FAZA 6.5+ refactor)
-            // Na razie zapisujemy 'desert' jako placeholder dla CTF/Castle (FAZA 6.5 podmieni na fortified_ruins itd.)
-            this.selectedMap = 'desert'; // TEMP placeholder dla CTF/Castle
+            // FAZA CTF F1: fixed map z configu (ctf -> 'fortified_ruins'). Cast bezpieczny:
+            // ta galaz jest osiagalna tylko dla available scenariuszy, a te maja fixedMapId
+            // bedace playable MapId (castle jest locked -> early return wyzej).
+            this.selectedMap = scenario.fixedMapId as MapId;
         }
 
         this.updateNextButton();
@@ -313,6 +313,11 @@ export class ScenarioPicker implements IScreen {
             if (card && !card.classList.contains('is-locked')) {
                 card.classList.add('is-selected');
                 const scenario = SCENARIO_CONFIGS[this.selectedScenario];
+                // FAZA CTF F1: przy restore wymus mape z fixedMapId (stan z poprzedniej
+                // sesji mogl zapisac placeholder 'desert' sprzed odblokowania CTF).
+                if (scenario.fixedMapId !== null) {
+                    this.selectedMap = scenario.fixedMapId as MapId;
+                }
                 if (scenario.fixedMapId === null) {
                     // KTB — show map section immediately (no animation on restore)
                     const section = this.el?.querySelector<HTMLElement>('[data-role="map-section"]');

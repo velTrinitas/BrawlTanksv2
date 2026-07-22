@@ -127,11 +127,25 @@ export class EffectsManager {
     /** v0.5 Etap 1: public access needed by spawnMegaBomb / spawnFreezeOverlay */
     public worldContainer: PIXI.Container;
 
+    // PERF: sufit aktywnych czastek (fill-rate mobile). 200 = pelne wizualnie
+    // eksplozje, ale bounded overdraw (vs zaobserwowane 525 -> FPS 17).
+    private static readonly MAX_PARTICLES = 200;
+    private particleRecycleIdx = 0;
+
     // Pools
     private particles: Particle[] = [];
     private trackMarks: TrackMark[] = [];
     private wrecks: Wreck[] = [];
     private floatingTexts: FloatingTextItem[] = [];
+
+    /** Diagnostyka (?perf=1) — liczniki aktywnych obiektow puli. */
+    public getPerfCounts(): { particles: number; floatingTexts: number; trackMarks: number; poolParticles: number } {
+        let p = 0, ft = 0, tm = 0;
+        for (const x of this.particles) if (x.active) p++;
+        for (const x of this.floatingTexts) if (x.active) ft++;
+        for (const x of this.trackMarks) if (x.active) tm++;
+        return { particles: p, floatingTexts: ft, trackMarks: tm, poolParticles: this.particles.length };
+    }
 
     // Screen shake state
     private shakeIntensity: number = 0;
@@ -176,6 +190,19 @@ export class EffectsManager {
                 p.sprite.visible = true;
                 return p;
             }
+        }
+        // PERF (v0.73.4): TWARDY LIMIT aktywnych czastek. Playtest CTF wykazal
+        // szczyt 525 czastek (pool 556) -> FPS 57->17 na mobile. 525 miekkich
+        // (alpha-gradient) sprite'ow nachodzacych na siebie = zabojczy OVERDRAW
+        // (fill-rate — patrz mobile-first.md). Po osiagnieciu capa recyklujemy
+        // najstarsza czastke round-robin (O(1), zero wzrostu puli, zero alokacji).
+        // Wizualnie niezauwazalne w ferworze walki, a koszt renderu ograniczony.
+        if (this.particles.length >= EffectsManager.MAX_PARTICLES) {
+            const p = this.particles[this.particleRecycleIdx];
+            this.particleRecycleIdx = (this.particleRecycleIdx + 1) % this.particles.length;
+            p.active = true;
+            p.sprite.visible = true;
+            return p;
         }
         const sprite = new PIXI.Sprite(getParticleTexture());
         sprite.anchor.set(0.5);
@@ -550,11 +577,22 @@ export class EffectsManager {
      * realne wagi + jest waski/czytelny dla cyfr.
      */
     spawnFloatingText(x: number, y: number, text: string, color: number): void {
-        // Reuse z poolu jeśli możliwe
+        // Reuse z poolu jeśli możliwe + policz aktywne (perf guard ponizej).
         let item: FloatingTextItem | null = null;
+        let activeCount = 0;
         for (const ft of this.floatingTexts) {
-            if (!ft.active) { item = ft; break; }
+            if (ft.active) { activeCount++; }
+            else if (!item) { item = ft; }
         }
+
+        // PERF (v0.73.3): twardy limit aktywnych floating textow. Bez tego ciagly
+        // ostrzal w gesty klaster (np. flagi CTF: 3 bossy + 6 straznikow) mnozyl
+        // damage numbers w nieskonczonosc — a KAZDY nowy PIXI.Text to rasteryzacja
+        // canvas + upload tekstury (najdrozsza operacja Pixi) => szarpanie.
+        // Przy przekroczeniu limitu po prostu POMIJAMY liczbe (eye-candy, nie logika;
+        // niezauwazalne w ferworze walki, a bounduje koszt rasteryzacji i GC).
+        const MAX_ACTIVE_FLOATING_TEXTS = 20;
+        if (activeCount >= MAX_ACTIVE_FLOATING_TEXTS) return;
 
         if (!item) {
             // Stwórz nowy

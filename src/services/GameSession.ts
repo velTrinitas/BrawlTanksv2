@@ -190,9 +190,30 @@ export interface ScoreBreakdown {
     total: number;
 }
 
+/**
+ * FAZA CTF F2 — stan runtime scenariusza CTF (zyje w GameSession, nie w
+ * globalach main.ts — architektura 3 warstw). Tworzone TYLKO gdy
+ * config.scenario === 'ctf'.
+ */
+export interface CtfSessionState {
+    /** Ile flag dostarczono (0-3). 3 => victory. */
+    flagsCaptured: number;
+    /** esc = min(2, flagsCaptured) — steruje detRadius/fireRate/bombami/carry penalty. */
+    escalation: number;
+    /** Id niesionej flagi (0/1/2) lub null. */
+    carryingFlagId: number | null;
+    /** Timestampy respawnu bossow per flaga (0 = boss zyje / brak timera). */
+    bossRespawnAt: number[];
+    /** Timestamp startu niesienia (na przyszle staty/telegraph F3). */
+    startedCarryAt: number | null;
+}
+
 export class GameSession {
     /** Immutable game configuration (frozen przez GameConfigBuilder). */
     public readonly config: GameConfig;
+
+    /** FAZA CTF F2 — stan CTF (null poza scenariuszem ctf). */
+    public ctf: CtfSessionState | null = null;
 
     /**
      * Akumulowany score (computed: subtotal * difficulty multiplier).
@@ -303,6 +324,15 @@ export class GameSession {
     constructor(config: GameConfig) {
         this.config = config;
         this.startTime = config.timestamp;
+        if (config.scenario === 'ctf') {
+            this.ctf = {
+                flagsCaptured: 0,
+                escalation: 0,
+                carryingFlagId: null,
+                bossRespawnAt: [0, 0, 0],
+                startedCarryAt: null,
+            };
+        }
     }
 
     /** Czas trwania sesji w sekundach (do wyswietlania w endcard). */

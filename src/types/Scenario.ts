@@ -60,12 +60,10 @@ export const SCENARIO_CONFIGS: Record<ScenarioId, ScenarioConfig> = {
         descKey: 'scenario.ctf.desc',
         emoji: '🚩',
         color: '#3498db',
-        // v0.20.2-fix2: locked - main.ts nie obsluguje jeszcze map 'fortified_ruins'.
-        // Implementacja w FAZA 9+ (port mechaniki z ctf.html lub modularny rewrite).
-        available: false,
-        comingSoonKey: 'common.locked',
+        // FAZA CTF F1: unlocked — mapa 'fortified_ruins' zintegrowana modularnie
+        // (legacy ctf.html bridge usuniety). Mechanika CTF wchodzi w F2.
+        available: true,
         fixedMapId: 'fortified_ruins',
-        externalFile: 'ctf.html',
     },
     castle: {
         id: 'castle',

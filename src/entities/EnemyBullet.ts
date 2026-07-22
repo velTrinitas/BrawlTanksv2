@@ -21,21 +21,25 @@ import {
  * zorientowac sprite (spin: 'none' kula enemy_basic / 'dir' elipsa boss_shell+mega_shell).
  */
 export class EnemyBullet {
-    public x: number;
-    public y: number;
-    public active: boolean;
-    public distance: number;
-    public dmg: number;
-    public speed: number;
-    public radius: number;
-    public vx: number;
-    public vy: number;
-    public gfx!: PIXI.Graphics; // flat path display object (undefined w trybie bake)
+    public x: number = 0;
+    public y: number = 0;
+    public active: boolean = true;
+    public distance: number = 0;
+    public dmg: number = 0;
+    public speed: number = 0;
+    public radius: number = 5;
+    public vx: number = 0;
+    public vy: number = 0;
+    public gfx: PIXI.Graphics | null = null; // flat path display object (null w trybie bake)
 
     // FAZA P4 Sprite Baker
     private bakerActive: boolean = false;
     private sprite: PIXI.Sprite | null = null; // bake path display object
     private spinMode: 'dir' | 'none' = 'none';
+
+    // POOLING (v0.73.6) — kontener trzymany, by reset() mogl leniwie dotworzyc
+    // brakujacy display object (gdy pooled pocisk zmienia tryb baked<->flat).
+    private worldContainer: PIXI.Container;
 
     constructor(
         x: number, y: number, angle: number,
@@ -43,12 +47,30 @@ export class EnemyBullet {
         worldContainer: PIXI.Container,
         bulletType: EnemyBulletType | null = null,
     ) {
+        this.worldContainer = worldContainer;
+        // Jedno zrodlo konfiguracji: reset() ustawia CALY stan runtime + display.
+        this.reset(x, y, angle, speed, dmg, color, bulletType);
+    }
+
+    /**
+     * POOLING: rekonfiguracja instancji na nowy strzal (reuzycie z puli).
+     * Obsluguje OBIE sciezki renderu bit-for-bit jak konstruktor sprzed poolingu:
+     *  - baked (2.5D): PIXI.Sprite z upieczona tekstura per typ + spin,
+     *  - flat: kolko z obrysem w kolorze pocisku.
+     * Display object jest reuzywany (sprite: swap tekstury; gfx: redraw); tworzony
+     * leniwie tylko gdy pooled pocisk przechodzi z jednego trybu w drugi (rzadkie —
+     * dany typ wroga zawsze strzela tym samym typem pocisku).
+     */
+    reset(
+        x: number, y: number, angle: number,
+        speed: number, dmg: number, color: number,
+        bulletType: EnemyBulletType | null,
+    ): void {
         this.x = x; this.y = y;
         this.active = true;
         this.distance = 0;
         this.dmg = dmg;
         this.speed = speed;
-        this.radius = 5;
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
 
@@ -57,22 +79,30 @@ export class EnemyBullet {
 
         if (this.bakerActive && bulletType) {
             // 2.5D: PIXI.Sprite z labowa tekstura. Orientacja wg trybu spin.
-            this.sprite = new PIXI.Sprite(EnemyBulletSpriteBaker.getTexture(bulletType));
-            this.sprite.anchor.set(0.5);
-            this.sprite.scale.set(ENEMY_BULLET_DISPLAY_SCALE);
-
+            if (!this.sprite) {
+                this.sprite = new PIXI.Sprite(EnemyBulletSpriteBaker.getTexture(bulletType));
+                this.sprite.anchor.set(0.5);
+                this.sprite.scale.set(ENEMY_BULLET_DISPLAY_SCALE);
+                this.worldContainer.addChild(this.sprite);
+            } else {
+                this.sprite.texture = EnemyBulletSpriteBaker.getTexture(bulletType);
+            }
             this.spinMode = EnemyBulletSpriteBaker.getSpin(bulletType).mode;
             // 'dir' = elipsa zorientowana wzdluz lotu (pocisk leci prosto -> ustawiamy raz).
             // 'none' = kula rotacyjnie symetryczna (bez rotacji).
-            if (this.spinMode === 'dir') this.sprite.rotation = angle;
-
+            this.sprite.rotation = this.spinMode === 'dir' ? angle : 0;
             this.sprite.x = this.x;
             this.sprite.y = this.y;
             this.sprite.zIndex = this.y + 10;
-            worldContainer.addChild(this.sprite);
+            this.sprite.visible = true;
+            if (this.gfx) this.gfx.visible = false; // ukryj tryb flat, gdy uzywamy baked
         } else {
             // ── FLAT PATH (bit-for-bit jak dotad) ──
-            this.gfx = new PIXI.Graphics();
+            if (!this.gfx) {
+                this.gfx = new PIXI.Graphics();
+                this.worldContainer.addChild(this.gfx);
+            }
+            this.gfx.clear();
             this.gfx.beginFill(color);
             this.gfx.drawCircle(0, 0, this.radius);
             this.gfx.endFill();
@@ -82,7 +112,8 @@ export class EnemyBullet {
             this.gfx.x = this.x;
             this.gfx.y = this.y;
             this.gfx.zIndex = this.y + 10;
-            worldContainer.addChild(this.gfx);
+            this.gfx.visible = true;
+            if (this.sprite) this.sprite.visible = false; // ukryj tryb baked, gdy uzywamy flat
         }
     }
 
@@ -96,40 +127,51 @@ export class EnemyBullet {
         for (const b of buildings) {
             if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
                 effects.spawnWallImpact(this.x, this.y);
-                this.destroy();
+                this.deactivate();
                 return;
             }
         }
 
-        // Display object update (bake = sprite; flat = gfx). 'dir'/'none' ustawione w konstruktorze
+        // Display object update (bake = sprite; flat = gfx). 'dir'/'none' ustawione w reset()
         // (lot prosty), wiec tu tylko pozycja + zIndex.
         if (this.bakerActive && this.sprite) {
             this.sprite.x = this.x;
             this.sprite.y = this.y;
             this.sprite.zIndex = this.y + 10;
-        } else {
+        } else if (this.gfx) {
             this.gfx.x = this.x;
             this.gfx.y = this.y;
             this.gfx.zIndex = this.y + 10;
         }
 
         this.distance += this.speed * delta;
-        if (this.distance > 900) this.destroy();
+        if (this.distance > 900) this.deactivate();
     }
 
+    /**
+     * POOLING (v0.73.6): "wlozenie do pudelka" — chowamy display object zamiast
+     * niszczyc. Sprite/gfx ZOSTAJA w kontenerze (visible=false), gotowe do reset().
+     * NIE niszczymy tekstury (wspoldzielona/cache). Teardown miedzy meczami =
+     * worldContainer.removeChildren() + wyzerowanie puli w startGame.
+     */
+    deactivate(): void {
+        this.active = false;
+        if (this.sprite) this.sprite.visible = false;
+        if (this.gfx) this.gfx.visible = false;
+    }
+
+    /** Pelne zniszczenie (nieuzywane w hot-path po poolingu; zostaje dla teardownu). */
     destroy(): void {
         this.active = false;
-        if (this.bakerActive) {
-            if (this.sprite) {
-                if (this.sprite.parent) this.sprite.parent.removeChild(this.sprite);
-                this.sprite.destroy(); // tekstura cached/shared w bakerze -> NIE niszczymy tekstury
-                this.sprite = null;
-            }
-        } else {
-            if (this.gfx.parent) {
-                this.gfx.parent.removeChild(this.gfx);
-            }
+        if (this.sprite) {
+            if (this.sprite.parent) this.sprite.parent.removeChild(this.sprite);
+            this.sprite.destroy();
+            this.sprite = null;
+        }
+        if (this.gfx) {
+            if (this.gfx.parent) this.gfx.parent.removeChild(this.gfx);
             this.gfx.destroy();
+            this.gfx = null;
         }
     }
 }

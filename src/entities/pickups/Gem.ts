@@ -159,16 +159,52 @@ export class Gem {
             this.sprite.alpha = blink;
         }
         
-        if (age > PICKUP_CONFIG.gemLifetimeMs) this.destroy();
+        if (age > PICKUP_CONFIG.gemLifetimeMs) this.deactivate();
     }
-    
+
     pickup(effects: EffectsManager): boolean {
         if (!this.active) return false;
         effects.spawnEnemyHitSparks(this.x, this.baseY, 0x2ecc71);
-        this.destroy();
+        this.deactivate();
         return true;
     }
-    
+
+    /**
+     * POOLING (v0.73.5): reuzycie instancji zamiast tworzenia nowej.
+     * Odtwarza DOKLADNIE stan runtime z konstruktora (ten sam jitter/scale/rotacja/
+     * lewitacja/magnes) — zero roznicy wizualnej vs new Gem. Sprite juz istnieje
+     * i jest w kontenerze (ukryty), wiec tylko go pokazujemy i repozycjonujemy.
+     */
+    reset(x: number, y: number): void {
+        this.x = x + (Math.random() - 0.5) * 30;
+        this.y = y + (Math.random() - 0.5) * 30;
+        this.baseY = this.y;
+        this.active = true;
+        this.bornAt = Date.now();
+        this.attracted = false;
+        this.vx = 0;
+        this.vy = 0;
+        this.sprite.rotation = 0;
+        this.sprite.alpha = 1;
+        this.sprite.scale.set(BASE_SCALE);
+        this.sprite.x = this.x;
+        this.sprite.y = this.y;
+        this.sprite.zIndex = this.y + 3;
+        this.sprite.visible = true;
+    }
+
+    /**
+     * POOLING: "wlozenie kubka do pudelka" — chowamy sprite zamiast niszczyc.
+     * Sprite ZOSTAJE w kontenerze (visible=false), gotowy do reset(). NIE niszczymy
+     * tekstury (wspoldzielona/cache). Zniszczenie sceny miedzy meczami zalatwia
+     * worldContainer.removeChildren() + wyzerowanie puli w startGame.
+     */
+    deactivate(): void {
+        this.active = false;
+        this.sprite.visible = false;
+    }
+
+    /** Pelne zniszczenie (nieuzywane w hot-path po poolingu; zostaje dla teardownu). */
     destroy(): void {
         this.active = false;
         if (this.sprite.parent) this.sprite.parent.removeChild(this.sprite);

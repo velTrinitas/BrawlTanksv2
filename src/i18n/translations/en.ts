@@ -258,6 +258,15 @@ export const en: typeof pl = {
     'hud.stealthCorn':      '🌾 HIDDEN IN CORN (10s)!',
     'hud.stealthOasis':     '🌴 INVISIBLE (10s)!',
     'hud.stealthNeon': 'CRYO-CLOAK! Fog hides your tank',
+    'hud.stealthBush':      '🌿 HIDDEN IN THE BUSHES (10s)!',
+
+    // CTF (FAZA CTF F2)
+    'ctf.flagPickup':     '🚩 FLAG {name} TAKEN! RETURN TO BASE!',
+    'ctf.flagCaptured':   '✅ FLAG {name} CAPTURED!',
+    'ctf.bossRespawn':    '⚠️ BOSS RESPAWN!',
+    'ctf.enemiesEnraged': '⚔️ ENEMIES ENRAGED!',
+    'ctf.carryBanner':    '🚩 RETURN TO BASE!',
+    'end.flags':          'Flags',
     'hud.stealthSpotted':   '👁️ YOU HAVE BEEN SPOTTED!',
     'hud.shotRevealed':     '🔫 SHOT REVEALED YOUR POSITION!',
 

@@ -112,6 +112,56 @@ export const ENEMY_PURSUIT: EnemyConfig = {
 };
 
 /**
+ * FAZA CTF F2 — straznik flagi (guard).
+ *
+ * Rola: orbituje wokol swojej flagi (PATROL), goni gracza w detRadius (CHASE),
+ * sciga zlodzieja flagi (ALERT). Ruch NIE uzywa speedMin/speedMax — predkosc
+ * liczona per klatke w CtfSystem wg formuly D2: (2.2 + esc*0.4) * (ALERT? 1.25)
+ * * (esc>=2? 1.20) * difficultySpeedMult. speedMin/Max = 2.2 zostawione dla
+ * spojnosci typu (Enemy konstruktor je losuje, guard branch ich nie czyta).
+ * Statsy bojowe = ENEMY_NORMAL scale (D1). Tint pomaranczowy — w bake mode
+ * tint nie dziala, wiec identyfikacje strażnika daje kolorowy badge flagi
+ * (rysowany w Enemy dla guard configu).
+ */
+export const ENEMY_GUARD: EnemyConfig = {
+    hp: 300,
+    speedMin: 2.2,
+    speedMax: 2.2,
+    scale: 1.0,
+    tint: 0xe67e22,
+    dmg: 200,
+    shootIntervalMs: 2200,  // baza; realny fire rate per klatke: 2200 - esc*300 (CtfSystem)
+    bulletSpeed: 8,
+    bulletDmg: 100,
+    bulletColor: 0xffa040,
+    scoreValue: 2,          // guard liczy sie jak regular kill (legacy 1:1)
+};
+
+/**
+ * FAZA CTF F2 — super-boss pilnujacy flagi (3 sztuki, po jednym na flage).
+ *
+ * Legacy: normalne AI poscigu (isGuard=false), triple-spread (burst 3 w Enemy
+ * dla isBoss), cooldown 800 ms, strzal dopiero z dist<400 (shootRangeOverride
+ * w Enemy). Respawn 60 s po smierci na pozycji spawnu (D3). Tint 0x8e44ad.
+ */
+export const ENEMY_CTF_BOSS: EnemyConfig = {
+    hp: 3000,
+    speedMin: 1.0,
+    speedMax: 1.8,
+    scale: 1.45,
+    tint: 0x8e44ad,
+    dmg: 300,
+    shootIntervalMs: 800,   // legacy CTF: cd 800 ms (agresywniejszy niz KTB boss)
+    bulletSpeed: 7,
+    bulletDmg: 200,
+    bulletColor: 0xc78fff,
+    scoreValue: 20,
+};
+
+/** FAZA CTF F2 — zasieg strzalu super-bossa CTF (legacy: dist<400). */
+export const CTF_BOSS_SHOOT_RANGE = 400;
+
+/**
  * Heart pickup config.
  * v0.46.0: healAmount x100 (spojne z Heart.ts instance value).
  */

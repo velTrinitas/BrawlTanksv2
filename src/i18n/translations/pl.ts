@@ -273,6 +273,15 @@ export const pl = {
     'hud.stealthCorn':      '🌾 UKRYTY W KUKURYDZY (10s)!',
     'hud.stealthOasis':     '🌴 NIEWIDZIALNY (10s)!',
     'hud.stealthNeon': 'KRIO-KAMUFLAŻ! Mgła ukryła Twój czołg',
+    'hud.stealthBush':      '🌿 UKRYTY W ZAROŚLACH (10s)!',
+
+    // CTF (FAZA CTF F2)
+    'ctf.flagPickup':     '🚩 FLAGA {name} POBRANA! WRACAJ DO BAZY!',
+    'ctf.flagCaptured':   '✅ FLAGA {name} ZDOBYTA!',
+    'ctf.bossRespawn':    '⚠️ BOSS RESPAWN!',
+    'ctf.enemiesEnraged': '⚔️ WROGOWIE WŚCIEKLI!',
+    'ctf.carryBanner':    '🚩 WRACAJ DO BAZY!',
+    'end.flags':          'Flagi',
     'hud.stealthSpotted':   '👁️ ZOSTAŁEŚ ZAUWAŻONY!',
     'hud.shotRevealed':     '🔫 STRZAŁ ZDRADZIŁ POZYCJĘ!',
 

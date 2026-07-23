@@ -65,7 +65,7 @@ const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
     desert:  ['pustynia.mp3'],
     tropics: ['tropiki.mp3'],
     arctic:  ['arktyka1.ogg', 'arktyka2.mp3'],  // FAZA A — 2-track pool (smart-random). Gentle-fail jesli plikow brak.
-    fortified_ruins: ['ctf.ogg'],  // FAZA CTF F1 — dedykowany track startowy (ctf_flag_captured.ogg wchodzi w F4 jako carry-state).
+    fortified_ruins: ['ctf.ogg'],  // FAZA CTF F1 — track eksploracji. Carry-state (ctf_flag_captured.ogg) jest osobnym Howlem (patrz ctfCarryMusic), F4.
 };
 
 /**
@@ -126,6 +126,11 @@ export class AudioSys {
     private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [], fortified_ruins: [] };
     private currentMusicTrack: Howl | null = null;
     private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1, arctic: -1, fortified_ruins: -1 };
+
+    // FAZA CTF F4: dedykowany track carry-state (ctf_flag_captured.ogg) — gra gdy gracz
+    // NIESIE flage; track mapy (ctf.ogg) jest wtedy zapauzowany i wznawiany po dostawie.
+    private ctfCarryMusic: Howl | null = null;
+    private ctfCarrying: boolean = false;
 
     // v0.42.0: Menu music howls (intro + hub)
     private introMusic: Howl | null = null;
@@ -220,6 +225,21 @@ export class AudioSys {
                     console.warn(`[AudioSys] Music init failed for ${file}`, e);
                 }
             }
+        }
+
+        // FAZA CTF F4: carry-state track (ctf_flag_captured.ogg) — osobny Howl (loop)
+        try {
+            this.ctfCarryMusic = new Howl({
+                src: [BASE + 'sfx/ctf_flag_captured.ogg'],
+                loop: true,
+                volume: VOLUMES.music * this.musicVolMult,
+                preload: true,
+                onloaderror: (_id, err) => {
+                    console.warn('[AudioSys] Brak carry music: ctf_flag_captured.ogg', err);
+                },
+            });
+        } catch (e) {
+            console.warn('[AudioSys] Carry music init failed', e);
         }
     }
 
@@ -358,8 +378,8 @@ export class AudioSys {
             }
         }
 
-        // v0.42.0: also apply do menu music (intro + hub)
-        for (const menuHowl of [this.introMusic, this.hubMusic]) {
+        // v0.42.0: also apply do menu music (intro + hub) + F4 carry-state track
+        for (const menuHowl of [this.introMusic, this.hubMusic, this.ctfCarryMusic]) {
             if (!menuHowl) continue;
             try {
                 menuHowl.volume(effectiveVol);
@@ -621,6 +641,12 @@ export class AudioSys {
         this.stopIntroMusic();
         this.stopHubMusic();
 
+        // FAZA CTF F4: nowy mecz — zresetuj carry-state (gdyby zostal z poprzedniego)
+        this.ctfCarrying = false;
+        if (this.ctfCarryMusic) {
+            try { if (this.ctfCarryMusic.playing()) this.ctfCarryMusic.stop(); } catch { /* silent */ }
+        }
+
         if (this.currentMusicTrack && this.currentMusicTrack.playing()) {
             this.currentMusicTrack.stop();
         }
@@ -649,11 +675,46 @@ export class AudioSys {
     }
 
     stopMusic(): void {
+        // FAZA CTF F4: stopMusic konczy tez carry-state (gameover / victory / teardown)
+        this.ctfCarrying = false;
+        if (this.ctfCarryMusic) {
+            try { if (this.ctfCarryMusic.playing()) this.ctfCarryMusic.stop(); } catch { /* silent */ }
+        }
         if (!this.currentMusicTrack) return;
         try {
             this.currentMusicTrack.stop();
         } catch (e) {
             console.warn('[AudioSys] Music stop failed', e);
+        }
+    }
+
+    /**
+     * FAZA CTF F4: wejscie w carry-state (gracz podniosl flage) — pauzuj muzyke mapy,
+     * graj ctf_flag_captured.ogg. Idempotentne (kolejne wywolania nic nie robia).
+     */
+    startFlagCarryMusic(): void {
+        if (this.ctfCarrying) return;
+        this.ctfCarrying = true;
+        try {
+            if (this.currentMusicTrack && this.currentMusicTrack.playing()) this.currentMusicTrack.pause();
+            if (this.ctfCarryMusic && !this.ctfCarryMusic.playing()) {
+                this.ctfCarryMusic.seek(0);
+                this.ctfCarryMusic.play();
+            }
+        } catch (e) {
+            console.warn('[AudioSys] carry music start failed', e);
+        }
+    }
+
+    /** FAZA CTF F4: wyjscie z carry-state (dostawa flagi) — stop carry, wznow muzyke mapy. */
+    stopFlagCarryMusic(): void {
+        if (!this.ctfCarrying) return;
+        this.ctfCarrying = false;
+        try {
+            if (this.ctfCarryMusic && this.ctfCarryMusic.playing()) this.ctfCarryMusic.stop();
+            if (this.currentMusicTrack) this.currentMusicTrack.play(); // wznowienie od pauzy
+        } catch (e) {
+            console.warn('[AudioSys] carry music stop failed', e);
         }
     }
 

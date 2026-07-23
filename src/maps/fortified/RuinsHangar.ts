@@ -8,41 +8,56 @@ import {
 } from '../FortifiedRuinsMap';
 
 /**
- * RuinsHangar — baza domowa gracza na mapie Fortified Ruins (FAZA CTF F1.1).
+ * RuinsHangar — baza domowa gracza na mapie Fortified Ruins (crisp mobile F4.1e).
  *
- * Redesign wg decyzji Mariusza (2026-07-19): zamiast plaskiej posadzki —
- * WOJSKOWY budynek hangaru w moro (a'la baza wysunieta rozbita w ruinach;
- * NIE kopia legacy granatowej hali) + pad z 3 masztami na ZDOBYTE flagi
- * (podstawy masztow w kolorach flag = czytelne "tu wracaja flagi"; w F2
- * capture wciaga proporzec na maszt).
+ * WOJSKOWY hangar w moro + poligon (beton + strefa dostawy "H") + 3 maszty na
+ * zdobyte flagi + pulsujacy beacon dostawy.
+ *
+ * F4.1e (mobile): podloga (H/poligon), bryla i maszty rysowaly sie jako zywe
+ * wektory PIXI => na mobile (AA renderera OFF) "pikselowaly" na ukosnych/okraglych
+ * krawedziach. Fix: te trzy warstwy sa WYPIEKANE w Canvas 2D (AA) -> Textures ->
+ * Sprite'y (gladko + tanio). Tekstury CACHOWANE module-level (geometria hangaru
+ * jest stala) => zero rebake / zero leaku przy restarcie meczu. Beacon (animowany,
+ * cienki, ruchomy) zostaje jako Graphics.
  *
  * Struktura (3 kontenery — poprawny Y-sort z czolgami):
- *  - floor (zIndex 6): beton apron + hazard border strefy + pad masztow + beacon,
+ *  - floor (zIndex 6): sprite poligonu + beacon,
  *  - building (zIndex = dolna krawedz bryly): SOLID, kolizja przez getCollisionRects(),
- *  - masts (zIndex = baza masztow): przejezdne sluzki, tylko wizual.
- *
- * Strefa domowa (500x500) poza budynkiem pozostaje w pelni przejezdna —
- * logika dostawy flag (CtfSystem, F2) uzywa getZoneRect().
- * Animacja: tylko puls beacona (maly redraw) — mobile-safe.
+ *  - masts (zIndex = baza masztow): przejezdne, tylko wizual.
  */
 
-const PALETTE = {
-    apronA:    0x7a7668,   // beton jasny
-    apronB:    0x6e6a5c,   // beton ciemny
-    hazardYel: 0xd4b048,
-    hazardBlk: 0x2c2c24,
-    wallDark:  0x3f4a34,   // sciana - ciemna oliwka
-    wallLight: 0x4c5940,
-    camoOlive: 0x55663e,   // moro: oliwka
-    camoBrown: 0x6b5a38,   // moro: braz
-    camoTan:   0x8a8258,   // moro: piaskowy
-    camoDark:  0x39422c,   // moro: ciemna zielen
-    gate:      0x2e3628,
-    gateStripe:0xb89a30,
-    star:      0xd4b048,
-    mastPole:  0x8a8a82,
-    beacon:    0xf1c40f,
+const WALL_H = 34;
+const MAST_H = 89; // F4.1b: +20% dluzsze maszty w bazie
+
+const P = {
+    apronA:    '#7a7668',
+    apronB:    '#6e6a5c',
+    joint:     '#4a473f',
+    hazardYel: '#d4b048',
+    hazardBlk: '#2c2c24',
+    wallDark:  '#3f4a34',
+    camoOlive: '#55663e',
+    camoBrown: '#6b5a38',
+    camoTan:   '#8a8258',
+    camoDark:  '#39422c',
+    gate:      '#2e3628',
+    gateSlat:  '#39422f',
+    gateStripe:'#b89a30',
+    star:      '#d4b048',
+    mastPole:  '#8a8a82',
+    steel:     '#6e6e66',
 };
+const BEACON_NUM = 0xf1c40f;
+
+interface HangarTex {
+    floor: PIXI.Texture;
+    building: PIXI.Texture;
+    buildingPad: number;
+    masts: PIXI.Texture;
+    mastsX: number;
+    mastsY: number;
+}
+let HANGAR_TEX: HangarTex | null = null;
 
 export class RuinsHangar {
     public readonly x: number;
@@ -53,22 +68,21 @@ export class RuinsHangar {
     private floorContainer: PIXI.Container;
     private buildingContainer: PIXI.Container;
     private mastsContainer: PIXI.Container;
-    private gfxFloor: PIXI.Graphics;
-    private gfxBuilding: PIXI.Graphics;
-    private gfxMasts: PIXI.Graphics;
     private gfxBeacon: PIXI.Graphics;
 
     private collisionRects: ICollidable[];
 
     constructor(worldContainer: PIXI.Container) {
         const R = FORTIFIED_HANGAR_RECT;
+        const B = FORTIFIED_HANGAR_BUILDING;
         this.x = R.x;
         this.y = R.y;
         this.w = R.w;
         this.h = R.h;
 
-        // PIXI.Graphics init w PIERWSZYM bloku konstruktora (konwencja repo)
-        const B = FORTIFIED_HANGAR_BUILDING;
+        const tex = getHangarTextures();
+
+        // PIXI init w PIERWSZYM bloku konstruktora (konwencja repo)
         this.floorContainer = new PIXI.Container();
         this.floorContainer.x = R.x;
         this.floorContainer.y = R.y;
@@ -78,30 +92,31 @@ export class RuinsHangar {
         this.buildingContainer = new PIXI.Container();
         this.buildingContainer.x = B.x;
         this.buildingContainer.y = B.y;
-        this.buildingContainer.zIndex = B.y + B.h; // Y-sort: czolg przed/za bryla
+        this.buildingContainer.zIndex = B.y + B.h;
         worldContainer.addChild(this.buildingContainer);
 
         this.mastsContainer = new PIXI.Container();
         this.mastsContainer.zIndex = FORTIFIED_FLAG_MASTS[0].y + 5;
         worldContainer.addChild(this.mastsContainer);
 
-        this.gfxFloor = new PIXI.Graphics();
+        const floorSpr = new PIXI.Sprite(tex.floor);
+        this.floorContainer.addChild(floorSpr);
+
         this.gfxBeacon = new PIXI.Graphics();
-        this.floorContainer.addChild(this.gfxFloor);
         this.floorContainer.addChild(this.gfxBeacon);
 
-        this.gfxBuilding = new PIXI.Graphics();
-        this.buildingContainer.addChild(this.gfxBuilding);
+        const buildingSpr = new PIXI.Sprite(tex.building);
+        buildingSpr.x = -tex.buildingPad;
+        buildingSpr.y = -tex.buildingPad;
+        this.buildingContainer.addChild(buildingSpr);
 
-        this.gfxMasts = new PIXI.Graphics();
-        this.mastsContainer.addChild(this.gfxMasts);
+        const mastsSpr = new PIXI.Sprite(tex.masts);
+        mastsSpr.x = tex.mastsX;   // canvas(0,0) == world(mastsX, mastsY)
+        mastsSpr.y = tex.mastsY;
+        this.mastsContainer.addChild(mastsSpr);
 
         // SOLID: bryla budynku blokuje czolgi i pociski
         this.collisionRects = [{ x: B.x, y: B.y, w: B.w, h: B.h, update: () => {} }];
-
-        this.drawFloor();
-        this.drawBuilding();
-        this.drawMasts();
     }
 
     /** Rect strefy domowej (world coords) — dla CtfSystem (F2) i HUD (F3). */
@@ -114,210 +129,14 @@ export class RuinsHangar {
         return this.collisionRects;
     }
 
-    /** Beton apron + hazard border strefy + pad masztow (local coords strefy). */
-    private drawFloor(): void {
-        const g = this.gfxFloor;
-        const w = this.w;
-        const h = this.h;
-
-        // Betonowe plyty 50x50 (militarny apron zamiast kamiennej szachownicy)
-        for (let ty = 0; ty < h; ty += 50) {
-            for (let tx = 0; tx < w; tx += 50) {
-                g.beginFill(((tx + ty) / 50) % 2 === 0 ? PALETTE.apronA : PALETTE.apronB, 0.92);
-                g.drawRect(tx, ty, 50, 50);
-                g.endFill();
-            }
-        }
-        // Spekania plyt (subtelne linie fug)
-        g.lineStyle(1.5, 0x55524a, 0.5);
-        for (let ty = 50; ty < h; ty += 50) { g.moveTo(0, ty); g.lineTo(w, ty); }
-        for (let tx = 50; tx < w; tx += 50) { g.moveTo(tx, 0); g.lineTo(tx, h); }
-        g.lineStyle(0);
-
-        // Hazard border strefy (zolto-czarne segmenty — militarna granica "domu")
-        const SEG = 40;
-        for (const [bx, by, bw, bh, horiz] of [
-            [0, 0, w, 6, true], [0, h - 6, w, 6, true],
-            [0, 0, 6, h, false], [w - 6, 0, 6, h, false],
-        ] as Array<[number, number, number, number, boolean]>) {
-            let i = 0;
-            if (horiz) {
-                for (let sx = bx; sx < bx + bw; sx += SEG, i++) {
-                    g.beginFill(i % 2 === 0 ? PALETTE.hazardYel : PALETTE.hazardBlk, 0.9);
-                    g.drawRect(sx, by, Math.min(SEG, bx + bw - sx), bh);
-                    g.endFill();
-                }
-            } else {
-                for (let sy = by; sy < by + bh; sy += SEG, i++) {
-                    g.beginFill(i % 2 === 0 ? PALETTE.hazardYel : PALETTE.hazardBlk, 0.9);
-                    g.drawRect(bx, sy, bw, Math.min(SEG, by + bh - sy));
-                    g.endFill();
-                }
-            }
-        }
-
-        // Pad masztow (betonowa wysepka z obwodka)
-        const P = FORTIFIED_MAST_PAD;
-        const px = P.x - this.x;
-        const py = P.y - this.y;
-        g.beginFill(0x82806e, 0.95);
-        g.drawRect(px, py, P.w, P.h);
-        g.endFill();
-        g.lineStyle(3, PALETTE.hazardYel, 0.6);
-        g.drawRect(px, py, P.w, P.h);
-        g.lineStyle(0);
-        // Napisy-slots: kolorowe kola pod maszty (czytelnosc: "tu wracaja flagi")
-        for (const m of FORTIFIED_FLAG_MASTS) {
-            g.lineStyle(3, m.color, 0.8);
-            g.drawCircle(m.x - this.x, m.y - this.y, 16);
-            g.lineStyle(0);
-            g.beginFill(m.color, 0.18);
-            g.drawCircle(m.x - this.x, m.y - this.y, 16);
-            g.endFill();
-        }
-    }
-
-    /** Bryla hangaru 2.5D: moro dach, oliwkowa sciana, brama z szewronami, gwiazda. */
-    private drawBuilding(): void {
-        const g = this.gfxBuilding;
-        const B = FORTIFIED_HANGAR_BUILDING;
-        const w = B.w;
-        const h = B.h;
-        const WALL_H = 34;          // widoczna sciana poludniowa (2.5D)
-        const roofH = h - WALL_H;   // dach zajmuje reszte
-
-        // Cien bryly
-        g.beginFill(0x2c2416, 0.35);
-        g.drawRect(6, 8, w, h);
-        g.endFill();
-
-        // ── Dach (moro) ──
-        g.beginFill(PALETTE.camoOlive);
-        g.drawRect(0, 0, w, roofH);
-        g.endFill();
-        // Laty moro (deterministyczny uklad — bez rng, stabilny bake)
-        const patches: Array<[number, number, number, number, number]> = [
-            [18, 10, 44, 26, PALETTE.camoBrown], [70, 30, 52, 30, PALETTE.camoDark],
-            [130, 8, 48, 24, PALETTE.camoTan],  [40, 62, 56, 28, PALETTE.camoDark],
-            [110, 58, 60, 32, PALETTE.camoBrown], [8, 84, 40, 26, PALETTE.camoTan],
-            [150, 92, 42, 24, PALETTE.camoOlive], [78, 92, 46, 22, PALETTE.camoTan],
-        ];
-        for (const [px, py, pw, ph, col] of patches) {
-            g.beginFill(col, 0.9);
-            g.drawEllipse(px + pw / 2, py * (roofH / 126) + ph / 2, pw / 2, ph / 2);
-            g.endFill();
-        }
-        // Kalenica + panele dachu
-        g.lineStyle(2, PALETTE.camoDark, 0.7);
-        g.moveTo(0, roofH * 0.5);
-        g.lineTo(w, roofH * 0.5);
-        for (let px = 40; px < w; px += 40) { g.moveTo(px, 0); g.lineTo(px, roofH); }
-        g.lineStyle(0);
-        // Okap (jasna krawedz dachu)
-        g.beginFill(PALETTE.camoTan, 0.8);
-        g.drawRect(0, roofH - 4, w, 4);
-        g.endFill();
-
-        // ── Sciana poludniowa (front) ──
-        g.beginFill(PALETTE.wallDark);
-        g.drawRect(0, roofH, w, WALL_H);
-        g.endFill();
-        // Wrota hangaru (2 skrzydla) z ukosnymi szewronami
-        const gateW = w * 0.52;
-        const gateX = (w - gateW) / 2;
-        g.beginFill(PALETTE.gate);
-        g.drawRect(gateX, roofH + 4, gateW, WALL_H - 8);
-        g.endFill();
-        g.lineStyle(4, PALETTE.gateStripe, 0.85);
-        for (let sx = gateX + 6; sx < gateX + gateW - 4; sx += 18) {
-            g.moveTo(sx, roofH + WALL_H - 6);
-            g.lineTo(sx + 10, roofH + 6);
-        }
-        g.lineStyle(0);
-        // Podzial skrzydel
-        g.lineStyle(3, PALETTE.wallDark, 1);
-        g.moveTo(w / 2, roofH + 4);
-        g.lineTo(w / 2, roofH + WALL_H - 4);
-        g.lineStyle(0);
-        // Okienka po bokach bramy
-        for (const wx of [gateX / 2 - 8, w - gateX / 2 - 8]) {
-            g.beginFill(0x9ab8c8, 0.9);
-            g.drawRect(wx, roofH + 8, 16, 10);
-            g.endFill();
-            g.lineStyle(2, PALETTE.camoDark, 0.8);
-            g.drawRect(wx, roofH + 8, 16, 10);
-            g.lineStyle(0);
-        }
-
-        // ── Gwiazda (militarny emblemat na dachu) ──
-        const cx = w / 2;
-        const cy = roofH * 0.5;
-        const starPts: number[] = [];
-        const R1 = 20, R2 = 8;
-        for (let i = 0; i < 10; i++) {
-            const r = i % 2 === 0 ? R1 : R2;
-            const a = -Math.PI / 2 + (i / 10) * Math.PI * 2;
-            starPts.push(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-        }
-        g.beginFill(PALETTE.star, 0.9);
-        g.drawPolygon(starPts);
-        g.endFill();
-
-        // ── Worki z piaskiem przy narozach frontu ──
-        for (const bx of [8, w - 30]) {
-            for (let i = 0; i < 3; i++) {
-                g.beginFill(i % 2 ? 0x9a8a5c : 0x8a7a50);
-                g.drawEllipse(bx + 11 + (i % 2) * 4, roofH + WALL_H - 8 - i * 7, 12, 5);
-                g.endFill();
-            }
-        }
-    }
-
-    /** 3 maszty na zdobyte flagi (przejezdne; proporce wciaga F2 po capture). */
-    private drawMasts(): void {
-        const g = this.gfxMasts;
-        const MAST_H = 74;
-
-        for (const m of FORTIFIED_FLAG_MASTS) {
-            const mx = m.x;
-            const my = m.y;
-            // Cien
-            g.beginFill(0x2c2416, 0.3);
-            g.drawEllipse(mx + 3, my + 3, 10, 4);
-            g.endFill();
-            // Podstawa (betonowy klocek)
-            g.beginFill(0x8a8878);
-            g.drawRect(mx - 7, my - 6, 14, 10);
-            g.endFill();
-            g.beginFill(0x6e6c5e);
-            g.drawRect(mx - 7, my + 1, 14, 3);
-            g.endFill();
-            // Maszt
-            g.beginFill(PALETTE.mastPole);
-            g.drawRect(mx - 2, my - MAST_H, 4, MAST_H - 4);
-            g.endFill();
-            // Kula na szczycie w kolorze flagi (czytelnosc: ktory maszt czyj)
-            g.beginFill(m.color);
-            g.drawCircle(mx, my - MAST_H - 3, 5);
-            g.endFill();
-            // Linka (pusta — proporzec pojawi sie po capture w F2)
-            g.lineStyle(1.5, 0xc8c8c0, 0.7);
-            g.moveTo(mx + 4, my - MAST_H + 4);
-            g.lineTo(mx + 6, my - 10);
-            g.lineStyle(0);
-        }
-    }
-
     /**
-     * Pulsujacy beacon w srodku strefy — widoczny "wroc tutaj" (Sensoryka).
-     * FAZA CTF F3: carrying=true => DRAMATYCZNY tryb dostawy (szybszy puls,
-     * podwojny ring, wiekszy zasieg, mocniejsza alpha) — beacon dostawy.
+     * Pulsujacy beacon dostawy (Sensoryka). carrying=true => DRAMATYCZNY tryb.
      */
     public update(carrying: boolean = false): void {
         const time = Date.now();
         const g = this.gfxBeacon;
         g.clear();
-        const cx = this.w / 2 + 60; // przesuniety na wschod od budynku (wolny apron)
+        const cx = this.w / 2 + 60; // nad strefa "H"
         const cy = this.h / 2;
         const period = carrying ? 900 : 1600;
         const maxR = carrying ? 110 : 60;
@@ -325,18 +144,315 @@ export class RuinsHangar {
         const t = (time % period) / period;
         const radius = 20 + t * maxR;
         const alpha = baseAlpha * (1 - t);
-        g.lineStyle(carrying ? 6 : 4, PALETTE.beacon, alpha);
+        g.lineStyle(carrying ? 6 : 4, BEACON_NUM, alpha);
         g.drawCircle(cx, cy, radius);
         g.lineStyle(0);
         if (carrying) {
-            // Drugi ring w przeciwfazie + staly marker celu
             const t2 = ((time + period / 2) % period) / period;
             g.lineStyle(4, 0xffffff, 0.5 * (1 - t2));
             g.drawCircle(cx, cy, 20 + t2 * maxR);
             g.lineStyle(0);
-            g.lineStyle(3, PALETTE.beacon, 0.9);
+            g.lineStyle(3, BEACON_NUM, 0.9);
             g.drawCircle(cx, cy, 16);
             g.lineStyle(0);
         }
     }
+}
+
+// =================================================================
+// Canvas 2D bake (AA) — podloga / bryla / maszty, cache module-level
+// =================================================================
+
+function getHangarTextures(): HangarTex {
+    if (HANGAR_TEX) return HANGAR_TEX;
+    HANGAR_TEX = buildHangarTextures();
+    return HANGAR_TEX;
+}
+
+function polygon(c: CanvasRenderingContext2D, pts: number[]): void {
+    c.beginPath();
+    c.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+    c.closePath();
+}
+
+function buildHangarTextures(): HangarTex {
+    const R = FORTIFIED_HANGAR_RECT;
+    const B = FORTIFIED_HANGAR_BUILDING;
+
+    return {
+        floor: PIXI.Texture.from(buildFloorCanvas(R.w, R.h)),
+        building: PIXI.Texture.from(buildBuildingCanvas(B.w, B.h)),
+        buildingPad: 28,
+        masts: PIXI.Texture.from(buildMastsCanvas()),
+        mastsX: MASTS_ORIGIN_X,
+        mastsY: MASTS_ORIGIN_Y,
+    };
+}
+
+// ── Podloga: poligon + fugi + wear + strefa "H" + hazard border + pad masztow ──
+function buildFloorCanvas(w: number, h: number): HTMLCanvasElement {
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const c = cv.getContext('2d')!;
+
+    // Baza betonowa
+    c.globalAlpha = 0.94; c.fillStyle = P.apronB; c.fillRect(0, 0, w, h);
+    c.globalAlpha = 1;
+
+    // Jasniejsze plyty 125px (rozrzedzone)
+    c.globalAlpha = 0.30; c.fillStyle = P.apronA;
+    for (let ty = 0; ty < h; ty += 250) {
+        for (let tx = 0; tx < w; tx += 250) {
+            c.fillRect(tx, ty, 125, 125);
+            c.fillRect(tx + 125, ty + 125, 125, 125);
+        }
+    }
+    c.globalAlpha = 1;
+
+    // Fugi dylatacyjne
+    c.strokeStyle = P.joint; c.lineWidth = 2; c.globalAlpha = 0.55;
+    for (let ty = 125; ty < h; ty += 125) { c.beginPath(); c.moveTo(0, ty); c.lineTo(w, ty); c.stroke(); }
+    for (let tx = 125; tx < w; tx += 125) { c.beginPath(); c.moveTo(tx, 0); c.lineTo(tx, h); c.stroke(); }
+    c.globalAlpha = 1;
+
+    // Plamy oleju / przypalenia
+    for (const [ox, oy, orr] of [
+        [150, 120, 22], [360, 300, 18], [230, 430, 26], [95, 250, 15], [410, 150, 14],
+    ] as Array<[number, number, number]>) {
+        c.globalAlpha = 0.26; c.fillStyle = '#2c2a24';
+        c.beginPath(); c.ellipse(ox, oy, orr, orr * 0.7, 0, 0, Math.PI * 2); c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // Strefa dostawy "H" (pod beaconem)
+    const dx = w / 2 + 60, dy = h / 2;
+    c.strokeStyle = P.hazardYel;
+    c.globalAlpha = 0.85; c.lineWidth = 6;
+    c.beginPath(); c.arc(dx, dy, 74, 0, Math.PI * 2); c.stroke();
+    c.globalAlpha = 0.5; c.lineWidth = 3;
+    c.beginPath(); c.arc(dx, dy, 62, 0, Math.PI * 2); c.stroke();
+    c.globalAlpha = 0.85; c.fillStyle = P.hazardYel;
+    c.fillRect(dx - 26, dy - 30, 10, 60);
+    c.fillRect(dx + 16, dy - 30, 10, 60);
+    c.fillRect(dx - 16, dy - 6, 32, 10);
+    c.globalAlpha = 1;
+
+    // Strzalki naprowadzajace od wschodu -> H
+    c.globalAlpha = 0.45; c.fillStyle = '#ffffff';
+    for (let ax = dx + 120; ax < w - 20; ax += 46) {
+        polygon(c, [ax - 20, dy, ax, dy - 14, ax - 8, dy, ax, dy + 14]); c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // Slady opon
+    c.strokeStyle = '#3a382f'; c.lineWidth = 5; c.globalAlpha = 0.22;
+    c.beginPath(); c.moveTo(dx - 46, dy + 60); c.bezierCurveTo(200, 330, 130, 300, 70, 205); c.stroke();
+    c.beginPath(); c.moveTo(dx - 26, dy + 66); c.bezierCurveTo(215, 345, 150, 320, 95, 225); c.stroke();
+    c.globalAlpha = 1;
+
+    // Hazard border strefy
+    const SEG = 40;
+    for (const [bx, by, bw, bh, horiz] of [
+        [0, 0, w, 6, true], [0, h - 6, w, 6, true],
+        [0, 0, 6, h, false], [w - 6, 0, 6, h, false],
+    ] as Array<[number, number, number, number, boolean]>) {
+        let i = 0;
+        c.globalAlpha = 0.9;
+        if (horiz) {
+            for (let sx = bx; sx < bx + bw; sx += SEG, i++) {
+                c.fillStyle = i % 2 === 0 ? P.hazardYel : P.hazardBlk;
+                c.fillRect(sx, by, Math.min(SEG, bx + bw - sx), bh);
+            }
+        } else {
+            for (let sy = by; sy < by + bh; sy += SEG, i++) {
+                c.fillStyle = i % 2 === 0 ? P.hazardYel : P.hazardBlk;
+                c.fillRect(bx, sy, bw, Math.min(SEG, by + bh - sy));
+            }
+        }
+    }
+    c.globalAlpha = 1;
+
+    // Pad masztow (betonowa wysepka z obwodka + sloty w kolorach flag)
+    const PAD = FORTIFIED_MAST_PAD;
+    const px = PAD.x - R_X, py = PAD.y - R_Y;
+    c.globalAlpha = 0.95; c.fillStyle = '#82806e';
+    c.fillRect(px, py, PAD.w, PAD.h);
+    c.globalAlpha = 0.6; c.strokeStyle = P.hazardYel; c.lineWidth = 3;
+    c.strokeRect(px, py, PAD.w, PAD.h);
+    c.globalAlpha = 1;
+    for (const m of FORTIFIED_FLAG_MASTS) {
+        const scx = m.x - R_X, scy = m.y - R_Y;
+        const col = '#' + m.color.toString(16).padStart(6, '0');
+        c.strokeStyle = col; c.lineWidth = 3; c.globalAlpha = 0.8;
+        c.beginPath(); c.arc(scx, scy, 16, 0, Math.PI * 2); c.stroke();
+        c.fillStyle = col; c.globalAlpha = 0.18;
+        c.beginPath(); c.arc(scx, scy, 16, 0, Math.PI * 2); c.fill();
+    }
+    c.globalAlpha = 1;
+
+    return cv;
+}
+
+// ── Bryla hangaru 2.5D ──
+function buildBuildingCanvas(w: number, h: number): HTMLCanvasElement {
+    const PAD = 28;
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(w + PAD * 2);
+    cv.height = Math.ceil(h + PAD * 2);
+    const c = cv.getContext('2d')!;
+    c.translate(PAD, PAD);   // canvas (PAD,PAD) == local (0,0)
+
+    const roofH = h - WALL_H;
+
+    // Cien bryly
+    c.globalAlpha = 0.35; c.fillStyle = '#2c2416'; c.fillRect(6, 8, w, h);
+    c.globalAlpha = 1;
+    // Plinta/fundament
+    c.globalAlpha = 0.9; c.fillStyle = '#24281c'; c.fillRect(-3, h - 4, w + 6, 8);
+    c.globalAlpha = 1;
+
+    // Dach (moro)
+    c.fillStyle = P.camoOlive; c.fillRect(0, 0, w, roofH);
+    const patches: Array<[number, number, number, number, string]> = [
+        [18, 10, 44, 26, P.camoBrown], [70, 30, 52, 30, P.camoDark],
+        [130, 8, 48, 24, P.camoTan],  [40, 62, 56, 28, P.camoDark],
+        [110, 58, 60, 32, P.camoBrown], [8, 84, 40, 26, P.camoTan],
+        [150, 92, 42, 24, P.camoOlive], [78, 92, 46, 22, P.camoTan],
+    ];
+    c.globalAlpha = 0.9;
+    for (const [pxx, pyy, pw, ph, col] of patches) {
+        c.fillStyle = col;
+        c.beginPath();
+        c.ellipse(pxx + pw / 2, pyy * (roofH / 126) + ph / 2, pw / 2, ph / 2, 0, 0, Math.PI * 2);
+        c.fill();
+    }
+    c.globalAlpha = 1;
+    // Kalenica + panele
+    c.strokeStyle = P.camoDark; c.lineWidth = 2; c.globalAlpha = 0.7;
+    c.beginPath(); c.moveTo(0, roofH * 0.5); c.lineTo(w, roofH * 0.5); c.stroke();
+    for (let pxx = 40; pxx < w; pxx += 40) { c.beginPath(); c.moveTo(pxx, 0); c.lineTo(pxx, roofH); c.stroke(); }
+    c.globalAlpha = 1;
+    // Nity
+    c.globalAlpha = 0.7; c.fillStyle = '#2c3320';
+    for (let pxx = 40; pxx < w; pxx += 40) {
+        for (const pyy of [roofH * 0.25, roofH * 0.75]) { c.beginPath(); c.arc(pxx, pyy, 1.6, 0, Math.PI * 2); c.fill(); }
+    }
+    c.globalAlpha = 1;
+    // Wentylator kalenicy
+    c.globalAlpha = 0.95; c.fillStyle = '#3a4030'; c.fillRect(w * 0.5 - 14, roofH * 0.5 - 5, 28, 10);
+    c.globalAlpha = 0.8; c.strokeStyle = '#24281c'; c.lineWidth = 1;
+    for (let vx = -12; vx <= 12; vx += 4) { c.beginPath(); c.moveTo(w * 0.5 + vx, roofH * 0.5 - 5); c.lineTo(w * 0.5 + vx, roofH * 0.5 + 5); c.stroke(); }
+    c.globalAlpha = 1;
+    // Okap
+    c.globalAlpha = 0.85; c.fillStyle = P.camoTan; c.fillRect(0, roofH - 4, w, 4);
+    c.globalAlpha = 1;
+
+    // Antena radiowa
+    c.strokeStyle = P.steel; c.lineWidth = 2; c.globalAlpha = 0.95;
+    c.beginPath(); c.moveTo(w - 20, 8); c.lineTo(w - 20, -22); c.stroke();
+    c.beginPath(); c.moveTo(w - 26, -14); c.lineTo(w - 14, -18); c.stroke();
+    c.globalAlpha = 0.95; c.fillStyle = '#e74c3c';
+    c.beginPath(); c.arc(w - 20, -23, 2.4, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    // Sciana poludniowa
+    c.fillStyle = P.wallDark; c.fillRect(0, roofH, w, WALL_H);
+
+    // Wrota: korrugowana brama
+    const gateW = w * 0.52;
+    const gateX = (w - gateW) / 2;
+    c.fillStyle = P.gate; c.fillRect(gateX, roofH + 4, gateW, WALL_H - 8);
+    c.strokeStyle = P.gateSlat; c.lineWidth = 2; c.globalAlpha = 0.7;
+    for (let sy = roofH + 8; sy < roofH + WALL_H - 6; sy += 5) {
+        c.beginPath(); c.moveTo(gateX + 3, sy); c.lineTo(gateX + gateW - 3, sy); c.stroke();
+    }
+    c.globalAlpha = 1;
+    // Szewrony
+    c.strokeStyle = P.gateStripe; c.lineWidth = 4; c.globalAlpha = 0.85;
+    for (let sx = gateX + 6; sx < gateX + gateW - 4; sx += 18) {
+        c.beginPath(); c.moveTo(sx, roofH + WALL_H - 6); c.lineTo(sx + 10, roofH + 6); c.stroke();
+    }
+    c.globalAlpha = 1;
+    // Podzial skrzydel
+    c.strokeStyle = P.wallDark; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(w / 2, roofH + 4); c.lineTo(w / 2, roofH + WALL_H - 4); c.stroke();
+    // Nadproze
+    c.globalAlpha = 0.95; c.fillStyle = P.camoDark; c.fillRect(gateX - 4, roofH, gateW + 8, 5);
+    c.globalAlpha = 1;
+    // Naroznikowe slupy
+    c.globalAlpha = 0.9; c.fillStyle = '#2e3626';
+    c.fillRect(0, roofH - 2, 5, WALL_H + 2);
+    c.fillRect(w - 5, roofH - 2, 5, WALL_H + 2);
+    c.globalAlpha = 1;
+    // Okienka
+    for (const wx of [gateX / 2 - 8, w - gateX / 2 - 8]) {
+        c.globalAlpha = 0.95; c.fillStyle = '#aecad8'; c.fillRect(wx, roofH + 8, 16, 11);
+        c.globalAlpha = 0.6; c.fillStyle = '#d8ecf4'; c.fillRect(wx + 1, roofH + 9, 6, 4);
+        c.globalAlpha = 0.85; c.strokeStyle = P.camoDark; c.lineWidth = 2; c.strokeRect(wx, roofH + 8, 16, 11);
+    }
+    c.globalAlpha = 1;
+
+    // Gwiazda (emblemat) z obwodka
+    const scx = w / 2, scy = roofH * 0.5;
+    const starPts: number[] = [];
+    for (let i = 0; i < 10; i++) {
+        const rr = i % 2 === 0 ? 20 : 8;
+        const a = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+        starPts.push(scx + Math.cos(a) * rr, scy + Math.sin(a) * rr);
+    }
+    polygon(c, starPts);
+    c.globalAlpha = 0.92; c.fillStyle = P.star; c.fill();
+    c.globalAlpha = 0.6; c.strokeStyle = '#2c2416'; c.lineWidth = 2; c.stroke();
+    c.globalAlpha = 1;
+
+    // Worki z piaskiem
+    for (const bx of [8, w - 30]) {
+        for (let i = 0; i < 3; i++) {
+            c.fillStyle = i % 2 ? '#9a8a5c' : '#8a7a50';
+            c.beginPath();
+            c.ellipse(bx + 11 + (i % 2) * 4, roofH + WALL_H - 8 - i * 7, 12, 5, 0, 0, Math.PI * 2);
+            c.fill();
+        }
+    }
+
+    return cv;
+}
+
+// ── Maszty (world coords -> canvas z origin) ──
+const R_X = FORTIFIED_HANGAR_RECT.x;
+const R_Y = FORTIFIED_HANGAR_RECT.y;
+const MASTS_ORIGIN_X = Math.min(...FORTIFIED_FLAG_MASTS.map(m => m.x)) - 12;
+const MASTS_ORIGIN_Y = Math.min(...FORTIFIED_FLAG_MASTS.map(m => m.y)) - MAST_H - 12;
+
+function buildMastsCanvas(): HTMLCanvasElement {
+    const maxX = Math.max(...FORTIFIED_FLAG_MASTS.map(m => m.x)) + 16;
+    const maxY = Math.max(...FORTIFIED_FLAG_MASTS.map(m => m.y)) + 10;
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(maxX - MASTS_ORIGIN_X);
+    cv.height = Math.ceil(maxY - MASTS_ORIGIN_Y);
+    const c = cv.getContext('2d')!;
+    c.translate(-MASTS_ORIGIN_X, -MASTS_ORIGIN_Y); // rysuj we world coords
+
+    for (const m of FORTIFIED_FLAG_MASTS) {
+        const mx = m.x, my = m.y;
+        const col = '#' + m.color.toString(16).padStart(6, '0');
+        // Cien
+        c.globalAlpha = 0.3; c.fillStyle = '#2c2416';
+        c.beginPath(); c.ellipse(mx + 3, my + 3, 10, 4, 0, 0, Math.PI * 2); c.fill();
+        c.globalAlpha = 1;
+        // Podstawa
+        c.fillStyle = '#8a8878'; c.fillRect(mx - 7, my - 6, 14, 10);
+        c.fillStyle = '#6e6c5e'; c.fillRect(mx - 7, my + 1, 14, 3);
+        // Maszt
+        c.fillStyle = P.mastPole; c.fillRect(mx - 2, my - MAST_H, 4, MAST_H - 4);
+        // Kula w kolorze flagi
+        c.fillStyle = col; c.beginPath(); c.arc(mx, my - MAST_H - 3, 5, 0, Math.PI * 2); c.fill();
+        // Linka
+        c.strokeStyle = '#c8c8c0'; c.lineWidth = 1.5; c.globalAlpha = 0.7;
+        c.beginPath(); c.moveTo(mx + 4, my - MAST_H + 4); c.lineTo(mx + 6, my - 10); c.stroke();
+        c.globalAlpha = 1;
+    }
+
+    return cv;
 }

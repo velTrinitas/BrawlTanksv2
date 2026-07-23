@@ -12,8 +12,9 @@ import * as PIXI from 'pixi.js';
  */
 
 const PALETTE = {
-    ripple:     0x8fb894,
-    warningRim: 0x7ea080,
+    ripple:     0x9fd0c8,   // jasny teal — smugi plynacej wody
+    foam:       0xcfe8e2,
+    warningRim: 0x7ea0a4,
 };
 
 interface FosaRipple {
@@ -65,14 +66,14 @@ export class RuinsFosa {
         this.container.addChild(this.gfxRipples);
 
         this.ripples = [];
-        const RIPPLE_COUNT = 14;
+        const RIPPLE_COUNT = 24;
         for (let i = 0; i < RIPPLE_COUNT; i++) {
             this.ripples.push({
                 baseX: (i / RIPPLE_COUNT) * w,
-                y: 12 + ((i * 37) % (h - 24)),
-                speed: 0.15 + ((i * 13) % 10) * 0.03,
+                y: 8 + ((i * 41) % (h - 16)),
+                speed: 0.22 + ((i * 13) % 10) * 0.05,   // szybszy drift = wyrazniejszy nurt
                 phase: i * 0.7,
-                len: 10 + ((i * 7) % 14),
+                len: 18 + ((i * 11) % 26),
             });
         }
     }
@@ -95,20 +96,27 @@ export class RuinsFosa {
         // Pulsujaca ramka ostrzegawcza (subtelna — granica strefy juz baked)
         const g = this.gfxRim;
         g.clear();
-        const pulse = 0.28 + Math.sin(time / 700) * 0.14;
+        const pulse = 0.24 + Math.sin(time / 700) * 0.12;
         g.lineStyle(2, PALETTE.warningRim, pulse);
         g.drawRect(0, 0, this.w, this.h);
         g.lineStyle(0);
 
-        // Zmarszczki plynace w prawo (rzeka)
+        // Smugi nurtu plynace w prawo (fake ruch rzeki) — z migotaniem alpha + zanikiem
         const r = this.gfxRipples;
         r.clear();
-        r.lineStyle(1.5, PALETTE.ripple, 0.5);
         for (const rp of this.ripples) {
-            const rx = (rp.baseX + time * rp.speed * 0.06) % this.w;
+            const rx = (rp.baseX + time * rp.speed * 0.09) % this.w;
             const ry = rp.y + Math.sin(time / 900 + rp.phase) * 3;
+            const a = 0.28 + Math.sin(time / 500 + rp.phase) * 0.2;
+            if (a <= 0.08) continue;
+            const ex = Math.min(rx + rp.len, this.w);
+            // smuga (jasniejsza glowa -> zanikajacy ogon)
+            r.lineStyle(1.6, PALETTE.ripple, a);
             r.moveTo(rx, ry);
-            r.lineTo(Math.min(rx + rp.len, this.w), ry);
+            r.lineTo(ex, ry);
+            r.lineStyle(1.2, PALETTE.foam, a * 0.5);
+            r.moveTo(ex - 4, ry);
+            r.lineTo(ex, ry);
         }
         r.lineStyle(0);
     }

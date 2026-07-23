@@ -1,26 +1,33 @@
 import * as PIXI from 'pixi.js';
 
 /**
- * CtfFlag — flaga scenariusza CTF (FAZA CTF F2).
+ * CtfFlag — flaga scenariusza CTF (FAZA CTF F2, mobile-crisp F4.1f).
  *
  * Port legacy class Flag (ctf.html 3869-3933), wartosci 1:1:
  *  - stany: IDLE | CARRIED | CAPTURED,
  *  - pulse += 0.055/klatke (bob = sin(pulse)*5),
- *  - CARRIED: follow 34 px ZA kadlubem gracza (D8: hullAngle + PI — legacy mial
- *    tu buga NaN i fallback "na graczu"; implementujemy zamierzone zachowanie),
+ *  - CARRIED: follow 34 px ZA kadlubem gracza (D8),
  *  - IDLE po dropie: reset do pozycji startowej po 10 000 ms (dropTimer),
- *  - CAPTURED: niewidoczna (proporzec na maszcie w bazie = F4 flex).
+ *  - CAPTURED: niewidoczna.
  *
- * Render programmatic (PIXI.Graphics + PIXI.Text): plyta gruntu w kolorze flagi
- * (tylko IDLE), maszt z bobem, proporzec W KOLORZE FLAGI (odstepstwo od legacy,
- * gdzie kazdy proporzec byl czerwony — kolor per flaga > czytelnosc), kamienna
- * podstawa, label "FLAGA X" pod spodem (tylko IDLE).
+ * F4.1f (mobile): proporzec (trojkat) + plyta gruntu to byly zywe wektory
+ * przerysowywane co klatke (proporzec faluje) — na mobile (AA renderera OFF)
+ * ukosne krawedzie "pikselowaly" i migotaly. Fix: proporzec i plyta sa
+ * WYPIECZONE w Canvas 2D (AA) -> Textures -> Sprite'y (cache per-kolor,
+ * module-level => zero rebake/leaku). Falowanie proporca = tanie skew.y sprite'a
+ * (gladko). Maszt + podstawa zostaja jako Graphics (pionowe = ostre bez AA).
  */
 
 export type CtfFlagState = 'idle' | 'carried' | 'captured';
 
+interface FlagTex {
+    banner: PIXI.Texture; plate: PIXI.Texture;
+    bAX: number; bAY: number; pAX: number; pAY: number;
+}
+const FLAG_CACHE = new Map<number, FlagTex>();
+
 export class CtfFlag {
-    public readonly id: number;          // 0=ALFA 1=BRAVO 2=CHARLIE
+    public readonly id: number;
     public readonly name: string;
     public readonly color: number;
     public readonly startX: number;
@@ -29,13 +36,12 @@ export class CtfFlag {
     public x: number;
     public y: number;
     public state: CtfFlagState = 'idle';
-    /** Timestamp resetu do startu po dropie (0 = brak aktywnego timera). */
     public dropTimer: number = 0;
 
     private container: PIXI.Container;
-    private gfxPlate: PIXI.Graphics;
-    private gfxFlag: PIXI.Graphics;
-    /** FAZA CTF F3 — smuga za niesiona flaga (world-space, ground decal). */
+    private plateSprite: PIXI.Sprite;
+    private gfxMast: PIXI.Graphics;
+    private bannerSprite: PIXI.Sprite;
     private gfxTrail: PIXI.Graphics;
     private trailPoints: Array<{ x: number; y: number }> = [];
     private trailFrameCounter: number = 0;
@@ -58,20 +64,27 @@ export class CtfFlag {
         this.x = x;
         this.y = y;
 
-        // PIXI.Graphics init w PIERWSZYM bloku konstruktora (konwencja repo)
+        const tex = getFlagTextures(color);
+
+        // PIXI init w PIERWSZYM bloku konstruktora (konwencja repo)
         this.container = new PIXI.Container();
         this.container.x = x;
         this.container.y = y;
         this.container.zIndex = y;
         worldContainer.addChild(this.container);
 
-        this.gfxPlate = new PIXI.Graphics();
-        this.gfxFlag = new PIXI.Graphics();
-        this.container.addChild(this.gfxPlate);
-        this.container.addChild(this.gfxFlag);
+        this.plateSprite = new PIXI.Sprite(tex.plate);
+        this.plateSprite.anchor.set(tex.pAX, tex.pAY);
+        this.container.addChild(this.plateSprite);
 
-        // Smuga w WORLD-space (osobny gfx na poziomie gruntu — container flagi
-        // sie przemieszcza, smuga musi zostawac za nia).
+        this.gfxMast = new PIXI.Graphics();
+        this.container.addChild(this.gfxMast);
+
+        this.bannerSprite = new PIXI.Sprite(tex.banner);
+        this.bannerSprite.anchor.set(tex.bAX, tex.bAY);
+        this.container.addChild(this.bannerSprite);
+
+        // Smuga w WORLD-space (osobny gfx na poziomie gruntu)
         this.gfxTrail = new PIXI.Graphics();
         this.gfxTrail.zIndex = 9;
         worldContainer.addChild(this.gfxTrail);
@@ -88,12 +101,8 @@ export class CtfFlag {
         this.container.addChild(this.label);
 
         this.pulse = Math.random() * Math.PI * 2;
-        this.drawPlate();
     }
 
-    /**
-     * Update per klatke. playerHullAngle = kat kadluba (D8: flaga 34 px za rufa).
-     */
     public update(delta: number, playerX: number, playerY: number, playerHullAngle: number): void {
         this.pulse += 0.055 * delta;
 
@@ -109,9 +118,8 @@ export class CtfFlag {
             this.dropTimer = 0;
         }
 
-        // Widocznosc + elementy zalezne od stanu
         this.container.visible = this.state !== 'captured';
-        this.gfxPlate.visible = this.state === 'idle';
+        this.plateSprite.visible = this.state === 'idle';
         this.label.visible = this.state === 'idle';
 
         this.container.x = this.x;
@@ -119,17 +127,29 @@ export class CtfFlag {
         this.container.zIndex = this.y + 2;
 
         if (this.container.visible) {
-            this.drawFlag();
+            const bob = Math.sin(this.pulse) * 5;
+            const wave = Math.sin(this.pulse * 1.9) * 5 + Math.sin(this.pulse * 3.1) * 2;
+            // Maszt + podstawa (Graphics, pionowe = ostre)
+            const g = this.gfxMast;
+            g.clear();
+            g.lineStyle(4, 0x000000, 0.2);
+            g.moveTo(2, bob + 24); g.lineTo(2, bob - 28);
+            g.lineStyle(4, 0xc8a86b, 1);
+            g.moveTo(0, bob + 22); g.lineTo(0, bob - 28);
+            g.lineStyle(0);
+            g.beginFill(0xb8956a);
+            g.lineStyle(1, 0x8b6914, 1);
+            g.drawRoundedRect(-8, bob + 18, 16, 8, 2);
+            g.endFill();
+            g.lineStyle(0);
+            // Proporzec (baked sprite) — bob + falowanie przez skew.y (gladko)
+            this.bannerSprite.y = bob;
+            this.bannerSprite.skew.y = wave / 35; // ~ta sama amplituda co legacy tip
         }
 
         this.updateTrail(delta);
     }
 
-    /**
-     * FAZA CTF F3 — smuga w kolorze flagi za niesiona flaga (carry telegraph, D8).
-     * Historia ~14 punktow (co 3 klatki), fade-out po ogonie. Maly redraw
-     * (14 kol na klatke TYLKO podczas niesienia) — mobile-safe.
-     */
     private updateTrail(delta: number): void {
         if (this.state === 'carried') {
             this.trailFrameCounter += delta;
@@ -139,7 +159,6 @@ export class CtfFlag {
                 if (this.trailPoints.length > 14) this.trailPoints.shift();
             }
         } else if (this.trailPoints.length > 0) {
-            // Po dropie/dostawie ogon znika stopniowo (naturalny fade)
             this.trailPoints.shift();
         }
 
@@ -148,58 +167,11 @@ export class CtfFlag {
         const n = this.trailPoints.length;
         for (let i = 0; i < n; i++) {
             const p = this.trailPoints[i];
-            const tFade = (i + 1) / n; // 0=ogon, 1=przy fladze
+            const tFade = (i + 1) / n;
             g.beginFill(this.color, 0.32 * tFade);
             g.drawCircle(p.x, p.y, 3 + 5 * tFade);
             g.endFill();
         }
-    }
-
-    /** Kolorowa plyta gruntu kotwiczaca flage wizualnie (tylko IDLE). */
-    private drawPlate(): void {
-        const g = this.gfxPlate;
-        g.clear();
-        for (let i = 3; i >= 1; i--) {
-            g.beginFill(this.color, 0.13 * i);
-            g.drawEllipse(0, 8, (50 / 3) * (4 - i), (30 / 3) * (4 - i));
-            g.endFill();
-        }
-    }
-
-    /** Maszt + proporzec (bob + fala) — redraw per klatke (maly gfx, tani). */
-    private drawFlag(): void {
-        const g = this.gfxFlag;
-        g.clear();
-        const bob = Math.sin(this.pulse) * 5;
-        const wave = Math.sin(this.pulse * 1.9) * 5 + Math.sin(this.pulse * 3.1) * 2;
-
-        // Cien masztu
-        g.lineStyle(4, 0x000000, 0.2);
-        g.moveTo(2, bob + 24);
-        g.lineTo(2, bob - 28);
-        // Maszt
-        g.lineStyle(4, 0xc8a86b, 1);
-        g.moveTo(0, bob + 22);
-        g.lineTo(0, bob - 28);
-        g.lineStyle(0);
-
-        // Proporzec w kolorze flagi (falujacy)
-        g.beginFill(this.color);
-        g.lineStyle(1.2, 0x000000, 0.35);
-        g.drawPolygon([0, bob - 28, 35, bob - 14 + wave, 0, bob + 2]);
-        g.endFill();
-        g.lineStyle(0);
-        // Highlight proporca
-        g.beginFill(0xffffff, 0.28);
-        g.drawPolygon([0, bob - 28, 17, bob - 22 + wave * 0.5, 0, bob - 20]);
-        g.endFill();
-
-        // Kamienna podstawa
-        g.beginFill(0xb8956a);
-        g.lineStyle(1, 0x8b6914, 1);
-        g.drawRoundedRect(-8, bob + 18, 16, 8, 2);
-        g.endFill();
-        g.lineStyle(0);
     }
 
     public destroy(): void {
@@ -208,4 +180,65 @@ export class CtfFlag {
         if (this.gfxTrail.parent) this.gfxTrail.parent.removeChild(this.gfxTrail);
         this.gfxTrail.destroy();
     }
+}
+
+// =================================================================
+// Canvas 2D bake (AA) — proporzec + plyta, cache per-kolor
+// =================================================================
+
+function getFlagTextures(color: number): FlagTex {
+    const cached = FLAG_CACHE.get(color);
+    if (cached) return cached;
+    const built = buildFlagTextures(color);
+    FLAG_CACHE.set(color, built);
+    return built;
+}
+
+function buildFlagTextures(color: number): FlagTex {
+    const col = '#' + color.toString(16).padStart(6, '0');
+
+    // ── Proporzec (trojkat + obrys + highlight); local (0,0) = punkt na maszcie ──
+    const bPad = 4;
+    const bW = 35 + bPad * 2;
+    const bH = 30 + bPad * 2;       // y od -28 do 2
+    const bOX = bPad;               // canvas x dla local x=0
+    const bOY = 28 + bPad;          // canvas y dla local y=0
+    const bc = document.createElement('canvas');
+    bc.width = bW; bc.height = bH;
+    const b = bc.getContext('2d')!;
+    b.translate(bOX, bOY);
+    // proporzec
+    b.fillStyle = col;
+    b.beginPath();
+    b.moveTo(0, -28); b.lineTo(35, -14); b.lineTo(0, 2); b.closePath();
+    b.fill();
+    b.lineWidth = 1.2; b.strokeStyle = 'rgba(0,0,0,0.35)'; b.stroke();
+    // highlight
+    b.fillStyle = 'rgba(255,255,255,0.28)';
+    b.beginPath();
+    b.moveTo(0, -28); b.lineTo(17, -22); b.lineTo(0, -20); b.closePath();
+    b.fill();
+
+    // ── Plyta gruntu (koncentryczne elipsy w kolorze flagi); local (0,0) = kotwica ──
+    const pW = 110, pH = 72;
+    const pOX = 55, pOY = 30;       // canvas coord dla local (0,0)
+    const pc = document.createElement('canvas');
+    pc.width = pW; pc.height = pH;
+    const p = pc.getContext('2d')!;
+    p.translate(pOX, pOY);
+    for (let i = 3; i >= 1; i--) {
+        p.globalAlpha = 0.13 * i;
+        p.fillStyle = col;
+        p.beginPath();
+        p.ellipse(0, 8, (50 / 3) * (4 - i), (30 / 3) * (4 - i), 0, 0, Math.PI * 2);
+        p.fill();
+    }
+    p.globalAlpha = 1;
+
+    return {
+        banner: PIXI.Texture.from(bc),
+        plate: PIXI.Texture.from(pc),
+        bAX: bOX / bW, bAY: bOY / bH,
+        pAX: pOX / pW, pAY: pOY / pH,
+    };
 }

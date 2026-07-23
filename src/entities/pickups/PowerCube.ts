@@ -1,5 +1,5 @@
 /**
- * PowerCube.ts — FAZA 8.6 (v0.44.0) port z v4.48.
+ * PowerCube.ts — FAZA 8.6 (v0.44.0) port z v4.48. Mobile-crisp F4.1f.
  *
  * Pickup który dropuje 30% chance z regular enemy / 100% z boss (capped 10/match w GameSession).
  * 2 typy random 50/50:
@@ -12,12 +12,11 @@
  *  - Touch → cube.active = false (cube znika, enemy NIE dostaje bonusu)
  *  - Megaboss SKIPS stealing logic (chronimy phase-based AI)
  *
- * Visual port z v4.48:
- *  - Diamond/octagon shape, radius 20
- *  - Bobbing (sin pulse * 5px), breathing scale (±13%), rotation (0.035 rad/frame)
- *  - Outer glow ring + inner facet (lighter shade)
- *  - Sparkle flash co ~90 frames (4 outward dashes)
- *  - Icon: ⚔ (dmg) lub 💙 (hp), bold sans-serif, white + black stroke
+ * F4.1f (mobile): ciało (oktagon z ukosnymi krawedziami) OBRACA sie co klatke —
+ * na mobile (AA renderera OFF) rotujacy sie wektor "pikselowal". Fix: cialo + facet
+ * + glow sa WYPIECZONE w Canvas 2D (AA) -> Textures -> Sprite'y; obrot/skala idzie
+ * na sprite (bilinear = gladko). Tekstury cachowane per-typ (module-level) => zero
+ * rebake/leaku. Ikona (PIXI.Text) i tak jest teksturą; sparkle (krotki blysk) zostaje.
  */
 
 import * as PIXI from 'pixi.js';
@@ -34,17 +33,20 @@ const ICONS = {
     hp:  '💙',
 } as const;
 
+const RADIUS = 20;
+
+interface CubeTex { body: PIXI.Texture; glow: PIXI.Texture; }
+const CUBE_CACHE = new Map<PowerCubeType, CubeTex>();
+
 export class PowerCube {
     public x: number;
     public y: number;
-    public readonly radius: number = 20;
+    public readonly radius: number = RADIUS;
     public readonly type: PowerCubeType;
     public active: boolean = true;
 
     public container: PIXI.Container;
-    private bodyGfx: PIXI.Graphics;
-    private innerFacetGfx: PIXI.Graphics;
-    private glowGfx: PIXI.Graphics;
+    private glowSprite: PIXI.Sprite;
     private sparkGfx: PIXI.Graphics;
     private iconText: PIXI.Text;
 
@@ -56,12 +58,11 @@ export class PowerCube {
         this.x = x;
         this.y = y;
 
-        // 50/50 random type
         this.type = Math.random() < 0.5 ? 'dmg' : 'hp';
         this.pulse = Math.random() * Math.PI * 2;
         this.rot = Math.random() * Math.PI * 2;
 
-        const colors = COLORS[this.type];
+        const tex = getCubeTextures(this.type);
 
         this.container = new PIXI.Container();
         this.container.x = x;
@@ -69,28 +70,21 @@ export class PowerCube {
         this.container.zIndex = 100;
         this.container.sortableChildren = false;
 
-        // Outer glow (largest layer, drawn first)
-        this.glowGfx = new PIXI.Graphics();
-        this.glowGfx.beginFill(colors.main, 1);
-        this.glowGfx.drawCircle(0, 0, this.radius + 6);
-        this.glowGfx.endFill();
-        this.glowGfx.alpha = 0.2;
-        this.container.addChild(this.glowGfx);
+        // Outer glow (baked circle) — alpha pulsowana
+        this.glowSprite = new PIXI.Sprite(tex.glow);
+        this.glowSprite.anchor.set(0.5);
+        this.glowSprite.alpha = 0.2;
+        this.container.addChild(this.glowSprite);
 
-        // Main body (octagonal diamond, top-down view)
-        this.bodyGfx = new PIXI.Graphics();
-        this.drawBody(colors.main);
-        this.container.addChild(this.bodyGfx);
+        // Body + inner facet (baked) — obraca sie plynnie jako sprite
+        const bodySprite = new PIXI.Sprite(tex.body);
+        bodySprite.anchor.set(0.5);
+        this.container.addChild(bodySprite);
 
-        // Inner facet (lighter shade, smaller octagon centered)
-        this.innerFacetGfx = new PIXI.Graphics();
-        this.drawInnerFacet(colors.light);
-        this.container.addChild(this.innerFacetGfx);
-
-        // Icon text (⚔ or 💙)
+        // Icon text (⚔ or 💙) — tekst = tekstura, crisp
         this.iconText = new PIXI.Text(ICONS[this.type], {
             fontFamily: 'sans-serif',
-            fontSize: Math.round(this.radius * 0.75),
+            fontSize: Math.round(RADIUS * 0.75),
             fontWeight: 'bold',
             fill: 0xffffff,
             stroke: 0x000000,
@@ -99,50 +93,14 @@ export class PowerCube {
         this.iconText.anchor.set(0.5);
         this.container.addChild(this.iconText);
 
-        // Sparkle layer (drawn last, on top — cleared/redrawn each frame)
+        // Sparkle (krotki blysk, thin — redraw tylko przy progu)
         this.sparkGfx = new PIXI.Graphics();
         this.container.addChild(this.sparkGfx);
 
         worldContainer.addChild(this.container);
     }
 
-    private drawBody(color: number): void {
-        this.bodyGfx.clear();
-        const r = this.radius;
-        this.bodyGfx.lineStyle(2, 0x000000, 1);
-        this.bodyGfx.beginFill(color, 1);
-        this.bodyGfx.moveTo(0, -r);
-        this.bodyGfx.lineTo(r * 0.72, -r * 0.72);
-        this.bodyGfx.lineTo(r, 0);
-        this.bodyGfx.lineTo(r * 0.72, r * 0.72);
-        this.bodyGfx.lineTo(0, r);
-        this.bodyGfx.lineTo(-r * 0.72, r * 0.72);
-        this.bodyGfx.lineTo(-r, 0);
-        this.bodyGfx.lineTo(-r * 0.72, -r * 0.72);
-        this.bodyGfx.closePath();
-        this.bodyGfx.endFill();
-    }
-
-    private drawInnerFacet(color: number): void {
-        this.innerFacetGfx.clear();
-        const r = this.radius;
-        this.innerFacetGfx.beginFill(color, 0.55);
-        this.innerFacetGfx.moveTo(0, -r * 0.55);
-        this.innerFacetGfx.lineTo(r * 0.4, -r * 0.4);
-        this.innerFacetGfx.lineTo(r * 0.55, 0);
-        this.innerFacetGfx.lineTo(r * 0.4, r * 0.4);
-        this.innerFacetGfx.lineTo(0, r * 0.55);
-        this.innerFacetGfx.lineTo(-r * 0.4, r * 0.4);
-        this.innerFacetGfx.lineTo(-r * 0.55, 0);
-        this.innerFacetGfx.lineTo(-r * 0.4, -r * 0.4);
-        this.innerFacetGfx.closePath();
-        this.innerFacetGfx.endFill();
-    }
-
-    /**
-     * Animacja: bobbing + breathing + rotation + sparkle.
-     * Wywoływane co klatkę w main.ts gameLoop.
-     */
+    /** Animacja: bobbing + breathing + rotation + sparkle. */
     update(delta: number): void {
         if (!this.active) return;
 
@@ -150,19 +108,15 @@ export class PowerCube {
         this.rot += 0.035 * delta;
         this.sparkleTimer += delta;
 
-        // Floating bobbing (Y oscillation)
         const bobY = Math.sin(this.pulse * 0.65) * 5;
         this.container.y = this.y + bobY;
 
-        // Breathing scale + rotation
         const sc = 1 + Math.sin(this.pulse) * 0.13;
         this.container.scale.set(sc);
         this.container.rotation = this.rot;
 
-        // Outer glow alpha pulse
-        this.glowGfx.alpha = 0.2 + Math.sin(this.pulse) * 0.07;
+        this.glowSprite.alpha = 0.2 + Math.sin(this.pulse) * 0.07;
 
-        // Sparkle effect: 4 outward dashes when sin signal threshold
         if (Math.sin(this.sparkleTimer * 0.07) > 0.85) {
             this.sparkGfx.clear();
             this.sparkGfx.lineStyle(1.5, 0xffffff, 0.9);
@@ -186,4 +140,67 @@ export class PowerCube {
         this.container.destroy({ children: true });
         this.active = false;
     }
+}
+
+// =================================================================
+// Canvas 2D bake (AA) — cialo/facet/glow, cache per-typ
+// =================================================================
+
+function getCubeTextures(type: PowerCubeType): CubeTex {
+    const cached = CUBE_CACHE.get(type);
+    if (cached) return cached;
+    const c = COLORS[type];
+    const built = { body: PIXI.Texture.from(buildBodyCanvas(c.main, c.light)), glow: PIXI.Texture.from(buildGlowCanvas(c.main)) };
+    CUBE_CACHE.set(type, built);
+    return built;
+}
+
+function octagonPath(c: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
+    c.beginPath();
+    c.moveTo(cx + 0, cy - r);
+    c.lineTo(cx + r * 0.72, cy - r * 0.72);
+    c.lineTo(cx + r, cy + 0);
+    c.lineTo(cx + r * 0.72, cy + r * 0.72);
+    c.lineTo(cx + 0, cy + r);
+    c.lineTo(cx - r * 0.72, cy + r * 0.72);
+    c.lineTo(cx - r, cy + 0);
+    c.lineTo(cx - r * 0.72, cy - r * 0.72);
+    c.closePath();
+}
+
+function buildBodyCanvas(main: number, light: number): HTMLCanvasElement {
+    const r = RADIUS;
+    const S = Math.ceil((r + 3) * 2);
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const c = cv.getContext('2d')!;
+    const cx = S / 2, cy = S / 2;
+
+    // Cialo (oktagon + czarny obrys)
+    octagonPath(c, cx, cy, r);
+    c.fillStyle = '#' + main.toString(16).padStart(6, '0');
+    c.fill();
+    c.lineWidth = 2; c.strokeStyle = '#000000'; c.stroke();
+
+    // Inner facet (jasniejszy, mniejszy)
+    c.globalAlpha = 0.55;
+    octagonPath(c, cx, cy, r * 0.55);
+    c.fillStyle = '#' + light.toString(16).padStart(6, '0');
+    c.fill();
+    c.globalAlpha = 1;
+
+    return cv;
+}
+
+function buildGlowCanvas(main: number): HTMLCanvasElement {
+    const r = RADIUS + 6;
+    const S = Math.ceil((r + 1) * 2);
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#' + main.toString(16).padStart(6, '0');
+    c.beginPath();
+    c.arc(S / 2, S / 2, r, 0, Math.PI * 2);
+    c.fill();
+    return cv;
 }

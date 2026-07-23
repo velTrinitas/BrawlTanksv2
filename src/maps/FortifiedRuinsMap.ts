@@ -102,7 +102,10 @@ export interface RuinRectEntry {
 
 /** Kolory kamienia (legacy TONES + STONE) w wersji hex number dla PIXI. */
 const STONE_TONE = 0xc4a77d;
-const ROCK_TONES = [0xc4a77d, 0x8b6914, 0x5a6e3a, 0x6b4c2a, 0x9b8c6e];
+// F4.1 (decyzja Mariusza): tony skal przesuniete w chlodniejszy/ciemniejszy kamien,
+// by NIE zlewaly sie z cieplym piaskiem gruntu (#a89066). Dwa poprzednie tony
+// (0xc4a77d, 0x9b8c6e) byly niemal identyczne z podlozem -> "kamien-widmo" (czytelnosc).
+const ROCK_TONES = [0x8c8578, 0x8b6914, 0x5a6e3a, 0x6b4c2a, 0x6f6a5c];
 
 /**
  * Mury fortec (U-shape wokol kazdej flagi, otwarte od poludnia) — geometria 1:1
@@ -124,14 +127,14 @@ export const FORTIFIED_FORTRESS_WALLS: RuinRectEntry[] = FORTIFIED_FLAG_POSITION
  * (29 -> 14) dla lepszej mobilnosci. Usunieto m.in. skale w fosie i skale
  * w korytarzu dostawy (x<535) — korytarz w 100% czysty. Zachowany rownomierny
  * rozklad oslony po kwadrantach; zero kamieni w pasie fosy (y 1445-1555).
- * AABB re-zweryfikowane (scratchpad ctf_f1_aabb.js).
+ * F4.1 (decyzja Mariusza): usuniete 2 najmniejsze "kamyki" 60x42 (600,1100) +
+ * (1750,400) — bezuzyteczna oslona, zlewaly sie z tlem, drazniacy micro-blocker
+ * (14 -> 12). Usuwanie kolizji nie tworzy nowych — AABB nadal PASS.
  */
 export const FORTIFIED_ROCKS_LAYOUT: RuinRectEntry[] = ([
     [640, 140, 70, 44],
-    [600, 1100, 60, 42],
     [950, 900, 100, 66],
     [1300, 800, 120, 80],
-    [1750, 400, 60, 42],
     [1800, 800, 100, 66],
     [2000, 600, 120, 80],
     [2200, 900, 100, 66],
@@ -155,23 +158,17 @@ export interface RuinsBushEntry {
     seed: number;
 }
 
-/** 15 stref krzakow (stealth, passable) — pozycje legacy (4264-4266), promienie STALE. */
+/**
+ * F4.1 (decyzja Mariusza): 15 -> 3 strefy stealth, za to WYRAZNE. Wizual = wysoka
+ * zielona trawa (jezyk "kryjowki" a'la Brawl Stars / KTB), nie plaskie krzaki-widma.
+ * Pozycje AABB-verified (scratchpad ctf_f4_aabb.js) na trasach odwrotu z flagami:
+ * ALFA (700,1000) / BRAVO (2000,1000) / CHARLIE (1300,2350) -> hangar. Wieksze
+ * promienie (90-95) = czytelne kryjowki, w ktorych chowa sie caly czolg.
+ */
 export const FORTIFIED_BUSHES_LAYOUT: RuinsBushEntry[] = ([
-    [380, 150, 80],
-    [700, 960, 70],
-    [550, 1300, 70],
-    [800, 1600, 45],
-    [480, 2200, 70],
-    [1150, 380, 70],
-    [1200, 1100, 55],
-    [1400, 500, 70],
-    [1500, 1700, 70],
-    [1350, 2300, 70],
-    [1800, 300, 70],
-    [2100, 800, 70],
-    [2200, 1630, 70],
-    [2600, 600, 45],
-    [2450, 1300, 70],
+    [700, 1000, 95],
+    [2000, 1000, 95],
+    [1300, 2350, 90],
 ] as Array<[number, number, number]>).map(([x, y, r], i) => ({ x, y, r, seed: 200 + i }));
 
 export interface RuinsLakeEntry {
@@ -365,31 +362,54 @@ export function buildFortifiedRuinsTexture(): PIXI.Texture {
 function drawFosaBase(c: CanvasRenderingContext2D, rng: () => number): void {
     const F = FORTIFIED_FOSA_RECT;
 
-    // Brzegi (ciemna ziemia — czytelna granica strefy)
-    c.fillStyle = '#6b5a3c';
-    c.fillRect(F.x - 6, F.y - 6, F.w + 12, F.h + 12);
+    // Wilgotny brzeg (ciemna ziemia — czytelna granica strefy)
+    c.fillStyle = '#5a4a30';
+    c.fillRect(F.x - 8, F.y - 8, F.w + 16, F.h + 16);
+    c.fillStyle = '#463a24';
+    c.fillRect(F.x - 3, F.y - 3, F.w + 6, F.h + 6);
 
-    // Woda: pionowy gradient (glebia)
+    // Woda rzeki: gradient poprzeczny (plycej przy brzegach, glebiej w nurcie)
     const wat = c.createLinearGradient(0, F.y, 0, F.y + F.h);
-    wat.addColorStop(0, '#4e6e52');
-    wat.addColorStop(0.5, '#3c5a46');
-    wat.addColorStop(1, '#2f4a3a');
+    wat.addColorStop(0, '#3f7d80');
+    wat.addColorStop(0.5, '#2b5f6a');
+    wat.addColorStop(1, '#3f7d80');
     c.fillStyle = wat;
     c.fillRect(F.x, F.y, F.w, F.h);
 
-    // Refleksy statyczne (jasne kreski)
-    c.strokeStyle = '#7ea080';
-    c.lineWidth = 2;
-    for (let i = 0; i < 90; i++) {
+    // Ciemniejszy nurt srodkiem (glebia — kierunek rzeki)
+    c.save();
+    c.globalAlpha = 0.35;
+    c.fillStyle = '#1f4a55';
+    c.fillRect(F.x, F.y + F.h * 0.32, F.w, F.h * 0.36);
+    c.restore();
+
+    // Baked smugi nurtu (dlugie jasne poziome kreski = plynaca woda)
+    c.strokeStyle = '#7fb4b0';
+    for (let i = 0; i < 130; i++) {
         const x = F.x + rng() * F.w;
-        const y = F.y + 10 + rng() * (F.h - 20);
-        const len = 8 + rng() * 18;
+        const y = F.y + 6 + rng() * (F.h - 12);
+        const len = 20 + rng() * 64;
         c.save();
-        c.globalAlpha = 0.15 + rng() * 0.2;
+        c.globalAlpha = 0.07 + rng() * 0.12;
+        c.lineWidth = 1 + rng() * 1.5;
         c.beginPath();
         c.moveTo(x, y);
-        c.lineTo(x + len, y);
+        c.lineTo(Math.min(x + len, F.x + F.w - 2), y + (rng() - 0.5) * 2);
         c.stroke();
+        c.restore();
+    }
+
+    // Piana przy brzegach (drobne jasne kropki — realizm styku wody z ladem)
+    c.fillStyle = '#cfe8e2';
+    for (let i = 0; i < 90; i++) {
+        const x = F.x + rng() * F.w;
+        const top = rng() < 0.5;
+        const y = top ? F.y + 2 + rng() * 8 : F.y + F.h - 2 - rng() * 8;
+        c.save();
+        c.globalAlpha = 0.12 + rng() * 0.18;
+        c.beginPath();
+        c.arc(x, y, 0.8 + rng() * 1.4, 0, Math.PI * 2);
+        c.fill();
         c.restore();
     }
 
@@ -411,33 +431,45 @@ function drawFosaBase(c: CanvasRenderingContext2D, rng: () => number): void {
 }
 
 function drawStonePathSlab(c: CanvasRenderingContext2D, rng: () => number, x: number, y: number): void {
-    // Plyty brodu — na ladzie pelna alpha, w wodzie fosy przygaszone (zatopione)
-    const F = FORTIFIED_FOSA_RECT;
-    const inWater = y > F.y - 10 && y < F.y + F.h + 10;
-    for (let i = 0; i < 3; i++) {
-        const px = x + (rng() - 0.5) * 40;
-        const py = y + (rng() - 0.5) * 50;
-        const w = 30 + rng() * 22;
-        const h = 22 + rng() * 16;
+    // Bród: WYRAZNE, wilgotne kamienie-stopnie wystajace z wody (F4.1b: zamiast
+    // przygaszonych "kwadratowych pol" ktore nie czytaly sie jako nic konkretnego).
+    for (let i = 0; i < 2; i++) {
+        const px = x + (rng() - 0.5) * 38;
+        const py = y + (rng() - 0.5) * 48;
+        const w = 26 + rng() * 16;
+        const h = 20 + rng() * 12;
         c.save();
         c.translate(px, py);
         c.rotate((rng() - 0.5) * 0.4);
-        c.globalAlpha = inWater ? 0.30 : 0.75;
-        c.fillStyle = '#b0a080';
+        // Cien / waterline w wodzie
+        c.globalAlpha = 0.30;
+        c.fillStyle = '#173038';
         c.beginPath();
-        c.moveTo(-w / 2, -h / 2 + 4);
-        c.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + 4, -h / 2);
-        c.lineTo(w / 2 - 4, -h / 2);
-        c.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + 4);
-        c.lineTo(w / 2, h / 2 - 4);
-        c.quadraticCurveTo(w / 2, h / 2, w / 2 - 4, h / 2);
-        c.lineTo(-w / 2 + 4, h / 2);
-        c.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - 4);
-        c.closePath();
+        c.ellipse(2, h * 0.32, w * 0.55, h * 0.42, 0, 0, Math.PI * 2);
         c.fill();
-        c.globalAlpha *= 0.6;
-        c.strokeStyle = '#6b5a3c';
-        c.lineWidth = 2;
+        // Mokra podstawa kamienia (ciemniejsza)
+        c.globalAlpha = 1;
+        c.fillStyle = '#7c7460';
+        c.beginPath();
+        c.ellipse(0, 0, w * 0.5, h * 0.45, 0, 0, Math.PI * 2);
+        c.fill();
+        // Sucha gorna powierzchnia (jasniejsza)
+        c.fillStyle = '#a89a7c';
+        c.beginPath();
+        c.ellipse(0, -h * 0.12, w * 0.42, h * 0.32, 0, 0, Math.PI * 2);
+        c.fill();
+        // Highlight
+        c.globalAlpha = 0.5;
+        c.fillStyle = '#c8bd9c';
+        c.beginPath();
+        c.ellipse(-w * 0.12, -h * 0.2, w * 0.16, h * 0.12, 0, 0, Math.PI * 2);
+        c.fill();
+        // Mokra obwodka (blysk linii wody)
+        c.globalAlpha = 0.4;
+        c.strokeStyle = '#bfe0da';
+        c.lineWidth = 1.5;
+        c.beginPath();
+        c.ellipse(0, h * 0.1, w * 0.48, h * 0.4, 0, 0, Math.PI * 2);
         c.stroke();
         c.restore();
     }
@@ -478,45 +510,110 @@ function drawBridge(c: CanvasRenderingContext2D): void {
     }
 }
 
+/**
+ * Zwarta, listowata sylwetka korony (scallop) — jeden zamkniety ksztalt z lukami
+ * na zewnatrz miedzy wierzcholkami, splaszczony 2.5D. Czyta sie jak korona drzewa,
+ * nie jak luzny zbior kolek. Deterministyczny (rng ze wspolnego strumienia bake).
+ */
+function leafyBlob(
+    c: CanvasRenderingContext2D, rng: () => number,
+    cx: number, cy: number, R: number, lobes: number, color: string,
+): void {
+    const pts: Array<[number, number]> = [];
+    for (let i = 0; i < lobes; i++) {
+        const a = (i / lobes) * Math.PI * 2;
+        const rr = R * (0.80 + rng() * 0.30);
+        pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.80]);
+    }
+    c.fillStyle = color;
+    c.beginPath();
+    for (let i = 0; i < lobes; i++) {
+        const [px, py] = pts[i];
+        const [nx, ny] = pts[(i + 1) % lobes];
+        const mx = (px + nx) / 2;
+        const my = (py + ny) / 2;
+        const ctrlX = mx + (mx - cx) * 0.35;   // punkt kontrolny wypchniety na zewnatrz = bukiet lisci
+        const ctrlY = my + (my - cy) * 0.35;
+        if (i === 0) c.moveTo(px, py);
+        c.quadraticCurveTo(ctrlX, ctrlY, nx, ny);
+    }
+    c.closePath();
+    c.fill();
+}
+
 function drawTree(c: CanvasRenderingContext2D, rng: () => number, x: number, y: number, variant: number): void {
-    // Cien
+    // Paleta wg wariantu: [dark, mid, light, trunk, trunkDark]
+    const P = [
+        ['#2f5a2c', '#4a7c3f', '#6fa757', '#6b4c2a', '#48331d'],
+        ['#2a4f26', '#3f6e38', '#63984f', '#5f4526', '#3f2e18'],
+        ['#3a5220', '#557a30', '#79a444', '#6b4c2a', '#48331b'],
+    ][variant % 3];
+
+    // ── Cien na ziemi (miekki, w prawo-dol jak reszta propsow) ──
     c.save();
     c.globalAlpha = 0.22;
-    c.fillStyle = '#3c2c14';
+    c.fillStyle = '#2c2012';
     c.beginPath();
-    c.ellipse(x + 6, y + 8, 26, 10, 0, 0, Math.PI * 2);
+    c.ellipse(x + 10, y + 10, 30, 11, 0, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
-    // Pien
-    c.fillStyle = '#6b4c2a';
-    c.fillRect(x - 4, y - 18, 8, 26);
-
-    // Korona: 3 warstwy blobow, wariant zmienia odcien
-    const greens = [
-        ['#4a7c3f', '#5f9450', '#76ab63'],
-        ['#3f6e38', '#527f45', '#6a9a58'],
-        ['#557a30', '#6b923e', '#83aa50'],
-    ][variant % 3];
-    for (let layer = 0; layer < 3; layer++) {
-        c.fillStyle = greens[layer];
-        const lr = 24 - layer * 6;
-        const ly = y - 26 - layer * 10;
-        for (let b = 0; b < 4; b++) {
-            const bx = x + Math.cos(b * 1.7 + layer + rng() * 0.5) * (lr * 0.5);
-            const by = ly + Math.sin(b * 2.1 + layer) * (lr * 0.3);
-            c.beginPath();
-            c.arc(bx, by, lr * (0.75 + rng() * 0.3), 0, Math.PI * 2);
-            c.fill();
-        }
+    // ── Pien: zwezajacy sie, z przynasadowa flara + cieniowana prawa strona + kora ──
+    const trunkTop = y - 20;
+    c.fillStyle = P[3];
+    c.beginPath();
+    c.moveTo(x - 7, y + 8);
+    c.quadraticCurveTo(x - 4, y - 6, x - 3.5, trunkTop);
+    c.lineTo(x + 3.5, trunkTop);
+    c.quadraticCurveTo(x + 4, y - 6, x + 7, y + 8);
+    c.closePath();
+    c.fill();
+    c.fillStyle = P[4];
+    c.beginPath();
+    c.moveTo(x + 1, trunkTop);
+    c.quadraticCurveTo(x + 4, y - 6, x + 7, y + 8);
+    c.lineTo(x + 2, y + 8);
+    c.quadraticCurveTo(x + 1, y - 6, x + 1, trunkTop);
+    c.closePath();
+    c.fill();
+    c.save();
+    c.globalAlpha = 0.6;
+    c.strokeStyle = P[4];
+    c.lineWidth = 1;
+    for (let i = 0; i < 2; i++) {
+        c.beginPath();
+        c.moveTo(x - 2 + i * 3, trunkTop + 3);
+        c.lineTo(x - 2 + i * 3, y + 5);
+        c.stroke();
     }
-    // Highlight
+    c.restore();
+
+    // ── Korona: 3 zwarte, listowate sylwetki (ciemna baza -> jasny szczyt gorne-lewe) ──
+    const cyTop = y - 34;
+    leafyBlob(c, rng, x, cyTop + 6, 27, 11, P[0]);       // baza (ciemna, szeroka)
+    leafyBlob(c, rng, x - 3, cyTop - 2, 21, 10, P[1]);   // srodek
+    leafyBlob(c, rng, x - 7, cyTop - 8, 14, 9, P[2]);    // szczyt (jasny)
+
+    // Ciemne "dziury" listowia (glebia) + drobne rozjasnienia (swiatlo w listowiu)
     c.save();
     c.globalAlpha = 0.35;
-    c.fillStyle = '#a8cc7a';
-    c.beginPath();
-    c.arc(x - 8, y - 52, 9, 0, Math.PI * 2);
-    c.fill();
+    c.fillStyle = P[0];
+    for (let i = 0; i < 3; i++) {
+        const a = rng() * Math.PI * 2;
+        const d = rng() * 12;
+        c.beginPath();
+        c.arc(x + Math.cos(a) * d + 4, cyTop + Math.sin(a) * d + 4, 3 + rng() * 2, 0, Math.PI * 2);
+        c.fill();
+    }
+    c.globalAlpha = 0.5;
+    c.fillStyle = P[2];
+    for (let i = 0; i < 5; i++) {
+        const a = rng() * Math.PI * 2;
+        const d = 4 + rng() * 12;
+        c.beginPath();
+        c.arc(x - 6 + Math.cos(a) * d, cyTop - 6 + Math.sin(a) * d, 1.5 + rng() * 1.5, 0, Math.PI * 2);
+        c.fill();
+    }
     c.restore();
 }
 

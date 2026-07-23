@@ -2,14 +2,18 @@ import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
 
 /**
- * RuinBlock — kamienny blok kolizyjny mapy Fortified Ruins (FAZA CTF F1).
+ * RuinBlock — kamienny blok kolizyjny mapy Fortified Ruins (FAZA CTF F1, rock crisp F4.1e).
  *
  * Dwa warianty:
- *  - 'wall': segment muru fortecy (U-shape wokol flag) — plaski kamien z fugami,
- *  - 'rock': skala oslonowa / zwalona kolumna — bryła 2.5D z cieniem i szczelinami.
+ *  - 'wall': segment muru fortecy (U-shape wokol flag) — plaski kamien z fugami.
+ *            Krawedzie osiowe (prostokat) => ostry nawet bez AA => zostaje Graphics.
+ *  - 'rock': skala oslonowa / zwalona kolumna — bryła 2.5D z ukosnymi krawedziami.
+ *            Na mobile (AA renderera OFF) ukosne krawedzie wektora "pikselowaly",
+ *            wiec skala jest WYPIEKANA w Canvas 2D (AA) -> Texture -> Sprite.
+ *            Tekstura cachowana per-seed (layout deterministyczny) => zero rebake/leaku.
  *
  * ICollidable: x/y = TOP-LEFT hitboxa (konwencja repo), hitbox == wizual (Czytelnosc).
- * Static baked (rysowane raz w konstruktorze), update() = no-op.
+ * Static (rysowane/pieczone raz), update() = no-op.
  * Wchodzi do buildings + solidBuildings (blokuje czolgi i pociski).
  */
 
@@ -30,6 +34,11 @@ function shade(color: number, factor: number): number {
     const b = Math.min(255, Math.max(0, Math.round((color & 0xff) * factor)));
     return (r << 16) | (g << 8) | b;
 }
+function css(color: number): string { return '#' + color.toString(16).padStart(6, '0'); }
+function shadeCss(color: number, factor: number): string { return css(shade(color, factor)); }
+
+interface RockTex { tex: PIXI.Texture; m: number; }
+const ROCK_CACHE = new Map<number, RockTex>();
 
 export class RuinBlock implements ICollidable {
     public x: number;
@@ -38,7 +47,7 @@ export class RuinBlock implements ICollidable {
     public h: number;
 
     private container: PIXI.Container;
-    private gfx: PIXI.Graphics;
+    private gfx: PIXI.Graphics | null = null;
 
     constructor(
         x: number,
@@ -55,27 +64,31 @@ export class RuinBlock implements ICollidable {
         this.w = w;
         this.h = h;
 
-        // PIXI.Graphics init w PIERWSZYM bloku konstruktora (konwencja repo)
+        // PIXI init w PIERWSZYM bloku konstruktora (konwencja repo)
         this.container = new PIXI.Container();
-        this.gfx = new PIXI.Graphics();
-        this.container.addChild(this.gfx);
         this.container.x = x;
         this.container.y = y;
         // Y-sort: dolna krawedz bryly decyduje o kolejnosci z czolgami
         this.container.zIndex = y + h;
         worldContainer.addChild(this.container);
 
-        const rng = makeRng(seed);
         if (kind === 'wall') {
-            this.drawWall(tone, rng);
+            this.gfx = new PIXI.Graphics();
+            this.container.addChild(this.gfx);
+            this.drawWall(tone, makeRng(seed));
         } else {
-            this.drawRock(tone, rng);
+            // Skala: baked Canvas 2D (AA) -> Sprite (cache per-seed)
+            const rt = getRockTexture(seed, w, h, tone);
+            const spr = new PIXI.Sprite(rt.tex);
+            spr.x = -rt.m;   // canvas(m,m) == local(0,0)
+            spr.y = -rt.m;
+            this.container.addChild(spr);
         }
     }
 
-    /** Segment muru: plaski top z fugami blokow + krawedz 3D od dolu. */
+    /** Segment muru: plaski top z fugami blokow + krawedz 3D od dolu (Graphics — osiowy). */
     private drawWall(tone: number, rng: () => number): void {
-        const g = this.gfx;
+        const g = this.gfx!;
         const w = this.w;
         const h = this.h;
         const LIP = 6; // krawedz 3D
@@ -127,75 +140,107 @@ export class RuinBlock implements ICollidable {
         }
     }
 
-    /** Skala 2.5D: cien + bryla nieregularna + top-face + szczeliny + mech. */
-    private drawRock(tone: number, rng: () => number): void {
-        const g = this.gfx;
-        const w = this.w;
-        const h = this.h;
-        const cx = w / 2;
-        const cy = h / 2;
-
-        // Cien
-        g.beginFill(0x3c2c18, 0.30);
-        g.drawEllipse(cx + 5, h - 2, w * 0.55, h * 0.28);
-        g.endFill();
-
-        // Bryla — nieregularny wielokat wpisany w AABB (hitbox = pelny AABB,
-        // wielokat go wypelnia prawie w calosci, roznica < 6 px => hitbox uczciwy)
-        const pts: number[] = [];
-        const N = 9;
-        for (let i = 0; i < N; i++) {
-            const a = (i / N) * Math.PI * 2;
-            const rx = (w / 2) * (0.90 + rng() * 0.10);
-            const ry = (h / 2) * (0.88 + rng() * 0.12);
-            pts.push(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry);
-        }
-        g.beginFill(shade(tone, 0.72));
-        g.drawPolygon(pts);
-        g.endFill();
-
-        // Top-face (przesuniety w gore i mniejszy — bryła 2.5D)
-        const topPts: number[] = [];
-        for (let i = 0; i < N; i++) {
-            const a = (i / N) * Math.PI * 2;
-            const rx = (w / 2) * (0.72 + rng() * 0.08);
-            const ry = (h / 2) * (0.66 + rng() * 0.08);
-            topPts.push(cx + Math.cos(a) * rx, cy - h * 0.12 + Math.sin(a) * ry);
-        }
-        g.beginFill(tone);
-        g.drawPolygon(topPts);
-        g.endFill();
-
-        // Highlight polnocno-zachodni
-        g.beginFill(shade(tone, 1.3), 0.5);
-        g.drawEllipse(cx - w * 0.18, cy - h * 0.28, w * 0.18, h * 0.12);
-        g.endFill();
-
-        // Szczeliny
-        g.lineStyle(1.5, shade(tone, 0.45), 0.8);
-        const cracks = 2 + Math.floor(rng() * 2);
-        for (let i = 0; i < cracks; i++) {
-            let px = cx + (rng() - 0.5) * w * 0.5;
-            let py = cy - h * 0.2 + (rng() - 0.5) * h * 0.3;
-            g.moveTo(px, py);
-            const segs = 2 + Math.floor(rng() * 2);
-            for (let s = 0; s < segs; s++) {
-                px += (rng() - 0.5) * w * 0.3;
-                py += rng() * h * 0.25;
-                g.lineTo(px, py);
-            }
-        }
-        g.lineStyle(0);
-
-        // Mech (klimat ruin)
-        if (rng() < 0.7) {
-            g.beginFill(0x5a6e3a, 0.55);
-            g.drawEllipse(cx + (rng() - 0.5) * w * 0.4, cy + h * 0.15, 5 + rng() * 6, 3 + rng() * 3);
-            g.endFill();
-        }
-    }
-
     public update(): void {
         // static block — no per-frame work
     }
+}
+
+// =================================================================
+// Canvas 2D bake (AA) — skala 2.5D, cache per-seed
+// =================================================================
+
+function getRockTexture(seed: number, w: number, h: number, tone: number): RockTex {
+    const cached = ROCK_CACHE.get(seed);
+    if (cached) return cached;
+    const rt = buildRockCanvas(seed, w, h, tone);
+    ROCK_CACHE.set(seed, rt);
+    return rt;
+}
+
+function polygon(c: CanvasRenderingContext2D, pts: number[]): void {
+    c.beginPath();
+    c.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+    c.closePath();
+}
+
+function buildRockCanvas(seed: number, w: number, h: number, tone: number): RockTex {
+    const rng = makeRng(seed);
+    const m = Math.ceil(Math.max(w, h) * 0.28) + 6;
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(w + m * 2);
+    cv.height = Math.ceil(h + m * 2);
+    const c = cv.getContext('2d')!;
+    c.translate(m, m);   // canvas (m,m) == local (0,0)
+
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Cien kontaktowy (szeroki, miekki, wysrodkowany => skala SIEDZI na ziemi)
+    c.globalAlpha = 0.15; c.fillStyle = '#2c2012';
+    c.beginPath(); c.ellipse(cx + 2, h * 0.99, w * 0.60, h * 0.20, 0, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 0.26;
+    c.beginPath(); c.ellipse(cx + 1, h * 0.93, w * 0.48, h * 0.15, 0, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    // Bryla — nieregularny wielokat wpisany w AABB (hitbox = pelny AABB)
+    const N = 9;
+    const pts: number[] = [];
+    for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const rx = (w / 2) * (0.90 + rng() * 0.10);
+        const ry = (h / 2) * (0.88 + rng() * 0.12);
+        pts.push(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry);
+    }
+    c.fillStyle = shadeCss(tone, 0.72);
+    polygon(c, pts); c.fill();
+
+    // Top-face (przesuniety w gore i mniejszy — bryła 2.5D)
+    const topPts: number[] = [];
+    for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const rx = (w / 2) * (0.72 + rng() * 0.08);
+        const ry = (h / 2) * (0.66 + rng() * 0.08);
+        topPts.push(cx + Math.cos(a) * rx, cy - h * 0.12 + Math.sin(a) * ry);
+    }
+    c.fillStyle = css(tone);
+    polygon(c, topPts); c.fill();
+
+    // Highlight polnocno-zachodni
+    c.globalAlpha = 0.5; c.fillStyle = shadeCss(tone, 1.3);
+    c.beginPath(); c.ellipse(cx - w * 0.18, cy - h * 0.28, w * 0.18, h * 0.12, 0, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    // Zacienienie u podstawy (kontakt z gruntem = brak lewitacji)
+    c.globalAlpha = 0.32; c.fillStyle = shadeCss(tone, 0.5);
+    c.beginPath(); c.ellipse(cx, h * 0.85, w * 0.4, h * 0.12, 0, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    // Szczeliny
+    c.strokeStyle = shadeCss(tone, 0.45); c.globalAlpha = 0.8; c.lineWidth = 1.5;
+    const cracks = 2 + Math.floor(rng() * 2);
+    for (let i = 0; i < cracks; i++) {
+        let px = cx + (rng() - 0.5) * w * 0.5;
+        let py = cy - h * 0.2 + (rng() - 0.5) * h * 0.3;
+        c.beginPath(); c.moveTo(px, py);
+        const segs = 2 + Math.floor(rng() * 2);
+        for (let s = 0; s < segs; s++) {
+            px += (rng() - 0.5) * w * 0.3;
+            py += rng() * h * 0.25;
+            c.lineTo(px, py);
+        }
+        c.stroke();
+    }
+    c.globalAlpha = 1;
+
+    // Mech (klimat ruin)
+    if (rng() < 0.7) {
+        c.globalAlpha = 0.55; c.fillStyle = '#5a6e3a';
+        c.beginPath();
+        c.ellipse(cx + (rng() - 0.5) * w * 0.4, cy + h * 0.15, 5 + rng() * 6, 3 + rng() * 3, 0, 0, Math.PI * 2);
+        c.fill();
+        c.globalAlpha = 1;
+    }
+
+    return { tex: PIXI.Texture.from(cv), m };
 }

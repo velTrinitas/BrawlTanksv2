@@ -1428,8 +1428,8 @@ async function startGame(config: GameConfig): Promise<void> {
             effects,
             difficulty: getDifficultyModifiers(config.difficulty),
             hudNotif: (text, cssColor) => hud.addNotif(text, cssColor),
-            onPickupSfx: () => audio.playMagnetPickup(),
-            onCaptureSfx: () => audio.playHeartPickup(),
+            onPickupSfx: () => { audio.playMagnetPickup(); audio.startFlagCarryMusic(); }, // F4: carry-state music ON
+            onCaptureSfx: () => { audio.playHeartPickup(); audio.stopFlagCarryMusic(); }, // F4: wroc do muzyki mapy
             onBombExplosionSfx: () => audio.playExplosion(),
         });
         ctfSystem.spawnInitialForces();

@@ -149,6 +149,13 @@ export class SpawnSystem {
                 const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200);
                 if (pos) newHearts.push(new Heart(pos.x, pos.y, worldContainer));
             }
+            // F4.2: magnesy w CTF (jak KTB) — interval 900f, max 1 na mapie. Pickup +
+            // przyciaganie gemow (main.ts / PowerSystem / Gem) sa generyczne => dzialaja same.
+            if (this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
+                this.magnetFrameCounter = 0;
+                const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250);
+                if (pos) newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
+            }
             this._outResult.megaBossJustSpawned = false; return this._outResult;
         }
 

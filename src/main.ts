@@ -51,6 +51,7 @@ import {
     FORTIFIED_BUSHES_LAYOUT, FORTIFIED_LAKES_LAYOUT,
     FORTIFIED_FOSA_RECT, FORTIFIED_BRIDGE_RECT,
     FORTIFIED_HANGAR_RECT, FORTIFIED_PLAYER_SPAWN,
+    FORTIFIED_MEDI_PAD_POSITIONS, FORTIFIED_POWER_PAD_POSITIONS, // FAZA F4.2
 } from './maps/FortifiedRuinsMap'; // FAZA CTF F1
 import { RuinsBorder } from './maps/fortified/RuinsBorder';   // FAZA CTF F1
 import { RuinBlock } from './maps/fortified/RuinBlock';       // FAZA CTF F1
@@ -58,6 +59,8 @@ import { RuinsFosa } from './maps/fortified/RuinsFosa';       // FAZA CTF F1
 import { RuinsBush } from './maps/fortified/RuinsBush';       // FAZA CTF F1
 import { RuinsLake } from './maps/fortified/RuinsLake';       // FAZA CTF F1
 import { RuinsHangar } from './maps/fortified/RuinsHangar';   // FAZA CTF F1
+import { RuinsMediPad } from './maps/fortified/RuinsMediPad'; // FAZA F4.2
+import { RuinsPowerPad } from './maps/fortified/RuinsPowerPad'; // FAZA F4.2
 import { CtfSystem } from './systems/ctf/CtfSystem';          // FAZA CTF F2
 import { CornField } from './maps/tropics/CornField';
 import { SugarcaneField } from './maps/tropics/SugarcaneField';
@@ -261,8 +264,8 @@ let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
 let powerCubes: PowerCube[] = []; // v0.44.0 FAZA 8.6
-let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad> = [];
-let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad> = [];
+let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad> = [];
+let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
@@ -1349,10 +1352,12 @@ async function startGame(config: GameConfig): Promise<void> {
             { x: HR.x, y: HR.y + HR.h - 2, w: HR.w, h: 12, update: () => {} },           // poludnie
         ];
 
-        // D6/F3: CTF ma serduszka (playtest: bez nich za trudno). Pady dalej off
-        // (heal glowny = dostawa flagi); serca spawnuja sie przez SpawnSystem.
-        mediPads = [];
-        powerPads = [];
+        // D6/F3: CTF ma serduszka (playtest: bez nich za trudno).
+        // F4.2: pady WLACZONE (warianty ruin, baked). Medi = sustain po obu stronach
+        // fosy; Power = sprint lane na trasach odwrotu BRAVO/CHARLIE. Petle update
+        // (main.ts pad-loop) sa scenario-agnostyczne, wiec dzialaja bez zmian.
+        mediPads = FORTIFIED_MEDI_PAD_POSITIONS.map(p => new RuinsMediPad(p.x, p.y, worldContainer));
+        powerPads = FORTIFIED_POWER_PAD_POSITIONS.map(p => new RuinsPowerPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);

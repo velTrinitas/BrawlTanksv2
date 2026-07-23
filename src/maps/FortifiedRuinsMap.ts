@@ -90,6 +90,22 @@ export const FORTIFIED_BRIDGE_RECT = { x: 1440, y: 1445, w: 120, h: 110 };
 /** Spawn gracza — w hangarze (legacy 4700). */
 export const FORTIFIED_PLAYER_SPAWN = { x: 200, y: 1500 };
 
+/**
+ * F4.2: pady medi/power (jak KTB, warianty ruin). x/y = TOP-LEFT footprintu 100x100
+ * (centrum aktywacji = x+50,y+50). Pozycje AABB-verified (scratchpad ctf_f42_pads.js):
+ * poza murami/skalami/jeziorami/krzakami/fosa/strefa hangaru, w granicach swiata.
+ * Medi = sustain po obu stronach fosy; Power = "sprint lane" na dlugich trasach
+ * odwrotu BRAVO/CHARLIE (ALFA blisko bazy => bez power pada).
+ */
+export const FORTIFIED_MEDI_PAD_POSITIONS = [
+    { x: 1450, y: 900 },   // centralny polnoc (ALFA/BRAVO)
+    { x: 850,  y: 1750 },  // poludnie (CHARLIE)
+];
+export const FORTIFIED_POWER_PAD_POSITIONS = [
+    { x: 2150, y: 1100 },  // sprint lane trasy BRAVO
+    { x: 1000, y: 2000 },  // sprint lane trasy CHARLIE
+];
+
 export interface RuinRectEntry {
     x: number;
     y: number;

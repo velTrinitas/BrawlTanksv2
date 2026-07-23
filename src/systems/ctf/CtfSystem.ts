@@ -63,6 +63,7 @@ export interface CtfSystemOpts {
     onPickupSfx: () => void;
     onCaptureSfx: () => void;
     onBombExplosionSfx: () => void;
+    onEnrage: () => void; // FAZA F4.3 — baner eskalacji (2. flaga)
 }
 
 export class CtfSystem {
@@ -214,16 +215,21 @@ export class CtfSystem {
             ctf.flagsCaptured++;
             ctf.escalation = Math.min(2, ctf.flagsCaptured);
             player.hp = player.maxHp; // full-heal (legacy 1:1) — petla ryzyko/nagroda
+            // F4.3 flex dostawy: duzy popup postepu, zielone iskry heala, mocny shake.
+            // (Konfetti per-capture anulowane — endcard ma juz swoje; unikamy dublu.)
             hudNotif(t('ctf.flagCaptured', { name: flag.name }), this.cssColor(flag.color));
-            effects.spawnFloatingText(player.x, player.y - 50, `✅ ${flag.name}`, flag.color);
-            effects.spawnEnemyHitSparks(player.x, player.y, flag.color);
+            effects.spawnFloatingText(player.x, player.y - 80, `✅ ${flag.name}  ${ctf.flagsCaptured}/3`, flag.color);
+            effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71); // heal (zielony)
             effects.shake(20, 24);
             this.opts.onCaptureSfx();
-            if (ctf.escalation >= 1 && ctf.flagsCaptured < 3) {
-                hudNotif(t('ctf.enemiesEnraged'), '#ff5533');
-            }
             if (ctf.flagsCaptured >= 3) {
                 return { victory: true, playerDied: false };
+            }
+            // F4.3 eskalacja: 2. flaga => bomby bossow => DRAMATYCZNY baner + puls.
+            if (ctf.flagsCaptured === 2) {
+                hudNotif(t('ctf.enemiesEnraged'), '#ff5533');
+                effects.shake(11, 18);
+                this.opts.onEnrage();
             }
         }
 
@@ -267,6 +273,7 @@ export class CtfSystem {
                 ctf.bossRespawnAt[i] = 0;
                 const newBoss = this.spawnBoss(i);
                 this.opts.enemies.push(newBoss);
+                effects.spawnPortal(newBoss.x, newBoss.y, 0xe74c3c); // F4.3: portal spawnu bossa
                 const f = FORTIFIED_FLAG_POSITIONS[i];
                 effects.spawnFloatingText(f.x, f.y - 60, t('ctf.bossRespawn'), 0xe74c3c);
                 hudNotif(t('ctf.bossRespawn'), '#e74c3c');

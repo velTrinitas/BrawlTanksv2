@@ -71,6 +71,7 @@ export class HUD {
     public comboText: string = '';
     public comboTextTimer: number = 0;
     public megaBossAlertTimer: number = 0;
+    public ctfEnrageTimer: number = 0; // FAZA F4.3 — baner "WROGOWIE WSCIEKLI!" (2. flaga)
 
     // === v0.23.1: Mobile UI scaling + visibility flags ===
     /** Skala glownych pill HUD'a (gem, score, kills, HP). 0.7 = mobile, 1.0 = desktop. */
@@ -111,6 +112,11 @@ export class HUD {
     
     triggerMegaBossAlert(): void {
         this.megaBossAlertTimer = 180;
+    }
+
+    /** FAZA F4.3 — odpal baner eskalacji CTF (2. flaga, bomby nadchodza). */
+    triggerCtfEnrage(): void {
+        this.ctfEnrageTimer = 150;
     }
     
     private drawNotifs(): void {
@@ -673,10 +679,50 @@ export class HUD {
         c.strokeText(incomingTxt, 0, 0);
         c.fillStyle = '#ffdd00';
         c.fillText(incomingTxt, 0, 0);
-        
+
         c.restore();
     }
-    
+
+    /**
+     * FAZA F4.3 — baner eskalacji "WROGOWIE WSCIEKLI!" (2. flaga = bomby bossow).
+     * Wzorzec drawMegaBossAlert: fade in/out (150 kl.), puls, motyw czerwony.
+     * Nieco wyzej i mniejszy niz megaboss => czytelny ale szybko schodzi z pola.
+     */
+    private drawCtfEnrageBanner(): void {
+        if (this.ctfEnrageTimer <= 0) return;
+        const c = this.ctx;
+        const t = this.ctfEnrageTimer;
+        this.ctfEnrageTimer--;
+
+        const alpha = t > 120 ? (150 - t) / 30 : t < 30 ? t / 30 : 1;
+
+        c.save();
+        c.globalAlpha = alpha;
+        c.translate(this.screenW / 2, this.screenH / 2 - 110);
+        const pulse = 1 + Math.sin(Date.now() / 90) * 0.06;
+        c.scale(pulse, pulse);
+
+        c.fillStyle = 'rgba(0,0,0,0.85)';
+        c.beginPath();
+        c.roundRect(-300, -44, 600, 88, 16);
+        c.fill();
+        c.strokeStyle = '#ff5533';
+        c.lineWidth = 4;
+        c.stroke();
+
+        c.font = `42px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.strokeStyle = '#000';
+        c.lineWidth = 6;
+        const txt = tr('ctf.enemiesEnraged');
+        c.strokeText(txt, 0, 0);
+        c.fillStyle = '#ff6644';
+        c.fillText(txt, 0, 0);
+
+        c.restore();
+    }
+
     /**
      * FAZA CTF F3 — panel flag (lewa kolumna, pod SUPER pill).
      * 3 sloty A/B/C: kolo w kolorze flagi; IDLE = pelne, CARRIED = pulsujacy ring,
@@ -1050,6 +1096,7 @@ export class HUD {
         }
 
         this.drawMegaBossAlert();
+        this.drawCtfEnrageBanner();
     }
     
     clear(): void {

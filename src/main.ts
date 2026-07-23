@@ -1436,6 +1436,7 @@ async function startGame(config: GameConfig): Promise<void> {
             onPickupSfx: () => { audio.playMagnetPickup(); audio.startFlagCarryMusic(); }, // F4: carry-state music ON
             onCaptureSfx: () => { audio.playHeartPickup(); audio.stopFlagCarryMusic(); }, // F4: wroc do muzyki mapy
             onBombExplosionSfx: () => audio.playExplosion(),
+            onEnrage: () => hud.triggerCtfEnrage(), // F4.3: baner eskalacji
         });
         ctfSystem.spawnInitialForces();
         // F3 perf: zbuduj RAZ tablice kolizji wrogow (buildings statyczne w CTF po tym

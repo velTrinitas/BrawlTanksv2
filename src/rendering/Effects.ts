@@ -485,6 +485,39 @@ export class EffectsManager {
         animate();
     }
 
+    /**
+     * FAZA F4.3 — portal spawnu (np. respawn bossa CTF). Rozchodzacy sie pierscien
+     * + rdzen + burst czastek. World-space, rAF self-destruct (~0.5s), bez glow/fill
+     * (mobile fill-rate safe, wzorzec spawnShockwaveRing).
+     */
+    spawnPortal(x: number, y: number, color: number = 0xe74c3c): void {
+        this.spawnParticles(x, y, color, 16, { speed: 5, size: 3, decay: 0.04, scaleDecay: 0.02, spread: 1.0 });
+        this.spawnParticles(x, y, 0xffffff, 6, { speed: 7, size: 2, decay: 0.08, spread: 1.0 });
+
+        const ring = new PIXI.Graphics();
+        ring.x = x; ring.y = y; ring.zIndex = 498;
+        this.worldContainer.addChild(ring);
+        let frame = 0;
+        const DUR = 32;
+        const animate = () => {
+            frame++;
+            const t = frame / DUR;
+            if (t >= 1) {
+                if (ring.parent) ring.parent.removeChild(ring);
+                ring.destroy();
+                return;
+            }
+            const R = 20 + t * 62;
+            ring.clear();
+            ring.lineStyle(6 - t * 5, color, 1 - t);
+            ring.drawCircle(0, 0, R);
+            ring.lineStyle(3, 0xffffff, (1 - t) * 0.7);
+            ring.drawCircle(0, 0, R * 0.6);
+            requestAnimationFrame(animate);
+        };
+        animate();
+    }
+
     spawnFreezeOverlay(durationFrames: number): void {
         const overlay = new PIXI.Graphics();
         overlay.beginFill(0x66ddff, 0.18);

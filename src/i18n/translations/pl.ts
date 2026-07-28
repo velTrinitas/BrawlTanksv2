@@ -38,6 +38,16 @@ export const pl = {
     'common.no': 'Nie',
 
     // ============================================================
+    // Tutorial / onboarding (FAZA A)
+    // ============================================================
+    'tutorial.badge': 'SAMOUCZEK · Krok {step}',
+    'tutorial.move.title': 'RUSZAJ!',
+    'tutorial.move.hintTouch': 'Przesuń lewym joystickiem, żeby jechać',
+    'tutorial.move.hintDesktop': 'Użyj klawiszy WASD, żeby jechać',
+    'tutorial.skip': 'POMIŃ SAMOUCZEK',
+    'tutorial.done': '✓ ŚWIETNIE!',
+
+    // ============================================================
     // Intro Screen
     // ============================================================
     'intro.start': 'START',

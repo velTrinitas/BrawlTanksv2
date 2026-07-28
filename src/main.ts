@@ -126,6 +126,7 @@ import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
+import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
 import {
     GameSession,
     MAX_POWERCUBES_PER_MATCH,
@@ -524,6 +525,27 @@ if (touchManager.isActive) {
     hud.showPowerBar = false;
 }
 
+// ── FAZA A: tutorial onboarding ──
+// tutorialActive: gdy true, spawn wrogow jest OFF (sandbox nauki na realnej mapie).
+// Flaga bt2:tutorialCoreDone: konwencja `bt2:` (urzadzenie/gracz); dziala PRZED zalozeniem nicku.
+let tutorialActive = false;
+let lastGameConfig: GameConfig | null = null;
+const TUTORIAL_FLAG = 'bt2:tutorialCoreDone';
+function isTutorialCoreDone(): boolean {
+    try { return localStorage.getItem(TUTORIAL_FLAG) === '1'; } catch { return false; }
+}
+function markTutorialCoreDone(): void {
+    try { localStorage.setItem(TUTORIAL_FLAG, '1'); } catch { /* localStorage blocked */ }
+}
+/** Uruchom tutorial nad juz-wystartowanym sandboxem. onDone: zaleznie od kontekstu (mecz vs hub). */
+function launchTutorial(onDone: () => void): void {
+    new TutorialController({
+        isTouch: touchManager.isActive,
+        isMoving: () => !!player && player.isMoving,
+        onDone,
+    });
+}
+
 menu.onGameRequested = (config: GameConfig) => {
     // FAZA CTF F1: ctf odblokowane (mapa fortified_ruins zintegrowana modularnie)
     if (config.scenario === 'castle') {
@@ -531,8 +553,16 @@ menu.onGameRequested = (config: GameConfig) => {
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
         return;
     }
-menu.hide();
-    void startGame(config);
+    menu.hide();
+    if (!isTutorialCoreDone()) {
+        // FAZA A: pierwsze uruchomienie => tutorial nad sandboxem (spawn off) TYM czolgiem,
+        // po ukonczeniu/skip -> flaga + spawn wraca => plynnie prawdziwy mecz (bez restartu sceny).
+        void startGame(config, true).then(() => {
+            launchTutorial(() => { markTutorialCoreDone(); tutorialActive = false; });
+        });
+    } else {
+        void startGame(config);
+    }
 };
 
 menu.onContinueRequested = (lastSession: LastSession) => {
@@ -559,7 +589,13 @@ menu.onContinueRequested = (lastSession: LastSession) => {
 };
 
 menu.onHowToPlayRequested = () => {
-    console.log('[Menu] HowToPlay requested (FAZA 8c will implement)');
+    // FAZA A: replay tutorialu z huba. Sandbox (spawn off) na ostatnim configu -> powrot do huba.
+    // (Dziala gdy grales w tej sesji; pelny replay z persistem = pozniejsza faza.)
+    if (!lastGameConfig) { console.log('[Tutorial] replay: brak lastGameConfig (zagraj raz najpierw)'); return; }
+    menu.hide();
+    void startGame(lastGameConfig, true).then(() => {
+        launchTutorial(() => { markTutorialCoreDone(); returnToMenuFromEnd(); });
+    });
 };
 
 menu.onSettingsRequested = () => {
@@ -913,7 +949,10 @@ function attachEnemyCubeStolenCallback(enemy: Enemy): void {
     };
 }
 
-async function startGame(config: GameConfig): Promise<void> {
+async function startGame(config: GameConfig, tutorialMode = false): Promise<void> {
+    // FAZA A: tutorialMode = sandbox nauki na realnej mapie tego czolgu, spawn wrogow OFF.
+    tutorialActive = tutorialMode;
+    lastGameConfig = config;
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
@@ -1525,14 +1564,14 @@ async function startGame(config: GameConfig): Promise<void> {
             onBombExplosionSfx: () => audio.playExplosion(),
             onEnrage: () => hud.triggerCtfEnrage(), // F4.3: baner eskalacji
         });
-        ctfSystem.spawnInitialForces();
+        if (!tutorialMode) ctfSystem.spawnInitialForces(); // FAZA A: brak strazników/bossów w tutorialu
         // F3 perf: zbuduj RAZ tablice kolizji wrogow (buildings statyczne w CTF po tym
         // punkcie — spawnInitialForces dodaje tylko do enemies, nie do buildings).
         ctfEnemyBuildings = ctfEnemyBarriers.length > 0
             ? [...buildings, ...ctfEnemyBarriers]
             : buildings;
         // Legacy init 1:1: 10 roamerow + 12 gemow na starcie
-        enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings));
+        if (!tutorialMode) enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings));
         for (const e of enemies) attachEnemyCubeStolenCallback(e);
         for (let i = 0; i < 12; i++) {
             const pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
@@ -2553,14 +2592,16 @@ app.ticker.add((rawDelta) => {
         }
     }
 
-    const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
-    for (const newEnemy of spawnResult.newEnemies) {
-        attachEnemyCubeStolenCallback(newEnemy);
+    if (!tutorialActive) { // FAZA A: w tutorialu spawn OFF (bezpieczny sandbox nauki)
+        const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
+        for (const newEnemy of spawnResult.newEnemies) {
+            attachEnemyCubeStolenCallback(newEnemy);
+        }
+        enemies.push(...spawnResult.newEnemies);
+        hearts.push(...spawnResult.newHearts);
+        magnets.push(...spawnResult.newMagnets);
+        if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     }
-    enemies.push(...spawnResult.newEnemies);
-    hearts.push(...spawnResult.newHearts);
-    magnets.push(...spawnResult.newMagnets);
-    if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
 
     powerSystem.update(delta, player, enemies, worldContainer, effects);
 

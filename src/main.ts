@@ -397,8 +397,18 @@ const _renderRes = _resParam !== null && !isNaN(parseFloat(_resParam)) ? Math.ma
 // 130fps przy maxFPS 60 => oscylacja 21<->130 = judder). ?cap=1 => 60fps, ?cap=30/90 => wartosc.
 // Wlacza tez powerPreference:'high-performance' (szybsza sciezka present). Domyslnie OFF.
 const _capParam = new URLSearchParams(window.location.search).get('cap');
-const CAP_ENABLED = _capParam !== null;
-const CAP_FPS = CAP_ENABLED ? (parseInt(_capParam as string, 10) > 1 ? parseInt(_capParam as string, 10) : 60) : 0;
+// v0.77.0: cap DOMYSLNIE ON na mobile (touch) => stabilne 60fps (mniej grzania/baterii, koniec
+// oscylacji FPS; PIXI maxFPS nie trzymal na A54 — log 130fps). Desktop bez zmian.
+// ?cap=0 = wylacz (escape hatch), ?cap=N = ustaw inna wartosc (np. 30).
+let CAP_ENABLED: boolean;
+let CAP_FPS = 60;
+if (_capParam !== null) {
+    const _cv = parseInt(_capParam, 10);
+    CAP_ENABLED = _cv !== 0;                 // ?cap=0 => OFF
+    if (CAP_ENABLED) CAP_FPS = _cv > 1 ? _cv : 60;
+} else {
+    CAP_ENABLED = _prefersTouch;             // brak param: ON na mobile, OFF na desktop
+}
 // F5: desync (canvas desynchronized:true) WYCOFANY — PIXI v7 nie da sie wstrzyknac wlasnego
 // kontekstu bez wysypania boota (page nie ladowala sie). Zostaje czyste Application + cap.
 const app = new PIXI.Application({

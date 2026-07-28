@@ -544,22 +544,35 @@ function markTutorialCoreDone(): void {
 let tutorialEnemies: Enemy[] = [];
 let tutorialRing: PIXI.Graphics | null = null;
 
-function spawnTutorialEnemy(offX: number, offY: number): void {
+// Bezpieczny spawn manekina: pozycja liczona KU SRODKOWI mapy (otwarte pole, nie krawedz/border)
+// i twardo ograniczona do [M, WORLD-M]. Fix blockera z playtestu FALA: gdy gracz startowal blisko
+// krawedzi, staly offset wypychal wroga na/za border planszy — widoczny tylko czesciowo, nie do
+// zestrzelenia. Teraz wrogi zawsze celuja w glab mapy i nigdy nie ladauja na krawedzi.
+const TUT_SPAWN_MARGIN = 320;
+function tutorialCenterAngle(): number {
+    if (!player) return 0;
+    return Math.atan2(WORLD_H / 2 - player.y, WORLD_W / 2 - player.x);
+}
+function tutorialSpawnAt(angle: number, radius: number): void {
     if (!player) return;
-    const e = new Enemy(player.x + offX, player.y + offY, ENEMY_NORMAL, false, worldContainer);
+    const M = TUT_SPAWN_MARGIN;
+    const x = Math.max(M, Math.min(WORLD_W - M, player.x + Math.cos(angle) * radius));
+    const y = Math.max(M, Math.min(WORLD_H - M, player.y + Math.sin(angle) * radius));
+    const e = new Enemy(x, y, ENEMY_NORMAL, false, worldContainer);
     attachEnemyCubeStolenCallback(e);
     enemies.push(e);
     tutorialEnemies.push(e);
 }
 function tutorialSpawnDummy(): void {
     tutorialEnemies = [];
-    spawnTutorialEnemy(0, -280); // na polnoc od gracza, w kadrze przy zoomie mobile 0.6
+    tutorialSpawnAt(tutorialCenterAngle(), 260); // ku srodkowi mapy => otwarte pole
 }
 function tutorialSpawnWave(): void {
     tutorialEnemies = [];
-    spawnTutorialEnemy(-260, -250);
-    spawnTutorialEnemy(260, -250);
-    spawnTutorialEnemy(0, -350);
+    const base = tutorialCenterAngle();
+    tutorialSpawnAt(base - 0.55, 250); // wachlarz 3 wrogow skierowany w glab mapy
+    tutorialSpawnAt(base, 300);
+    tutorialSpawnAt(base + 0.55, 250);
 }
 function tutorialEnemiesAlive(): number {
     let n = 0;
@@ -600,14 +613,53 @@ function clearTutorialSandbox(): void {
     tutorialEnemies = [];
 }
 
-/** Uruchom tutorial nad juz-wystartowanym sandboxem. onDone: zaleznie od kontekstu (mecz vs hub). */
-function launchTutorial(onDone: () => void): void {
+// ── FAZA B2: GEMY (ladowanie SUPER) + SUPER SHOT ──
+let tutSuperBase = 0;      // superCharges przy wejsciu w krok GEMY
+let tutSuperShotBase = 0;  // superCharges przy wejsciu w krok SUPER SHOT
+
+function tutorialSpawnGems(): void {
+    tutSuperBase = player ? player.superCharges : 0;
+    if (!player) return;
+    // 12 gemow w dwoch pierscieniach wokol gracza — zbierane przejazdem (auto-collect).
+    // 12 > GEMS_PER_SUPER_CHARGE_TRIGGER(10) => zebranie gwarantuje przekroczenie progu (+3 ladunki),
+    // niezaleznie ile gemow gracz mial wczesniej (manekin/FALA dropia po 1).
+    for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const r = 120 + (k % 2) * 90;
+        spawnGem(player.x + Math.cos(a) * r, player.y + Math.sin(a) * r);
+    }
+}
+function tutorialSuperEarned(): boolean {
+    return !!player && player.superCharges > tutSuperBase;
+}
+function tutorialArmSuperShot(): void {
+    if (player && player.superCharges === 0) player.addSuperCharge(1); // gwarancja: lekcja ma dzialac
+    tutSuperShotBase = player ? player.superCharges : 0;
+    tutorialEnemies = [];
+    tutorialSpawnAt(tutorialCenterAngle(), 260); // cel dla super-strzalu (+ ring PIXI z updateTutorialRing)
+}
+function tutorialSuperShotFired(): boolean {
+    // super-strzal auto-odpala sie przy strzale gdy sa ladunki => wykryj drop ladunku / aktywny super.
+    return !!player && (player.isSuperShotActive || player.superCharges < tutSuperShotBase);
+}
+function tutorialSuperPillRect(): { x: number; y: number; w: number; h: number } {
+    const s = hud.uiScale; // pasek SUPER rysowany na (14,70,172,54) w scaled space => screen px = *uiScale
+    return { x: 14 * s, y: 70 * s, w: 172 * s, h: 54 * s };
+}
+
+/** Uruchom tutorial nad juz-wystartowanym sandboxem. onDone(cont): cont=graj dalej, !cont=powrot do menu. */
+function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
     new TutorialController({
         isTouch: touchManager.isActive,
         isMoving: () => !!player && player.isMoving,
         spawnDummy: tutorialSpawnDummy,
         spawnWave: tutorialSpawnWave,
         enemiesAlive: tutorialEnemiesAlive,
+        spawnGems: tutorialSpawnGems,
+        superEarned: tutorialSuperEarned,
+        armSuperShot: tutorialArmSuperShot,
+        superShotFired: tutorialSuperShotFired,
+        superPillRect: tutorialSuperPillRect,
         onDone,
     });
 }
@@ -624,7 +676,7 @@ menu.onGameRequested = (config: GameConfig) => {
         // FAZA A: pierwsze uruchomienie => tutorial nad sandboxem (spawn off) TYM czolgiem,
         // po ukonczeniu/skip -> flaga + spawn wraca => plynnie prawdziwy mecz (bez restartu sceny).
         void startGame(config, true).then(() => {
-            launchTutorial(() => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); });
+            launchTutorial((cont) => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); if (!cont) returnToMenuFromEnd(); });
         });
     } else {
         void startGame(config);
@@ -660,7 +712,7 @@ menu.onHowToPlayRequested = () => {
     if (!lastGameConfig) { console.log('[Tutorial] replay: brak lastGameConfig (zagraj raz najpierw)'); return; }
     menu.hide();
     void startGame(lastGameConfig, true).then(() => {
-        launchTutorial(() => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); returnToMenuFromEnd(); });
+        launchTutorial((cont) => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); if (!cont) returnToMenuFromEnd(); });
     });
 };
 

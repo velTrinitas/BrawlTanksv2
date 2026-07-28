@@ -25,18 +25,26 @@ export interface TutorialOpts {
     spawnDummy: () => void;     // FAZA B: krok STRZELAJ — spawn 1 manekina
     spawnWave: () => void;      // FAZA B: krok FALA — spawn grupy
     enemiesAlive: () => number; // FAZA B: gate walki (0 = cel/fala zniszczone)
-    onDone: () => void;
+    spawnGems: () => void;      // FAZA B2: krok GEMY — spawn klastra gemow
+    superEarned: () => boolean; // FAZA B2: gate GEMY (zdobyto ladunek super)
+    armSuperShot: () => void;   // FAZA B2: krok SUPER SHOT — gwarantuj ladunek + cel
+    superShotFired: () => boolean; // FAZA B2: gate SUPER SHOT (super odpalony)
+    superPillRect: () => { x: number; y: number; w: number; h: number }; // FAZA B2: rect paska SUPER (screen-px)
+    onDone: (continuePlaying: boolean) => void; // FAZA B2: finalny wybor gracza (graj dalej / menu)
 }
 
 interface Step {
     title: string;
     hint: string;
     isDone: () => boolean;
-    onEnter?: () => void;        // FAZA B: efekt wejscia w krok (spawn manekina/fali)
+    onEnter?: () => void;        // FAZA B: efekt wejscia w krok (spawn manekina/fali/gemow)
     showJoystickRing?: boolean;  // DOM-ring na strefie lewego joysticka (tylko RUSZAJ na dotyku)
+    highlight?: () => { x: number; y: number; w: number; h: number }; // FAZA B2: podswietlany element HUD (screen-px)
+    isFinalChoice?: boolean;     // FAZA B2: ostatni krok — karta wyboru (graj dalej / menu), bez gate
 }
 
 const GOLD = '#ffd24a';
+const ENTER_DELAY_MS = 1500; // FAZA B2: po pokazaniu kroku odczekaj, by gracz przeczytal, ZANIM spawn/strzaly
 
 export class TutorialController {
     private readonly opts: TutorialOpts;
@@ -52,6 +60,11 @@ export class TutorialController {
     private hintEl!: HTMLDivElement;
     private ringEl!: HTMLDivElement;
     private arrowEl!: HTMLDivElement;
+    private hlEl!: HTMLDivElement; // FAZA B2: podswietlenie elementu HUD (pasek SUPER)
+    private skipEl!: HTMLButtonElement;
+    private choiceEl!: HTMLDivElement; // FAZA B2: karta finalnego wyboru (graj dalej / menu)
+    private pendingEnter: (() => void) | null = null; // FAZA B2: odlozony onEnter (reading delay)
+    private enterAt = 0;
 
     constructor(opts: TutorialOpts) {
         this.opts = opts;
@@ -74,6 +87,25 @@ export class TutorialController {
                 onEnter: () => opts.spawnWave(),
                 isDone: () => opts.enemiesAlive() === 0,
             },
+            {   // 4 — GEMY (highlight paska SUPER w HUD; gemy laduja super)
+                title: t('tutorial.gems.title'),
+                hint: opts.isTouch ? t('tutorial.gems.hintTouch') : t('tutorial.gems.hintDesktop'),
+                onEnter: () => opts.spawnGems(),
+                isDone: () => opts.superEarned(),
+                highlight: () => opts.superPillRect(),
+            },
+            {   // 5 — SUPER SHOT (masz mega-strzal; zmieć cel — super auto-odpala sie przy strzale)
+                title: t('tutorial.super.title'),
+                hint: opts.isTouch ? t('tutorial.super.hintTouch') : t('tutorial.super.hintDesktop'),
+                onEnter: () => opts.armSuperShot(),
+                isDone: () => opts.superShotFired(),
+            },
+            {   // 6 — GOTOWY (finalny wybor: graj dalej / powrot do menu)
+                title: t('tutorial.finish.title'),
+                hint: t('tutorial.finish.hint'),
+                isDone: () => false, // gate nieuzywany — czeka na klik wyboru
+                isFinalChoice: true,
+            },
         ];
         this.buildDom();
         this.showStep();
@@ -89,6 +121,7 @@ export class TutorialController {
                 '@keyframes bt-tut-pulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.3);opacity:1}}' +
                 '@keyframes bt-tut-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(12px)}}' +
                 '@keyframes bt-tut-pop{0%{transform:translateX(-50%) scale(.72);opacity:0}60%{transform:translateX(-50%) scale(1.05);opacity:1}100%{transform:translateX(-50%) scale(1);opacity:1}}' +
+                '@keyframes bt-tut-hl{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}' +
                 '.bt-tut-skip:hover{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.55)!important;color:#fff!important}';
             document.head.appendChild(st);
         }
@@ -139,9 +172,33 @@ export class TutorialController {
             'pointer-events:auto;background:rgba(255,255,255,.09);color:#cfd4e2;border:1.5px solid rgba(255,255,255,.3);' +
             'border-radius:10px;padding:' + (desk ? '9px 24px' : '7px 18px') + ';font-family:"Titan One",cursive;' +
             'font-size:' + (desk ? 'clamp(14px,1.4vw,18px)' : 'clamp(12px,2.6vw,16px)') + ';letter-spacing:.4px;cursor:pointer;transition:background .15s,border-color .15s,color .15s';
-        skip.onclick = () => this.finish();
+        skip.onclick = () => this.finish(true); // POMIN = wskocz od razu do gry
 
-        card.append(badge, title, hint, sep, skip);
+        // ── FAZA B2: karta finalnego wyboru (GOTOWY) — GRAJ DALEJ / MENU ──
+        const choice = document.createElement('div');
+        choice.style.cssText = 'display:none;gap:' + (desk ? '14px' : '10px') + ';justify-content:center;flex-wrap:wrap';
+        const btnPad = desk ? '11px 30px' : '9px 22px';
+        const btnFont = desk ? 'clamp(15px,1.5vw,20px)' : 'clamp(13px,2.8vw,17px)';
+        const playBtn = document.createElement('button');
+        playBtn.textContent = '▶ ' + t('tutorial.finish.play'); // ▶
+        playBtn.style.cssText =
+            'pointer-events:auto;background:' + GOLD + ';color:#3a2c00;border:none;border-radius:12px;' +
+            'padding:' + btnPad + ';font-family:"Titan One",cursive;font-size:' + btnFont + ';letter-spacing:.4px;' +
+            'cursor:pointer;box-shadow:0 5px 0 #b8860b,0 8px 14px rgba(0,0,0,.4);transition:transform .1s';
+        playBtn.onpointerdown = () => { playBtn.style.transform = 'translateY(3px)'; };
+        playBtn.onpointerup = playBtn.onpointerleave = () => { playBtn.style.transform = ''; };
+        playBtn.onclick = () => this.finish(true);
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'bt-tut-skip';
+        menuBtn.textContent = '☰ ' + t('tutorial.finish.menu'); // ☰
+        menuBtn.style.cssText =
+            'pointer-events:auto;background:rgba(255,255,255,.09);color:#cfd4e2;border:1.5px solid rgba(255,255,255,.3);' +
+            'border-radius:12px;padding:' + btnPad + ';font-family:"Titan One",cursive;font-size:' + btnFont + ';' +
+            'letter-spacing:.4px;cursor:pointer;transition:background .15s,border-color .15s,color .15s';
+        menuBtn.onclick = () => this.finish(false);
+        choice.append(playBtn, menuBtn);
+
+        card.append(badge, title, hint, sep, skip, choice);
 
         // ── ring + strzalka celuja w strefe lewego floating-joysticka (tylko dotyk) ──
         const ring = document.createElement('div');
@@ -150,61 +207,97 @@ export class TutorialController {
         arrow.textContent = '\u{1F447}'; // 👇
         arrow.style.cssText = 'position:absolute;left:16%;top:70%;margin:-118px 0 0 -22px;font-size:42px;animation:bt-tut-bob .9s ease-in-out infinite';
 
-        root.append(card, ring, arrow);
+        // ── FAZA B2: podswietlenie paska SUPER w HUD (screen-px, pulsujaca zlota ramka) ──
+        const hl = document.createElement('div');
+        hl.style.cssText = 'position:absolute;display:none;border-radius:14px;border:4px solid ' + GOLD + ';box-shadow:0 0 20px rgba(255,210,74,.9),inset 0 0 14px rgba(255,210,74,.5);animation:bt-tut-hl 1s ease-in-out infinite;pointer-events:none';
+
+        root.append(card, ring, arrow, hl);
         document.body.appendChild(root);
-        this.root = root; this.badgeTextEl = badgeText; this.titleEl = title; this.hintEl = hint; this.ringEl = ring; this.arrowEl = arrow;
+        this.root = root; this.badgeTextEl = badgeText; this.titleEl = title; this.hintEl = hint; this.ringEl = ring; this.arrowEl = arrow; this.hlEl = hl; this.skipEl = skip; this.choiceEl = choice;
     }
 
     private showStep(): void {
         const s = this.steps[this.idx];
-        s.onEnter?.(); // FAZA B: spawn manekina/fali przy wejsciu w krok
         this.badgeTextEl.textContent = t('tutorial.badge', { step: String(this.idx + 1) });
         this.titleEl.textContent = s.title;
         this.titleEl.style.color = GOLD;
         this.hintEl.textContent = s.hint;
         this.hintEl.style.display = '';
+
+        // FAZA B2: reading delay — odloz onEnter (spawn/strzaly) o ENTER_DELAY_MS, by gracz zdazyl
+        // przeczytac krok ZANIM wrogowie zaczna strzelac. isDone nie jest sprawdzane dopoki
+        // pendingEnter != null (patrz tick), by "0 wrogow" nie zaliczylo kroku przed spawnem.
+        this.pendingEnter = s.onEnter ?? null;
+        this.enterAt = performance.now() + ENTER_DELAY_MS;
+
+        // finalny krok = karta wyboru (GRAJ DALEJ / MENU) zamiast POMIN.
+        const fin = !!s.isFinalChoice;
+        this.skipEl.style.display = fin ? 'none' : '';
+        this.choiceEl.style.display = fin ? 'flex' : 'none';
+
         // DOM ring/strzalka celuja w strefe lewego joysticka — tylko RUSZAJ na dotyku.
         // STRZELAJ/FALA maja cel w swiecie (ring PIXI z main.ts), wiec DOM-ring chowamy.
         const showJoy = !!s.showJoystickRing && this.opts.isTouch;
         this.ringEl.style.display = showJoy ? '' : 'none';
         this.arrowEl.style.display = showJoy ? '' : 'none';
+        // FAZA B2: highlight elementu HUD (pasek SUPER) — pozycja stala w screen-px (pill sie nie rusza).
+        const h = s.highlight?.();
+        if (h) {
+            this.hlEl.style.display = '';
+            this.hlEl.style.left = (h.x - 5) + 'px';
+            this.hlEl.style.top = (h.y - 5) + 'px';
+            this.hlEl.style.width = (h.w + 10) + 'px';
+            this.hlEl.style.height = (h.h + 10) + 'px';
+        } else {
+            this.hlEl.style.display = 'none';
+        }
     }
 
     private tick(): void {
         if (this.finished) return;
         const now = performance.now();
 
+        // FAZA B2: reading delay — odpal odlozony onEnter (spawn) dopiero po ENTER_DELAY_MS.
+        if (this.pendingEnter && now >= this.enterAt) {
+            const fn = this.pendingEnter;
+            this.pendingEnter = null;
+            fn();
+        }
+
         if (this.confirmUntil > 0) {
             if (now >= this.confirmUntil) {
                 this.confirmUntil = 0;
                 this.idx++;
-                if (this.idx >= this.steps.length) { this.finish(); return; }
+                if (this.idx >= this.steps.length) { this.finish(true); return; }
                 this.showStep();
             }
             this.rafId = requestAnimationFrame(this.tick);
             return;
         }
 
-        if (this.steps[this.idx].isDone()) {
+        const s = this.steps[this.idx];
+        // finalny krok czeka na klik wyboru (bez gate); isDone dopiero gdy spawn juz sie wykonal.
+        if (!s.isFinalChoice && !this.pendingEnter && s.isDone()) {
             // confirm juice: zielone "SWIETNIE!" w karcie + krotka pauza -> nastepny krok / koniec
             this.titleEl.textContent = t('tutorial.done');
             this.titleEl.style.color = '#5effa0';
             this.hintEl.style.display = 'none';
             this.ringEl.style.display = 'none';
             this.arrowEl.style.display = 'none';
+            this.hlEl.style.display = 'none';
             this.confirmUntil = now + 750;
         }
         this.rafId = requestAnimationFrame(this.tick);
     }
 
-    private finish(): void {
+    private finish(continuePlaying: boolean): void {
         if (this.finished) return;
         this.finished = true;
         cancelAnimationFrame(this.rafId);
         if (this.root.parentElement) this.root.parentElement.removeChild(this.root);
-        this.opts.onDone();
+        this.opts.onDone(continuePlaying);
     }
 
-    /** Awaryjne sprzatniecie (np. gdy mecz konczy sie w trakcie). */
-    public destroy(): void { this.finish(); }
+    /** Awaryjne sprzatniecie (np. gdy mecz konczy sie w trakcie) — wskocz do gry. */
+    public destroy(): void { this.finish(true); }
 }

@@ -35,6 +35,12 @@ export const en: typeof pl = {
     'tutorial.move.title': 'MOVE!',
     'tutorial.move.hintTouch': 'Drag the left stick to drive',
     'tutorial.move.hintDesktop': 'Use WASD to drive',
+    'tutorial.shoot.title': 'SHOOT!',
+    'tutorial.shoot.hintTouch': 'Hold the right stick to shoot',
+    'tutorial.shoot.hintDesktop': 'Hold the left mouse button to shoot',
+    'tutorial.wave.title': 'WAVE!',
+    'tutorial.wave.hintTouch': 'Wipe out the whole group!',
+    'tutorial.wave.hintDesktop': 'Wipe out the whole group!',
     'tutorial.skip': 'SKIP TUTORIAL',
     'tutorial.done': '✓ NICE!',
 

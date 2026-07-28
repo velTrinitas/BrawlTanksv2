@@ -44,6 +44,12 @@ export const pl = {
     'tutorial.move.title': 'RUSZAJ!',
     'tutorial.move.hintTouch': 'Przesuń lewym joystickiem, żeby jechać',
     'tutorial.move.hintDesktop': 'Użyj klawiszy WASD, żeby jechać',
+    'tutorial.shoot.title': 'STRZELAJ!',
+    'tutorial.shoot.hintTouch': 'Trzymaj prawy dżojstik, żeby strzelać',
+    'tutorial.shoot.hintDesktop': 'Trzymaj lewy przycisk myszy, żeby strzelać',
+    'tutorial.wave.title': 'FALA!',
+    'tutorial.wave.hintTouch': 'Rozwal całą grupę wrogów!',
+    'tutorial.wave.hintDesktop': 'Rozwal całą grupę wrogów!',
     'tutorial.skip': 'POMIŃ SAMOUCZEK',
     'tutorial.done': '✓ ŚWIETNIE!',
 

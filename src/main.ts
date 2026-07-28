@@ -108,7 +108,7 @@ import { Caravan } from './maps/desert/Caravan';
 import { MAP_CONFIGS, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
-import { ENEMY_PURSUIT } from './config/enemies'; // v0.58.0 Warstwa C2
+import { ENEMY_NORMAL, ENEMY_PURSUIT } from './config/enemies'; // v0.58.0 Warstwa C2; FAZA B tutorial dummy/wave
 import { Bullet } from './entities/Bullet';
 import { EnemyBullet } from './entities/EnemyBullet';
 import { Heart } from './entities/pickups/Heart';
@@ -537,11 +537,77 @@ function isTutorialCoreDone(): boolean {
 function markTutorialCoreDone(): void {
     try { localStorage.setItem(TUTORIAL_FLAG, '1'); } catch { /* localStorage blocked */ }
 }
+// ── FAZA B: sandbox combat lessons (STRZELAJ + FALA) ──
+// SpawnSystem jest OFF w tutorialu, wiec wrogowie-manekiny tworzeni recznie i sledzeni osobno
+// (tutorialEnemies) by wykryc "cel zniszczony". Ring PIXI zyje w worldContainer = world-space
+// (sam podaza za kamera/zoomem, zero matematyki uiScale) i celuje w najblizszego zywego manekina.
+let tutorialEnemies: Enemy[] = [];
+let tutorialRing: PIXI.Graphics | null = null;
+
+function spawnTutorialEnemy(offX: number, offY: number): void {
+    if (!player) return;
+    const e = new Enemy(player.x + offX, player.y + offY, ENEMY_NORMAL, false, worldContainer);
+    attachEnemyCubeStolenCallback(e);
+    enemies.push(e);
+    tutorialEnemies.push(e);
+}
+function tutorialSpawnDummy(): void {
+    tutorialEnemies = [];
+    spawnTutorialEnemy(0, -280); // na polnoc od gracza, w kadrze przy zoomie mobile 0.6
+}
+function tutorialSpawnWave(): void {
+    tutorialEnemies = [];
+    spawnTutorialEnemy(-260, -250);
+    spawnTutorialEnemy(260, -250);
+    spawnTutorialEnemy(0, -350);
+}
+function tutorialEnemiesAlive(): number {
+    let n = 0;
+    for (const e of tutorialEnemies) if (e.active) n++;
+    return n;
+}
+/** Ring PIXI (world-space) celujacy w najblizszego zywego manekina. Lazy-create, chowany gdy brak celu. */
+function updateTutorialRing(): void {
+    if (!tutorialActive) { if (tutorialRing) tutorialRing.visible = false; return; }
+    let target: Enemy | null = null;
+    let best = Infinity;
+    if (player) {
+        for (const e of tutorialEnemies) {
+            if (!e.active) continue;
+            const d = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+            if (d < best) { best = d; target = e; }
+        }
+    }
+    if (!target) { if (tutorialRing) tutorialRing.visible = false; return; }
+    if (!tutorialRing) {
+        const g = new PIXI.Graphics();
+        g.lineStyle(5, 0x5fe0e8, 1);
+        g.drawCircle(0, 0, 46);
+        worldContainer.addChild(g); // sortableChildren=false -> rysowany nad wczesniej dodanymi manekinami
+        tutorialRing = g;
+    }
+    tutorialRing.visible = true;
+    tutorialRing.x = target.x;
+    tutorialRing.y = target.y;
+    tutorialRing.scale.set(1 + 0.14 * Math.sin(performance.now() / 180));
+}
+/** Sprzataj po sandboxie tutorialu (ring + tracking). Manekiny zostaja w `enemies` jako czesc meczu. */
+function clearTutorialSandbox(): void {
+    if (tutorialRing) {
+        try { tutorialRing.destroy(); } catch { /* juz zniszczony */ }
+        tutorialRing = null;
+    }
+    tutorialEnemies = [];
+}
+
 /** Uruchom tutorial nad juz-wystartowanym sandboxem. onDone: zaleznie od kontekstu (mecz vs hub). */
 function launchTutorial(onDone: () => void): void {
     new TutorialController({
         isTouch: touchManager.isActive,
         isMoving: () => !!player && player.isMoving,
+        spawnDummy: tutorialSpawnDummy,
+        spawnWave: tutorialSpawnWave,
+        enemiesAlive: tutorialEnemiesAlive,
         onDone,
     });
 }
@@ -558,7 +624,7 @@ menu.onGameRequested = (config: GameConfig) => {
         // FAZA A: pierwsze uruchomienie => tutorial nad sandboxem (spawn off) TYM czolgiem,
         // po ukonczeniu/skip -> flaga + spawn wraca => plynnie prawdziwy mecz (bez restartu sceny).
         void startGame(config, true).then(() => {
-            launchTutorial(() => { markTutorialCoreDone(); tutorialActive = false; });
+            launchTutorial(() => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); });
         });
     } else {
         void startGame(config);
@@ -594,7 +660,7 @@ menu.onHowToPlayRequested = () => {
     if (!lastGameConfig) { console.log('[Tutorial] replay: brak lastGameConfig (zagraj raz najpierw)'); return; }
     menu.hide();
     void startGame(lastGameConfig, true).then(() => {
-        launchTutorial(() => { markTutorialCoreDone(); returnToMenuFromEnd(); });
+        launchTutorial(() => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); returnToMenuFromEnd(); });
     });
 };
 
@@ -953,6 +1019,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // FAZA A: tutorialMode = sandbox nauki na realnej mapie tego czolgu, spawn wrogow OFF.
     tutorialActive = tutorialMode;
     lastGameConfig = config;
+    clearTutorialSandbox(); // FAZA B: wyczysc ring/tracking z ew. poprzedniego tutorialu
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
@@ -2112,6 +2179,8 @@ app.ticker.add((rawDelta) => {
     worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
     worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
     if (HARNESS_STATIC) { worldContainer.x = -900 * ZOOM; worldContainer.y = -900 * ZOOM; } // F5 harness: freeze scroll (present vs scroll)
+
+    updateTutorialRing(); // FAZA B: ring celujacy w manekina/fale (early-return gdy nie-tutorial)
 
     let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {

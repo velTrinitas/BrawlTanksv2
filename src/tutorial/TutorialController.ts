@@ -22,10 +22,19 @@ import { t } from '../i18n/i18n';
 export interface TutorialOpts {
     isTouch: boolean;
     isMoving: () => boolean;
+    spawnDummy: () => void;     // FAZA B: krok STRZELAJ — spawn 1 manekina
+    spawnWave: () => void;      // FAZA B: krok FALA — spawn grupy
+    enemiesAlive: () => number; // FAZA B: gate walki (0 = cel/fala zniszczone)
     onDone: () => void;
 }
 
-interface Step { title: string; hint: string; isDone: () => boolean; }
+interface Step {
+    title: string;
+    hint: string;
+    isDone: () => boolean;
+    onEnter?: () => void;        // FAZA B: efekt wejscia w krok (spawn manekina/fali)
+    showJoystickRing?: boolean;  // DOM-ring na strefie lewego joysticka (tylko RUSZAJ na dotyku)
+}
 
 const GOLD = '#ffd24a';
 
@@ -46,11 +55,26 @@ export class TutorialController {
 
     constructor(opts: TutorialOpts) {
         this.opts = opts;
-        this.steps = [{
-            title: t('tutorial.move.title'),
-            hint: opts.isTouch ? t('tutorial.move.hintTouch') : t('tutorial.move.hintDesktop'),
-            isDone: () => opts.isMoving(),
-        }];
+        this.steps = [
+            {   // 1 — RUSZAJ (ruch lewym joystickiem / WASD)
+                title: t('tutorial.move.title'),
+                hint: opts.isTouch ? t('tutorial.move.hintTouch') : t('tutorial.move.hintDesktop'),
+                isDone: () => opts.isMoving(),
+                showJoystickRing: true,
+            },
+            {   // 2 — STRZELAJ (manekin w swiecie, ring celuje z main.ts)
+                title: t('tutorial.shoot.title'),
+                hint: opts.isTouch ? t('tutorial.shoot.hintTouch') : t('tutorial.shoot.hintDesktop'),
+                onEnter: () => opts.spawnDummy(),
+                isDone: () => opts.enemiesAlive() === 0,
+            },
+            {   // 3 — FALA (grupa wrogow)
+                title: t('tutorial.wave.title'),
+                hint: opts.isTouch ? t('tutorial.wave.hintTouch') : t('tutorial.wave.hintDesktop'),
+                onEnter: () => opts.spawnWave(),
+                isDone: () => opts.enemiesAlive() === 0,
+            },
+        ];
         this.buildDom();
         this.showStep();
         this.tick = this.tick.bind(this);
@@ -133,14 +157,17 @@ export class TutorialController {
 
     private showStep(): void {
         const s = this.steps[this.idx];
+        s.onEnter?.(); // FAZA B: spawn manekina/fali przy wejsciu w krok
         this.badgeTextEl.textContent = t('tutorial.badge', { step: String(this.idx + 1) });
         this.titleEl.textContent = s.title;
         this.titleEl.style.color = GOLD;
         this.hintEl.textContent = s.hint;
         this.hintEl.style.display = '';
-        const disp = this.opts.isTouch ? '' : 'none'; // cel wizualny (ring/strzalka) tylko na dotyku
-        this.ringEl.style.display = disp;
-        this.arrowEl.style.display = disp;
+        // DOM ring/strzalka celuja w strefe lewego joysticka — tylko RUSZAJ na dotyku.
+        // STRZELAJ/FALA maja cel w swiecie (ring PIXI z main.ts), wiec DOM-ring chowamy.
+        const showJoy = !!s.showJoystickRing && this.opts.isTouch;
+        this.ringEl.style.display = showJoy ? '' : 'none';
+        this.arrowEl.style.display = showJoy ? '' : 'none';
     }
 
     private tick(): void {

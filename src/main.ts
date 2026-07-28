@@ -356,6 +356,28 @@ let camera = { x: 0, y: 0 };
 let smoothedDelta = 1;
 const DELTA_SMOOTH = 0.2; // waga wygladzania (0.2 = mocne sciecie falowania, min lag). Wieksza = szybsza reakcja, mniej gladko.
 
+// === F5 ship-blocker (gladkosc mobile): fixed-timestep + render interpolation ===
+// Objaw: na 120Hz A54 pojedyncze zgubione vsync (~33ms) => world-scroll szarpie mimo lekkiego JS
+// (~1-2ms/klatka). Fix: logika w STALYM kroku 60Hz, a render interpoluje world-scroll (kamera) +
+// gracza wg realnego czasu klatki => plynnie niezaleznie od tego, kiedy panel dostarczy klatke.
+// Wszystkie encje sa dziecmi worldContainer, wiec dziedzicza gladkie przewijanie.
+let logicAccMs = 0;
+let smoothNeedsInit = true;
+let icCamPX = 0, icCamPY = 0, icCamCX = 0, icCamCY = 0; // interp kamera: prev/curr (world coords)
+let icPlPX = 0, icPlPY = 0, icPlCX = 0, icPlCY = 0;     // interp gracz: prev/curr (container coords)
+
+/** Naloz interpolowany render (world-scroll + gracz) dla ulamka klatki a=0..1. */
+function applySmoothInterp(a: number): void {
+    if (!effects || !player) return;
+    const Z = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
+    const cx = icCamPX + (icCamCX - icCamPX) * a;
+    const cy = icCamPY + (icCamCY - icCamPY) * a;
+    worldContainer.x = -cx * Z + effects.shakeOffsetX;
+    worldContainer.y = -cy * Z + effects.shakeOffsetY;
+    player.container.x = icPlPX + (icPlCX - icPlPX) * a;
+    player.container.y = icPlPY + (icPlCY - icPlPY) * a;
+}
+
 const keys = { w: false, a: false, s: false, d: false };
 const mouse = { screenX: window.innerWidth / 2, screenY: window.innerHeight / 2 };
 let lastShotTime = 0;
@@ -367,10 +389,25 @@ const _prefersTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 // Desktop-only marker: endcard v2 skalowany 1.5x TYLKO na desktopie (CSS w index.html).
 // Mobile (touch) zostaje 1:1 — landscape/zoom-locked, nie ma zapasu ekranu na powiekszenie.
 document.body.classList.toggle('bt-desktop', !_prefersTouch);
+// F5 harness ?res=N: render w N-krotnej rozdzielczosci (0.5 = pol pikseli => test fill-rate/upscale GPU).
+// Domyslnie 1 = bez zmiany dla produkcji.
+const _resParam = new URLSearchParams(window.location.search).get('res');
+const _renderRes = _resParam !== null && !isNaN(parseFloat(_resParam)) ? Math.max(0.25, Math.min(2, parseFloat(_resParam))) : 1;
+// F5 (ship-blocker): ?cap=N = TWARDY limiter klatek (nasz PIXI maxFPS nie trzyma — log pokazal
+// 130fps przy maxFPS 60 => oscylacja 21<->130 = judder). ?cap=1 => 60fps, ?cap=30/90 => wartosc.
+// Wlacza tez powerPreference:'high-performance' (szybsza sciezka present). Domyslnie OFF.
+const _capParam = new URLSearchParams(window.location.search).get('cap');
+const CAP_ENABLED = _capParam !== null;
+const CAP_FPS = CAP_ENABLED ? (parseInt(_capParam as string, 10) > 1 ? parseInt(_capParam as string, 10) : 60) : 0;
+// F5: desync (canvas desynchronized:true) WYCOFANY — PIXI v7 nie da sie wstrzyknac wlasnego
+// kontekstu bez wysypania boota (page nie ladowala sie). Zostaje czyste Application + cap.
 const app = new PIXI.Application({
     resizeTo: window,
     backgroundColor: 0x14141e,
     antialias: !_prefersTouch, // mobile: MSAA off (fill-rate); baked art juz AA przy bake. Desktop bez zmian.
+    resolution: _renderRes,        // F5 harness (1 = bez zmian)
+    autoDensity: _renderRes !== 1, // przy res!=1: skaluj canvas CSS by wypelnil ekran
+    powerPreference: CAP_ENABLED ? 'high-performance' : 'default', // F5: prosba o wydajny profil GPU
 });
 // Cap ticker na 60 FPS. A54 ma ekran 120Hz -> PIXI leci uncapped 90-120fps, a przy wahaniu obciazenia
 // FPS skacze (46..93) => PIXI delta skacze 0.5..1.3 => krok ruchu (delta-scaled) zmienia sie 2x/klatke
@@ -381,7 +418,18 @@ const app = new PIXI.Application({
 // Hipoteza: 60fps-owy content na 120Hz panelu juddery; natywne 120 = kazda klatka=1 vsync = gladko.
 const _fpsParam = new URLSearchParams(window.location.search).get('fps');
 const _maxFps = _fpsParam !== null && !isNaN(parseInt(_fpsParam, 10)) ? parseInt(_fpsParam, 10) : 60;
-app.ticker.maxFPS = _maxFps;
+// F5 (ship-blocker gladkosc): ?smooth=1 = fixed 60Hz logika + interpolacja renderu. Domyslnie
+// odblokowuje render (maxFPS 0 = natywne odswiezanie panelu) — interpolacja potrzebuje klatek
+// render POMIEDZY krokami logiki. Domyslnie OFF = zero zmiany dla produkcji (A/B na A54).
+const SMOOTH_MODE = new URLSearchParams(window.location.search).get('smooth') === '1';
+app.ticker.maxFPS = SMOOTH_MODE && _fpsParam === null ? 0 : _maxFps;
+
+// === F5 harness diagnostyczny (kill-switche izolacji ship-blockera gladkosci) ===
+// Idea: wylaczaj podejrzanych po JEDNYM na urzadzeniu; przy ktorej fladze judder znika = winny.
+// Wszystkie domyslnie OFF => produkcja bez zmian.
+const HARNESS_NOHUD = new URLSearchParams(window.location.search).get('nohud') === '1';   // HUD Canvas 2D off (kompozycja 2 canvasow)
+const HARNESS_STATIC = new URLSearchParams(window.location.search).get('static') === '1'; // freeze world-scroll (render zyje) — scroll vs present
+const HARNESS_EMPTY = new URLSearchParams(window.location.search).get('empty') === '1';   // nie rysuj swiata — czysty present/compositor/vsync
 document.body.appendChild(app.view as HTMLCanvasElement);
 (app.view as HTMLCanvasElement).style.position = 'absolute';
 (app.view as HTMLCanvasElement).style.zIndex = '1';
@@ -393,13 +441,41 @@ const worldContainer = new PIXI.Container();
 // kolejnosc STOI (stabilna, max 1 klatka opoznienia = niewidoczne). Zero migotania, perf zostaje.
 worldContainer.sortableChildren = false;
 app.stage.addChild(worldContainer);
+if (HARNESS_EMPTY) worldContainer.visible = false; // F5 harness: pusty present (test compositor/vsync/present)
 
 const hud = new HUD('hudCanvas');
+if (HARNESS_NOHUD) { const _hc = document.getElementById('hudCanvas'); if (_hc) _hc.style.display = 'none'; } // F5 harness: HUD 2D off
 
 // ── Diagnostyka wydajnosci (?perf=1) — overlay FPS + liczniki obiektow. ──
 // Cel: znalezc co koreluje z oscylacja "zwalnia/przyspiesza" na mobile bez
 // czytania kodu (zasada mobile-first: dane z realnego urzadzenia, nie zgadywanie).
 const PERF_ENABLED = new URLSearchParams(window.location.search).has('perf');
+
+// F5 harness: Long Animation Frame observer — atrybuuje DLUGA klatke do SCRIPT (nasz JS) vs
+// RENDER/compositor. KLUCZOWE: jesli duration >> sum(scripts) => judder jest w renderze/present,
+// NIE w JS (nasza teza). Beacon do /perf-log (czyta Claude). Chrome 123+; gentle-fail gdzie brak.
+if (PERF_ENABLED && 'PerformanceObserver' in window) {
+    try {
+        const _loaf = new PerformanceObserver((list) => {
+            for (const e of list.getEntries() as unknown as Array<Record<string, unknown>>) {
+                const dur = (e.duration as number) || 0;
+                if (dur < 30) continue;
+                const scripts = (e.scripts as Array<Record<string, unknown>>) || [];
+                let scriptMs = 0, topMs = 0, top = '-';
+                for (const s of scripts) {
+                    const sd = (s.duration as number) || 0;
+                    scriptMs += sd;
+                    if (sd > topMs) { topMs = sd; top = (s.name as string) || (s.invoker as string) || '?'; }
+                }
+                const block = (e.blockingDuration as number) || 0;
+                const msg = `LOAF ${dur.toFixed(0)}ms  script ${scriptMs.toFixed(0)}  block ${block.toFixed(0)}  top ${top} ${topMs.toFixed(0)}`;
+                try { navigator.sendBeacon(import.meta.env.BASE_URL + 'perf-log', msg); } catch { /* noop */ }
+            }
+        });
+        _loaf.observe({ type: 'long-animation-frame', buffered: true } as PerformanceObserverInit);
+    } catch { /* LoAF nieobslugiwane (Firefox/Safari/starszy Chrome) */ }
+}
+
 let perfEl: HTMLDivElement | null = null;
 let perfFrames = 0, perfMinFps = 9999, perfMaxFps = 0, perfSumMs = 0, perfLastT = 0;
 // Szczyty (od startu meczu) — pokazuja korelacje z najgorsza klatka, nawet gdy juz minela.
@@ -852,6 +928,7 @@ async function startGame(config: GameConfig): Promise<void> {
     });
 
     worldContainer.removeChildren();
+    smoothNeedsInit = true; logicAccMs = 0; // F5: reset interpolacji na nowy mecz (zero skoku ze starego stanu)
     buildings = [];
     solidBuildings = [];
     crates = [];
@@ -1910,8 +1987,9 @@ app.ticker.add((rawDelta) => {
             if (ms > 28) {
                 const iv = perfLastHitchT > 0 ? (nowT - perfLastHitchT) : 0;
                 perfLastHitchT = nowT;
+                const _mem = (((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize) || 0) / 1048576;
                 try { navigator.sendBeacon(import.meta.env.BASE_URL + 'perf-log',
-                    `HITCH ${ms.toFixed(0)}ms  hud ${perfHudMs.toFixed(1)} cb ${perfCbMs.toFixed(1)}  interval ${iv.toFixed(0)}ms  enemies ${enemies.length} eBul ${enemyBullets.length} part ${pcNow.particles} kids ${worldContainer.children.length} state ${gameState}`); } catch { /* noop */ }
+                    `HITCH ${ms.toFixed(0)}ms  hud ${perfHudMs.toFixed(1)} cb ${perfCbMs.toFixed(1)}  interval ${iv.toFixed(0)}ms  mem ${_mem.toFixed(0)}MB  enemies ${enemies.length} eBul ${enemyBullets.length} part ${pcNow.particles} kids ${worldContainer.children.length} state ${gameState}`); } catch { /* noop */ }
             }
             if (enemyBullets.length > perfPeakEBul) perfPeakEBul = enemyBullets.length;
             if (bullets.length > perfPeakBul) perfPeakBul = bullets.length;
@@ -1948,11 +2026,29 @@ app.ticker.add((rawDelta) => {
         return;
     }
 
+    // === F5 SMOOTH MODE: fixed 60Hz logika + interpolowany render ===
+    // Akumuluj realny czas; krok logiki tylko gdy uzbieral sie STEP_MS. Klatki bez kroku =
+    // render-only: tylko interpoluj world-scroll + gracza (encje jada z worldContainer) i wyjdz.
+    const STEP_MS = 1000 / 60;
+    if (SMOOTH_MODE) {
+        logicAccMs += app.ticker.elapsedMS;
+        if (logicAccMs > STEP_MS * 4) logicAccMs = STEP_MS; // guard: tab-switch / spiral of death
+        if (logicAccMs < STEP_MS) {
+            applySmoothInterp(logicAccMs / STEP_MS); // render-only frame
+            return;
+        }
+        logicAccMs -= STEP_MS;
+        // snapshot prev PRZED krokiem logiki (curr stanie sie nowym stanem po kroku)
+        icCamPX = icCamCX; icCamPY = icCamCY;
+        icPlPX = icPlCX; icPlPY = icPlCY;
+    }
+
     // Wygladzona delta (pacing fix): clamp outlierow (0.5..2.0 = 120..30fps) + wygladzanie wykladnicze.
     // Cala reszta tickera uzywa `delta` (= smoothedDelta), wiec ruch/animacje sa stabilne mimo falowania FPS.
+    // SMOOTH_MODE: krok logiki jest STALY (delta=1) — plynnosc daje interpolacja renderu, nie delta.
     const clampedDelta = Math.max(0.5, Math.min(2.0, rawDelta));
     smoothedDelta += (clampedDelta - smoothedDelta) * DELTA_SMOOTH;
-    const delta = smoothedDelta;
+    const delta = SMOOTH_MODE ? 1 : smoothedDelta;
 
     const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     const viewW = hud.screenW / ZOOM;
@@ -1966,6 +2062,7 @@ app.ticker.add((rawDelta) => {
 
     worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
     worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
+    if (HARNESS_STATIC) { worldContainer.x = -900 * ZOOM; worldContainer.y = -900 * ZOOM; } // F5 harness: freeze scroll (present vs scroll)
 
     let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {
@@ -2639,10 +2736,42 @@ app.ticker.add((rawDelta) => {
     // DEV-ONLY: mikro-profiler — czas hud.render() + calego callbacku (do rozbicia hitcha).
     if (PERF_ENABLED) {
         const _hudT = performance.now();
-        hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+        if (!HARNESS_NOHUD) hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
         perfHudMs = performance.now() - _hudT;
         perfCbMs = performance.now() - perfCbStart;
     } else {
-        hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+        if (!HARNESS_NOHUD) hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+    }
+
+    // === F5 SMOOTH MODE: zapisz stan po kroku (kamera+gracz) i naloz interpolacje renderu ===
+    if (SMOOTH_MODE) {
+        if (smoothNeedsInit) {
+            // pierwszy krok nowego meczu: prev=curr => zero skoku na spawnie
+            icCamPX = icCamCX = camera.x; icCamPY = icCamCY = camera.y;
+            icPlPX = icPlCX = player.container.x; icPlPY = icPlCY = player.container.y;
+            smoothNeedsInit = false;
+        } else {
+            icCamCX = camera.x; icCamCY = camera.y;
+            icPlCX = player.container.x; icPlCY = player.container.y;
+        }
+        applySmoothInterp(logicAccMs / STEP_MS);
     }
 });
+
+// === F5: TWARDY frame-limiter (?cap=N). PIXI app.ticker.maxFPS NIE trzymal na A54 (log: 130fps
+// przy maxFPS 60). Przejmujemy pompowanie tickera wlasnym rAF z bramka czasowa => render
+// zablokowany na CAP_FPS. Cel: zamienic oscylacje 21<->130fps (governor/throttle A54) na stabilne
+// 60 = koniec juddera. Domyslnie OFF (produkcja bez zmian).
+if (CAP_ENABLED) {
+    app.ticker.stop(); // zatrzymaj wewnetrzny rAF PIXI — pompujemy recznie
+    const CAP_MS = 1000 / CAP_FPS;
+    let _next = performance.now(); // czas NASTEPNEJ dozwolonej klatki
+    const _capLoop = (now: number): void => {
+        requestAnimationFrame(_capLoop);
+        if (now < _next - 1) return;             // za wczesnie (1ms tolerancji) => pomin te klatke
+        _next += CAP_MS;                          // zaplanuj kolejna o staly interwal
+        if (_next < now) _next = now + CAP_MS;    // spadlismy w tyl => resync (bez burst catch-up)
+        app.ticker.update(now);                   // 1 cykl tickera: nasz callback + render PIXI
+    };
+    requestAnimationFrame(_capLoop);
+}

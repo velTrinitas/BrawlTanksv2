@@ -110,7 +110,8 @@ export class SpawnSystem {
         playerX: number,
         playerY: number,
         worldContainer: PIXI.Container,
-        buildings: ICollidable[]
+        buildings: ICollidable[],
+        extraBlocked?: (x: number, y: number) => boolean
     ): SpawnResult {
         this.frameCounter += delta;
         this.gameTimeSeconds += delta / 60;
@@ -137,7 +138,7 @@ export class SpawnSystem {
             let roamerCount = 0; // v0.73.7 PERF: licznik zamiast filter().length (bez domkniecia+tablicy)
             for (let i = 0; i < currentEnemies.length; i++) { const e = currentEnemies[i]; if (!e.isBoss && !e.guard) roamerCount++; }
             if (this.frameCounter % spawnRate < delta && roamerCount < this.ctfMode.roamerCap) {
-                const pos = this.findSafeSpawnPos(playerX, playerY, buildings);
+                const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 300, extraBlocked);
                 if (pos) {
                     newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_NORMAL), false, worldContainer));
                 }
@@ -146,14 +147,14 @@ export class SpawnSystem {
             // nie ma padow i jest twardszy (single-life + bossy pilnujace flag).
             if (this.heartFrameCounter >= 360 && currentHearts.length < 4) {
                 this.heartFrameCounter = 0;
-                const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200);
+                const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200, extraBlocked);
                 if (pos) newHearts.push(new Heart(pos.x, pos.y, worldContainer));
             }
             // F4.2: magnesy w CTF (jak KTB) — interval 900f, max 1 na mapie. Pickup +
             // przyciaganie gemow (main.ts / PowerSystem / Gem) sa generyczne => dzialaja same.
             if (this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
                 this.magnetFrameCounter = 0;
-                const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250);
+                const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250, extraBlocked);
                 if (pos) newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
             }
             this._outResult.megaBossJustSpawned = false; return this._outResult;
@@ -161,7 +162,7 @@ export class SpawnSystem {
 
         // v0.50.0: maxEnemiesOnMap z modifiers (15/20/25/30 per difficulty).
         if (this.frameCounter % spawnRate < delta && currentEnemies.length < this.modifiers.maxEnemiesOnMap) {
-            const pos = this.findSafeSpawnPos(playerX, playerY, buildings);
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 300, extraBlocked);
             if (pos) {
                 newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_NORMAL), false, worldContainer));
             }
@@ -181,7 +182,7 @@ export class SpawnSystem {
         let aliveBosses = 0; // v0.73.7 PERF: licznik zamiast filter().length
         for (let i = 0; i < currentEnemies.length; i++) { const e = currentEnemies[i]; if (e.isBoss && !e.isMegaBoss) aliveBosses++; }
         if (this.pendingBossSpawns > 0 && aliveBosses < MAX_CONCURRENT_REGULAR_BOSSES) {
-            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 400);
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 400, extraBlocked);
             if (pos) {
                 newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_BOSS), true, worldContainer));
                 this.pendingBossSpawns--;
@@ -196,7 +197,7 @@ export class SpawnSystem {
             this.pendingBossSpawns === 0 &&
             !this.megaBossSpawned
         ) {
-            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 500);
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 500, extraBlocked);
             if (pos) {
                 newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_MEGA_BOSS), true, worldContainer, true));
                 this.megaBossSpawned = true;
@@ -210,7 +211,7 @@ export class SpawnSystem {
             currentHearts.length < HEART_CONFIG.maxOnMap
         ) {
             this.heartFrameCounter = 0;
-            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200);
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200, extraBlocked);
             if (pos) {
                 newHearts.push(new Heart(pos.x, pos.y, worldContainer));
             }
@@ -222,7 +223,7 @@ export class SpawnSystem {
             currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap
         ) {
             this.magnetFrameCounter = 0;
-            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250);
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250, extraBlocked);
             if (pos) {
                 newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
             }
@@ -241,10 +242,11 @@ export class SpawnSystem {
         playerY: number,
         worldContainer: PIXI.Container,
         buildings: ICollidable[],
+        extraBlocked?: (x: number, y: number) => boolean,
     ): Enemy[] {
         const spawned: Enemy[] = [];
         for (let i = 0; i < count; i++) {
-            const pos = this.findSafeSpawnPos(playerX, playerY, buildings);
+            const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 300, extraBlocked);
             if (pos) {
                 spawned.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_NORMAL), false, worldContainer));
             }
@@ -259,8 +261,9 @@ export class SpawnSystem {
         playerX: number,
         playerY: number,
         buildings: ICollidable[],
+        extraBlocked?: (x: number, y: number) => boolean,
     ): { x: number, y: number } | null {
-        return this.findSafeSpawnPos(playerX, playerY, buildings, 150);
+        return this.findSafeSpawnPos(playerX, playerY, buildings, 150, extraBlocked);
     }
 
     registerKill(enemy: Enemy): void {
@@ -284,7 +287,8 @@ export class SpawnSystem {
     private findSafeSpawnPos(
         playerX: number, playerY: number,
         buildings: ICollidable[],
-        minDistFromPlayer: number = 300
+        minDistFromPlayer: number = 300,
+        extraBlocked?: (x: number, y: number) => boolean
     ): { x: number, y: number } | null {
         for (let i = 0; i < 30; i++) {
             const x = 100 + Math.random() * (WORLD_W - 200);
@@ -292,14 +296,17 @@ export class SpawnSystem {
             const dx = x - playerX, dy = y - playerY;
             if (dx * dx + dy * dy < minDistFromPlayer * minDistFromPlayer) continue;
 
+            // margines 40 (promien wroga ~35) => wrog nie laduje "na krawedzi" budynku/skaly.
             let inBuilding = false;
             for (const b of buildings) {
-                if (x > b.x - 30 && x < b.x + b.w + 30 && y > b.y - 30 && y < b.y + b.h + 30) {
+                if (x > b.x - 40 && x < b.x + b.w + 40 && y > b.y - 40 && y < b.y + b.h + 40) {
                     inBuilding = true;
                     break;
                 }
             }
             if (inBuilding) continue;
+            // Strefy NIEdrivalne w OSOBNYCH tablicach (quicksand/oazy/sludge/fosa) — nie sa w `buildings`.
+            if (extraBlocked && extraBlocked(x, y)) continue;
             return { x, y };
         }
         return null;

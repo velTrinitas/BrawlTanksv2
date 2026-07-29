@@ -540,6 +540,21 @@ function nearestInRange<T extends { x: number; y: number }>(items: T[], range: n
     return best;
 }
 
+/**
+ * Czy punkt jest na terenie NIEdrivalnym w OSOBNYCH tablicach (nie w `buildings`): strefy
+ * quicksand / oazy / sludge / fosa. Rzeka, duze skaly i jeziora sa juz w `buildings` (omijane
+ * przez findSafeSpawnPos). Wstrzykiwane do SpawnSystem => wrogowie i pickupy nie spawnuja sie na
+ * przeszkodach ani w miejscach nieprzeznaczonych do jazdy (bug: "wrogowie na skalach/rzekach").
+ * Czyta LIVE tablice modulowe (puste na mapach bez danego typu => no-op).
+ */
+const spawnBlocked = (x: number, y: number): boolean => {
+    for (const q of quicksands) if (q.isPointInside(x, y)) return true;
+    for (const o of oases) if (o.isPointInside(x, y)) return true;
+    for (const sp of sludgePools) if (sp.isPointInside(x, y)) return true;
+    if (ruinsFosa && ruinsFosa.isPointInside(x, y)) return true;
+    return false;
+};
+
 // ── FAZA A: tutorial onboarding ──
 // tutorialActive: gdy true, spawn wrogow jest OFF (sandbox nauki na realnej mapie).
 // Flaga bt2:tutorialCoreDone: konwencja `bt2:` (urzadzenie/gracz); dziala PRZED zalozeniem nicku.
@@ -1130,7 +1145,7 @@ function attachEnemyCubeStolenCallback(enemy: Enemy): void {
 function spawnCtfMatchForces(): void {
     if (!ctfSystem || !spawnSystem || !player) return;
     ctfSystem.spawnInitialForces();
-    enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings));
+    enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings, spawnBlocked));
     for (const e of enemies) attachEnemyCubeStolenCallback(e);
 }
 
@@ -1759,7 +1774,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // samouczek oddaje sterowanie prawdziwemu meczowi (spawnCtfMatchForces w onDone launchTutorial).
         if (!tutorialMode) spawnCtfMatchForces();
         for (let i = 0; i < 12; i++) {
-            const pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
+            const pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings, spawnBlocked);
             if (pos) spawnGem(pos.x, pos.y);
         }
     }
@@ -2800,7 +2815,7 @@ app.ticker.add((rawDelta) => {
     }
 
     if (!tutorialActive) { // FAZA A: w tutorialu spawn OFF (bezpieczny sandbox nauki)
-        const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings);
+        const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings, spawnBlocked);
         for (const newEnemy of spawnResult.newEnemies) {
             attachEnemyCubeStolenCallback(newEnemy);
         }

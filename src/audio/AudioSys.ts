@@ -148,6 +148,9 @@ export class AudioSys {
     private gestureListenerInstalled: boolean = false;
 
     private constructor() {
+        // Wylacz wlasny gesture-unlock Howlera — sami zarzadzamy odblokowaniem (installGestureListener).
+        // Dwie sciezki unlock => podwojne play() => nakladajaca sie muzyka (bug menu). Jedna sciezka = spokoj.
+        Howler.autoUnlock = false;
         // Load persisted volumes BEFORE preloading (so Howl instances created z correct volumes)
         this.loadVolumes();
 
@@ -330,9 +333,11 @@ export class AudioSys {
             // Retry pending play
             if (this.pendingPlay) {
                 try {
-                    if (!this.pendingPlay.howl.playing()) {
-                        this.pendingPlay.howl.play();
-                    }
+                    // stop() PRZED play(): play() zaplanowany przy suspended zostawia instancje, ktorej
+                    // .playing()=false nie wykrywa => drugie play() = 2 instancje tego samego utworu.
+                    // stop() ubija wszystkie instancje, play() startuje JEDNA czysta na wznowionym ctx.
+                    this.pendingPlay.howl.stop();
+                    this.pendingPlay.howl.play();
                     console.log(`[AudioSys] ${this.pendingPlay.label} music started after first user gesture`);
                 } catch (e) {
                     console.warn('[AudioSys] Pending music play still failed', e);
@@ -568,9 +573,10 @@ export class AudioSys {
 
         // Stop other music tracks
         this.stopMusic();
-        if (this.hubMusic && this.hubMusic.playing()) {
-            try { this.hubMusic.stop(); } catch { /* silent */ }
-        }
+        // Stop BEZWARUNKOWY (nie guard na .playing()): przy suspended AudioContext .playing() zwraca
+        // false dla utworu zaplanowanego przez play() => stop pomijany => track startuje na resume =>
+        // nakladajaca sie muzyka. stop() na bezczynnym Howlu to bezpieczny no-op.
+        if (this.hubMusic) { try { this.hubMusic.stop(); } catch { /* silent */ } }
 
         this.playMusicWithGestureFallback(this.introMusic, 'Intro');
     }
@@ -593,9 +599,9 @@ export class AudioSys {
 
         // Stop other music tracks
         this.stopMusic();
-        if (this.introMusic && this.introMusic.playing()) {
-            try { this.introMusic.stop(); } catch { /* silent */ }
-        }
+        // Stop BEZWARUNKOWY (patrz startIntroMusic) — inaczej intro zaplanowane przy starcie gra dalej
+        // pod hubem = 2 utwory na raz (zgloszony bug przy tworzeniu gracza).
+        if (this.introMusic) { try { this.introMusic.stop(); } catch { /* silent */ } }
 
         this.playMusicWithGestureFallback(this.hubMusic, 'Hub');
     }
@@ -606,11 +612,7 @@ export class AudioSys {
      */
     stopIntroMusic(): void {
         if (!this.introMusic) return;
-        try {
-            if (this.introMusic.playing()) {
-                this.introMusic.stop();
-            }
-        } catch { /* silent */ }
+        try { this.introMusic.stop(); } catch { /* silent */ } // bezwarunkowo (suspended-safe)
     }
 
     /**
@@ -619,11 +621,7 @@ export class AudioSys {
      */
     stopHubMusic(): void {
         if (!this.hubMusic) return;
-        try {
-            if (this.hubMusic.playing()) {
-                this.hubMusic.stop();
-            }
-        } catch { /* silent */ }
+        try { this.hubMusic.stop(); } catch { /* silent */ } // bezwarunkowo (suspended-safe)
     }
 
     /**

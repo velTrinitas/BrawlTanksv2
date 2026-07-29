@@ -348,8 +348,14 @@ export class IdentityScreen implements IScreen {
         this.setCtaBusy(true);
 
         // Server-side uniqueness check (atomic claim). Offline -> optimistic.
+        // Cap ~1.5s: na wolnej/mobilnej sieci ten await blokowal przycisk (gracz klikal ROZPOCZNIJ
+        // kilka razy). Po timeout idziemy optymistycznie dalej — kolizje i tak lapie DB unique index
+        // przy upsert do chmury (upsertProfile -> NicknameTakenError na 23505).
         try {
-            const available = await supabaseProfileService.isNicknameAvailable(this.nicknameValue);
+            const available = await Promise.race<boolean>([
+                supabaseProfileService.isNicknameAvailable(this.nicknameValue),
+                new Promise<boolean>((res) => window.setTimeout(() => res(true), 1500)),
+            ]);
             if (!available) {
                 this.showNicknameTaken();
                 this.isSubmitting = false;

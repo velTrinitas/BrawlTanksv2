@@ -726,6 +726,26 @@ function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
     });
 }
 
+/**
+ * Handoff samouczek -> prawdziwy mecz (GRAJ DALEJ): stan gracza liczony OD ZERA (sprawiedliwosc).
+ * Bez tego przeciekaja: super charges / aktywny super shot (kroki GEMY/SUPER) + score/kille/combo
+ * (zabite dummy przechodza normalnym kill-path). Odtwarzamy sesje (score=0) i czyscimy super + moc.
+ */
+function resetPlayerStateForMatch(matchConfig: GameConfig): void {
+    if (player) {
+        player.superCharges = 0;
+        player.superActive = false;
+        player.superEndTime = 0;
+        player.hp = player.maxHp;
+    }
+    if (powerSystem) {
+        powerSystem.powerCooldowns = { aura: 0, megaBomb: 0, freeze: 0 };
+        powerSystem.activePowerId = null;
+        powerSystem.framesLeft = 0;
+    }
+    currentSession = new GameSession(matchConfig); // score/kille/combo od zera
+}
+
 menu.onGameRequested = (config: GameConfig) => {
     // FAZA CTF F1: ctf odblokowane (mapa fortified_ruins zintegrowana modularnie)
     if (config.scenario === 'castle') {
@@ -741,6 +761,7 @@ menu.onGameRequested = (config: GameConfig) => {
             launchTutorial((cont) => {
                 markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
                 if (cont) {
+                    resetPlayerStateForMatch(config); // stan od zera (super/score) — sprawiedliwosc
                     if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
                     if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
                 } else returnToMenuFromEnd();
@@ -775,16 +796,30 @@ menu.onContinueRequested = (lastSession: LastSession) => {
 };
 
 menu.onHowToPlayRequested = () => {
-    // FAZA A: replay tutorialu z huba. Sandbox (spawn off) na ostatnim configu -> powrot do huba.
-    // (Dziala gdy grales w tej sesji; pelny replay z persistem = pozniejsza faza.)
-    if (!lastGameConfig) { console.log('[Tutorial] replay: brak lastGameConfig (zagraj raz najpierw)'); return; }
+    // Replay tutorialu z ekranu "Jak grac". Sandbox (spawn off) Twoim czolgiem -> po skonczeniu wg
+    // wyboru finalnej karty (GRAJ DALEJ = mecz / MENU = hub).
+    // Fallback, zeby przycisk ZAWSZE dzialal (bez tego: brak meczu w tej sesji => lastGameConfig null
+    // => cichy no-op). 1) config z tej sesji, 2) odbuduj z trwalej ostatniej sesji, 3) domyslny czolg + KTB.
+    let replayCfg = lastGameConfig;
+    if (!replayCfg) {
+        const ls = sessionService.getLastSession();
+        replayCfg = new GameConfigBuilder()
+            .setScenario(ls?.scenario ?? 'ktb')
+            .setMap(ls?.map ?? 'city')
+            .setBrawlerId(ls?.brawlerId ?? BRAWLERS[0].id)
+            .setDifficulty(ls?.difficulty ?? 'normal')
+            .setProfileId(ProfileService.getActiveProfile()?.id ?? 'default')
+            .build();
+    }
+    const cfg = replayCfg;
     menu.hide();
-    void startGame(lastGameConfig, true).then(() => {
+    void startGame(cfg, true).then(() => {
         launchTutorial((cont) => {
             markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
             if (cont) {
-                if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
-                if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
+                resetPlayerStateForMatch(cfg); // stan od zera (super/score) — sprawiedliwosc
+                if (cfg.scenario === 'ctf') spawnCtfMatchForces();
+                if (cfg.scenario === 'ktb' || cfg.scenario === 'ctf') showModeGoal(cfg.scenario, touchManager.isActive);
             } else returnToMenuFromEnd();
         });
     });
@@ -2807,7 +2842,9 @@ app.ticker.add((rawDelta) => {
         }
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {
-            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable);
+            // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
+            // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
+            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive);
 
             if (powerSystem.isInvulnerable) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
@@ -2854,7 +2891,7 @@ app.ticker.add((rawDelta) => {
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
-            const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable);
+            const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable || tutorialActive); // tutorial => niesmiertelny
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.

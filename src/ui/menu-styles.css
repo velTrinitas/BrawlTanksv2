@@ -3576,3 +3576,167 @@
         font-size: 0.9rem;
     }
 }
+
+/* ============================================================
+   Sekcja 30 — HowToPlay (ekran "Jak grac"). Re-uzywa bt-settings-* (shell/scroll/sekcje)
+   + bt-cta-button; ponizej tylko layout wierszy sciagi (sterowanie / przedmioty / cele).
+   ============================================================ */
+/* Tlo = ten sam MainHub co hub + ciemny scrim (czytelnosc #1). Karty sekcji daja lokalny
+   kontrast pod tekstem, wiec scrim moze byc lzejszy i obraz zostaje widoczny. */
+.bt-howto-screen {
+    background-image:
+        linear-gradient(180deg, rgba(15, 20, 35, 0.62) 0%, rgba(15, 20, 35, 0.78) 100%),
+        url('/BrawlTanksv2/intro/MainHub_Background.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+/* Naglowki sekcji: font-body waga 700 zamiast Titan One (za tluste w gestej sciądze). */
+.bt-howto-screen .bt-settings-section-title {
+    font-family: var(--font-body);
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+/* Karty odrobine ciemniejsze niz w Ustawieniach — tekst czytelny na zdjeciu. */
+.bt-howto-screen .bt-settings-section {
+    background: rgba(0, 0, 0, 0.5);
+}
+/* Title pcha replay-button na prawo; margin-right trzyma go z dala od samego rogu. */
+.bt-howto-screen .bt-settings-title { margin-right: auto; }
+.bt-howto-replay {
+    margin-right: 12px;
+    padding: 9px 18px;
+    border: 2px solid rgba(241, 196, 15, 0.75);
+    border-radius: 999px;
+    background: rgba(241, 196, 15, 0.16);
+    color: #ffd24a;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.bt-howto-replay:hover { background: rgba(241, 196, 15, 0.28); }
+.bt-howto-replay:active { transform: scale(0.96); }
+
+/* Reading text = font-body (system-ui, normalna waga) — Titan One czytany w gestym bloku
+   sciagi jest za ciezki/nieczytelny. */
+.bt-howto-row {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.bt-howto-row:last-child { border-bottom: none; }
+.bt-howto-key {
+    color: #ffd24a;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.95rem;
+    min-width: 40%;
+    flex-shrink: 0;
+}
+.bt-howto-val {
+    color: #e9edf8;
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: 0.95rem;
+    line-height: 1.35;
+}
+.bt-howto-item {
+    color: #e9edf8;
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: 1rem;
+    line-height: 1.45;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.bt-howto-item:last-child { border-bottom: none; }
+.bt-howto-item b { color: #ffd24a; font-weight: 700; }
+
+@media (max-width: 375px) {
+    .bt-howto-key, .bt-howto-val { font-size: 0.82rem; }
+    .bt-howto-item { font-size: 0.86rem; }
+}
+
+/* Landscape mobile (niski viewport): zmiesc CALOSC na 1 ekranie bez scrolla.
+   3 kolumny = 3 sekcje obok siebie (wykorzystaj szerokosc), replay = slim pasek na gorze.
+   Sygnal = max-height + landscape (NIE szerokosc — duzy telefon landscape ma width > 768). */
+@media (max-height: 500px) and (orientation: landscape) {
+    .bt-howto-screen { padding: 8px 12px; overflow: hidden; }
+    .bt-howto-screen .bt-settings-header { padding-bottom: 8px; margin-bottom: 8px; }
+    .bt-howto-screen .bt-settings-title { font-size: 1.25rem; }
+    .bt-howto-screen .bt-settings-content {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        max-width: none;
+        align-content: start;
+    }
+    /* replay-button w naglowku — kompaktowy na niskim viewport */
+    .bt-howto-replay { padding: 6px 14px; font-size: 0.82rem; margin-right: 8px; }
+    /* kompaktowe sekcje */
+    .bt-howto-screen .bt-settings-section { padding: 9px 11px; border-radius: 12px; }
+    .bt-howto-screen .bt-settings-section-title { font-size: 0.9rem; margin-bottom: 7px; gap: 6px; }
+    .bt-howto-screen .bt-settings-icon { font-size: 1.1rem; }
+    /* wiersze sterowania: key NAD val (waskie kolumny) */
+    .bt-howto-row { flex-direction: column; gap: 1px; padding: 4px 0; }
+    .bt-howto-key { min-width: 0; font-size: 0.78rem; }
+    .bt-howto-val { font-size: 0.76rem; line-height: 1.25; }
+    .bt-howto-item { font-size: 0.8rem; line-height: 1.3; padding: 4px 0; }
+}
+
+/* ============================================================
+   Sekcja 31 — Ekran USTAWIENIA: ta sama tapeta co "Jak grac" (MainHub) + kompaktowy
+   layout landscape bez scrolla. Tlo zduplikowane swiadomie (zeby NIE ruszac dzialajacego
+   .bt-howto-screen). Suwaki audio zostaja szerokie (mobile tap-target) — patrz media landscape.
+   ============================================================ */
+.bt-settings-panel {
+    background-image:
+        linear-gradient(180deg, rgba(15, 20, 35, 0.62) 0%, rgba(15, 20, 35, 0.78) 100%),
+        url('/BrawlTanksv2/intro/MainHub_Background.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+.bt-settings-panel .bt-settings-section { background: rgba(0, 0, 0, 0.5); }
+
+@media (max-height: 500px) and (orientation: landscape) {
+    /* overflow-x:hidden = nigdy poziomej "ucieczki"; pion zostaje dostepny (nie obcinamy kontrolek). */
+    .bt-settings-panel { padding: 8px 16px; overflow-x: hidden; overflow-y: auto; }
+    .bt-settings-panel .bt-settings-header { padding-bottom: 6px; margin-bottom: 8px; }
+    .bt-settings-panel .bt-settings-title { font-size: 1.2rem; }
+    /* 2 czytelne kolumny (nie auto-fit), wysrodkowane z max-width; auto-placement ogarnia warunkowy Profil. */
+    .bt-settings-panel .bt-settings-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+        max-width: 680px;
+        width: 100%;
+        margin: 0 auto;
+        align-content: start;
+    }
+    /* min-width:0 na KAZDEJ karcie = klucz: karta moze sie skurczyc, tresc nie wypycha layoutu poza ekran. */
+    .bt-settings-panel .bt-settings-section { padding: 10px 12px; border-radius: 12px; min-width: 0; }
+    .bt-settings-panel .bt-settings-section-title { font-size: 0.9rem; margin-bottom: 8px; }
+    .bt-settings-panel .bt-settings-icon { font-size: 1.1rem; }
+    /* suwak audio: etykieta+% na gorze, suwak PELNA szerokosc karty pod spodem (przeciagalny kciukiem). */
+    .bt-settings-panel .bt-settings-row {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "label value" "slider slider";
+        gap: 3px 8px;
+        padding: 4px 0;
+    }
+    .bt-settings-panel .bt-settings-label { grid-area: label; font-size: 0.82rem; }
+    .bt-settings-panel .bt-settings-value { grid-area: value; }
+    .bt-settings-panel .bt-settings-slider { grid-area: slider; width: 100%; min-width: 0; }
+    /* przyciski jezyka: pozwol im sie skurczyc w waskiej kolumnie (bez wypychania). */
+    .bt-settings-panel .bt-settings-lang-buttons { gap: 8px; }
+    .bt-settings-panel .bt-settings-lang-btn { padding: 9px 8px; font-size: 0.9rem; min-width: 0; }
+    /* Profil: nick NAD przyciskiem (w waskiej kolumnie czytelniej niz obok siebie). */
+    .bt-settings-panel .bt-settings-profile-row { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
+    .bt-settings-panel .bt-settings-profile-btn { justify-content: center; }
+}

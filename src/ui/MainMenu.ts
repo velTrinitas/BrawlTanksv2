@@ -30,6 +30,7 @@ import { BrawlerPicker } from './BrawlerPicker';
 import { IdentityScreen } from './IdentityScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { ProfileEditScreen } from './ProfileEditScreen';
+import { HowToPlayScreen } from './HowToPlayScreen';
 import { sessionService, type LastSession } from '../services/SessionService';
 import { ProfileService } from '../services/ProfileService';
 import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/GameConfig';
@@ -48,7 +49,8 @@ export type ScreenId =
     | 'scenarioPicker'
     | 'brawlerPicker'
     | 'settings'
-    | 'profileEdit';
+    | 'profileEdit'
+    | 'howToPlay';
 
 export interface IScreen {
     mount(root: HTMLElement): void;
@@ -199,6 +201,8 @@ export class MainMenu {
                 return this.createSettingsScreen();
             case 'profileEdit':
                 return this.createProfileEditScreen();
+            case 'howToPlay':
+                return this.createHowToPlayScreen();
             default: {
                 const _exhaustive: never = id;
                 throw new Error(`[MainMenu] Unknown screen: ${_exhaustive}`);
@@ -243,7 +247,7 @@ export class MainMenu {
         };
 
         hub.onHowToPlayClick = () => {
-            this.onHowToPlayRequested?.();
+            this.show('howToPlay'); // ekran-sciaga; replay samouczka odpala przycisk w srodku
         };
 
         hub.onSettingsClick = () => {
@@ -338,6 +342,13 @@ export class MainMenu {
             this.onProfileEditRequested?.(); // optional hook (no-op gdy null)
             this.show('profileEdit');         // direct — gwarantowany efekt
         };
+        return screen;
+    }
+
+    private createHowToPlayScreen(): IScreen {
+        const screen = new HowToPlayScreen();
+        screen.onBack = () => this.show('hub');
+        screen.onReplayTutorial = () => this.onHowToPlayRequested?.(); // istniejacy replay samouczka
         return screen;
     }
 

@@ -41,7 +41,8 @@ export class SettingsScreen implements IScreen {
 
     mount(root: HTMLElement): void {
         this.rootEl = document.createElement('div');
-        this.rootEl.className = 'bt-settings-screen';
+        // bt-settings-panel: tapeta MainHub (jak "Jak grac") + kompaktowy layout landscape bez scrolla.
+        this.rootEl.className = 'bt-settings-screen bt-settings-panel';
         root.appendChild(this.rootEl);
 
         this.renderContent();

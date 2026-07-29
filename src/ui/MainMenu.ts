@@ -31,6 +31,7 @@ import { IdentityScreen } from './IdentityScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { ProfileEditScreen } from './ProfileEditScreen';
 import { HowToPlayScreen } from './HowToPlayScreen';
+import { LeaderboardScreen } from './LeaderboardScreen';
 import { sessionService, type LastSession } from '../services/SessionService';
 import { ProfileService } from '../services/ProfileService';
 import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/GameConfig';
@@ -50,7 +51,8 @@ export type ScreenId =
     | 'brawlerPicker'
     | 'settings'
     | 'profileEdit'
-    | 'howToPlay';
+    | 'howToPlay'
+    | 'leaderboard';
 
 export interface IScreen {
     mount(root: HTMLElement): void;
@@ -203,6 +205,8 @@ export class MainMenu {
                 return this.createProfileEditScreen();
             case 'howToPlay':
                 return this.createHowToPlayScreen();
+            case 'leaderboard':
+                return this.createLeaderboardScreen();
             default: {
                 const _exhaustive: never = id;
                 throw new Error(`[MainMenu] Unknown screen: ${_exhaustive}`);
@@ -248,6 +252,10 @@ export class MainMenu {
 
         hub.onHowToPlayClick = () => {
             this.show('howToPlay'); // ekran-sciaga; replay samouczka odpala przycisk w srodku
+        };
+
+        hub.onLeaderboardClick = () => {
+            this.show('leaderboard');
         };
 
         hub.onSettingsClick = () => {
@@ -349,6 +357,12 @@ export class MainMenu {
         const screen = new HowToPlayScreen();
         screen.onBack = () => this.show('hub');
         screen.onReplayTutorial = () => this.onHowToPlayRequested?.(); // istniejacy replay samouczka
+        return screen;
+    }
+
+    private createLeaderboardScreen(): IScreen {
+        const screen = new LeaderboardScreen();
+        screen.onBack = () => this.show('hub');
         return screen;
     }
 

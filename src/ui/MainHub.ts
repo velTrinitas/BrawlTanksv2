@@ -52,6 +52,7 @@ export class MainHub implements IScreen {
     onContinueClick: ((lastSession: LastSession) => void) | null = null;
     onHowToPlayClick: (() => void) | null = null;
     onSettingsClick: (() => void) | null = null;
+    onLeaderboardClick: (() => void) | null = null;
 
     /**
      * v0.43.0 FAZA 8b: klik profile chip (avatar/nickname/flag bar).
@@ -103,10 +104,9 @@ export class MainHub implements IScreen {
                     <span class="icon" aria-hidden="true">⚙️</span>
                     <span class="label">${t('hub.settings')}</span>
                 </button>
-                <button class="bt-hub-secondary-btn is-soon" type="button" data-action="leaderboard" aria-disabled="true">
+                <button class="bt-hub-secondary-btn" type="button" data-action="leaderboard">
                     <span class="icon" aria-hidden="true">🏆</span>
                     <span class="label">${t('hub.leaderboard')}</span>
-                    <span class="soon-badge">${t('common.soon')}</span>
                 </button>
                 <button class="bt-hub-secondary-btn is-soon" type="button" data-action="shop" aria-disabled="true">
                     <span class="icon" aria-hidden="true">🛒</span>
@@ -245,8 +245,10 @@ export class MainHub implements IScreen {
                     this.onProfileEditClick?.();
                     break;
                 case 'leaderboard':
+                    this.onLeaderboardClick?.();
+                    break;
                 case 'shop':
-                    // Soon slots — show toast
+                    // Soon slot — show toast
                     showToast(t('settings.comingSoon'), 2200);
                     break;
             }

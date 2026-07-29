@@ -16,6 +16,7 @@ import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
 import type { DifficultyId, GameConfig } from '../types/GameConfig';
 import { SupabaseScoreService } from './SupabaseScoreService';
+import type { ILeaderboardService } from './leaderboard';
 
 /**
  * Pojedynczy wpis score (immutable).
@@ -163,5 +164,10 @@ export class LocalStorageScoreService implements IScoreService {
  *
  * Powrot do localStorage (np. lokalne testy bez sieci): podmien na
  *   export const scoreService: IScoreService = new LocalStorageScoreService();
+ *
+ * LB-F1: ta sama instancja wystawiona tez jako leaderboardService (drugi typowany
+ * widok — read-only RPC leaderboardu). Jeden klient Supabase, dwa kontrakty.
  */
-export const scoreService: IScoreService = new SupabaseScoreService();
+const _scoreServiceImpl = new SupabaseScoreService();
+export const scoreService: IScoreService = _scoreServiceImpl;
+export const leaderboardService: ILeaderboardService = _scoreServiceImpl;

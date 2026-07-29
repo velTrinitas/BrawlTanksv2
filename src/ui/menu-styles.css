@@ -3740,3 +3740,95 @@
     .bt-settings-panel .bt-settings-profile-row { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
     .bt-settings-panel .bt-settings-profile-btn { justify-content: center; }
 }
+
+/* ============================================================
+   Sekcja 32 — LEADERBOARD (LB-F2). Ta sama tapeta MainHub co reszta. Header + zakladki +
+   segment + chipy + wiersz "TY" PRZYPIETE; scrolluje TYLKO srodkowa lista (plan: "scrolluje
+   tylko srodkowa lista"). Nicki = font-body (czytelnosc), liczby = tabular-nums.
+   ============================================================ */
+.bt-lb-screen {
+    overflow: hidden;            /* nadpisuje overflow-y:auto z .bt-settings-screen — scroll bierze lista */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-image:
+        linear-gradient(180deg, rgba(15, 20, 35, 0.66) 0%, rgba(15, 20, 35, 0.82) 100%),
+        url('/BrawlTanksv2/intro/MainHub_Background.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+.bt-lb-screen .bt-settings-header { padding-bottom: 10px; margin-bottom: 0; flex-shrink: 0; }
+
+/* Kontrolki (zakladki + segment czasu) */
+.bt-lb-controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.bt-lb-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.bt-lb-tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 999px; cursor: pointer;
+    font-family: var(--font-body); font-weight: 700; font-size: 0.9rem;
+    color: #e9edf8; background: rgba(0, 0, 0, 0.35);
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bt-lb-tab.is-active { color: #1a252f; background: #ffd24a; border-color: #ffd24a; }
+.bt-lb-tab.is-locked { opacity: 0.4; cursor: not-allowed; }
+.bt-lb-segment { display: flex; gap: 0; border-radius: 999px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.14); }
+.bt-lb-seg {
+    padding: 7px 14px; cursor: pointer; border: none; background: rgba(0, 0, 0, 0.35);
+    color: #cfd6e6; font-family: var(--font-body); font-weight: 700; font-size: 0.82rem;
+}
+.bt-lb-seg.is-active { background: rgba(241, 196, 15, 0.9); color: #1a252f; }
+
+/* Chipy map (tylko KTB) */
+.bt-lb-chips { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+.bt-lb-chips:empty { display: none; }
+.bt-lb-chip {
+    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    font-family: var(--font-body); font-weight: 600; font-size: 0.8rem;
+    color: #cfd6e6; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.bt-lb-chip.is-active { color: #1a252f; background: #9fd8ff; border-color: #9fd8ff; }
+
+/* Body = podium (gora) + lista (scrolluje) */
+.bt-lb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.bt-lb-status { text-align: center; padding: 30px 12px; color: #cfd6e6; font-family: var(--font-body); font-size: 1rem; }
+.bt-lb-status.is-error { color: #ff8a8a; }
+
+.bt-lb-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+.bt-lb-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 10px;
+    background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.07);
+}
+/* Top-3 = zwykle wiersze, wyroznione tylko tlem/ramka (zloto/srebro/braz). */
+.bt-lb-row--1 { background: linear-gradient(90deg, rgba(255,210,74,0.30), rgba(255,210,74,0.10)); border-color: #ffd24a; }
+.bt-lb-row--2 { background: linear-gradient(90deg, rgba(207,214,230,0.26), rgba(207,214,230,0.08)); border-color: #cfd6e6; }
+.bt-lb-row--3 { background: linear-gradient(90deg, rgba(213,155,106,0.28), rgba(213,155,106,0.09)); border-color: #d59b6a; }
+.bt-lb-row--2 .bt-lb-rank { color: #eef2f8; }
+.bt-lb-row--3 .bt-lb-rank { color: #e0a878; }
+/* is-me = inset shadow (nie tlo), zeby nakladal sie na wyroznienie top-3 gdy TY jestes w czolowce. */
+.bt-lb-row.is-me { box-shadow: inset 0 0 0 2px #9fd8ff; }
+.bt-lb-rank { font-family: var(--font-display); color: #ffd24a; font-size: 0.95rem; min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+.bt-lb-avatar { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; object-fit: cover; background: rgba(255,255,255,0.08); }
+.bt-lb-name { flex: 1; min-width: 0; font-family: var(--font-body); font-weight: 600; font-size: 0.92rem; color: #e9edf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-lb-score { font-family: var(--font-display); color: #fff; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+
+/* Wiersz "TY" — przypiety na dole, zawsze widoczny */
+.bt-lb-you { flex-shrink: 0; }
+.bt-lb-you:empty { display: none; }
+.bt-lb-you-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 12px;
+    background: rgba(159, 216, 255, 0.18); border: 2px solid #9fd8ff;
+}
+.bt-lb-you-row.is-unranked { justify-content: center; color: #cfd6e6; font-family: var(--font-body); font-size: 0.9rem; }
+.bt-lb-you-label { font-family: var(--font-display); color: #9fd8ff; font-size: 0.9rem; }
+.bt-lb-you-total { color: #9fb2c8; font-family: var(--font-body); font-size: 0.8rem; margin-right: auto; }
+.bt-lb-you-row .bt-lb-rank { min-width: auto; color: #fff; }
+
+/* Landscape mobile: podium OBOK listy (2 kolumny), zeby zmiescic wiecej bez scrolla calosci. */
+@media (max-height: 500px) and (orientation: landscape) {
+    .bt-lb-screen { padding: 8px 14px; gap: 7px; }
+    .bt-lb-screen .bt-settings-title { font-size: 1.2rem; }
+    .bt-lb-avatar { width: 26px; height: 26px; }
+    .bt-lb-row { padding: 5px 12px; }
+}

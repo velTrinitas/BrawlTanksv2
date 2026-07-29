@@ -33,6 +33,18 @@ import type { MapId } from '../types/MapType';
 import type { DifficultyId, GameConfig } from '../types/GameConfig';
 import type { ScoreInsert, ScoreRow } from './supabase/types';
 import { getSupabase } from './supabase/SupabaseClient';
+import type {
+    BoardDefinition, ILeaderboardService, LeaderboardEntry, LeaderboardQuery, MyRank,
+} from './leaderboard';
+import { sanitizeDisplayName } from './leaderboard';
+
+/** Ksztalt wiersza z RPC leaderboard_top (patrz supabase/leaderboard_rpc.sql). */
+interface LeaderboardTopRow {
+    rank: number; profile_id: string; nickname: string; avatar_id: string;
+    flag_id: string | null; score: number; map: string; brawler_id: string; created_at: string;
+}
+/** Ksztalt wiersza z RPC leaderboard_my_rank. */
+interface MyRankRow { rank: number | null; my_score: number | null; total: number; }
 
 /**
  * Wersja regul scoringu. Single source of truth — zmienna na wszystko co wplywa
@@ -58,7 +70,7 @@ export const CURRENT_SCORE_VERSION = 2;
 
 const QUEUE_KEY = 'brawltanks.scores.queue.v1';
 
-export class SupabaseScoreService implements IScoreService {
+export class SupabaseScoreService implements IScoreService, ILeaderboardService {
     constructor() {
         // Proba oproznienia kolejki przy starcie (fire-and-forget).
         void this.flushQueue();
@@ -216,6 +228,65 @@ export class SupabaseScoreService implements IScoreService {
     async getBestForProfile(profileId: string, scenario?: ScenarioId): Promise<ScoreEntry | null> {
         const results = await this.getTopScores({ profileId, scenario, limit: 1 });
         return results[0] ?? null;
+    }
+
+    // ── ILeaderboardService (RPC: dedupe best-per-player + join profiles + ranga) ──
+
+    async getLeaderboard(board: BoardDefinition, query: LeaderboardQuery): Promise<LeaderboardEntry[]> {
+        try {
+            const sb = getSupabase();
+            const { data, error } = await sb.rpc('leaderboard_top', {
+                p_scenario: board.scenario,
+                p_score_version: CURRENT_SCORE_VERSION,
+                p_map: query.map ?? null,
+                p_window: query.window,
+                p_limit: query.limit ?? 100,
+            });
+            if (error) throw error;
+            return ((data ?? []) as LeaderboardTopRow[]).map((r) => Object.freeze({
+                rank: Number(r.rank),
+                profileId: r.profile_id,
+                nickname: r.nickname,
+                displayName: sanitizeDisplayName(r.nickname),
+                avatarId: r.avatar_id,
+                flagId: r.flag_id,
+                score: r.score,
+                map: r.map as MapId,
+                brawlerId: r.brawler_id,
+                timestamp: new Date(r.created_at).getTime(),
+            }));
+        } catch (e) {
+            console.warn('[ScoreService:Supabase] getLeaderboard failed', e);
+            return [];
+        }
+    }
+
+    async getMyRank(
+        profileId: string,
+        board: BoardDefinition,
+        query: Omit<LeaderboardQuery, 'limit'>,
+    ): Promise<MyRank> {
+        try {
+            const sb = getSupabase();
+            const { data, error } = await sb.rpc('leaderboard_my_rank', {
+                p_profile_id: profileId,
+                p_scenario: board.scenario,
+                p_score_version: CURRENT_SCORE_VERSION,
+                p_map: query.map ?? null,
+                p_window: query.window,
+            });
+            if (error) throw error;
+            // RPC RETURNS TABLE => tablica jednowierszowa.
+            const row = (Array.isArray(data) ? data[0] : data) as MyRankRow | undefined;
+            return Object.freeze({
+                rank: row?.rank != null ? Number(row.rank) : null,
+                score: row?.my_score ?? null,
+                total: row?.total != null ? Number(row.total) : 0,
+            });
+        } catch (e) {
+            console.warn('[ScoreService:Supabase] getMyRank failed', e);
+            return Object.freeze({ rank: null, score: null, total: 0 });
+        }
     }
 
     async clearAll(): Promise<void> {

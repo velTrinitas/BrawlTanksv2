@@ -32,6 +32,7 @@ export const en: typeof pl = {
     // Tutorial / onboarding (FAZA A)
     // ============================================================
     'tutorial.badge': 'TUTORIAL · Step {step}',
+    'tutorial.progress': 'Step {step}/{total}',
     'tutorial.move.title': 'MOVE!',
     'tutorial.move.hintTouch': 'Drag the left stick to drive',
     'tutorial.move.hintDesktop': 'Use WASD to drive',

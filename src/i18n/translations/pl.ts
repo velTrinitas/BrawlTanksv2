@@ -41,6 +41,7 @@ export const pl = {
     // Tutorial / onboarding (FAZA A)
     // ============================================================
     'tutorial.badge': 'SAMOUCZEK · Krok {step}',
+    'tutorial.progress': 'Krok {step}/{total}',
     'tutorial.move.title': 'RUSZAJ!',
     'tutorial.move.hintTouch': 'Przesuń lewym joystickiem, żeby jechać',
     'tutorial.move.hintDesktop': 'Użyj klawiszy WASD, żeby jechać',

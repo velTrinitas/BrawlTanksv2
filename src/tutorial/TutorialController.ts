@@ -1,20 +1,17 @@
 import { t } from '../i18n/i18n';
 
 /**
- * TutorialController — silnik onboardingu nowego gracza (FAZA A).
+ * TutorialController — silnik onboardingu nowego gracza.
  *
- * Wizja (docs/PROMPT_Tutorial_FAZA_A.md): gracz uczy sie BAWIAC — jeden czasownik
- * naraz, gating (gra czeka az akcja naprawde wykonana), zero sciany tekstu. Overlay
- * to DOM (nie PIXI) — menu/kontrolki i tak sa DOM, strzalka celuje w strefe joysticka
- * w screen-space (zero matematyki zoom 0.6 / uiScale 0.7).
+ * Wizja (docs/PROMPT_Tutorial_FAZA_A.md): gracz uczy sie BAWIAC — jeden czasownik naraz,
+ * gating (gra czeka az akcja naprawde wykonana), zero sciany tekstu. Overlay to DOM (nie PIXI).
  *
- * FAZA A: silnik + JEDEN krok "RUSZAJ" (gate = gracz ruszyl). Kolejne kroki + karty
- * celu = nastepne fazy.
- *
- * v0.78 (uwagi Mariusza): tytul+hint+badge+POMIN w JEDNEJ karcie (slate-szare tlo z
- * poswiata — nie zlewa sie z gra). POMIN wewnatrz karty (UI/UX: kontrolka nalezy do
- * widgetu samouczka, wiec NIE koliduje z HUD/joystickami/super-panelem na zadnej
- * platformie). Desktop: karta +20% (wieksze fonty/padding), wieksze emoji.
+ * FAZA A: krok RUSZAJ. FAZA B: STRZELAJ, FALA, GEMY, SUPER STRZAL, GOTOWY (wybor).
+ * FAZA B3-UX (auto-minimize, market best practice — onboarding NIE zaslania pola akcji):
+ * karta pokazuje sie w centrum, po EXPAND_MS ZWIJA sie do pilla (gora-srodek) odslaniajac ekran;
+ * spawn/zadanie startuje DOPIERO na zwinieciu (wrog pojawia sie gdy karta znika z drogi). Tap w pill
+ * = rozwin (doczytaj). Po wykonaniu polecenia karta wraca do centrum ("SWIETNIE") -> nastepny krok.
+ * GOTOWY (finalny wybor) zostaje rozwiniety — to decyzja, nie zadanie w tle.
  *
  * Uwaga i18n: `t()` musi byc LITERALNE (dynamiczne t(zmienna) sie nie kompiluje).
  */
@@ -37,14 +34,14 @@ interface Step {
     title: string;
     hint: string;
     isDone: () => boolean;
-    onEnter?: () => void;        // FAZA B: efekt wejscia w krok (spawn manekina/fali/gemow)
+    onEnter?: () => void;        // FAZA B: efekt wejscia w krok (spawn); FAZA B3-UX: odpalany na ZWINIECIU
     showJoystickRing?: boolean;  // DOM-ring na strefie lewego joysticka (tylko RUSZAJ na dotyku)
     highlight?: () => { x: number; y: number; w: number; h: number }; // FAZA B2: podswietlany element HUD (screen-px)
-    isFinalChoice?: boolean;     // FAZA B2: ostatni krok — karta wyboru (graj dalej / menu), bez gate
+    isFinalChoice?: boolean;     // FAZA B2: ostatni krok — karta wyboru (graj dalej / menu), bez gate/zwijania
 }
 
 const GOLD = '#ffd24a';
-const ENTER_DELAY_MS = 1500; // FAZA B2: po pokazaniu kroku odczekaj, by gracz przeczytal, ZANIM spawn/strzaly
+const EXPAND_MS = 3000; // FAZA B3-UX: ile pelna karta stoi w centrum, zanim zwinie sie do pilla (czas na przeczytanie)
 
 export class TutorialController {
     private readonly opts: TutorialOpts;
@@ -53,18 +50,22 @@ export class TutorialController {
     private finished = false;
     private rafId = 0;
     private confirmUntil = 0;
+    private collapseAt = 0;      // FAZA B3-UX: kiedy auto-zwinac karte do pilla (0 = brak timera)
+    private collapsed = false;   // FAZA B3-UX: czy karta jest zwinieta do pilla
+    private pendingEnter: (() => void) | null = null; // onEnter odpalany DOPIERO na zwinieciu
 
     private root!: HTMLDivElement;
+    private cardEl!: HTMLDivElement;
+    private pillEl!: HTMLDivElement;
+    private pillTextEl!: HTMLSpanElement;
     private badgeTextEl!: HTMLSpanElement;
     private titleEl!: HTMLDivElement;
     private hintEl!: HTMLDivElement;
     private ringEl!: HTMLDivElement;
     private arrowEl!: HTMLDivElement;
-    private hlEl!: HTMLDivElement; // FAZA B2: podswietlenie elementu HUD (pasek SUPER)
+    private hlEl!: HTMLDivElement;
     private skipEl!: HTMLButtonElement;
-    private choiceEl!: HTMLDivElement; // FAZA B2: karta finalnego wyboru (graj dalej / menu)
-    private pendingEnter: (() => void) | null = null; // FAZA B2: odlozony onEnter (reading delay)
-    private enterAt = 0;
+    private choiceEl!: HTMLDivElement;
 
     constructor(opts: TutorialOpts) {
         this.opts = opts;
@@ -100,7 +101,7 @@ export class TutorialController {
                 onEnter: () => opts.armSuperShot(),
                 isDone: () => opts.superShotFired(),
             },
-            {   // 6 — GOTOWY (finalny wybor: graj dalej / powrot do menu)
+            {   // 6 — GOTOWY (finalny wybor: graj dalej / powrot do menu; NIE zwija sie)
                 title: t('tutorial.finish.title'),
                 hint: t('tutorial.finish.hint'),
                 isDone: () => false, // gate nieuzywany — czeka na klik wyboru
@@ -108,8 +109,8 @@ export class TutorialController {
             },
         ];
         this.buildDom();
-        this.showStep();
         this.tick = this.tick.bind(this);
+        this.showStep();
         this.rafId = requestAnimationFrame(this.tick);
     }
 
@@ -120,9 +121,15 @@ export class TutorialController {
             st.textContent =
                 '@keyframes bt-tut-pulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.3);opacity:1}}' +
                 '@keyframes bt-tut-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(12px)}}' +
-                '@keyframes bt-tut-pop{0%{transform:translateX(-50%) scale(.72);opacity:0}60%{transform:translateX(-50%) scale(1.05);opacity:1}100%{transform:translateX(-50%) scale(1);opacity:1}}' +
+                '@keyframes bt-tut-pop{0%{opacity:0;transform:translateX(-50%) scale(.72)}60%{opacity:1;transform:translateX(-50%) scale(1.05)}100%{opacity:1;transform:translateX(-50%) scale(1)}}' +
                 '@keyframes bt-tut-hl{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}' +
-                '.bt-tut-skip:hover{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.55)!important;color:#fff!important}';
+                // FAZA B3-UX: karta zwija/rozwija sie (transition na transform+opacity); pill pojawia sie u gory.
+                '#bt-tutorial-root .bt-card{transition:opacity .3s ease,transform .32s cubic-bezier(.2,.9,.3,1.2)}' +
+                '#bt-tutorial-root .bt-card.bt-min{opacity:0;transform:translateX(-50%) scale(.82) translateY(-26px);pointer-events:none}' +
+                '#bt-tutorial-root .bt-pill{transition:opacity .28s ease,transform .28s cubic-bezier(.2,.9,.3,1.3);opacity:0;transform:translateX(-50%) scale(.8);pointer-events:none}' +
+                '#bt-tutorial-root .bt-pill.bt-show{opacity:1;transform:translateX(-50%) scale(1);pointer-events:auto}' +
+                '.bt-tut-skip:hover{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.55)!important;color:#fff!important}' +
+                '.bt-tut-pill:hover{border-color:rgba(255,210,74,1)!important}';
             document.head.appendChild(st);
         }
 
@@ -130,11 +137,12 @@ export class TutorialController {
 
         const root = document.createElement('div');
         root.id = 'bt-tutorial-root';
-        // pointer-events:none => klik/dotyk przechodzi do gry pod spodem; tylko POMIN lapie.
+        // pointer-events:none => klik/dotyk przechodzi do gry pod spodem; tylko POMIN / pill / wybor lapia.
         root.style.cssText = 'position:fixed;inset:0;z-index:60;pointer-events:none;font-family:"Titan One",cursive;user-select:none';
 
-        // ── KARTA: badge + tytul + hint + separator + POMIN (jeden panel, slate-szare tlo) ──
+        // ── KARTA (pelna): badge + tytul + hint + separator + POMIN/wybor (slate-szare tlo) ──
         const card = document.createElement('div');
+        card.className = 'bt-card';
         card.style.cssText =
             'position:absolute;left:50%;top:' + (desk ? '13%' : '15%') + ';transform:translateX(-50%);max-width:88vw;' +
             'padding:' + (desk ? '20px 46px 20px' : '13px 28px 16px') + ';border-radius:20px;' +
@@ -180,7 +188,7 @@ export class TutorialController {
         const btnPad = desk ? '11px 30px' : '9px 22px';
         const btnFont = desk ? 'clamp(15px,1.5vw,20px)' : 'clamp(13px,2.8vw,17px)';
         const playBtn = document.createElement('button');
-        playBtn.textContent = '▶ ' + t('tutorial.finish.play'); // ▶
+        playBtn.textContent = '▶ ' + t('tutorial.finish.play');
         playBtn.style.cssText =
             'pointer-events:auto;background:' + GOLD + ';color:#3a2c00;border:none;border-radius:12px;' +
             'padding:' + btnPad + ';font-family:"Titan One",cursive;font-size:' + btnFont + ';letter-spacing:.4px;' +
@@ -190,7 +198,7 @@ export class TutorialController {
         playBtn.onclick = () => this.finish(true);
         const menuBtn = document.createElement('button');
         menuBtn.className = 'bt-tut-skip';
-        menuBtn.textContent = '☰ ' + t('tutorial.finish.menu'); // ☰
+        menuBtn.textContent = '☰ ' + t('tutorial.finish.menu');
         menuBtn.style.cssText =
             'pointer-events:auto;background:rgba(255,255,255,.09);color:#cfd4e2;border:1.5px solid rgba(255,255,255,.3);' +
             'border-radius:12px;padding:' + btnPad + ';font-family:"Titan One",cursive;font-size:' + btnFont + ';' +
@@ -199,6 +207,27 @@ export class TutorialController {
         choice.append(playBtn, menuBtn);
 
         card.append(badge, title, hint, sep, skip, choice);
+
+        // ── FAZA B3-UX: PILL postepu (gora-srodek) — pokazywany po zwinieciu karty; tap = rozwin ──
+        const pill = document.createElement('div');
+        pill.className = 'bt-pill bt-tut-pill';
+        // top obnizony o 25px (pill nie zaslania SCORE na HUD); mocny zloty kontur + poswiata = lepsza widocznosc.
+        pill.style.cssText =
+            'position:absolute;left:50%;top:calc(' + (desk ? '3%' : '2.5%') + ' + 25px);display:inline-flex;align-items:center;gap:9px;' +
+            'pointer-events:auto;cursor:pointer;white-space:nowrap;' +
+            'background:linear-gradient(180deg,rgba(52,56,78,.98),rgba(26,29,42,.98));' +
+            'border:3px solid ' + GOLD + ';border-radius:999px;' +
+            'padding:' + (desk ? '7px 22px 7px 9px' : '6px 16px 6px 7px') + ';' +
+            'box-shadow:0 6px 20px rgba(0,0,0,.55),0 0 16px rgba(255,210,74,.45),0 0 0 4px rgba(255,210,74,.16);transition:box-shadow .15s,border-color .15s';
+        const pillEmoji = document.createElement('span');
+        pillEmoji.textContent = '\u{1F393}'; // 🎓 — w zlotym kolku (nie zlewa sie z ciemnym tlem pilla)
+        pillEmoji.style.cssText =
+            'display:flex;align-items:center;justify-content:center;width:' + (desk ? '30px' : '24px') + ';height:' + (desk ? '30px' : '24px') + ';' +
+            'border-radius:50%;background:' + GOLD + ';font-size:' + (desk ? '17px' : '13px') + ';line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.45)';
+        const pillText = document.createElement('span');
+        pillText.style.cssText = 'color:' + GOLD + ';font-family:"Titan One",cursive;font-size:' + (desk ? 'clamp(15px,1.4vw,20px)' : 'clamp(12px,2.6vw,16px)') + ';letter-spacing:.4px;text-shadow:0 1px 2px rgba(0,0,0,.6)';
+        pill.append(pillEmoji, pillText);
+        pill.onclick = () => { if (this.collapsed) this.expand(); }; // tap w pill = rozwin (doczytaj)
 
         // ── ring + strzalka celuja w strefe lewego floating-joysticka (tylko dotyk) ──
         const ring = document.createElement('div');
@@ -211,36 +240,40 @@ export class TutorialController {
         const hl = document.createElement('div');
         hl.style.cssText = 'position:absolute;display:none;border-radius:14px;border:4px solid ' + GOLD + ';box-shadow:0 0 20px rgba(255,210,74,.9),inset 0 0 14px rgba(255,210,74,.5);animation:bt-tut-hl 1s ease-in-out infinite;pointer-events:none';
 
-        root.append(card, ring, arrow, hl);
+        root.append(card, pill, ring, arrow, hl);
         document.body.appendChild(root);
-        this.root = root; this.badgeTextEl = badgeText; this.titleEl = title; this.hintEl = hint; this.ringEl = ring; this.arrowEl = arrow; this.hlEl = hl; this.skipEl = skip; this.choiceEl = choice;
+        this.root = root; this.cardEl = card; this.pillEl = pill; this.pillTextEl = pillText;
+        this.badgeTextEl = badgeText; this.titleEl = title; this.hintEl = hint;
+        this.ringEl = ring; this.arrowEl = arrow; this.hlEl = hl; this.skipEl = skip; this.choiceEl = choice;
     }
 
     private showStep(): void {
         const s = this.steps[this.idx];
+        const now = performance.now();
         this.badgeTextEl.textContent = t('tutorial.badge', { step: String(this.idx + 1) });
         this.titleEl.textContent = s.title;
         this.titleEl.style.color = GOLD;
         this.hintEl.textContent = s.hint;
         this.hintEl.style.display = '';
+        // pill (wskaznik postepu): "Krok X/N · SLOWO"
+        this.pillTextEl.textContent = t('tutorial.progress', { step: String(this.idx + 1), total: String(this.steps.length) }) + ' · ' + s.title;
 
-        // FAZA B2: reading delay — odloz onEnter (spawn/strzaly) o ENTER_DELAY_MS, by gracz zdazyl
-        // przeczytac krok ZANIM wrogowie zaczna strzelac. isDone nie jest sprawdzane dopoki
-        // pendingEnter != null (patrz tick), by "0 wrogow" nie zaliczylo kroku przed spawnem.
+        // FAZA B3-UX: spawn/zadanie odlozone do ZWINIECIA karty (gracz najpierw czyta, potem akcja).
         this.pendingEnter = s.onEnter ?? null;
-        this.enterAt = performance.now() + ENTER_DELAY_MS;
 
-        // finalny krok = karta wyboru (GRAJ DALEJ / MENU) zamiast POMIN.
         const fin = !!s.isFinalChoice;
         this.skipEl.style.display = fin ? 'none' : '';
         this.choiceEl.style.display = fin ? 'flex' : 'none';
 
-        // DOM ring/strzalka celuja w strefe lewego joysticka — tylko RUSZAJ na dotyku.
-        // STRZELAJ/FALA maja cel w swiecie (ring PIXI z main.ts), wiec DOM-ring chowamy.
+        // start rozwiniety; krok zadaniowy zwinie sie po EXPAND_MS. Finalny (wybor) zostaje rozwiniety.
+        this.expand();
+        this.collapseAt = fin ? 0 : now + EXPAND_MS;
+
+        // DOM ring/strzalka — tylko RUSZAJ na dotyku. STRZELAJ/FALA celuja ringiem w swiecie (main.ts).
         const showJoy = !!s.showJoystickRing && this.opts.isTouch;
         this.ringEl.style.display = showJoy ? '' : 'none';
         this.arrowEl.style.display = showJoy ? '' : 'none';
-        // FAZA B2: highlight elementu HUD (pasek SUPER) — pozycja stala w screen-px (pill sie nie rusza).
+        // highlight elementu HUD (pasek SUPER) — stala pozycja w screen-px.
         const h = s.highlight?.();
         if (h) {
             this.hlEl.style.display = '';
@@ -253,16 +286,29 @@ export class TutorialController {
         }
     }
 
+    /** FAZA B3-UX: zwin karte do pilla i odpal odlozone zadanie (spawn) — karta zeszla z drogi. */
+    private collapse(): void {
+        if (this.collapsed) return;
+        this.collapsed = true;
+        this.collapseAt = 0;
+        this.cardEl.classList.add('bt-min');
+        this.pillEl.classList.add('bt-show');
+        if (this.pendingEnter) { const fn = this.pendingEnter; this.pendingEnter = null; fn(); }
+    }
+
+    /** FAZA B3-UX: rozwin karte z powrotem (tap w pill / po wykonaniu polecenia -> powrot do centrum). */
+    private expand(): void {
+        this.collapsed = false;
+        this.cardEl.classList.remove('bt-min');
+        this.pillEl.classList.remove('bt-show');
+    }
+
     private tick(): void {
         if (this.finished) return;
         const now = performance.now();
 
-        // FAZA B2: reading delay — odpal odlozony onEnter (spawn) dopiero po ENTER_DELAY_MS.
-        if (this.pendingEnter && now >= this.enterAt) {
-            const fn = this.pendingEnter;
-            this.pendingEnter = null;
-            fn();
-        }
+        // FAZA B3-UX: auto-zwiniecie karty do pilla po EXPAND_MS (odpala tez pendingEnter = spawn zadania).
+        if (this.collapseAt && !this.collapsed && now >= this.collapseAt) this.collapse();
 
         if (this.confirmUntil > 0) {
             if (now >= this.confirmUntil) {
@@ -276,15 +322,17 @@ export class TutorialController {
         }
 
         const s = this.steps[this.idx];
-        // finalny krok czeka na klik wyboru (bez gate); isDone dopiero gdy spawn juz sie wykonal.
+        // gate: finalny czeka na klik wyboru; zadaniowy dopiero gdy spawn juz sie wykonal (pendingEnter == null).
         if (!s.isFinalChoice && !this.pendingEnter && s.isDone()) {
-            // confirm juice: zielone "SWIETNIE!" w karcie + krotka pauza -> nastepny krok / koniec
+            // confirm juice: karta WRACA do centrum z zielonym "SWIETNIE!" -> krotka pauza -> nastepny krok
+            this.expand();
             this.titleEl.textContent = t('tutorial.done');
             this.titleEl.style.color = '#5effa0';
             this.hintEl.style.display = 'none';
             this.ringEl.style.display = 'none';
             this.arrowEl.style.display = 'none';
             this.hlEl.style.display = 'none';
+            this.collapseAt = 0;
             this.confirmUntil = now + 750;
         }
         this.rafId = requestAnimationFrame(this.tick);

@@ -127,6 +127,7 @@ import { AudioSys } from './audio/AudioSys';
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
+import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import {
     GameSession,
     MAX_POWERCUBES_PER_MATCH,
@@ -525,6 +526,20 @@ if (touchManager.isActive) {
     hud.showPowerBar = false;
 }
 
+// Just-in-time podpowiedzi przedmiotow/stref (serce/magnes/kostka/medi-pad/power-pad).
+const itemHints = new ItemHints(touchManager.isActive);
+/** Najblizszy obiekt {x,y} w zasiegu od gracza (do podpowiedzi kontekstowych). */
+function nearestInRange<T extends { x: number; y: number }>(items: T[], range: number): T | null {
+    if (!player) return null;
+    let best: T | null = null;
+    let bestD = range * range;
+    for (const it of items) {
+        const d = (it.x - player.x) ** 2 + (it.y - player.y) ** 2;
+        if (d < bestD) { bestD = d; best = it; }
+    }
+    return best;
+}
+
 // ── FAZA A: tutorial onboarding ──
 // tutorialActive: gdy true, spawn wrogow jest OFF (sandbox nauki na realnej mapie).
 // Flaga bt2:tutorialCoreDone: konwencja `bt2:` (urzadzenie/gracz); dziala PRZED zalozeniem nicku.
@@ -632,6 +647,17 @@ function tutorialSpawnGems(): void {
 function tutorialSuperEarned(): boolean {
     return !!player && player.superCharges > tutSuperBase;
 }
+/** Watchdog GEMY: gdy gemy sie skonczyly/wygasly a super jeszcze nie naladowany -> dosyp swiezych.
+ *  Zapobiega soft-lockowi gdy gracz zwleka ze zbieraniem (gemy w meczu maja czas zycia). */
+function tutorialTopUpGems(): void {
+    if (!player) return;
+    if (gems.length < 3 && !tutorialSuperEarned()) {
+        for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2;
+            spawnGem(player.x + Math.cos(a) * 150, player.y + Math.sin(a) * 150);
+        }
+    }
+}
 function tutorialArmSuperShot(): void {
     if (player && player.superCharges === 0) player.addSuperCharge(1); // gwarancja: lekcja ma dzialac
     tutSuperShotBase = player ? player.superCharges : 0;
@@ -647,6 +673,23 @@ function tutorialSuperPillRect(): { x: number; y: number; w: number; h: number }
     return { x: 14 * s, y: 70 * s, w: 172 * s, h: 54 * s };
 }
 
+// ── SUPER MOC (Aura/MegaBomb/Freeze — cooldown-based, zero ladunkow) ──
+let tutSuperPowerBase = 0;
+function tutorialArmSuperPower(): void {
+    if (powerSystem) {
+        powerSystem.powerCooldowns = { aura: 0, megaBomb: 0, freeze: 0 }; // gwarancja: moc gotowa do uzycia
+        powerSystem.activePowerId = null;
+    }
+    tutSuperPowerBase = currentSession ? currentSession.superPowersUsed : 0;
+    tutorialEnemies = [];
+    const base = tutorialCenterAngle();
+    tutorialSpawnAt(base - 0.4, 240); // cele, by bomba/freeze mialy co zmiesc (aura = self-buff)
+    tutorialSpawnAt(base + 0.4, 240);
+}
+function tutorialSuperPowerUsed(): boolean {
+    return !!currentSession && currentSession.superPowersUsed > tutSuperPowerBase;
+}
+
 /** Uruchom tutorial nad juz-wystartowanym sandboxem. onDone(cont): cont=graj dalej, !cont=powrot do menu. */
 function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
     new TutorialController({
@@ -657,9 +700,12 @@ function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
         enemiesAlive: tutorialEnemiesAlive,
         spawnGems: tutorialSpawnGems,
         superEarned: tutorialSuperEarned,
+        topUpGems: tutorialTopUpGems,
         armSuperShot: tutorialArmSuperShot,
         superShotFired: tutorialSuperShotFired,
         superPillRect: tutorialSuperPillRect,
+        armSuperPower: tutorialArmSuperPower,
+        superPowerUsed: tutorialSuperPowerUsed,
         onDone,
     });
 }
@@ -676,7 +722,11 @@ menu.onGameRequested = (config: GameConfig) => {
         // FAZA A: pierwsze uruchomienie => tutorial nad sandboxem (spawn off) TYM czolgiem,
         // po ukonczeniu/skip -> flaga + spawn wraca => plynnie prawdziwy mecz (bez restartu sceny).
         void startGame(config, true).then(() => {
-            launchTutorial((cont) => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); if (!cont) returnToMenuFromEnd(); });
+            launchTutorial((cont) => {
+                markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
+                if (cont) { if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces(); }
+                else returnToMenuFromEnd();
+            });
         });
     } else {
         void startGame(config);
@@ -712,7 +762,11 @@ menu.onHowToPlayRequested = () => {
     if (!lastGameConfig) { console.log('[Tutorial] replay: brak lastGameConfig (zagraj raz najpierw)'); return; }
     menu.hide();
     void startGame(lastGameConfig, true).then(() => {
-        launchTutorial((cont) => { markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox(); if (!cont) returnToMenuFromEnd(); });
+        launchTutorial((cont) => {
+            markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
+            if (cont) { if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces(); }
+            else returnToMenuFromEnd();
+        });
     });
 };
 
@@ -774,6 +828,7 @@ async function tryLockLandscape(): Promise<void> {
 }
 
 function returnToMenuFromEnd(): void {
+    itemHints.clear(); // schowaj ewentualny wiszacy dymek podpowiedzi
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.remove('game-cursor-hidden');
@@ -1065,6 +1120,18 @@ function attachEnemyCubeStolenCallback(enemy: Enemy): void {
             effects.spawnFloatingText(cubeX, cubeY - 20, t('pickup.cubeStolen'), 0xff8c00);
         }
     };
+}
+
+/**
+ * Inicjalne sily CTF (straznicy/bossy + roamerzy). Pominiete w tutorialu (startGame tutorialMode),
+ * dospawnowane gdy samouczek oddaje sterowanie prawdziwemu meczowi (onDone cont). Inaczej mecz CTF
+ * po samouczku byl pusty — bug: "przeszedlem samouczek na CTF i nie spawnuja sie czolgi".
+ */
+function spawnCtfMatchForces(): void {
+    if (!ctfSystem || !spawnSystem || !player) return;
+    ctfSystem.spawnInitialForces();
+    enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings));
+    for (const e of enemies) attachEnemyCubeStolenCallback(e);
 }
 
 async function startGame(config: GameConfig, tutorialMode = false): Promise<void> {
@@ -1683,15 +1750,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             onBombExplosionSfx: () => audio.playExplosion(),
             onEnrage: () => hud.triggerCtfEnrage(), // F4.3: baner eskalacji
         });
-        if (!tutorialMode) ctfSystem.spawnInitialForces(); // FAZA A: brak strazników/bossów w tutorialu
         // F3 perf: zbuduj RAZ tablice kolizji wrogow (buildings statyczne w CTF po tym
         // punkcie — spawnInitialForces dodaje tylko do enemies, nie do buildings).
         ctfEnemyBuildings = ctfEnemyBarriers.length > 0
             ? [...buildings, ...ctfEnemyBarriers]
             : buildings;
-        // Legacy init 1:1: 10 roamerow + 12 gemow na starcie
-        if (!tutorialMode) enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings));
-        for (const e of enemies) attachEnemyCubeStolenCallback(e);
+        // FAZA A: inicjalne sily CTF (straznicy/bossy + roamerzy) NIE w tutorialu — dospawnowane gdy
+        // samouczek oddaje sterowanie prawdziwemu meczowi (spawnCtfMatchForces w onDone launchTutorial).
+        if (!tutorialMode) spawnCtfMatchForces();
         for (let i = 0; i < 12; i++) {
             const pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
             if (pos) spawnGem(pos.x, pos.y);
@@ -2233,6 +2299,26 @@ app.ticker.add((rawDelta) => {
     if (HARNESS_STATIC) { worldContainer.x = -900 * ZOOM; worldContainer.y = -900 * ZOOM; } // F5 harness: freeze scroll (present vs scroll)
 
     updateTutorialRing(); // FAZA B: ring celujacy w manekina/fale (early-return gdy nie-tutorial)
+
+    // ── Just-in-time item hints: 1. spotkanie przedmiotu/strefy -> dymek przy realnym obiekcie ──
+    if (!tutorialActive && !itemHints.isActive()) {
+        const onScr = (ox: number, oy: number): boolean =>
+            ox > camera.x - 40 && ox < camera.x + viewW + 40 && oy > camera.y - 40 && oy < camera.y + viewH + 40;
+        if (!itemHints.hasSeen('heart') && hearts.length > 0 && onScr(hearts[0].x, hearts[0].y)) {
+            itemHints.trigger('heart', t('hint.heart'), hearts[0].x, hearts[0].y);
+        } else if (!itemHints.hasSeen('magnet') && magnets.length > 0 && onScr(magnets[0].x, magnets[0].y)) {
+            itemHints.trigger('magnet', t('hint.magnet'), magnets[0].x, magnets[0].y);
+        } else if (!itemHints.hasSeen('cube') && powerCubes.length > 0 && onScr(powerCubes[0].x, powerCubes[0].y)) {
+            itemHints.trigger('cube', t('hint.cube'), powerCubes[0].x, powerCubes[0].y);
+        } else if (!itemHints.hasSeen('mediPad')) {
+            const p = nearestInRange(mediPads, 240);
+            if (p) itemHints.trigger('mediPad', t('hint.mediPad'), p.x, p.y);
+        } else if (!itemHints.hasSeen('powerPad')) {
+            const p = nearestInRange(powerPads, 240);
+            if (p) itemHints.trigger('powerPad', t('hint.powerPad'), p.x, p.y);
+        }
+    }
+    itemHints.updateWorld(worldContainer.x, worldContainer.y, ZOOM);
 
     let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {

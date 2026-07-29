@@ -27,6 +27,9 @@ export interface TutorialOpts {
     armSuperShot: () => void;   // FAZA B2: krok SUPER SHOT — gwarantuj ladunek + cel
     superShotFired: () => boolean; // FAZA B2: gate SUPER SHOT (super odpalony)
     superPillRect: () => { x: number; y: number; w: number; h: number }; // FAZA B2: rect paska SUPER (screen-px)
+    topUpGems: () => void;       // FAZA B2: watchdog GEMY — dosyp gemow gdy wygasly (anty soft-lock)
+    armSuperPower: () => void;   // SUPER POWER: gwarantuj gotowosc mocy + cele
+    superPowerUsed: () => boolean; // SUPER POWER: gate (moc aktywowana)
     onDone: (continuePlaying: boolean) => void; // FAZA B2: finalny wybor gracza (graj dalej / menu)
 }
 
@@ -35,9 +38,14 @@ interface Step {
     hint: string;
     isDone: () => boolean;
     onEnter?: () => void;        // FAZA B: efekt wejscia w krok (spawn); FAZA B3-UX: odpalany na ZWINIECIU
+    onActive?: () => void;       // watchdog: co klatke gdy krok aktywny (zwiniety, gate niezaliczony)
     showJoystickRing?: boolean;  // DOM-ring na strefie lewego joysticka (tylko RUSZAJ na dotyku)
     highlight?: () => { x: number; y: number; w: number; h: number }; // FAZA B2: podswietlany element HUD (screen-px)
+    ringSelector?: string;       // SUPER POWER: ring na przycisku HUD (np. .bt-super-button) via getBoundingClientRect
     isFinalChoice?: boolean;     // FAZA B2: ostatni krok — karta wyboru (graj dalej / menu), bez gate/zwijania
+    isInfo?: boolean;            // KARTA INFO: rozpoznawcza (ikona + 1 linijka + DALEJ), bez gate/zadania/zwijania
+    icon?: string;               // KARTA INFO: duza ikona (emoji) nad tytulem
+    badgeOverride?: string;      // nadpisz tekst badge (np. "DOBRZE WIEDZIEC" dla INFO)
 }
 
 const GOLD = '#ffd24a';
@@ -53,6 +61,7 @@ export class TutorialController {
     private collapseAt = 0;      // FAZA B3-UX: kiedy auto-zwinac karte do pilla (0 = brak timera)
     private collapsed = false;   // FAZA B3-UX: czy karta jest zwinieta do pilla
     private pendingEnter: (() => void) | null = null; // onEnter odpalany DOPIERO na zwinieciu
+    private taskTotal = 0;       // liczba krokow ZADANIOWYCH (do pilla "Krok X/N"; info/final nie licza sie)
 
     private root!: HTMLDivElement;
     private cardEl!: HTMLDivElement;
@@ -64,7 +73,10 @@ export class TutorialController {
     private ringEl!: HTMLDivElement;
     private arrowEl!: HTMLDivElement;
     private hlEl!: HTMLDivElement;
+    private btnRingEl!: HTMLDivElement; // SUPER POWER: ring na przycisku HUD (getBoundingClientRect)
+    private iconEl!: HTMLDivElement;    // KARTA INFO: duza ikona
     private skipEl!: HTMLButtonElement;
+    private nextEl!: HTMLButtonElement; // KARTA INFO: przycisk DALEJ
     private choiceEl!: HTMLDivElement;
 
     constructor(opts: TutorialOpts) {
@@ -92,6 +104,7 @@ export class TutorialController {
                 title: t('tutorial.gems.title'),
                 hint: opts.isTouch ? t('tutorial.gems.hintTouch') : t('tutorial.gems.hintDesktop'),
                 onEnter: () => opts.spawnGems(),
+                onActive: () => opts.topUpGems(), // dosyp gemow jesli wygasly zanim gracz naladowal super
                 isDone: () => opts.superEarned(),
                 highlight: () => opts.superPillRect(),
             },
@@ -101,13 +114,24 @@ export class TutorialController {
                 onEnter: () => opts.armSuperShot(),
                 isDone: () => opts.superShotFired(),
             },
-            {   // 6 — GOTOWY (finalny wybor: graj dalej / powrot do menu; NIE zwija sie)
+            {   // 6 — SUPER MOC (moc specjalna: aktywuj; przytrzymaj = zmien; ring na przycisku SUPER)
+                title: t('tutorial.power.title'),
+                hint: opts.isTouch ? t('tutorial.power.hintTouch') : t('tutorial.power.hintDesktop'),
+                onEnter: () => opts.armSuperPower(),
+                isDone: () => opts.superPowerUsed(),
+                ringSelector: '.bt-super-button',
+            },
+            // Przedmioty/strefy (serce/magnes/kostka/medi-pad/power-pad) uczone teraz JUST-IN-TIME
+            // w meczu (ItemHints), nie kartami tutorialu — decyzja Mariusza + best practice.
+            {   // 7 — GOTOWY (finalny wybor: graj dalej / powrot do menu; NIE zwija sie)
                 title: t('tutorial.finish.title'),
                 hint: t('tutorial.finish.hint'),
                 isDone: () => false, // gate nieuzywany — czeka na klik wyboru
                 isFinalChoice: true,
+                badgeOverride: t('tutorial.finishBadge'),
             },
         ];
+        this.taskTotal = this.steps.filter(s => !s.isInfo && !s.isFinalChoice).length;
         this.buildDom();
         this.tick = this.tick.bind(this);
         this.showStep();
@@ -164,6 +188,10 @@ export class TutorialController {
         const badgeText = document.createElement('span');
         badge.append(emoji, badgeText);
 
+        // KARTA INFO: duza ikona (emoji) nad tytulem — ukryta domyslnie, pokazywana per krok.
+        const icon = document.createElement('div');
+        icon.style.cssText = 'display:none;font-size:' + (desk ? 'clamp(56px,6vw,88px)' : 'clamp(44px,11vw,72px)') + ';line-height:1;margin:2px 0 6px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))';
+
         const title = document.createElement('div');
         title.style.cssText = 'color:' + GOLD + ';font-size:' + (desk ? 'clamp(42px,4vw,66px)' : 'clamp(28px,7vw,50px)') + ';line-height:1.05;text-shadow:0 3px 0 #000,0 0 22px rgba(255,180,40,.6)';
 
@@ -206,14 +234,26 @@ export class TutorialController {
         menuBtn.onclick = () => this.finish(false);
         choice.append(playBtn, menuBtn);
 
-        card.append(badge, title, hint, sep, skip, choice);
+        // KARTA INFO: przycisk DALEJ (przejdz do nastepnego kroku) — zlota, jak GRAJ DALEJ.
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = t('tutorial.next') + ' ▸';
+        nextBtn.style.cssText =
+            'display:none;pointer-events:auto;background:' + GOLD + ';color:#3a2c00;border:none;border-radius:12px;' +
+            'padding:' + (desk ? '11px 34px' : '9px 26px') + ';font-family:"Titan One",cursive;' +
+            'font-size:' + (desk ? 'clamp(15px,1.5vw,20px)' : 'clamp(13px,2.8vw,17px)') + ';letter-spacing:.4px;cursor:pointer;' +
+            'box-shadow:0 5px 0 #b8860b,0 8px 14px rgba(0,0,0,.4);transition:transform .1s';
+        nextBtn.onpointerdown = () => { nextBtn.style.transform = 'translateY(3px)'; };
+        nextBtn.onpointerup = nextBtn.onpointerleave = () => { nextBtn.style.transform = ''; };
+        nextBtn.onclick = () => this.advance();
+
+        card.append(badge, icon, title, hint, sep, skip, choice, nextBtn);
 
         // ── FAZA B3-UX: PILL postepu (gora-srodek) — pokazywany po zwinieciu karty; tap = rozwin ──
         const pill = document.createElement('div');
         pill.className = 'bt-pill bt-tut-pill';
         // top obnizony o 25px (pill nie zaslania SCORE na HUD); mocny zloty kontur + poswiata = lepsza widocznosc.
         pill.style.cssText =
-            'position:absolute;left:50%;top:calc(' + (desk ? '3%' : '2.5%') + ' + 25px);display:inline-flex;align-items:center;gap:9px;' +
+            'position:absolute;left:50%;top:calc(' + (desk ? '3%' : '2.5%') + ' + 35px);display:inline-flex;align-items:center;gap:9px;' +
             'pointer-events:auto;cursor:pointer;white-space:nowrap;' +
             'background:linear-gradient(180deg,rgba(52,56,78,.98),rgba(26,29,42,.98));' +
             'border:3px solid ' + GOLD + ';border-radius:999px;' +
@@ -240,34 +280,46 @@ export class TutorialController {
         const hl = document.createElement('div');
         hl.style.cssText = 'position:absolute;display:none;border-radius:14px;border:4px solid ' + GOLD + ';box-shadow:0 0 20px rgba(255,210,74,.9),inset 0 0 14px rgba(255,210,74,.5);animation:bt-tut-hl 1s ease-in-out infinite;pointer-events:none';
 
-        root.append(card, pill, ring, arrow, hl);
+        // ── SUPER POWER: ring na przycisku HUD (np. SUPER) — pozycja z getBoundingClientRect ──
+        const btnRing = document.createElement('div');
+        btnRing.style.cssText = 'position:absolute;display:none;border-radius:50%;border:5px solid #5fe0e8;box-shadow:0 0 22px rgba(95,224,232,.75);animation:bt-tut-pulse 1s ease-in-out infinite;pointer-events:none';
+
+        root.append(card, pill, ring, arrow, hl, btnRing);
         document.body.appendChild(root);
         this.root = root; this.cardEl = card; this.pillEl = pill; this.pillTextEl = pillText;
         this.badgeTextEl = badgeText; this.titleEl = title; this.hintEl = hint;
-        this.ringEl = ring; this.arrowEl = arrow; this.hlEl = hl; this.skipEl = skip; this.choiceEl = choice;
+        this.ringEl = ring; this.arrowEl = arrow; this.hlEl = hl; this.btnRingEl = btnRing;
+        this.iconEl = icon; this.skipEl = skip; this.nextEl = nextBtn; this.choiceEl = choice;
     }
 
     private showStep(): void {
         const s = this.steps[this.idx];
         const now = performance.now();
-        this.badgeTextEl.textContent = t('tutorial.badge', { step: String(this.idx + 1) });
+        const info = !!s.isInfo;
+        const fin = !!s.isFinalChoice;
+
+        this.badgeTextEl.textContent = s.badgeOverride ?? t('tutorial.badge', { step: String(this.idx + 1) });
+        // duza ikona — tylko karty INFO
+        if (s.icon) { this.iconEl.textContent = s.icon; this.iconEl.style.display = ''; }
+        else { this.iconEl.style.display = 'none'; }
         this.titleEl.textContent = s.title;
         this.titleEl.style.color = GOLD;
         this.hintEl.textContent = s.hint;
         this.hintEl.style.display = '';
-        // pill (wskaznik postepu): "Krok X/N · SLOWO"
-        this.pillTextEl.textContent = t('tutorial.progress', { step: String(this.idx + 1), total: String(this.steps.length) }) + ' · ' + s.title;
+        // pill (wskaznik postepu ZADAN): "Krok X/N · SLOWO" — info/final nie pokazuja pilla.
+        this.pillTextEl.textContent = t('tutorial.progress', { step: String(this.idx + 1), total: String(this.taskTotal) }) + ' · ' + s.title;
 
-        // FAZA B3-UX: spawn/zadanie odlozone do ZWINIECIA karty (gracz najpierw czyta, potem akcja).
-        this.pendingEnter = s.onEnter ?? null;
+        // FAZA B3-UX: spawn/zadanie odlozone do ZWINIECIA karty; karty INFO nie maja zadania.
+        this.pendingEnter = info ? null : (s.onEnter ?? null);
 
-        const fin = !!s.isFinalChoice;
+        // przyciski: INFO => DALEJ + POMIN; final => wybor (graj/menu); zadanie => POMIN.
         this.skipEl.style.display = fin ? 'none' : '';
         this.choiceEl.style.display = fin ? 'flex' : 'none';
+        this.nextEl.style.display = info ? '' : 'none';
 
-        // start rozwiniety; krok zadaniowy zwinie sie po EXPAND_MS. Finalny (wybor) zostaje rozwiniety.
+        // start rozwiniety; TYLKO krok zadaniowy zwinie sie po EXPAND_MS (INFO/final zostaja rozwiniete).
         this.expand();
-        this.collapseAt = fin ? 0 : now + EXPAND_MS;
+        this.collapseAt = (fin || info) ? 0 : now + EXPAND_MS;
 
         // DOM ring/strzalka — tylko RUSZAJ na dotyku. STRZELAJ/FALA celuja ringiem w swiecie (main.ts).
         const showJoy = !!s.showJoystickRing && this.opts.isTouch;
@@ -283,6 +335,20 @@ export class TutorialController {
             this.hlEl.style.height = (h.h + 10) + 'px';
         } else {
             this.hlEl.style.display = 'none';
+        }
+        // SUPER POWER: ring na przycisku HUD (np. .bt-super-button) — dokladna pozycja z rect.
+        // Tylko dotyk (przyciski to kontrolki mobilne; desktop uczy sie ze SPACJI w hincie).
+        const el = (s.ringSelector && this.opts.isTouch) ? document.querySelector(s.ringSelector) as HTMLElement | null : null;
+        if (el) {
+            const r = el.getBoundingClientRect();
+            const d = Math.max(r.width, r.height) + 26; // srednica ringu (przycisk + margines)
+            this.btnRingEl.style.display = '';
+            this.btnRingEl.style.left = (r.left + r.width / 2 - d / 2) + 'px';
+            this.btnRingEl.style.top = (r.top + r.height / 2 - d / 2) + 'px';
+            this.btnRingEl.style.width = d + 'px';
+            this.btnRingEl.style.height = d + 'px';
+        } else {
+            this.btnRingEl.style.display = 'none';
         }
     }
 
@@ -301,6 +367,13 @@ export class TutorialController {
         this.collapsed = false;
         this.cardEl.classList.remove('bt-min');
         this.pillEl.classList.remove('bt-show');
+    }
+
+    /** KARTA INFO: przejdz do nastepnego kroku (przycisk DALEJ — brak gate, brak confirm-juice). */
+    private advance(): void {
+        this.idx++;
+        if (this.idx >= this.steps.length) { this.finish(true); return; }
+        this.showStep();
     }
 
     private tick(): void {
@@ -323,17 +396,22 @@ export class TutorialController {
 
         const s = this.steps[this.idx];
         // gate: finalny czeka na klik wyboru; zadaniowy dopiero gdy spawn juz sie wykonal (pendingEnter == null).
-        if (!s.isFinalChoice && !this.pendingEnter && s.isDone()) {
-            // confirm juice: karta WRACA do centrum z zielonym "SWIETNIE!" -> krotka pauza -> nastepny krok
-            this.expand();
-            this.titleEl.textContent = t('tutorial.done');
-            this.titleEl.style.color = '#5effa0';
-            this.hintEl.style.display = 'none';
-            this.ringEl.style.display = 'none';
-            this.arrowEl.style.display = 'none';
-            this.hlEl.style.display = 'none';
-            this.collapseAt = 0;
-            this.confirmUntil = now + 750;
+        if (!s.isFinalChoice && !this.pendingEnter) {
+            if (s.isDone()) {
+                // confirm juice: karta WRACA do centrum z zielonym "SWIETNIE!" -> krotka pauza -> nastepny krok
+                this.expand();
+                this.titleEl.textContent = t('tutorial.done');
+                this.titleEl.style.color = '#5effa0';
+                this.hintEl.style.display = 'none';
+                this.ringEl.style.display = 'none';
+                this.arrowEl.style.display = 'none';
+                this.hlEl.style.display = 'none';
+                this.btnRingEl.style.display = 'none';
+                this.collapseAt = 0;
+                this.confirmUntil = now + 750;
+            } else {
+                s.onActive?.(); // watchdog kroku aktywnego (np. dosyp gemow gdy wygasly w GEMY)
+            }
         }
         this.rafId = requestAnimationFrame(this.tick);
     }

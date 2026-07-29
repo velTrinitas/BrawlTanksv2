@@ -51,6 +51,11 @@ export const pl = {
     'hint.cube': '📦 Wzmacnia czołg! Złap przed wrogiem',
     'hint.mediPad': '🏥 Stań tu = leczysz czołg',
     'hint.powerPad': '⚡ Wjedź = TURBO ×2!',
+    // FAZA C — karta celu trybu (in-game przy 1. wejsciu + ekran "Jak grac")
+    'goal.title': 'TWÓJ CEL',
+    'goal.play': 'GRAJ',
+    'goal.ktb': 'Przetrwaj fale wrogów i pokonaj Mega Bossa!',
+    'goal.ctf': 'Zdobądź flagę wroga i zanieś ją do swojej bazy!',
     'tutorial.heart.title': 'SERCE',
     'tutorial.heart.hint': 'Zbierz je — leczy Twój czołg',
     'tutorial.magnet.title': 'MAGNES',

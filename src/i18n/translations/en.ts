@@ -42,6 +42,11 @@ export const en: typeof pl = {
     'hint.cube': '📦 Powers up your tank! Grab it first',
     'hint.mediPad': '🏥 Stand here = heals your tank',
     'hint.powerPad': '⚡ Drive on = TURBO x2!',
+    // FAZA C — mode goal card (in-game on first entry + "How to play" screen)
+    'goal.title': 'YOUR GOAL',
+    'goal.play': 'PLAY',
+    'goal.ktb': 'Survive the waves and defeat the Mega Boss!',
+    'goal.ctf': 'Grab the enemy flag and bring it to your base!',
     'tutorial.heart.title': 'HEART',
     'tutorial.heart.hint': 'Grab it — heals your tank',
     'tutorial.magnet.title': 'MAGNET',

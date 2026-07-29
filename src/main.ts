@@ -128,6 +128,7 @@ import { AudioSys } from './audio/AudioSys';
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
+import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
 import {
     GameSession,
     MAX_POWERCUBES_PER_MATCH,
@@ -739,8 +740,10 @@ menu.onGameRequested = (config: GameConfig) => {
         void startGame(config, true).then(() => {
             launchTutorial((cont) => {
                 markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
-                if (cont) { if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces(); }
-                else returnToMenuFromEnd();
+                if (cont) {
+                    if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
+                    if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
+                } else returnToMenuFromEnd();
             });
         });
     } else {
@@ -779,8 +782,10 @@ menu.onHowToPlayRequested = () => {
     void startGame(lastGameConfig, true).then(() => {
         launchTutorial((cont) => {
             markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
-            if (cont) { if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces(); }
-            else returnToMenuFromEnd();
+            if (cont) {
+                if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
+                if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
+            } else returnToMenuFromEnd();
         });
     });
 };
@@ -844,6 +849,7 @@ async function tryLockLandscape(): Promise<void> {
 
 function returnToMenuFromEnd(): void {
     itemHints.clear(); // schowaj ewentualny wiszacy dymek podpowiedzi
+    clearModeGoal();   // FAZA C: schowaj ewentualna wiszaca karte celu
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.remove('game-cursor-hidden');
@@ -1780,6 +1786,11 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     audio.startMusic(config.map);
+
+    // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
+    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf')) {
+        showModeGoal(config.scenario, touchManager.isActive);
+    }
 }
 
 // ============================================================

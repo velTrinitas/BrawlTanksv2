@@ -25,12 +25,16 @@ const perfLogPlugin = {
     configurePreviewServer(server: any) { server.middlewares.use(perfLogMiddleware); },
 };
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
     // base: ścieżka dla GitHub Pages (repo: BrawlTanksv2)
     // → https://veltrinitas.github.io/BrawlTanksv2/
     base: '/BrawlTanksv2/',
 
     plugins: [perfLogPlugin],
+
+    // Anti-cheat L1 (utwardzenie build, tylko `vite build`): usun console/debugger z proda
+    // — zeby nie zdradzac wewnetrznego dzialania/gdzie liczony score. Dev (serve) nietkniety.
+    esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : {},
 
     server: {
         port: 5173,
@@ -40,7 +44,8 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         target: 'es2022',
-        sourcemap: true,
+        // Anti-cheat L1: NIE publikuj source maps na prodzie (mapa wystawia czytelne zrodlo).
+        sourcemap: false,
 
         // ── WARSTWA 1 (lab 2.5D) ─────────────────────────────────────────────
         // Drugie wejście buildu. Gra (index.html / main.ts) POZOSTAJE NIETKNIĘTA.
@@ -56,4 +61,4 @@ export default defineConfig({
             },
         },
     },
-});
+}));

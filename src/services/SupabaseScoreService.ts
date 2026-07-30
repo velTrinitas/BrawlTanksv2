@@ -33,6 +33,7 @@ import type { MapId } from '../types/MapType';
 import type { DifficultyId, GameConfig } from '../types/GameConfig';
 import type { ScoreInsert, ScoreRow } from './supabase/types';
 import { getSupabase } from './supabase/SupabaseClient';
+import { obfuscate, deobfuscate } from './secureStore';
 import type {
     BoardDefinition, ILeaderboardService, LeaderboardEntry, LeaderboardQuery, MyRank,
 } from './leaderboard';
@@ -99,7 +100,8 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
     // ── Offline queue ──────────────────────────────────────────────────────────
     private loadQueue(): ScoreInsert[] {
         try {
-            const raw = localStorage.getItem(QUEUE_KEY);
+            // Anti-cheat L1: kolejka trzymana zaciemniona; deobfuscate toleruje legacy plaintext.
+            const raw = deobfuscate(localStorage.getItem(QUEUE_KEY));
             if (!raw) return [];
             const parsed = JSON.parse(raw);
             return Array.isArray(parsed) ? parsed : [];
@@ -111,7 +113,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
 
     private saveQueue(items: ScoreInsert[]): void {
         try {
-            localStorage.setItem(QUEUE_KEY, JSON.stringify(items));
+            localStorage.setItem(QUEUE_KEY, obfuscate(JSON.stringify(items))); // L1: zaciemnione
         } catch (e) {
             console.warn('[ScoreService:Supabase] save queue failed', e);
         }

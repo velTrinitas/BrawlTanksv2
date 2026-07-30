@@ -3825,6 +3825,78 @@
 .bt-lb-you-total { color: #9fb2c8; font-family: var(--font-body); font-size: 0.8rem; margin-right: auto; }
 .bt-lb-you-row .bt-lb-rank { min-width: auto; color: #fff; }
 
+/* ── LB-F3: sensoryka/flex (animacje transform/opacity — GPU, tanie na mobile) ── */
+.bt-lb-screen .bt-settings-title { margin-right: auto; } /* pcha refresh na prawo */
+.bt-lb-refresh {
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: 999px; cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.14); background: rgba(0, 0, 0, 0.35);
+    color: #e9edf8; font-size: 1.05rem;
+    transition: transform 0.3s ease, background 0.15s ease;
+}
+.bt-lb-refresh:hover { background: rgba(255, 255, 255, 0.10); }
+.bt-lb-refresh:active { transform: rotate(180deg); }
+
+/* Stagger wejscia wierszy (per-wiersz animation-delay inline) */
+@keyframes bt-lb-row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.bt-lb-row { animation: bt-lb-row-in 0.34s ease both; }
+
+/* Shimmer top-3 — subtelny jasny pas przesuwa sie po zlotym/srebrnym/brazowym wierszu */
+.bt-lb-row--1, .bt-lb-row--2, .bt-lb-row--3 { position: relative; overflow: hidden; }
+.bt-lb-row--1::after, .bt-lb-row--2::after, .bt-lb-row--3::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.22) 50%, transparent 65%);
+    transform: translateX(-120%); animation: bt-lb-shimmer 2.8s ease-in-out infinite;
+}
+.bt-lb-row--2::after { animation-delay: 0.5s; }
+.bt-lb-row--3::after { animation-delay: 1s; }
+@keyframes bt-lb-shimmer { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(120%); } }
+
+/* Skeleton ladowania (pulsujace wiersze zamiast surowego tekstu) */
+.bt-lb-skeleton .bt-lb-skel-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 12px; margin-bottom: 4px;
+    border-radius: 10px; background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.bt-lb-skel {
+    height: 14px; border-radius: 6px;
+    background-image: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.06) 75%);
+    background-size: 200% 100%; animation: bt-lb-skel-pulse 1.3s ease-in-out infinite;
+}
+.bt-lb-skel-rank { width: 22px; }
+.bt-lb-skel-av { width: 30px; height: 30px; border-radius: 50%; }
+.bt-lb-skel-name { flex: 1; }
+.bt-lb-skel-score { width: 54px; }
+@keyframes bt-lb-skel-pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Stan bledu + przycisk ponow (testowalny NP. teraz przy outage Supabase) */
+.bt-lb-status.is-error { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.bt-lb-retry {
+    padding: 9px 20px; border-radius: 999px; cursor: pointer;
+    border: 2px solid rgba(241, 196, 15, 0.75); background: rgba(241, 196, 15, 0.16);
+    color: #ffd24a; font-family: var(--font-body); font-weight: 700; font-size: 0.9rem;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.bt-lb-retry:hover { background: rgba(241, 196, 15, 0.28); }
+.bt-lb-retry:active { transform: scale(0.96); }
+
+/* Rank-up flex (wiersz TY awansowal od ostatniego ogladania) */
+.bt-lb-you-row.is-rankup { animation: bt-lb-rankup-pop 0.7s ease; }
+@keyframes bt-lb-rankup-pop {
+    0%   { box-shadow: inset 0 0 0 0 rgba(80, 220, 120, 0); }
+    30%  { box-shadow: inset 0 0 0 3px rgba(80, 220, 120, 0.9); background: rgba(80, 220, 120, 0.28); }
+    100% { box-shadow: inset 0 0 0 0 rgba(80, 220, 120, 0); }
+}
+.bt-lb-rankup {
+    font-family: var(--font-display); color: #4fe08a; font-size: 0.8rem;
+    background: rgba(80, 220, 120, 0.18); border-radius: 6px; padding: 2px 7px;
+}
+
+/* Szacunek dla prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+    .bt-lb-row, .bt-lb-row--1::after, .bt-lb-row--2::after, .bt-lb-row--3::after,
+    .bt-lb-skel, .bt-lb-you-row.is-rankup { animation: none !important; }
+    .bt-lb-row { opacity: 1; transform: none; }
+}
+
 /* Landscape mobile: podium OBOK listy (2 kolumny), zeby zmiescic wiecej bez scrolla calosci. */
 @media (max-height: 500px) and (orientation: landscape) {
     .bt-lb-screen { padding: 8px 14px; gap: 7px; }

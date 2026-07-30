@@ -55,6 +55,7 @@ export class LeaderboardScreen implements IScreen {
                     <span class="bt-settings-back-label">${t('common.back')}</span>
                 </button>
                 <h2 class="bt-settings-title">${t('leaderboard.title')}</h2>
+                <button class="bt-lb-refresh" type="button" aria-label="${t('leaderboard.refresh')}">🔄</button>
             </header>
             <div class="bt-lb-controls">
                 <div class="bt-lb-tabs" role="tablist">${this.renderTabs()}</div>
@@ -103,6 +104,10 @@ export class LeaderboardScreen implements IScreen {
             AudioSys.getInstance().playMenuClick();
             this.onBack?.();
         });
+        r.querySelector('.bt-lb-refresh')?.addEventListener('click', () => {
+            AudioSys.getInstance().playMenuClick();
+            void this.reload();
+        });
         r.querySelectorAll<HTMLElement>('.bt-lb-tab').forEach(el => el.addEventListener('click', () => {
             const id = el.dataset.board;
             const b = LEADERBOARD_BOARDS.find(x => x.id === id);
@@ -139,7 +144,7 @@ export class LeaderboardScreen implements IScreen {
         const youEl = this.rootEl?.querySelector('.bt-lb-you');
         if (!bodyEl || !youEl) return;
 
-        bodyEl.innerHTML = `<div class="bt-lb-status">${t('leaderboard.loading')}</div>`;
+        bodyEl.innerHTML = this.skeleton();
         youEl.innerHTML = '';
 
         const profileId = ProfileService.getActiveProfile()?.id ?? null;
@@ -154,7 +159,14 @@ export class LeaderboardScreen implements IScreen {
             ]);
         } catch {
             if (token !== this.loadToken) return;
-            bodyEl.innerHTML = `<div class="bt-lb-status is-error">${t('leaderboard.error')}</div>`;
+            bodyEl.innerHTML = `<div class="bt-lb-status is-error">
+                    <div class="bt-lb-status-msg">${t('leaderboard.error')}</div>
+                    <button class="bt-lb-retry" type="button">${t('leaderboard.retry')}</button>
+                </div>`;
+            bodyEl.querySelector('.bt-lb-retry')?.addEventListener('click', () => {
+                AudioSys.getInstance().playMenuClick();
+                void this.reload();
+            });
             return;
         }
         if (token !== this.loadToken) return; // przyszly starsze dane — porzuc
@@ -162,16 +174,48 @@ export class LeaderboardScreen implements IScreen {
         if (entries.length === 0) {
             bodyEl.innerHTML = `<div class="bt-lb-status">${t('leaderboard.empty')}</div>`;
         } else {
-            // Jedna lista — top-3 to zwykle wiersze, wyroznione tylko tlem (zloto/srebro/braz).
-            bodyEl.innerHTML = `<div class="bt-lb-list">${entries.map(e => this.listRow(e, profileId)).join('')}</div>`;
+            // Jedna lista — top-3 wyroznione tlem (zloto/srebro/braz); wejscie ze staggerem (i = opoznienie).
+            bodyEl.innerHTML = `<div class="bt-lb-list">${entries.map((e, i) => this.listRow(e, profileId, i)).join('')}</div>`;
         }
-        youEl.innerHTML = this.youRow(myRank, profileId);
+        const rankUp = this.detectRankUp(myRank);
+        youEl.innerHTML = this.youRow(myRank, profileId, rankUp);
     }
 
-    private listRow(e: LeaderboardEntry, myId: string | null): string {
+    /** Wiersze-szkielet (pulsujace) na czas ladowania — zamiast surowego "Wczytywanie…". */
+    private skeleton(): string {
+        const rows = Array.from({ length: 7 }, () =>
+            `<div class="bt-lb-skel-row">
+                <span class="bt-lb-skel bt-lb-skel-rank"></span>
+                <span class="bt-lb-skel bt-lb-skel-av"></span>
+                <span class="bt-lb-skel bt-lb-skel-name"></span>
+                <span class="bt-lb-skel bt-lb-skel-score"></span>
+            </div>`
+        ).join('');
+        return `<div class="bt-lb-list bt-lb-skeleton">${rows}</div>`;
+    }
+
+    // ── Rank-up flex: porownaj range z ostatnio ogladana (per board+okno+mapa) ──────
+    private rankStorageKey(): string {
+        return `bt2:lbrank_${this.board.id}_${this.window}_${this.map ?? 'all'}`;
+    }
+    /** true = ranga poprawila sie od ostatniego ogladania tego samego widoku. Zapisuje nowa range. */
+    private detectRankUp(my: MyRank | null): boolean {
+        if (!my || my.rank === null) return false;
+        let improved = false;
+        try {
+            const raw = localStorage.getItem(this.rankStorageKey());
+            const prev = raw ? parseInt(raw, 10) : NaN;
+            if (Number.isFinite(prev) && my.rank < prev) improved = true; // mniejsza ranga = lepiej
+            localStorage.setItem(this.rankStorageKey(), String(my.rank));
+        } catch { /* localStorage niedostepny — pomijamy flex */ }
+        return improved;
+    }
+
+    private listRow(e: LeaderboardEntry, myId: string | null, i = 0): string {
         const me = e.profileId === myId ? 'is-me' : '';
         const top = e.rank <= 3 ? `bt-lb-row--${e.rank}` : ''; // 1/2/3 => zlote/srebrne/brazowe tlo
-        return `<div class="bt-lb-row ${top} ${me}">
+        const delay = Math.min(i * 28, 560); // stagger wejscia, ale z cap zeby ogon nie czekal
+        return `<div class="bt-lb-row ${top} ${me}" style="animation-delay:${delay}ms">
                     <span class="bt-lb-rank">${e.rank}</span>
                     ${this.avatarImg(e.avatarId)}
                     <span class="bt-lb-name">${this.esc(e.displayName)}</span>
@@ -179,14 +223,17 @@ export class LeaderboardScreen implements IScreen {
                 </div>`;
     }
 
-    private youRow(my: MyRank | null, myId: string | null): string {
+    private youRow(my: MyRank | null, myId: string | null, rankUp = false): string {
         if (!myId) return '';
         if (!my || my.rank === null || my.score === null) {
             return `<div class="bt-lb-you-row is-unranked">${t('leaderboard.noRank')}</div>`;
         }
-        return `<div class="bt-lb-you-row">
+        const up = rankUp ? 'is-rankup' : '';
+        const badge = rankUp ? `<span class="bt-lb-rankup">▲ ${t('leaderboard.rankup')}</span>` : '';
+        return `<div class="bt-lb-you-row ${up}">
                     <span class="bt-lb-you-label">${t('leaderboard.you')}</span>
                     <span class="bt-lb-rank">#${my.rank}</span>
+                    ${badge}
                     <span class="bt-lb-you-total">/ ${my.total}</span>
                     <span class="bt-lb-score">${my.score.toLocaleString('pl-PL')}</span>
                 </div>`;

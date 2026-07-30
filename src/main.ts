@@ -2829,6 +2829,8 @@ app.ticker.add((rawDelta) => {
 
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
+        // FREEZE: pociski wroga stoja w miejscu i NIE trafiaja (wznawiaja lot po mrozie).
+        if (powerSystem.isFreezeActive) continue;
         eb.update(delta, solidBuildings, effects);
         if (!eb.active) { enemyBullets.splice(i, 1); enemyBulletPool.push(eb); continue; } // POOLING
         // FAZA CTF F2 — strefa domowa: pociski wroga gina na x<450 (legacy 4456 1:1).
@@ -2866,6 +2868,8 @@ app.ticker.add((rawDelta) => {
         const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings, spawnBlocked);
         for (const newEnemy of spawnResult.newEnemies) {
             attachEnemyCubeStolenCallback(newEnemy);
+            // FREEZE: wrog zespawnowany PODCZAS freeze tez zamrozony (inaczej nowe czolgi jada+strzelaja).
+            if (powerSystem.isFreezeActive) newEnemy.freeze(powerSystem.freezeUntil);
         }
         enemies.push(...spawnResult.newEnemies);
         hearts.push(...spawnResult.newHearts);

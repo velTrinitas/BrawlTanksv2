@@ -33,6 +33,8 @@ export class PowerSystem {
     /** Aktualnie aktywny super (lub null) */
     public activePowerId: PowerId | null = null;
     public framesLeft: number = 0;
+    /** Absolutny timestamp konca freeze — do mrozenia wrogow spawnowanych PODCZAS freeze. */
+    public freezeUntil: number = 0;
     
     // Aura shield visual
     private auraGfx: PIXI.Graphics;
@@ -125,6 +127,7 @@ export class PowerSystem {
             this.activePowerId = 'freeze';
             this.framesLeft = power.durationFrames;
             const freezeUntil = Date.now() + (power.durationFrames / 60) * 1000;
+            this.freezeUntil = freezeUntil; // zapamietaj koniec => pozne spawny mrozimy do tego samego czasu
             return { activated: true, powerId: 'freeze', freezeUntil };
         }
         

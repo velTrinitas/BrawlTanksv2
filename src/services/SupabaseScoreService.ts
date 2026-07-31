@@ -147,12 +147,21 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
         const sb = getSupabase();
         const remaining: ScoreInsert[] = [];
 
-        for (const item of q) {
+        for (let i = 0; i < q.length; i++) {
+            const item = q[i];
             try {
                 // L2a: insert TYLKO przez Edge Function (walidacja serwerowa), nie bezposrednio.
                 const { error } = await sb.functions.invoke('submit-score', { body: item });
                 if (error) throw error;
             } catch (e) {
+                const status = (e as { context?: { status?: number } } | null)?.context?.status;
+                if (status === 429) {
+                    // Rate-limit: kazda kolejna proba w tej godzinie tez dostanie 429 —
+                    // przerwij i zachowaj ten oraz WSZYSTKIE pozostale itemy na nastepna sesje
+                    // (duza zalegle kolejka rozladowuje sie porcjami, bez mlocenia endpointu).
+                    remaining.push(...q.slice(i));
+                    break;
+                }
                 if (this.isTransientError(e)) remaining.push(item); // ponow pozniej
                 // walidacyjnie odrzucone (4xx) — porzucamy (nigdy nie przejdzie)
             }

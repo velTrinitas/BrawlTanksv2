@@ -130,6 +130,16 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
      * Probuje wyslac wszystkie zakolejkowane wyniki. Te, ktore sie nie udaly,
      * zostaja w kolejce na nastepna probe. Publiczne — mozna wywolac recznie.
      */
+    /**
+     * Czy blad jest PRZEJSCIOWY (siec / 5xx / rate-limit 429 = warto ponowic)?
+     * 4xx walidacja (poza 429) = submit nigdy nie przejdzie => NIE kolejkuj (drop, nie zapetlaj).
+     */
+    private isTransientError(e: unknown): boolean {
+        const status = (e as { context?: { status?: number } } | null)?.context?.status;
+        if (typeof status !== 'number') return true; // brak statusu = siec/nieznane => przejsciowe
+        return status >= 500 || status === 429;
+    }
+
     async flushQueue(): Promise<void> {
         const q = this.loadQueue();
         if (q.length === 0) return;
@@ -139,12 +149,12 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
 
         for (const item of q) {
             try {
-                const { error } = await sb.from('scores').insert(item);
-                if (error) {
-                    remaining.push(item);
-                }
-            } catch {
-                remaining.push(item);
+                // L2a: insert TYLKO przez Edge Function (walidacja serwerowa), nie bezposrednio.
+                const { error } = await sb.functions.invoke('submit-score', { body: item });
+                if (error) throw error;
+            } catch (e) {
+                if (this.isTransientError(e)) remaining.push(item); // ponow pozniej
+                // walidacyjnie odrzucone (4xx) — porzucamy (nigdy nie przejdzie)
             }
         }
 
@@ -171,22 +181,25 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
 
         try {
             const sb = getSupabase();
-            const { data, error } = await sb
-                .from('scores')
-                .insert(insert)
-                .select()
-                .single();
-
+            // L2a: insert TYLKO przez Edge Function submit-score (walidacja serwerowa + service-role).
+            // Bezposredni .from('scores').insert jest zablokowany w RLS po lockdownie.
+            const { data, error } = await sb.functions.invoke('submit-score', { body: insert });
             if (error) throw error;
+            const row = (data as { row?: ScoreRow } | null)?.row;
+            if (!row) throw new Error('submit-score: brak row w odpowiedzi');
 
             // Sukces online — przy okazji oprozn ewentualna zalegla kolejke.
             void this.flushQueue();
-            return this.rowToEntry(data as ScoreRow);
+            return this.rowToEntry(row);
         } catch (e) {
-            // Offline / blad serwera: kolejkuj i zwroc provisional entry,
-            // zeby flow gry (ekran zwyciestwa/przegranej) NIE byl zablokowany.
-            console.warn('[ScoreService:Supabase] submit failed — kolejkuje offline', e);
-            this.enqueue(insert);
+            // Przejsciowy blad (offline/5xx/429): kolejkuj i zwroc provisional entry, zeby flow gry
+            // (ekran zwyciestwa/przegranej) NIE byl zablokowany. Walidacja 4xx = drop (nie zapetlaj).
+            if (this.isTransientError(e)) {
+                console.warn('[ScoreService:Supabase] submit przejsciowo nieudany — kolejkuje offline', e);
+                this.enqueue(insert);
+            } else {
+                console.warn('[ScoreService:Supabase] submit odrzucony (walidacja) — nie kolejkuje', e);
+            }
             return Object.freeze({
                 id: `pending_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
                 profileId: config.profileId,

@@ -24,7 +24,14 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
+      # Supabase env dla vite build — bez tego prod bundle nie ma konfiguracji
+      # (readEnv() rzuca => zero submitow/leaderboardu na produkcji).
+      # Wartosci w GitHub: Settings -> Secrets and variables -> Actions.
+      # Publishable key jest client-safe (i tak laduje w bundlu; brama = RLS).
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist

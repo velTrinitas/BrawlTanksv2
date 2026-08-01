@@ -293,6 +293,30 @@ export class EffectsManager {
     }
 
     /** v0.34.0 T7: Wood splinters dla crate hits + destruction */
+    /**
+     * ARC-R1: rozbicie kostki lodu — odlamki (3 tony lodu) + LEKKI DYMEK lodowy
+     * (duze, miekkie, wolno gasnace drobiny = mgielka po peknieciu). Pooled, tanie.
+     */
+    spawnIceShatter(x: number, y: number): void {
+        // odlamki lodu (szybkie, drobne)
+        this.spawnParticles(x, y, 0xffffff, 6, {
+            speed: 6, size: 2, decay: 0.06, scaleDecay: 0.02, spread: 1.0,
+        });
+        this.spawnParticles(x, y, 0xbfe6f5, 7, {
+            speed: 5, size: 2.4, decay: 0.05, scaleDecay: 0.018, spread: 1.0,
+        });
+        this.spawnParticles(x, y, 0x4a6fa5, 5, {
+            speed: 7, size: 1.6, decay: 0.07, scaleDecay: 0.025, spread: 1.0,
+        });
+        // dymek lodowy (mgielka): wolny, duzy, miekki — zostaje chwile po rozbiciu
+        this.spawnParticles(x, y, 0xdfeef4, 4, {
+            speed: 0.8, size: 4.5, decay: 0.022, scaleDecay: 0.004,
+        });
+        this.spawnParticles(x, y - 8, 0xeef5f8, 2, {
+            speed: 0.5, size: 5.5, decay: 0.018, scaleDecay: 0.002,
+        });
+    }
+
     spawnWoodSplinters(x: number, y: number, count: number = 14): void {
         this.spawnParticles(x, y, 0xd4a878, Math.max(1, Math.floor(count * 0.4)), {
             speed: 5, size: 2, decay: 0.05, scaleDecay: 0.015, spread: 1.0,

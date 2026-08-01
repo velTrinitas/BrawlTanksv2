@@ -43,8 +43,14 @@ import {
 import {
     buildArcticTexture,
     ARCTIC_MEDI_PAD_POSITIONS, ARCTIC_POWER_PAD_POSITIONS,
-} from './maps/ArcticMap'; // FAZA A (Arctic)
-import { GlacialBorder } from './maps/arctic/GlacialBorder'; // FAZA A (Arctic)
+    ARCTIC_ICE_CUBES_LAYOUT, ARCTIC_IGLOO_POS, ARCTIC_ICE_HOLES_LAYOUT,
+} from './maps/ArcticMap'; // FAZA A + ARC-R1/R2 "Lodowa Arena"
+import { ArcticBorder } from './maps/arctic/ArcticBorder'; // ARC-R1 (waska granatowa granica)
+import { IceCube } from './entities/IceCube'; // ARC-R1 (niszczalne kostki lodu)
+import { Igloo } from './maps/arctic/Igloo'; // ARC-R1 (male igloo 2.5D)
+import { IceHole } from './maps/arctic/IceHole'; // ARC-R2 (przereble: woda + ryba + foki)
+import { PenguinColony } from './maps/arctic/PenguinColony'; // ARC-R2 (pingwiny gubia gemy)
+import { IglooYeti, SNOWBALL_HIT_RADIUS, SNOWBALL_DMG } from './maps/arctic/IglooYeti'; // ARC-R2b
 import {
     buildFortifiedRuinsTexture,
     FORTIFIED_FORTRESS_WALLS, FORTIFIED_ROCKS_LAYOUT,
@@ -276,7 +282,12 @@ let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
 let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
-let glacialBorder: GlacialBorder | null = null; // FAZA A (Arctic)
+let arcticBorder: ArcticBorder | null = null; // ARC-R1 (Arctic)
+let iceCubes: IceCube[] = []; // ARC-R1 (niszczalne kostki lodu)
+let iceHoles: IceHole[] = []; // ARC-R2 (przereble — spawnBlocked + kolizja ruchu)
+let penguinColony: PenguinColony | null = null; // ARC-R2 (ambient + dropy gemow)
+let arcticIgloo: Igloo | null = null; // ARC-R2b (ref do wpiecia Yeti po utworzeniu effects)
+let iglooYeti: IglooYeti | null = null; // ARC-R2b (obronca igloo)
 let patrolTractor: PatrolTractor | null = null;
 let stable: Stable | null = null;
 let paddock: Paddock | null = null;
@@ -553,6 +564,7 @@ const spawnBlocked = (x: number, y: number): boolean => {
     for (const o of oases) if (o.isPointInside(x, y)) return true;
     for (const sp of sludgePools) if (sp.isPointInside(x, y)) return true;
     if (ruinsFosa && ruinsFosa.isPointInside(x, y)) return true;
+    for (const ih of iceHoles) if (ih.isPointInside(x, y)) return true; // ARC-R2: nie spawnuj w wodzie
     return false;
 };
 
@@ -1230,7 +1242,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     sandstormBorder = null;
     tropicalBorder = null;
     cyberpunkBorder = null; // v0.52.0 fix #21
-    glacialBorder = null; // FAZA A (Arctic)
+    arcticBorder = null; // ARC-R1 (Arctic)
+    iceCubes = []; // ARC-R1
+    iceHoles = []; // ARC-R2
+    penguinColony = null; // ARC-R2
+    arcticIgloo = null; // ARC-R2b
+    iglooYeti = null; // ARC-R2b
     patrolTractor = null;
     stable = null;
     paddock = null;
@@ -1648,16 +1665,36 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             }
         }
     } else if (config.map === 'arctic') {
-        // ── FAZA A: Arctic ("Krystaliczny Poranek" / "Kociol Lodowcowy") ──
+        // ── ARC-R1 "LODOWA ARENA" (koncepcja Mariusza 2026-08-01) ──
+        // Tafla (zlagodzone pekniecia) + waska granatowa granica + male igloo.
+        // Kostki lodu konstruowane PO utworzeniu effects/audio (wzorzec crates, nizej).
         const arcticTex = buildArcticTexture();
         const arcticSprite = new PIXI.Sprite(arcticTex);
         arcticSprite.zIndex = -100;
         worldContainer.addChild(arcticSprite);
 
-        // Granica lodowcowej niecki: static-baked klify + 4 prostokaty kolizji.
-        glacialBorder = new GlacialBorder(WORLD_W, WORLD_H, worldContainer);
-        buildings.push(...glacialBorder.getCollisionRects());
-        solidBuildings.push(...glacialBorder.getCollisionRects());
+        // Waska granica (wzorzec SandstormBorder): outer 30 + wizual 55, playable [40, 2960].
+        arcticBorder = new ArcticBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...arcticBorder.getCollisionRects());
+        solidBuildings.push(...arcticBorder.getCollisionRects());
+
+        // Male igloo 2.5D (cieple wnetrze zostaje — pomniejszone do 115).
+        // Ref w arcticIgloo — Yeti wpinany PO utworzeniu effects (blok ARC-R2b nizej).
+        arcticIgloo = new Igloo(ARCTIC_IGLOO_POS.x, ARCTIC_IGLOO_POS.y, ARCTIC_IGLOO_POS.size, worldContainer);
+        buildings.push(arcticIgloo);
+        solidBuildings.push(arcticIgloo);
+
+        // ARC-R2: przereble — czolgi STOP (buildings), pociski PRZELATUJA (nie solidBuildings,
+        // wzorzec RiverNile); isPointInside wpiety w spawnBlocked (wrogowie/pickupy nie w wodzie).
+        for (const ih of ARCTIC_ICE_HOLES_LAYOUT) {
+            const hole = new IceHole(ih.x, ih.y, ih.rx, ih.ry, ih.seed, worldContainer);
+            iceHoles.push(hole);
+            buildings.push(hole.getCollisionRect());
+        }
+
+        // ARC-R2: pingwiny gesiego wokol centrum (ring w strefie CENTER_CLEAR = zero kolizji
+        // z przeszkodami); dropy gemow obslugiwane w petli gry (wzorzec karawany).
+        penguinColony = new PenguinColony(worldContainer);
 
         // FAZA A: generic pady (themed Arctic pady w pozniejszej fazie, jak Tropics T1).
         mediPads = ARCTIC_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
@@ -1746,6 +1783,50 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             for (const extra of crate.getExtraCollidables()) {
                 buildings.push(extra);
             }
+        }
+    }
+
+    // ARC-R1: niszczalne kostki lodu (wzorzec crates — konstrukcja PO effects/audio).
+    // solidBuildings => pociski niszcza (duck-typing takeDamage w Bullet); padded box =>
+    // kolizja gracza. onShatter: ~28% szansy na gem (decyzja Mariusza 2026-08-01).
+    if (config.map === 'arctic') {
+        for (const ic of ARCTIC_ICE_CUBES_LAYOUT) {
+            const cube = new IceCube(ic.x, ic.y, ic.seed, worldContainer, effects, audio,
+                (cx, cy) => { if (Math.random() < 0.28) spawnGem(cx, cy); });
+            iceCubes.push(cube);
+            solidBuildings.push(cube);
+            for (const extra of cube.getExtraCollidables()) {
+                buildings.push(extra);
+            }
+        }
+
+        // ARC-R2b: YETI — obronca igloo (ostrzelaj igloo ~3x => wypada z rykiem i ciska
+        // sniezkami z telegrafem). Impakt sniezki rozstrzyga TEN closure (centralnie:
+        // invulnerability/tutorial/perfect-run — spojnie z pociskami wrogow).
+        if (arcticIgloo) {
+            iglooYeti = new IglooYeti(
+                ARCTIC_IGLOO_POS.x, ARCTIC_IGLOO_POS.y, ARCTIC_IGLOO_POS.size,
+                worldContainer, effects,
+                (ix, iy) => {
+                    if (!player || !currentSession || gameState !== 'PLAYING') return;
+                    const d = Math.hypot(player.x - ix, player.y - iy);
+                    if (d <= SNOWBALL_HIT_RADIUS) {
+                        const died = player.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive);
+                        if (!powerSystem!.isInvulnerable) {
+                            effects!.spawnEnemyHitSparks(player.x, player.y, 0xff0000);
+                            effects!.shake(4, 6);
+                            audio.playHit('player');
+                            currentSession.markDamageTaken();
+                        }
+                        if (died) { void triggerGameOver(); }
+                    }
+                },
+                () => {
+                    hud.addNotif(t('hud.yetiRoar'), '#ff6b6b');
+                    audio.playExplosion(); // TODO: dedykowany yeti_roar sfx (asset od Mariusza)
+                },
+            );
+            arcticIgloo.onProvoked = () => iglooYeti?.provoke();
         }
     }
 
@@ -2556,7 +2637,7 @@ app.ticker.add((rawDelta) => {
     if (sandstormBorder) sandstormBorder.update();
     if (tropicalBorder) tropicalBorder.update();
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
-    if (glacialBorder) glacialBorder.update(); // FAZA A (Arctic)
+    if (arcticBorder) arcticBorder.update(); // ARC-R1 (drobiny + smugi lodowe)
     if (ruinsBorder) ruinsBorder.update();     // FAZA CTF F1 (no-op, spojnosc interfejsu)
     // FAZA CTF F3 — beacon dostawy: dramatyczny tryb gdy gracz niesie flage
     if (ruinsHangar) ruinsHangar.update(ctfSystem ? ctfSystem.getCarriedFlag() !== null : false);
@@ -2629,6 +2710,26 @@ app.ticker.add((rawDelta) => {
             } else if (drop.type === 'magnet') {
                 magnets.push(new Magnet(drop.x, drop.y, worldContainer));
                 hud.addNotif(t('hud.caravanMagnet'), '#d97e3a');
+            }
+            audio.playGemPickup();
+        }
+    }
+
+    // ARC-R2: przereble (fale + ryba/foka + lwy morskie) + pingwiny + Yeti
+    for (const ih of iceHoles) ih.update();
+    if (iglooYeti && player) iglooYeti.update(delta, player.x, player.y);
+    if (penguinColony) {
+        const drop = penguinColony.update(delta);
+        if (drop) {
+            if (drop.type === 'gem') {
+                spawnGem(drop.x, drop.y);
+                hud.addNotif(t('hud.penguinGem'), '#9fd8ff');
+            } else if (drop.type === 'heart') {
+                hearts.push(new Heart(drop.x, drop.y, worldContainer));
+                hud.addNotif(t('hud.penguinHeart'), '#9fd8ff');
+            } else if (drop.type === 'magnet') {
+                magnets.push(new Magnet(drop.x, drop.y, worldContainer));
+                hud.addNotif(t('hud.penguinMagnet'), '#9fd8ff');
             }
             audio.playGemPickup();
         }
@@ -2878,6 +2979,11 @@ app.ticker.add((rawDelta) => {
     }
 
     powerSystem.update(delta, player, enemies, worldContainer, effects);
+
+    // ARC-R1: kostki lodu — tick respawnu (jak crates)
+    for (const cube of iceCubes) {
+        cube.update(0, 0, 0, 0);
+    }
 
     for (const crate of crates) {
         crate.update(0, 0, 0, 0);

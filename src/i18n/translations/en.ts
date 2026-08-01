@@ -366,6 +366,11 @@ export const en: typeof pl = {
     'hud.caravanGem':     '🐪 Caravan dropped 💎',
     'hud.caravanHeart':   '🐪 Caravan dropped ❤️',
     'hud.caravanMagnet':  '🐪 Caravan dropped 🧲',
+    // ARC-R2 — penguins (Ice Arena)
+    'hud.penguinGem':     '🐧 Penguin dropped 💎',
+    'hud.penguinHeart':   '🐧 Penguin dropped ❤️',
+    'hud.penguinMagnet':  '🐧 Penguin dropped 🧲',
+    'hud.yetiRoar':       '🦍 YETI IS FURIOUS! Run!',
 
     // Pickups (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

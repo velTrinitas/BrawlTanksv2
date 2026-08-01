@@ -123,10 +123,16 @@ export class EnemyBullet {
         this.x += this.vx * delta;
         this.y += this.vy * delta;
 
-        // Wall collision
+        // Wall collision (+ ARC-R1: duck-typing takeDamage jak w Bullet.ts —
+        // wrogowie tez rozbijaja niszczalne przeszkody, np. kostki lodu, by dopasc gracza)
         for (const b of buildings) {
             if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
-                effects.spawnWallImpact(this.x, this.y);
+                const destructible = b as ICollidable & { takeDamage?(dmg: number, hitX: number, hitY: number): void };
+                if (typeof destructible.takeDamage === 'function') {
+                    destructible.takeDamage(this.dmg, this.x, this.y);
+                } else {
+                    effects.spawnWallImpact(this.x, this.y);
+                }
                 this.deactivate();
                 return;
             }

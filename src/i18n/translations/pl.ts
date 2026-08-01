@@ -381,6 +381,11 @@ export const pl = {
     'hud.caravanGem':     '🐪 Karawana dropiła 💎',
     'hud.caravanHeart':   '🐪 Karawana dropiła ❤️',
     'hud.caravanMagnet':  '🐪 Karawana dropiła 🧲',
+    // ARC-R2 — pingwiny (Lodowa Arena)
+    'hud.penguinGem':     '🐧 Pingwin zgubił 💎',
+    'hud.penguinHeart':   '🐧 Pingwin zgubił ❤️',
+    'hud.penguinMagnet':  '🐧 Pingwin zgubił 🧲',
+    'hud.yetiRoar':       '🦍 YETI JEST WŚCIEKŁY! Uciekaj!',
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

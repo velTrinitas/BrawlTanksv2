@@ -10,6 +10,75 @@ const ACTIVATE_RANGE = 60;       // v0.4c: +25% (było 48)
 const REPAIR_TIME_MS = 2250;     // v0.4c: -25% (było 3000)
 const COOLDOWN_MS = 60000;
 
+// MOBILE-CRISP (fix pikselozy): antialias renderera OFF na mobile => zaokraglone
+// naroza/krzyz z zywego PIXI.Graphics pikseluja. Plyta pada WYPIECZONA do tekstur
+// Canvas 2D (AA) x2 (aktywna/nieaktywna) + cien; hover/lasery/progress na transformach.
+const PAD_RES = 3;
+
+function roundRectPath(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+}
+
+let _padShadowTexture: PIXI.Texture | null = null;
+/** Cien pada (czarny roundRect) — wspoldzielony (alpha per-instance). Uzywa go tez PowerHoverPad. */
+export function getPadShadowTexture(): PIXI.Texture {
+    if (_padShadowTexture) return _padShadowTexture;
+    const cv = document.createElement('canvas');
+    cv.width = PAD_SIZE * PAD_RES;
+    cv.height = PAD_SIZE * PAD_RES;
+    const c = cv.getContext('2d')!;
+    c.scale(PAD_RES, PAD_RES);
+    c.fillStyle = '#000000';
+    roundRectPath(c, 0, 0, PAD_SIZE, PAD_SIZE, 15);
+    c.fill();
+    _padShadowTexture = PIXI.Texture.from(cv);
+    return _padShadowTexture;
+}
+
+const _mediSlabTextures: { on: PIXI.Texture | null; off: PIXI.Texture | null } = { on: null, off: null };
+/** Plyta medi-pada (baza + siatka + neon-ramka + krzyz) — baked, 2 warianty. */
+function getMediSlabTexture(active: boolean): PIXI.Texture {
+    const cached = active ? _mediSlabTextures.on : _mediSlabTextures.off;
+    if (cached) return cached;
+    const cv = document.createElement('canvas');
+    cv.width = PAD_SIZE * PAD_RES;
+    cv.height = PAD_SIZE * PAD_RES;
+    const c = cv.getContext('2d')!;
+    c.scale(PAD_RES, PAD_RES);
+
+    // baza
+    c.fillStyle = active ? '#1f0d14' : '#14181f';
+    roundRectPath(c, 0, 0, PAD_SIZE, PAD_SIZE, 15);
+    c.fill();
+    // siatka srodkowa
+    c.strokeStyle = active ? '#3b1622' : '#222222';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(15, PAD_SIZE / 2); c.lineTo(PAD_SIZE - 15, PAD_SIZE / 2);
+    c.moveTo(PAD_SIZE / 2, 15); c.lineTo(PAD_SIZE / 2, PAD_SIZE - 15);
+    c.stroke();
+    // neonowa ramka
+    c.strokeStyle = active ? '#ff003c' : '#333333';
+    c.lineWidth = 4;
+    roundRectPath(c, 2, 2, PAD_SIZE - 4, PAD_SIZE - 4, 15);
+    c.stroke();
+    // krzyz medyczny
+    const cwHalf = 4, chHalf = 11;
+    c.fillStyle = active ? '#ff003c' : '#552233';
+    c.fillRect(PAD_SIZE / 2 - cwHalf, PAD_SIZE / 2 - chHalf, cwHalf * 2, chHalf * 2);
+    c.fillRect(PAD_SIZE / 2 - chHalf, PAD_SIZE / 2 - cwHalf, chHalf * 2, cwHalf * 2);
+
+    const tex = PIXI.Texture.from(cv);
+    if (active) _mediSlabTextures.on = tex; else _mediSlabTextures.off = tex;
+    return tex;
+}
+
 let _redGlowTexture: PIXI.Texture | null = null;
 function getRedGlowTexture(): PIXI.Texture {
     if (_redGlowTexture) return _redGlowTexture;
@@ -39,11 +108,10 @@ export class HoverRepairPad {
     private _repairStart: number | null = null;
     
     public container: PIXI.Container;
-    private floorShadow: PIXI.Graphics;
+    private floorShadow: PIXI.Sprite;
     private glowSprite: PIXI.Sprite;
     private platformBase: PIXI.Container;
-    private wallGfx: PIXI.Graphics;
-    private surfaceGfx: PIXI.Graphics;
+    private slabSprite: PIXI.Sprite;
     private laserGfx: PIXI.Graphics;
     private progressBarBg: PIXI.Graphics;
     private progressBarFill: PIXI.Graphics;
@@ -60,10 +128,9 @@ export class HoverRepairPad {
         this.container.zIndex = y + 50;
         worldContainer.addChild(this.container);
         
-        this.floorShadow = new PIXI.Graphics();
-        this.floorShadow.beginFill(0x000000, 0.6);
-        this.floorShadow.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        this.floorShadow.endFill();
+        this.floorShadow = new PIXI.Sprite(getPadShadowTexture());
+        this.floorShadow.scale.set(1 / PAD_RES);
+        this.floorShadow.alpha = 0.6;
         this.container.addChild(this.floorShadow);
         
         this.glowSprite = new PIXI.Sprite(getRedGlowTexture());
@@ -76,12 +143,10 @@ export class HoverRepairPad {
         this.platformBase = new PIXI.Container();
         this.container.addChild(this.platformBase);
         
-        this.wallGfx = new PIXI.Graphics();
-        this.platformBase.addChild(this.wallGfx);
-        
-        this.surfaceGfx = new PIXI.Graphics();
-        this.platformBase.addChild(this.surfaceGfx);
-        
+        this.slabSprite = new PIXI.Sprite(getMediSlabTexture(true));
+        this.slabSprite.scale.set(1 / PAD_RES);
+        this.platformBase.addChild(this.slabSprite);
+
         this.laserGfx = new PIXI.Graphics();
         this.platformBase.addChild(this.laserGfx);
         
@@ -171,39 +236,10 @@ export class HoverRepairPad {
         }
         
         this.platformBase.y = -hoverH;
-        
-        const wallColor = isActive ? 0x14050a : 0x0c0f12;
-        this.wallGfx.clear();
-        this.wallGfx.beginFill(wallColor);
-        this.wallGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        this.wallGfx.moveTo(15, hoverH);
-        this.wallGfx.lineTo(15, 0);
-        this.wallGfx.lineTo(PAD_SIZE - 15, 0);
-        this.wallGfx.lineTo(PAD_SIZE - 15, hoverH);
-        this.wallGfx.endFill();
-        
-        this.surfaceGfx.clear();
-        this.surfaceGfx.beginFill(isActive ? 0x1f0d14 : 0x14181f);
-        this.surfaceGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        this.surfaceGfx.endFill();
-        
-        this.surfaceGfx.lineStyle(2, isActive ? 0x3b1622 : 0x222222, 1);
-        this.surfaceGfx.moveTo(15, PAD_SIZE / 2);
-        this.surfaceGfx.lineTo(PAD_SIZE - 15, PAD_SIZE / 2);
-        this.surfaceGfx.moveTo(PAD_SIZE / 2, 15);
-        this.surfaceGfx.lineTo(PAD_SIZE / 2, PAD_SIZE - 15);
-        
-        this.surfaceGfx.lineStyle(4, isActive ? 0xff003c : 0x333333, 1);
-        this.surfaceGfx.drawRoundedRect(2, 2, PAD_SIZE - 4, PAD_SIZE - 4, 15);
-        
-        // Krzyż medyczny
-        const cwHalf = 4, chHalf = 11;
-        this.surfaceGfx.lineStyle(0);
-        this.surfaceGfx.beginFill(isActive ? 0xff003c : 0x552233);
-        this.surfaceGfx.drawRect(PAD_SIZE / 2 - cwHalf, PAD_SIZE / 2 - chHalf, cwHalf * 2, chHalf * 2);
-        this.surfaceGfx.drawRect(PAD_SIZE / 2 - chHalf, PAD_SIZE / 2 - cwHalf, chHalf * 2, cwHalf * 2);
-        this.surfaceGfx.endFill();
-        
+
+        // plyta = baked tekstura (mobile-crisp); stan aktywnosci przez podmiane tekstury
+        this.slabSprite.texture = getMediSlabTexture(isActive);
+
         // Lasery
         this.laserGfx.clear();
         if (isRepairing) {

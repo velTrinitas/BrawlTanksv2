@@ -2158,7 +2158,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
 
     const heroZone = d.tankImg ? `
         <style>${heroKeyframes}</style>
-        <div style="position:relative;width:100%;height:168px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;overflow:hidden;">
+        <div style="position:relative;width:100%;height:168px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 34px);mask-image:linear-gradient(to bottom,transparent 0,#000 34px);">
             <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:178px;height:178px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
             <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:128px;height:26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
             ${heroEffects}
@@ -2170,7 +2170,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // +10% wzgledem 124/112 (Mariusz chce troche wieksza animacje po tescie).
     const heroZoneV2 = d.tankImg ? `
         <style>${heroKeyframes}</style>
-        <div style="position:relative;width:100%;height:136px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;">
+        <div style="position:relative;width:100%;height:136px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30px);mask-image:linear-gradient(to bottom,transparent 0,#000 30px);">
             <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:154px;height:154px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
             <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:110px;height:22px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
             ${heroEffects}

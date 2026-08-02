@@ -46,6 +46,82 @@ function makeRng(seed: number): () => number {
     };
 }
 
+// ── MOBILE-CRISP (fix pikselozy): antialias renderera OFF na mobile => zywe wektory
+// pikseluja. Statyczna tafla (rama+woda) pieczona per-instance, zwierzaki pieczone
+// do 2 wspoldzielonych tekstur (lew morski / mors). Animacje zostaja na transformach.
+const BAKE_RES = 3;
+const LION_BOX = { ox: 34, oy: 20, w: 61, h: 35 } as const; // lokalne bounds rysunku
+
+let _lionTexture: PIXI.Texture | null = null;
+let _walrusTexture: PIXI.Texture | null = null;
+
+function cvEllipse(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, fill: string): void {
+    c.fillStyle = fill;
+    c.beginPath();
+    c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    c.fill();
+}
+
+/** Lew morski / mors pieczony raz (Canvas 2D z AA) — te same ksztalty co dawny Graphics. */
+function getSeaLionTexture(isWalrus: boolean): PIXI.Texture {
+    const cached = isWalrus ? _walrusTexture : _lionTexture;
+    if (cached) return cached;
+
+    const { ox, oy, w, h } = LION_BOX;
+    const cv = document.createElement('canvas');
+    cv.width = w * BAKE_RES;
+    cv.height = h * BAKE_RES;
+    const c = cv.getContext('2d')!;
+    c.scale(BAKE_RES, BAKE_RES);
+    c.translate(ox, oy);
+
+    const bodyCol = isWalrus ? '#9a8270' : '#8f8073';
+    const bellyCol = isWalrus ? '#bfa88f' : '#b5a898';
+    const darkCol = '#6a5e52';
+
+    // cien
+    cvEllipse(c, 0, 7, 24, 6, 'rgba(21,50,61,0.20)');
+    // cialo (pekaty ogon->klata) + klata + uniesiona glowa
+    cvEllipse(c, -4, 0, 21, 9, bodyCol);
+    cvEllipse(c, 13, -5, 8, 8, bodyCol);
+    cvEllipse(c, 17, -11, 5.5, 5.5, bodyCol);
+    // brzuch
+    c.globalAlpha = 0.8;
+    cvEllipse(c, -2, 3, 15, 5, bellyCol);
+    c.globalAlpha = 1;
+    // pyszczek + nos
+    cvEllipse(c, 20.5, -9.5, isWalrus ? 4 : 3, isWalrus ? 3 : 2.2, bellyCol);
+    cvEllipse(c, 21.8, -10, 0.9, 0.9, darkCol);
+    // MORS: kly (kosc sloniowa)
+    if (isWalrus) {
+        c.fillStyle = '#f2ead8';
+        c.beginPath();
+        c.moveTo(19.4, -7.4); c.lineTo(20.6, -7.4); c.lineTo(20.0, -1.8);
+        c.closePath(); c.fill();
+        c.beginPath();
+        c.moveTo(21.8, -7.2); c.lineTo(23.0, -7.2); c.lineTo(22.4, -2.2);
+        c.closePath(); c.fill();
+    }
+    // zamkniete "szczesliwe" oko (luk)
+    c.strokeStyle = 'rgba(106,94,82,0.9)';
+    c.lineWidth = 1.1;
+    c.beginPath();
+    c.arc(16.5, -12, 2, Math.PI * 0.15, Math.PI * 0.85);
+    c.stroke();
+    // pletwa przednia + ogonowa
+    c.globalAlpha = 0.85;
+    cvEllipse(c, 8, 4, 5, 2.6, darkCol);
+    c.fillStyle = darkCol;
+    c.beginPath();
+    c.moveTo(-23, -2); c.lineTo(-30, -7); c.lineTo(-28, 2);
+    c.closePath(); c.fill();
+    c.globalAlpha = 1;
+
+    const tex = PIXI.Texture.from(cv);
+    if (isWalrus) _walrusTexture = tex; else _lionTexture = tex;
+    return tex;
+}
+
 interface SeaLion {
     container: PIXI.Container;
     baseY: number;
@@ -84,9 +160,11 @@ export class IceHole {
         this.container.zIndex = -95; // nad tafla (-100), pod cieniami AO — dziura W gruncie
         worldContainer.addChild(this.container);
 
-        const gfxStatic = new PIXI.Graphics();
-        this.container.addChild(gfxStatic);
-        this.drawStatic(gfxStatic);
+        // statyczna tafla baked do Canvas 2D (AA) -> Sprite (mobile-crisp, fix pikselozy)
+        const staticSprite = new PIXI.Sprite(this.bakeStaticTexture());
+        staticSprite.anchor.set(0.5);
+        staticSprite.scale.set(1 / BAKE_RES);
+        this.container.addChild(staticSprite);
 
         this.gfxAnim = new PIXI.Graphics();
         this.container.addChild(this.gfxAnim);
@@ -101,39 +179,41 @@ export class IceHole {
         this.nextEventAt = Date.now() + EVENT_MIN_GAP_MS + this.rng() * (EVENT_MAX_GAP_MS - EVENT_MIN_GAP_MS);
     }
 
-    /** Rama lodowa + woda — baked raz. */
-    private drawStatic(g: PIXI.Graphics): void {
+    /** Rama lodowa + woda — baked raz do Canvas 2D (AA). Ta sama sekwencja rng co dawny drawStatic. */
+    private bakeStaticTexture(): PIXI.Texture {
         const { rx, ry } = this;
+        const halfW = rx * 1.32 + 3;
+        const halfH = ry * 1.32 + 3;
+        const cv = document.createElement('canvas');
+        cv.width = Math.ceil(halfW * 2 * BAKE_RES);
+        cv.height = Math.ceil(halfH * 2 * BAKE_RES);
+        const c = cv.getContext('2d')!;
+        c.scale(BAKE_RES, BAKE_RES);
+        c.translate(halfW, halfH);
 
         // rama szronu (poszarpany 12-kat)
-        g.beginFill(COLORS.rimFrost, 0.9);
+        c.fillStyle = 'rgba(223,238,244,0.9)';
+        c.beginPath();
         const N = 12;
-        const pts: number[] = [];
         for (let i = 0; i < N; i++) {
             const a = (i / N) * Math.PI * 2;
             const rr = 1.16 + this.rng() * 0.10;
-            pts.push(Math.cos(a) * rx * rr, Math.sin(a) * ry * rr);
+            const px = Math.cos(a) * rx * rr;
+            const py = Math.sin(a) * ry * rr;
+            if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
         }
-        g.drawPolygon(pts);
-        g.endFill();
+        c.closePath();
+        c.fill();
 
         // wewnetrzny lip lodu
-        g.beginFill(COLORS.rimIce);
-        g.drawEllipse(0, 0, rx * 1.06, ry * 1.06);
-        g.endFill();
-
+        cvEllipse(c, 0, 0, rx * 1.06, ry * 1.06, '#bcdfec');
         // woda: jasniejszy lazur -> morski teal (2 elipsy = tani gradient)
-        g.beginFill(COLORS.waterEdge);
-        g.drawEllipse(0, 0, rx, ry);
-        g.endFill();
-        g.beginFill(COLORS.waterDeep);
-        g.drawEllipse(0, ry * 0.06, rx * 0.70, ry * 0.62);
-        g.endFill();
-
+        cvEllipse(c, 0, 0, rx, ry, '#3a6a92');
+        cvEllipse(c, 0, ry * 0.06, rx * 0.70, ry * 0.62, '#2a5a70');
         // blik NW
-        g.beginFill(0xffffff, 0.14);
-        g.drawEllipse(-rx * 0.3, -ry * 0.35, rx * 0.30, ry * 0.18);
-        g.endFill();
+        cvEllipse(c, -rx * 0.3, -ry * 0.35, rx * 0.30, ry * 0.18, 'rgba(255,255,255,0.14)');
+
+        return PIXI.Texture.from(cv);
     }
 
     /** Lew morski LUB mors (40%) wylegujacy sie obok przerebla (passable ambient). */
@@ -150,55 +230,14 @@ export class IceHole {
         container.x = lx;
         container.y = ly;
         container.zIndex = ly + 10; // Y-sort — lezy NA lodzie
-        const g = new PIXI.Graphics();
-        container.addChild(g);
 
-        const bodyCol = isWalrus ? 0x9a8270 : COLORS.lionBody;
-        const bellyCol = isWalrus ? 0xbfa88f : COLORS.lionBelly;
-
-        // cien
-        g.beginFill(0x15323d, 0.20);
-        g.drawEllipse(0, 7, 24, 6);
-        g.endFill();
-        // cialo (pekaty ogon->klata)
-        g.beginFill(bodyCol);
-        g.drawEllipse(-4, 0, 21, 9);
-        g.endFill();
-        // klata + uniesiona glowa (wylegiwanie z gracja)
-        g.beginFill(bodyCol);
-        g.drawEllipse(13, -5, 8, 8);
-        g.drawCircle(17, -11, 5.5);
-        g.endFill();
-        // brzuch
-        g.beginFill(bellyCol, 0.8);
-        g.drawEllipse(-2, 3, 15, 5);
-        g.endFill();
-        // pyszczek + wasy
-        g.beginFill(bellyCol);
-        g.drawEllipse(20.5, -9.5, isWalrus ? 4 : 3, isWalrus ? 3 : 2.2); // mors: masywny pysk
-        g.endFill();
-        g.beginFill(COLORS.lionDark);
-        g.drawCircle(21.8, -10, 0.9); // nos
-        g.endFill();
-        // MORS: kly (2 male kosci sloniowej trojkaty w dol z pyska)
-        if (isWalrus) {
-            g.beginFill(0xf2ead8);
-            g.drawPolygon([19.4, -7.4, 20.6, -7.4, 20.0, -1.8]);
-            g.drawPolygon([21.8, -7.2, 23.0, -7.2, 22.4, -2.2]);
-            g.endFill();
-        }
-        // zamkniete "szczesliwe" oko (luk)
-        g.lineStyle(1.1, COLORS.lionDark, 0.9);
-        g.arc(16.5, -12, 2, Math.PI * 0.15, Math.PI * 0.85);
-        g.lineStyle(0);
-        // pletwa przednia + ogonowa
-        g.beginFill(COLORS.lionDark, 0.85);
-        g.drawEllipse(8, 4, 5, 2.6);
-        g.drawPolygon([-23, -2, -30, -7, -28, 2]);
-        g.endFill();
-
-        g.scale.x = flip * (isWalrus ? 1.18 : 1);  // mors wiekszy
-        g.scale.y = isWalrus ? 1.18 : 1;
+        // baked Sprite (mobile-crisp); flip/rozmiar na transformach jak dawniej
+        const sprite = new PIXI.Sprite(getSeaLionTexture(isWalrus));
+        sprite.anchor.set(LION_BOX.ox / LION_BOX.w, LION_BOX.oy / LION_BOX.h);
+        const sc = (isWalrus ? 1.18 : 1) / BAKE_RES; // mors wiekszy
+        sprite.scale.x = flip * sc;
+        sprite.scale.y = sc;
+        container.addChild(sprite);
         worldContainer.addChild(container);
 
         return {

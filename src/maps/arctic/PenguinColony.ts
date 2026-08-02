@@ -17,7 +17,61 @@ import {
  *
  * Drop (wzorzec Caravan): update(delta) ZWRACA {type,x,y}|null co DROP_INTERVAL_MS —
  * main.ts robi spawnGem/Heart/Magnet + notif. Rozklad: gem 80% / serce 15% / magnes 5%.
+ *
+ * MOBILE-CRISP (fix pikselozy): renderer na mobile ma antialias OFF => zywe wektory
+ * PIXI.Graphics pikseluja. Pingwin WYPIECZONY do tekstury Canvas 2D (AA) x4 -> Sprite
+ * (wzorzec v0.74.0); animacja zostaje na transformach (waddle/flip/bob).
  */
+
+const PENGUIN_RES = 4;                 // supersampling bake (downscale = gladkie krawedzie)
+const PENGUIN_BOX = { ox: 12, oy: 17, w: 24, h: 34 } as const; // lokalne bounds rysunku
+
+let _penguinTexture: PIXI.Texture | null = null;
+
+/** Kreskowkowy pingwin pieczony raz (Canvas 2D z AA), wspoldzielony przez wszystkie ekipy. */
+function getPenguinTexture(): PIXI.Texture {
+    if (_penguinTexture) return _penguinTexture;
+    const { ox, oy, w, h } = PENGUIN_BOX;
+    const cv = document.createElement('canvas');
+    cv.width = w * PENGUIN_RES;
+    cv.height = h * PENGUIN_RES;
+    const c = cv.getContext('2d')!;
+    c.scale(PENGUIN_RES, PENGUIN_RES);
+    c.translate(ox, oy);
+
+    const ell = (x: number, y: number, rx: number, ry: number, fill: string): void => {
+        c.fillStyle = fill;
+        c.beginPath();
+        c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+        c.fill();
+    };
+
+    // cien pod pingwinem
+    ell(0, 12, 8, 3, 'rgba(21,50,61,0.22)');
+    // korpus (granatowo-czarny) + brzuszek
+    ell(0, 2, 8, 11, '#1c2430');
+    ell(1.5, 3.5, 5, 7.5, '#f2f6f8');
+    // glowa + policzek
+    ell(0, -9, 5.5, 5.5, '#1c2430');
+    ell(2, -8, 2.8, 3.2, '#f2f6f8');
+    // oko + blik
+    ell(2.5, -9, 1.1, 1.1, '#0d1218');
+    ell(2.9, -9.4, 0.4, 0.4, 'rgba(255,255,255,0.9)');
+    // dziob
+    c.fillStyle = '#e8913a';
+    c.beginPath();
+    c.moveTo(5, -8.5); c.lineTo(9.5, -7.2); c.lineTo(5, -6);
+    c.closePath();
+    c.fill();
+    // skrzydelko (profil)
+    ell(-4.5, 2, 2.6, 7, '#141b26');
+    // stopki
+    ell(-2.5, 12.2, 3, 1.6, '#e8913a');
+    ell(2.5, 12.2, 3, 1.6, '#e8913a');
+
+    _penguinTexture = PIXI.Texture.from(cv);
+    return _penguinTexture;
+}
 
 interface Penguin {
     container: PIXI.Container;
@@ -61,56 +115,16 @@ export class PenguinColony {
         }
     }
 
-    /** Kreskowkowy pingwin (~26px): czarny korpus, bialy brzuszek, dziob+stopki orange. */
+    /** Kreskowkowy pingwin (~26px) — baked Sprite (mobile-crisp), animacja na transformach. */
     private buildPenguin(index: number, worldContainer: PIXI.Container): Penguin {
         const container = new PIXI.Container();
         const body = new PIXI.Container();
         container.addChild(body);
 
-        const g = new PIXI.Graphics();
-        body.addChild(g);
-
-        // cien pod pingwinem
-        g.beginFill(0x15323d, 0.22);
-        g.drawEllipse(0, 12, 8, 3);
-        g.endFill();
-
-        // korpus (granatowo-czarny)
-        g.beginFill(0x1c2430);
-        g.drawEllipse(0, 2, 8, 11);
-        g.endFill();
-        // brzuszek
-        g.beginFill(0xf2f6f8);
-        g.drawEllipse(1.5, 3.5, 5, 7.5);
-        g.endFill();
-        // glowa
-        g.beginFill(0x1c2430);
-        g.drawCircle(0, -9, 5.5);
-        g.endFill();
-        // policzek (biala plamka twarzy)
-        g.beginFill(0xf2f6f8);
-        g.drawEllipse(2, -8, 2.8, 3.2);
-        g.endFill();
-        // oko
-        g.beginFill(0x0d1218);
-        g.drawCircle(2.5, -9, 1.1);
-        g.endFill();
-        g.beginFill(0xffffff, 0.9);
-        g.drawCircle(2.9, -9.4, 0.4);
-        g.endFill();
-        // dziob
-        g.beginFill(0xe8913a);
-        g.drawPolygon([5, -8.5, 9.5, -7.2, 5, -6]);
-        g.endFill();
-        // skrzydelko (widoczne jedno — profil)
-        g.beginFill(0x141b26);
-        g.drawEllipse(-4.5, 2, 2.6, 7);
-        g.endFill();
-        // stopki
-        g.beginFill(0xe8913a);
-        g.drawEllipse(-2.5, 12.2, 3, 1.6);
-        g.drawEllipse(2.5, 12.2, 3, 1.6);
-        g.endFill();
+        const sprite = new PIXI.Sprite(getPenguinTexture());
+        sprite.anchor.set(PENGUIN_BOX.ox / PENGUIN_BOX.w, PENGUIN_BOX.oy / PENGUIN_BOX.h);
+        sprite.scale.set(1 / PENGUIN_RES);
+        body.addChild(sprite);
 
         const scaleBase = 0.9 + (index % 3) * 0.1; // lekka wariacja rozmiaru
         body.scale.set(scaleBase);

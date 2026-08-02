@@ -1,12 +1,57 @@
 import * as PIXI from 'pixi.js';
+import { getPadShadowTexture } from './HoverRepairPad';
 
 /**
  * PowerHoverPad — Turbo pad z v4.48.
  * Gracz w odległości <50px → instant TURBO ×2 na 5s, cooldown 20s.
  * Wizual: pomarańczowy glow, ⚡ symbol pulsujący, rotujące łuki energii.
+ *
+ * MOBILE-CRISP (fix pikselozy): plyta baked do Canvas 2D (AA) x2 warianty
+ * (jak HoverRepairPad); hover/luki/labelki bez zmian.
  */
 
 const PAD_SIZE = 100;
+const PAD_RES = 3;
+
+function roundRectPath(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+}
+
+const _powerSlabTextures: { on: PIXI.Texture | null; off: PIXI.Texture | null } = { on: null, off: null };
+/** Plyta turbo-pada (baza + panel + neon-ramka) — baked, 2 warianty. */
+function getPowerSlabTexture(active: boolean): PIXI.Texture {
+    const cached = active ? _powerSlabTextures.on : _powerSlabTextures.off;
+    if (cached) return cached;
+    const cv = document.createElement('canvas');
+    cv.width = PAD_SIZE * PAD_RES;
+    cv.height = PAD_SIZE * PAD_RES;
+    const c = cv.getContext('2d')!;
+    c.scale(PAD_RES, PAD_RES);
+
+    // baza
+    c.fillStyle = active ? '#140d05' : '#121212';
+    roundRectPath(c, 0, 0, PAD_SIZE, PAD_SIZE, 15);
+    c.fill();
+    // panel przemyslowy (kwadrat srodkowy)
+    c.strokeStyle = active ? '#3b2308' : '#222222';
+    c.lineWidth = 2;
+    c.strokeRect(15, 15, PAD_SIZE - 30, PAD_SIZE - 30);
+    // neonowe krawedzie pomaranczowe
+    c.strokeStyle = active ? '#ff6600' : '#332200';
+    c.lineWidth = 5;
+    roundRectPath(c, 3, 3, PAD_SIZE - 6, PAD_SIZE - 6, 15);
+    c.stroke();
+
+    const tex = PIXI.Texture.from(cv);
+    if (active) _powerSlabTextures.on = tex; else _powerSlabTextures.off = tex;
+    return tex;
+}
 const ACTIVATE_RANGE = 50;
 const TURBO_DURATION_MS = 5000;
 const COOLDOWN_MS = 20000;
@@ -41,11 +86,10 @@ export class PowerHoverPad {
     public cooldownEnd: number = -1;
     
     public container: PIXI.Container;
-    private floorShadow: PIXI.Graphics;
+    private floorShadow: PIXI.Sprite;
     private glowSprite: PIXI.Sprite;
     private platformBase: PIXI.Container;
-    private wallGfx: PIXI.Graphics;
-    private surfaceGfx: PIXI.Graphics;
+    private slabSprite: PIXI.Sprite;
     private boltLabel: PIXI.Text;
     private arcsGfx: PIXI.Graphics;
     private cooldownLabel: PIXI.Text;
@@ -60,10 +104,9 @@ export class PowerHoverPad {
         this.container.zIndex = y + 50;
         worldContainer.addChild(this.container);
         
-        this.floorShadow = new PIXI.Graphics();
-        this.floorShadow.beginFill(0x000000, 0.7);
-        this.floorShadow.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        this.floorShadow.endFill();
+        this.floorShadow = new PIXI.Sprite(getPadShadowTexture());
+        this.floorShadow.scale.set(1 / PAD_RES);
+        this.floorShadow.alpha = 0.7;
         this.container.addChild(this.floorShadow);
         
         this.glowSprite = new PIXI.Sprite(getOrangeGlowTexture());
@@ -76,12 +119,10 @@ export class PowerHoverPad {
         this.platformBase = new PIXI.Container();
         this.container.addChild(this.platformBase);
         
-        this.wallGfx = new PIXI.Graphics();
-        this.platformBase.addChild(this.wallGfx);
-        
-        this.surfaceGfx = new PIXI.Graphics();
-        this.platformBase.addChild(this.surfaceGfx);
-        
+        this.slabSprite = new PIXI.Sprite(getPowerSlabTexture(true));
+        this.slabSprite.scale.set(1 / PAD_RES);
+        this.platformBase.addChild(this.slabSprite);
+
         // ⚡ symbol w centrum
         this.boltLabel = new PIXI.Text('⚡', {
             fontFamily: 'Arial',
@@ -149,32 +190,10 @@ export class PowerHoverPad {
         }
         
         this.platformBase.y = -hoverH;
-        
-        // Walls
-        const wallColor = isActive ? 0x2b1400 : 0x0a0805;
-        this.wallGfx.clear();
-        this.wallGfx.beginFill(wallColor);
-        this.wallGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        this.wallGfx.moveTo(15, hoverH);
-        this.wallGfx.lineTo(15, 0);
-        this.wallGfx.lineTo(PAD_SIZE - 15, 0);
-        this.wallGfx.lineTo(PAD_SIZE - 15, hoverH);
-        this.wallGfx.endFill();
-        
-        // Surface
-        this.surfaceGfx.clear();
-        this.surfaceGfx.beginFill(isActive ? 0x140d05 : 0x121212);
-        this.surfaceGfx.drawRoundedRect(0, 0, PAD_SIZE, PAD_SIZE, 15);
-        this.surfaceGfx.endFill();
-        
-        // Panel przemysłowy (kwadrat środkowy)
-        this.surfaceGfx.lineStyle(2, isActive ? 0x3b2308 : 0x222222, 1);
-        this.surfaceGfx.drawRect(15, 15, PAD_SIZE - 30, PAD_SIZE - 30);
-        
-        // Neonowe krawędzie pomarańczowe
-        this.surfaceGfx.lineStyle(5, isActive ? 0xff6600 : 0x332200, 1);
-        this.surfaceGfx.drawRoundedRect(3, 3, PAD_SIZE - 6, PAD_SIZE - 6, 15);
-        
+
+        // plyta = baked tekstura (mobile-crisp); stan aktywnosci przez podmiane tekstury
+        this.slabSprite.texture = getPowerSlabTexture(isActive);
+
         // ⚡ pulse scale
         if (isActive) {
             const sc = 1 + Math.sin(time * 6) * 0.08;

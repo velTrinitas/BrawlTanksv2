@@ -41,12 +41,13 @@ interface Snowball {
 }
 
 const C = {
-    fur:      0xe6ebf0,   // biale futro (chlodny odcien — nie czysta biel)
-    furShade: 0xb8c4cf,
-    face:     0x7d8a96,   // ciemniejsza twarz/brzuch
-    eye:      0x1b2833,
+    // Feedback Mariusza: yeti CIEMNIEJSZY (bialy zlewal sie z tafla) — szaro-stalowe futro
+    fur:      0x8fa0ad,
+    furShade: 0x64747f,
+    face:     0x45525c,
+    eye:      0x11181e,
     mouth:    0x5a2f3a,
-    snow:     0xf4f9fc,
+    snow:     0xf4f9fc,   // sniezki zostaja jasne (kontrast vs ciemny yeti)
     snowShade: 0xcfe0ea,
 } as const;
 

@@ -386,6 +386,7 @@ export const pl = {
     'hud.penguinHeart':   '🐧 Pingwin zgubił ❤️',
     'hud.penguinMagnet':  '🐧 Pingwin zgubił 🧲',
     'hud.yetiRoar':       '🦍 YETI JEST WŚCIEKŁY! Uciekaj!',
+    'hud.blizzard':       '❄️ Śnieżyca!',
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

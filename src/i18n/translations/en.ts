@@ -371,6 +371,7 @@ export const en: typeof pl = {
     'hud.penguinHeart':   '🐧 Penguin dropped ❤️',
     'hud.penguinMagnet':  '🐧 Penguin dropped 🧲',
     'hud.yetiRoar':       '🦍 YETI IS FURIOUS! Run!',
+    'hud.blizzard':       '❄️ Blizzard!',
 
     // Pickups (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

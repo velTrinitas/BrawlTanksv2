@@ -99,6 +99,7 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'shockwave', file: 'shockwave.wav', volume: VOLUMES.explosion * 0.9 }, // P5 Batch 3: pancerny detonacja
 
     { key: 'pickup_gem',    file: 'pickup_gem.mp3',    volume: VOLUMES.pickup * 0.6 },
+    { key: 'yeti_roar',     file: 'yeti.mp3',          volume: 0.85 }, // ARC-R2b: ryk yeti (asset Mariusza)
     { key: 'pickup_heart',  file: 'pickup_heart.mp3',  volume: VOLUMES.pickup },
     { key: 'pickup_magnet', file: 'pickup_magnet.mp3', volume: VOLUMES.pickup },
 
@@ -520,6 +521,11 @@ export class AudioSys {
         oscBass.connect(gainBass).connect(ctx.destination);
         oscBass.start(t);
         oscBass.stop(t + 0.10);
+    }
+
+    /** ARC-R2b: ryk yeti — asset yeti.mp3 (dostarczony przez Mariusza). */
+    playYetiRoar(): void {
+        this.safePlay('yeti_roar');
     }
 
     playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze'): void {

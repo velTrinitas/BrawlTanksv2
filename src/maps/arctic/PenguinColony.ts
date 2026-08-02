@@ -41,17 +41,22 @@ export class PenguinColony {
     private totalPathLength = 0;
     private dropTimerMs = 0;
 
-    constructor(worldContainer: PIXI.Container) {
+    /** path/count opcjonalne — druga ekipa (feedback Mariusza) chodzi wlasna trasa. */
+    constructor(
+        worldContainer: PIXI.Container,
+        path: ReadonlyArray<{ x: number; y: number }> = ARCTIC_PENGUIN_PATH,
+        count: number = ARCTIC_PENGUIN_COUNT,
+    ) {
         // Prekomputacja segmentow polilinii
-        for (let i = 0; i < ARCTIC_PENGUIN_PATH.length - 1; i++) {
-            const a = ARCTIC_PENGUIN_PATH[i];
-            const b = ARCTIC_PENGUIN_PATH[i + 1];
+        for (let i = 0; i < path.length - 1; i++) {
+            const a = path[i];
+            const b = path[i + 1];
             const len = Math.hypot(b.x - a.x, b.y - a.y);
             this.pathSegments.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, len });
             this.totalPathLength += len;
         }
 
-        for (let i = 0; i < ARCTIC_PENGUIN_COUNT; i++) {
+        for (let i = 0; i < count; i++) {
             this.penguins.push(this.buildPenguin(i, worldContainer));
         }
     }

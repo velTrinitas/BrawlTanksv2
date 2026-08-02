@@ -525,13 +525,34 @@ export const ARCTIC_PENGUIN_PATH = [
     { x: 1500, y: 1715 },
     { x: 1350, y: 1650 },
 ];
+/**
+ * Druga ekipa (feedback Mariusza): ring wokol przerebla SW (660,2300) r~130 —
+ * pingwiny okrazaja dziure w lodzie (tematycznie: czekaja na ryby). Trasa z dala
+ * od klastrow kostek (najblizszy ~460px) — zweryfikowane vs shipped layout.
+ */
+export const ARCTIC_PENGUIN_PATH_2 = [
+    { x: 790, y: 2300 },
+    { x: 752, y: 2208 },
+    { x: 660, y: 2170 },
+    { x: 568, y: 2208 },
+    { x: 530, y: 2300 },
+    { x: 568, y: 2392 },
+    { x: 660, y: 2430 },
+    { x: 752, y: 2392 },
+];
 export const ARCTIC_PENGUIN_COUNT = 6;
 export const ARCTIC_PENGUIN_SPEED = 0.35;          // wolniejsze niz wielblady (czlapanie)
 export const ARCTIC_PENGUIN_SPACING = 44;          // gesiego
 export const ARCTIC_PENGUIN_DROP_INTERVAL_MS = 15000;
 
-/** ARC-R3 — rezerwa: Polska Stacja Antarktyczna im. Arctowskiego (polnoc-centrum). x/y = CENTER. */
-export const ARCTIC_STATION_POS = Object.freeze({ x: 1500, y: 380, w: 480, h: 130 });
+/**
+ * ARC-R3 — Polska Stacja Antarktyczna im. Arctowskiego. x/y = CENTER.
+ * Decyzja Mariusza: GORNY-LEWY rog mapy. Przeswit zweryfikowany vs shipped layout:
+ * AABB [380,860]x[235,365]; HOLE1 gap 167px, pad P1 gap 365px, najblizsze kostki >600px.
+ */
+// feedback v3: +25% (500x115). AABB [370,870]x[242,358] + nogi do ~370; HOLE1 (620,560,
+// top~514) gap ~144px (>2.5 szer. czolgu — przejezdne), pad P1 gap ~305, kostki >550.
+export const ARCTIC_STATION_POS = Object.freeze({ x: 620, y: 300, w: 500, h: 115 });
 /** ARC-R1 — male igloo 2.5D (SE). x/y = CENTER. */
 export const ARCTIC_IGLOO_POS = Object.freeze({ x: 2450, y: 2520, size: 115 });
 

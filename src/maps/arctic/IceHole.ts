@@ -91,8 +91,8 @@ export class IceHole {
         this.gfxAnim = new PIXI.Graphics();
         this.container.addChild(this.gfxAnim);
 
-        // 1-2 lwy morskie wylegujace sie obok (seeded pozycja wokol przerebla)
-        const lionCount = 1 + (this.rng() < 0.5 ? 1 : 0);
+        // 2-3 zwierzaki obok (feedback: +50%; 40% szansy ze osobnik to MORS — kly!)
+        const lionCount = 2 + (this.rng() < 0.5 ? 1 : 0);
         for (let i = 0; i < lionCount; i++) {
             this.seaLions.push(this.buildSeaLion(i, worldContainer));
         }
@@ -136,14 +136,15 @@ export class IceHole {
         g.endFill();
     }
 
-    /** Lew morski wylegujacy sie obok przerebla (passable ambient; transformy w update). */
+    /** Lew morski LUB mors (40%) wylegujacy sie obok przerebla (passable ambient). */
     private buildSeaLion(index: number, worldContainer: PIXI.Container): SeaLion {
         // seeded pozycja: kat + dystans od srodka przerebla (poza rama)
         const ang = this.rng() * Math.PI * 2;
-        const dist = this.rx + 34 + this.rng() * 18;
+        const dist = this.rx + 34 + this.rng() * 22 + index * 8; // rozsuniecie przy 3 osobnikach
         const lx = this.cx + Math.cos(ang) * dist;
         const ly = this.cy + Math.sin(ang) * dist * 0.8;
         const flip = Math.cos(ang) < 0 ? -1 : 1; // glowa "od" przerebla
+        const isWalrus = this.rng() < 0.4;       // MORS: brazowszy, wiekszy, KLY
 
         const container = new PIXI.Container();
         container.x = lx;
@@ -152,30 +153,40 @@ export class IceHole {
         const g = new PIXI.Graphics();
         container.addChild(g);
 
+        const bodyCol = isWalrus ? 0x9a8270 : COLORS.lionBody;
+        const bellyCol = isWalrus ? 0xbfa88f : COLORS.lionBelly;
+
         // cien
         g.beginFill(0x15323d, 0.20);
         g.drawEllipse(0, 7, 24, 6);
         g.endFill();
         // cialo (pekaty ogon->klata)
-        g.beginFill(COLORS.lionBody);
+        g.beginFill(bodyCol);
         g.drawEllipse(-4, 0, 21, 9);
         g.endFill();
         // klata + uniesiona glowa (wylegiwanie z gracja)
-        g.beginFill(COLORS.lionBody);
+        g.beginFill(bodyCol);
         g.drawEllipse(13, -5, 8, 8);
         g.drawCircle(17, -11, 5.5);
         g.endFill();
         // brzuch
-        g.beginFill(COLORS.lionBelly, 0.8);
+        g.beginFill(bellyCol, 0.8);
         g.drawEllipse(-2, 3, 15, 5);
         g.endFill();
         // pyszczek + wasy
-        g.beginFill(COLORS.lionBelly);
-        g.drawEllipse(20.5, -9.5, 3, 2.2);
+        g.beginFill(bellyCol);
+        g.drawEllipse(20.5, -9.5, isWalrus ? 4 : 3, isWalrus ? 3 : 2.2); // mors: masywny pysk
         g.endFill();
         g.beginFill(COLORS.lionDark);
         g.drawCircle(21.8, -10, 0.9); // nos
         g.endFill();
+        // MORS: kly (2 male kosci sloniowej trojkaty w dol z pyska)
+        if (isWalrus) {
+            g.beginFill(0xf2ead8);
+            g.drawPolygon([19.4, -7.4, 20.6, -7.4, 20.0, -1.8]);
+            g.drawPolygon([21.8, -7.2, 23.0, -7.2, 22.4, -2.2]);
+            g.endFill();
+        }
         // zamkniete "szczesliwe" oko (luk)
         g.lineStyle(1.1, COLORS.lionDark, 0.9);
         g.arc(16.5, -12, 2, Math.PI * 0.15, Math.PI * 0.85);
@@ -186,7 +197,8 @@ export class IceHole {
         g.drawPolygon([-23, -2, -30, -7, -28, 2]);
         g.endFill();
 
-        g.scale.x = flip;
+        g.scale.x = flip * (isWalrus ? 1.18 : 1);  // mors wiekszy
+        g.scale.y = isWalrus ? 1.18 : 1;
         worldContainer.addChild(container);
 
         return {

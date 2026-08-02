@@ -43,7 +43,8 @@ import {
 import {
     buildArcticTexture,
     ARCTIC_MEDI_PAD_POSITIONS, ARCTIC_POWER_PAD_POSITIONS,
-    ARCTIC_ICE_CUBES_LAYOUT, ARCTIC_IGLOO_POS, ARCTIC_ICE_HOLES_LAYOUT,
+    ARCTIC_ICE_CUBES_LAYOUT, ARCTIC_IGLOO_POS, ARCTIC_ICE_HOLES_LAYOUT, ARCTIC_STATION_POS,
+    ARCTIC_PENGUIN_PATH_2,
 } from './maps/ArcticMap'; // FAZA A + ARC-R1/R2 "Lodowa Arena"
 import { ArcticBorder } from './maps/arctic/ArcticBorder'; // ARC-R1 (waska granatowa granica)
 import { IceCube } from './entities/IceCube'; // ARC-R1 (niszczalne kostki lodu)
@@ -51,6 +52,8 @@ import { Igloo } from './maps/arctic/Igloo'; // ARC-R1 (male igloo 2.5D)
 import { IceHole } from './maps/arctic/IceHole'; // ARC-R2 (przereble: woda + ryba + foki)
 import { PenguinColony } from './maps/arctic/PenguinColony'; // ARC-R2 (pingwiny gubia gemy)
 import { IglooYeti, SNOWBALL_HIT_RADIUS, SNOWBALL_DMG } from './maps/arctic/IglooYeti'; // ARC-R2b
+import { ArctowskiStation } from './maps/arctic/ArctowskiStation'; // ARC-R3 (landmark z paralaksa)
+import { Blizzard } from './maps/arctic/Blizzard'; // ARC-R3 (cykliczna sniezyca, particles-only)
 import {
     buildFortifiedRuinsTexture,
     FORTIFIED_FORTRESS_WALLS, FORTIFIED_ROCKS_LAYOUT,
@@ -285,9 +288,10 @@ let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
 let arcticBorder: ArcticBorder | null = null; // ARC-R1 (Arctic)
 let iceCubes: IceCube[] = []; // ARC-R1 (niszczalne kostki lodu)
 let iceHoles: IceHole[] = []; // ARC-R2 (przereble — spawnBlocked + kolizja ruchu)
-let penguinColony: PenguinColony | null = null; // ARC-R2 (ambient + dropy gemow)
+let penguinColonies: PenguinColony[] = []; // ARC-R2 (2 ekipy — ambient + dropy gemow)
 let arcticIgloo: Igloo | null = null; // ARC-R2b (ref do wpiecia Yeti po utworzeniu effects)
 let iglooYeti: IglooYeti | null = null; // ARC-R2b (obronca igloo)
+let blizzard: Blizzard | null = null; // ARC-R3 (sniezyca)
 let patrolTractor: PatrolTractor | null = null;
 let stable: Stable | null = null;
 let paddock: Paddock | null = null;
@@ -1245,9 +1249,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     arcticBorder = null; // ARC-R1 (Arctic)
     iceCubes = []; // ARC-R1
     iceHoles = []; // ARC-R2
-    penguinColony = null; // ARC-R2
+    penguinColonies = []; // ARC-R2
     arcticIgloo = null; // ARC-R2b
     iglooYeti = null; // ARC-R2b
+    blizzard = null; // ARC-R3
     patrolTractor = null;
     stable = null;
     paddock = null;
@@ -1678,6 +1683,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         buildings.push(...arcticBorder.getCollisionRects());
         solidBuildings.push(...arcticBorder.getCollisionRects());
 
+        // ARC-R3: Stacja Arctowskiego (gorny-lewy rog, decyzja Mariusza) — paralaksa
+        // wzorcem CyberBuilding (dostaje update(cam) z buildings.forEach).
+        const station = new ArctowskiStation(
+            ARCTIC_STATION_POS.x, ARCTIC_STATION_POS.y,
+            ARCTIC_STATION_POS.w, ARCTIC_STATION_POS.h, worldContainer,
+        );
+        buildings.push(station);
+        solidBuildings.push(station);
+
         // Male igloo 2.5D (cieple wnetrze zostaje — pomniejszone do 115).
         // Ref w arcticIgloo — Yeti wpinany PO utworzeniu effects (blok ARC-R2b nizej).
         arcticIgloo = new Igloo(ARCTIC_IGLOO_POS.x, ARCTIC_IGLOO_POS.y, ARCTIC_IGLOO_POS.size, worldContainer);
@@ -1694,7 +1708,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
         // ARC-R2: pingwiny gesiego wokol centrum (ring w strefie CENTER_CLEAR = zero kolizji
         // z przeszkodami); dropy gemow obslugiwane w petli gry (wzorzec karawany).
-        penguinColony = new PenguinColony(worldContainer);
+        penguinColonies.push(new PenguinColony(worldContainer));
+        penguinColonies.push(new PenguinColony(worldContainer, ARCTIC_PENGUIN_PATH_2, 5)); // 2. ekipa (ring przerebla SW)
+
+        // ARC-R3: cykliczna sniezyca (particles-only — klimat, nie kara)
+        blizzard = new Blizzard(worldContainer, () => {
+            hud.addNotif(t('hud.blizzard'), '#bfe6f5');
+        });
+        // debug: recznie wyzwol zadymke z konsoli F12 -> snieg()
+        (window as any).snieg = () => blizzard?.forceStart();
 
         // FAZA A: generic pady (themed Arctic pady w pozniejszej fazie, jak Tropics T1).
         mediPads = ARCTIC_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
@@ -1823,7 +1845,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 },
                 () => {
                     hud.addNotif(t('hud.yetiRoar'), '#ff6b6b');
-                    audio.playExplosion(); // TODO: dedykowany yeti_roar sfx (asset od Mariusza)
+                    audio.playYetiRoar(); // proceduralny ryk (WebAudio synth — zero assetu)
                 },
             );
             arcticIgloo.onProvoked = () => iglooYeti?.provoke();
@@ -2718,8 +2740,8 @@ app.ticker.add((rawDelta) => {
     // ARC-R2: przereble (fale + ryba/foka + lwy morskie) + pingwiny + Yeti
     for (const ih of iceHoles) ih.update();
     if (iglooYeti && player) iglooYeti.update(delta, player.x, player.y);
-    if (penguinColony) {
-        const drop = penguinColony.update(delta);
+    for (const colony of penguinColonies) {
+        const drop = colony.update(delta);
         if (drop) {
             if (drop.type === 'gem') {
                 spawnGem(drop.x, drop.y);
@@ -2734,6 +2756,8 @@ app.ticker.add((rawDelta) => {
             audio.playGemPickup();
         }
     }
+
+    if (blizzard) blizzard.update(camera.x, camera.y, viewW, viewH, delta); // ARC-R3 (poza zadymka ~0 kosztu)
 
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 

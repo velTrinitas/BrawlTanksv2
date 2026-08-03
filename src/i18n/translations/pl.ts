@@ -173,6 +173,13 @@ export const pl = {
     'hub.rank.you': 'TY',
     'hub.rank.empty': 'Brak wyników — zagraj mecz!',
     'hub.rank.error': 'Nie udało się wczytać rankingu',
+    // HUB-5 — Statystyki
+    'hub.stats.title': 'Statystyki',
+    'hub.stats.bolts': 'Śrubki',
+    'hub.stats.milestones': 'Kamienie milowe',
+    'hub.stats.games': 'Rozegrane gry',
+    'hub.stats.since': 'Gra od',
+    'hub.stats.best': 'Najlepszy wynik',
 
     // ============================================================
     // Scenario Picker (Ekran 1)

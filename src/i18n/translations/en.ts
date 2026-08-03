@@ -164,6 +164,13 @@ export const en: typeof pl = {
     'hub.rank.you': 'YOU',
     'hub.rank.empty': 'No scores yet — play a match!',
     'hub.rank.error': 'Failed to load ranking',
+    // HUB-5 — Stats
+    'hub.stats.title': 'Stats',
+    'hub.stats.bolts': 'Bolts',
+    'hub.stats.milestones': 'Milestones',
+    'hub.stats.games': 'Games played',
+    'hub.stats.since': 'Playing since',
+    'hub.stats.best': 'Best score',
 
     // ============================================================
     // Scenario Picker

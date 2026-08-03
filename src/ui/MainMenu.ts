@@ -381,7 +381,6 @@ export class MainMenu {
     private createHub0Screen(): IScreen {
         const screen = new HubShell();
         screen.onOpenSettings = () => this.show('settings');
-        screen.onOpenProfile = () => this.show('profileEdit');
         screen.onOpenLeaderboard = () => this.show('leaderboard');
         screen.onPlay = (scenario, map) => {
             this.lastScenarioSelection = scenario;

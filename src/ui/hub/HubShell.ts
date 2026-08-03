@@ -10,6 +10,7 @@ import { GarageSection } from './sections/GarageSection';
 import { QuestsSection } from './sections/QuestsSection';
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
+import { StatsOverlay } from './overlays/StatsOverlay';
 
 import './hub-styles.css';
 
@@ -35,11 +36,11 @@ export class HubShell implements IScreen {
 
     private readonly battle = new BattleSection();
     private readonly rank = new RankSection();
+    private readonly stats = new StatsOverlay();
     private readonly sections: HubSection[];
 
     // callbacki wpinane przez MainMenu.createHub0Screen()
     public onOpenSettings: (() => void) | null = null;
-    public onOpenProfile: (() => void) | null = null;
     public onOpenLeaderboard: (() => void) | null = null;
     public onPlay: ((scenario: ScenarioId, map: MapId) => void) | null = null;
 
@@ -65,6 +66,7 @@ export class HubShell implements IScreen {
     }
 
     unmount(): void {
+        this.stats.close();
         this.rootEl?.remove();
         this.rootEl = null;
     }
@@ -129,7 +131,7 @@ export class HubShell implements IScreen {
             }
             const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
             if (action === 'settings') this.onOpenSettings?.();
-            else if (action === 'profile') this.onOpenProfile?.();
+            else if (action === 'profile' && this.rootEl) this.stats.open(this.rootEl); // HUB-5 stats overlay
             // 'play' obslugiwane wewnatrz BattleSection (wlasny listener)
         });
     }

@@ -82,7 +82,7 @@ body.bt-desktop .bt-hub0-screen {
 }
 .bt-hub0-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .bt-hub0-pname {
-    font-family: var(--font-display, 'Titan One', cursive);
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700;
     font-size: 13px; line-height: 1; white-space: nowrap;
     max-width: 120px; overflow: hidden; text-overflow: ellipsis;
 }
@@ -144,7 +144,7 @@ body.bt-desktop .bt-hub0-nav {
 }
 body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
 .bt-hub0-navbtn .gi { font-size: 19px; line-height: 1; }
-.bt-hub0-navbtn small { font-size: 9px; font-weight: 800; letter-spacing: 0.3px; }
+.bt-hub0-navbtn small { font-size: 9px; font-weight: 700; letter-spacing: 0.3px; }
 .bt-hub0-navbtn:hover { color: var(--hub-ink); background: rgba(255, 255, 255, 0.04); }
 .bt-hub0-navbtn.is-active {
     color: var(--hub-accent); background: rgba(241, 196, 15, 0.12);
@@ -160,8 +160,8 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
     z-index: 1;
 }
 .bt-hub0-sectitle {
-    font-family: var(--font-display, 'Titan One', cursive);
-    font-size: 17px; margin: 2px 0 12px; display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; letter-spacing: 0.5px;
+    font-size: 16px; margin: 2px 0 12px; display: flex; align-items: center; gap: 8px;
 }
 .bt-hub0-placeholder {
     border: 1px dashed var(--hub-line); border-radius: var(--radius-md, 12px);
@@ -178,6 +178,78 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
 }
 .bt-hub0-play:active { transform: translateY(2px); }
 
+/* ---------- BITWA (HUB-1) ---------- */
+.bt-hub0-season {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    padding: 12px 14px; border-radius: var(--radius-md, 14px);
+    border: 1px solid var(--hub-line);
+    background: linear-gradient(110deg, #2a2412, #1a2530 60%, #241a10);
+}
+.bt-hub0-season-art {
+    width: 48px; height: 48px; flex: 0 0 auto; border-radius: 12px;
+    display: grid; place-items: center; font-size: 26px;
+    background: linear-gradient(160deg, #3a2f12, #1a2530);
+    box-shadow: inset 0 0 0 2px rgba(241, 196, 15, 0.18);
+}
+.bt-hub0-season-eyebrow {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--hub-accent); font-weight: 800;
+}
+.bt-hub0-season-info h3 {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700;
+    font-size: 16px; margin: 3px 0 0;
+}
+
+.bt-hub0-modes {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px;
+}
+body.bt-desktop .bt-hub0-modes { grid-template-columns: repeat(4, 1fr); }
+.bt-hub0-mode {
+    border: 1px solid var(--hub-line); border-radius: var(--radius-md, 12px);
+    background: var(--hub-steel-850); color: var(--hub-ink); cursor: pointer;
+    padding: 10px; text-align: left; position: relative; min-height: 64px;
+    display: flex; flex-direction: column; gap: 3px; transition: transform 0.14s, border-color 0.14s;
+}
+.bt-hub0-mode:hover { transform: translateY(-2px); border-color: var(--hub-accent-dim); }
+.bt-hub0-mode .em { font-size: 22px; line-height: 1; }
+.bt-hub0-mode b { font-family: var(--font-body, system-ui, sans-serif); font-weight: 700; font-size: 12.5px; }
+.bt-hub0-mode.is-active {
+    border-color: var(--hub-accent);
+    background: linear-gradient(160deg, rgba(241, 196, 15, 0.14), var(--hub-steel-850));
+    box-shadow: 0 4px 14px rgba(241, 196, 15, 0.15);
+}
+.bt-hub0-mode.is-active::after {
+    content: "✓"; position: absolute; top: 7px; right: 9px;
+    color: var(--hub-accent); font-weight: 900; font-size: 13px;
+}
+.bt-hub0-mode.is-locked { opacity: 0.55; cursor: not-allowed; }
+.bt-hub0-mode.is-locked:hover { transform: none; border-color: var(--hub-line); }
+.bt-hub0-mode .lock {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--hub-ink-faint); text-transform: uppercase;
+}
+
+.bt-hub0-maps { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 4px; }
+.bt-hub0-mapchip {
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid var(--hub-line); border-radius: 100px;
+    background: var(--hub-steel-800); color: var(--hub-ink-dim); cursor: pointer;
+    padding: 7px 13px; font-weight: 700; font-size: 12px; min-height: 40px;
+    transition: color 0.14s, border-color 0.14s, background 0.14s;
+}
+.bt-hub0-mapchip:hover { color: var(--hub-ink); }
+.bt-hub0-mapchip.is-active {
+    color: var(--hub-ink); border-color: var(--chip, var(--hub-accent));
+    background: color-mix(in srgb, var(--chip, var(--hub-accent)) 22%, transparent);
+}
+.bt-hub0-mapfixed {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--hub-ink-dim); font-weight: 700; font-size: 12px;
+    padding: 7px 13px; border: 1px dashed var(--hub-line); border-radius: 100px;
+}
+.bt-hub0-play[disabled] { opacity: 0.4; cursor: not-allowed; }
+
 @media (prefers-reduced-motion: reduce) {
-    .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play { transition: none; }
+    .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play,
+    .bt-hub0-mode, .bt-hub0-mapchip { transition: none; }
 }

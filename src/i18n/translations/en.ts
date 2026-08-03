@@ -151,6 +151,9 @@ export const en: typeof pl = {
     'hub.nav.quests': 'ORDERS',
     'hub.nav.trophies': 'TROPHIES',
     'hub.nav.rank': 'RANKING',
+    // HUB-1 — season banner (static; real countdown in a later phase)
+    'hub.season.eyebrow': 'Active season',
+    'hub.season.title': 'Season 2 — Arena',
 
     // ============================================================
     // Scenario Picker

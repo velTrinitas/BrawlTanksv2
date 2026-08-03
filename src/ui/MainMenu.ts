@@ -376,12 +376,17 @@ export class MainMenu {
         return screen;
     }
 
-    /** HUB-0 — nowy Menu Hub. Nav wewnetrzna przez this.show(); GRAJ → scenarioPicker (HUB-1 doda wlasny flow). */
+    /** HUB-0/HUB-1 — nowy Menu Hub. Nav przez this.show(); GRAJ (BITWA) ustawia wybor
+     *  scenariusza+mapy i routuje do istniejacego brawlerPicker (reuse drugiej polowy flow). */
     private createHub0Screen(): IScreen {
         const screen = new HubShell();
         screen.onOpenSettings = () => this.show('settings');
         screen.onOpenProfile = () => this.show('profileEdit');
-        screen.onPlay = () => this.show('scenarioPicker');
+        screen.onPlay = (scenario, map) => {
+            this.lastScenarioSelection = scenario;
+            this.lastMapSelection = map;
+            this.show('brawlerPicker');
+        };
         return screen;
     }
 

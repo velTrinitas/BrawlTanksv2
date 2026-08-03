@@ -2,6 +2,8 @@ import type { IScreen } from '../MainMenu';
 import { t } from '../../i18n/i18n';
 import { ProfileService } from '../../services/ProfileService';
 import { ProgressionService } from '../../services/ProgressionService';
+import type { ScenarioId } from '../../types/Scenario';
+import type { MapId } from '../../types/MapType';
 import type { HubSection } from './sections/HubSection';
 import { BattleSection } from './sections/BattleSection';
 import { GarageSection } from './sections/GarageSection';
@@ -37,10 +39,10 @@ export class HubShell implements IScreen {
     // callbacki wpinane przez MainMenu.createHub0Screen()
     public onOpenSettings: (() => void) | null = null;
     public onOpenProfile: (() => void) | null = null;
-    public onPlay: (() => void) | null = null;
+    public onPlay: ((scenario: ScenarioId, map: MapId) => void) | null = null;
 
     constructor() {
-        this.battle.onPlay = () => this.onPlay?.();
+        this.battle.onPlay = (scenario, map) => this.onPlay?.(scenario, map);
         this.sections = [
             this.battle,
             new GarageSection(),

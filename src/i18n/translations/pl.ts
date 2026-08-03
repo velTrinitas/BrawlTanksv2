@@ -160,6 +160,9 @@ export const pl = {
     'hub.nav.quests': 'ROZKAZY',
     'hub.nav.trophies': 'TROFEA',
     'hub.nav.rank': 'RANKING',
+    // HUB-1 — baner sezonu (statyczny; realny countdown w pozniejszej fazie)
+    'hub.season.eyebrow': 'Aktywny sezon',
+    'hub.season.title': 'Sezon 2 — Arena',
 
     // ============================================================
     // Scenario Picker (Ekran 1)

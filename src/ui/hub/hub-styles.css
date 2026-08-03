@@ -249,7 +249,72 @@ body.bt-desktop .bt-hub0-modes { grid-template-columns: repeat(4, 1fr); }
 }
 .bt-hub0-play[disabled] { opacity: 0.4; cursor: not-allowed; }
 
+/* ---------- TROFEA / Szlak Trofeow (HUB-4) ---------- */
+.bt-hub0-road-head {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+    padding: 12px 14px; border-radius: var(--radius-md, 14px);
+    border: 1px solid rgba(241, 196, 15, 0.3);
+    background: linear-gradient(110deg, #2a2412, #1a2530 70%);
+}
+.bt-hub0-road-count { font-size: 20px; flex: 0 0 auto; }
+.bt-hub0-road-count b {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 26px; color: var(--hub-accent); font-variant-numeric: tabular-nums;
+}
+.bt-hub0-road-progress { flex: 1 1 auto; min-width: 0; }
+.bt-hub0-trophybar-track {
+    height: 10px; background: rgba(0, 0, 0, 0.4); border-radius: 6px; overflow: hidden;
+}
+.bt-hub0-trophybar-track .fill {
+    height: 100%; border-radius: 6px;
+    background: linear-gradient(90deg, #ffe066, #f1c40f); transition: width 0.4s ease;
+}
+.bt-hub0-road-progress .next {
+    display: block; margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--hub-ink-dim);
+}
+.bt-hub0-road-act {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--hub-ink-faint); margin: 12px 2px 8px;
+}
+.bt-hub0-road-list { display: flex; flex-direction: column; gap: 6px; }
+body.bt-desktop .bt-hub0-road-list {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.bt-hub0-node {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--hub-line); border-radius: var(--radius-md, 12px);
+    background: var(--hub-steel-850); padding: 9px 12px;
+}
+.bt-hub0-node .mark {
+    width: 30px; height: 30px; flex: 0 0 auto; border-radius: 8px;
+    display: grid; place-items: center; font-size: 15px;
+    background: rgba(0, 0, 0, 0.25);
+}
+.bt-hub0-node .info { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.bt-hub0-node .info b {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700; font-size: 13px;
+    color: var(--hub-ink); font-variant-numeric: tabular-nums;
+}
+.bt-hub0-node .info .reward { font-size: 11px; font-weight: 700; color: var(--hub-ink-dim); }
+.bt-hub0-node .tag {
+    margin-left: auto; flex: 0 0 auto; font-size: 9px; font-weight: 800; letter-spacing: 0.4px;
+    text-transform: uppercase; color: #1a2530; background: var(--hub-accent);
+    padding: 3px 8px; border-radius: 100px;
+}
+.bt-hub0-node.is-done {
+    border-color: rgba(241, 196, 15, 0.4);
+    background: linear-gradient(160deg, rgba(241, 196, 15, 0.12), var(--hub-steel-850));
+}
+.bt-hub0-node.is-done .mark { color: var(--hub-accent); background: rgba(241, 196, 15, 0.15); }
+.bt-hub0-node.is-next { border-color: var(--hub-accent); box-shadow: 0 3px 12px rgba(241, 196, 15, 0.15); }
+.bt-hub0-node.is-future { opacity: 0.6; }
+.bt-hub0-node.is-teaser { margin-top: 8px; border-style: dashed; }
+.bt-hub0-season-track { padding: 4px 2px 2px; }
+.bt-hub0-season-track .next {
+    display: block; margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--hub-ink-faint);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play,
-    .bt-hub0-mode, .bt-hub0-mapchip { transition: none; }
+    .bt-hub0-mode, .bt-hub0-mapchip, .bt-hub0-trophybar-track .fill { transition: none; }
 }

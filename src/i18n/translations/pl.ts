@@ -163,6 +163,11 @@ export const pl = {
     // HUB-1 — baner sezonu (statyczny; realny countdown w pozniejszej fazie)
     'hub.season.eyebrow': 'Aktywny sezon',
     'hub.season.title': 'Sezon 2 — Arena',
+    // HUB-4 — Szlak Trofeow
+    'hub.road.act1': 'Akt I — Rekrut',
+    'hub.road.act2': 'Akt II — Weteran',
+    'hub.road.next': 'Następna',
+    'hub.road.seasonTitle': 'Ścieżka Sezonu',
 
     // ============================================================
     // Scenario Picker (Ekran 1)

@@ -154,6 +154,11 @@ export const en: typeof pl = {
     // HUB-1 — season banner (static; real countdown in a later phase)
     'hub.season.eyebrow': 'Active season',
     'hub.season.title': 'Season 2 — Arena',
+    // HUB-4 — Trophy Road
+    'hub.road.act1': 'Act I — Recruit',
+    'hub.road.act2': 'Act II — Veteran',
+    'hub.road.next': 'Next',
+    'hub.road.seasonTitle': 'Season Track',
 
     // ============================================================
     // Scenario Picker

@@ -120,6 +120,33 @@ export interface SessionInsert {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// progression (PROG-F1b — cloud sync progresji konta, 1:1 z profilem)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface ProgressionRow {
+    profile_id: string;
+    trophies: number;
+    bolts: number;
+    total_runs: number;
+    per_map_best: Record<string, number>;   // JSONB: { city: 174, arctic: 748, ... }
+    claimed_milestones: number[];            // JSONB: [30, 70, ...]
+    last_run_day: string | null;             // YYYY-MM-DD
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ProgressionInsert {
+    profile_id: string;
+    trophies?: number;
+    bolts?: number;
+    total_runs?: number;
+    per_map_best?: Record<string, number>;
+    claimed_milestones?: number[];
+    last_run_day?: string | null;
+    // created_at / updated_at — NIE wysylamy (server-side)
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Database — typ zbiorczy dla createClient<Database> (opcjonalnie, type-safe queries)
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -129,6 +156,7 @@ export interface Database {
             profiles: { Row: ProfileRow; Insert: ProfileInsert; Update: ProfileUpdate };
             scores: { Row: ScoreRow; Insert: ScoreInsert; Update: never };
             sessions: { Row: SessionRow; Insert: SessionInsert; Update: Partial<SessionInsert> };
+            progression: { Row: ProgressionRow; Insert: ProgressionInsert; Update: Partial<ProgressionInsert> };
         };
     };
 }

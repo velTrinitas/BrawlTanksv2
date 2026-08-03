@@ -525,6 +525,11 @@ if (PERF_ENABLED) {
 
 const menu = new MainMenu('#bt-menu-root');
 
+// PROG-F1b — na starcie sciagnij + scal progresje z chmury (best-effort, offline-first;
+// brak profilu/sieci/tabeli => no-op, localStorage zostaje zrodlem prawdy).
+const _bootProgPid = ProfileService.getActiveProfile()?.id;
+if (_bootProgPid) void ProgressionService.syncPull(_bootProgPid);
+
 const touchManager = new TouchInputManager();
 touchManager.init();
 touchManager.onSuperRequested = () => {

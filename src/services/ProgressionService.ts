@@ -22,6 +22,7 @@ import {
     BOLTS_PER_TROPHY,
     type TrophyMilestone,
 } from '../config/progression';
+import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
 
 const STORAGE_KEY = 'bt2:progression';
 
@@ -124,6 +125,7 @@ class ProgressionServiceImpl {
         for (const m of crossed) st.claimedMilestones.push(m.threshold);
         st.updatedAt = Date.now();
         this.save();
+        this.syncPush(profileId); // PROG-F1b — best-effort push do chmury (fire-and-forget)
 
         return {
             trophiesGained: breakdown.total,
@@ -159,6 +161,60 @@ class ProgressionServiceImpl {
     getTrophies(profileId: string): number {
         this.ensureInitialized();
         return this.getOrCreate(profileId).trophies;
+    }
+
+    // === PROG-F1b: cloud sync (offline-first, best-effort) ===
+
+    /**
+     * Pobierz progresje z chmury i SCAL do lokalnej. Wszystkie pola MONOTONICZNE =>
+     * merge = max/union, bezstratny miedzy urzadzeniami. Best-effort: blad (offline /
+     * brak tabeli) => localStorage zostaje zrodlem prawdy. Woluj na starcie / gdy profil
+     * aktywny (przed pokazaniem hubu, zeby readout mial scalone wartosci).
+     * UWAGA: bolts=max jest OK DOPOKI srubki tylko rosna (brak wydawania). Gdy wejdzie
+     * sklep (F2+), przejsc na ledger delt (design doc §13).
+     */
+    async syncPull(profileId: string): Promise<void> {
+        this.ensureInitialized();
+        try {
+            const remote = await supabaseProgressionService.fetch(profileId);
+            if (remote) {
+                const st = this.getOrCreate(profileId);
+                st.trophies = Math.max(st.trophies, remote.trophies ?? 0);
+                st.bolts = Math.max(st.bolts, remote.bolts ?? 0);
+                st.totalRuns = Math.max(st.totalRuns, remote.total_runs ?? 0);
+                for (const [k, v] of Object.entries(remote.per_map_best ?? {})) {
+                    st.perMapBest[k] = Math.max(st.perMapBest[k] ?? 0, Number(v) || 0);
+                }
+                const union = new Set<number>([...st.claimedMilestones, ...(remote.claimed_milestones ?? [])]);
+                st.claimedMilestones = [...union].sort((a, b) => a - b);
+                if (remote.last_run_day && (!st.lastRunDayKey || remote.last_run_day > st.lastRunDayKey)) {
+                    st.lastRunDayKey = remote.last_run_day;
+                }
+                st.updatedAt = Date.now();
+                this.save();
+            }
+        } catch (e) {
+            console.warn('[Progression] syncPull failed (offline / brak tabeli?):', (e as Error).message);
+            return; // localStorage pozostaje zrodlem prawdy
+        }
+        this.syncPush(profileId); // odeslij scalony stan (remote nadgania lokalne)
+    }
+
+    /** Best-effort push aktualnego stanu do chmury (fire-and-forget; offline => no-op). */
+    syncPush(profileId: string): void {
+        const st = this.states[profileId];
+        if (!st) return;
+        void supabaseProgressionService
+            .upsert({
+                profile_id: profileId,
+                trophies: st.trophies,
+                bolts: st.bolts,
+                total_runs: st.totalRuns,
+                per_map_best: st.perMapBest,
+                claimed_milestones: st.claimedMilestones,
+                last_run_day: st.lastRunDayKey,
+            })
+            .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
     }
 
     getBolts(profileId: string): number {

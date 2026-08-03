@@ -382,6 +382,7 @@ export class MainMenu {
         const screen = new HubShell();
         screen.onOpenSettings = () => this.show('settings');
         screen.onOpenProfile = () => this.show('profileEdit');
+        screen.onOpenLeaderboard = () => this.show('leaderboard');
         screen.onPlay = (scenario, map) => {
             this.lastScenarioSelection = scenario;
             this.lastMapSelection = map;

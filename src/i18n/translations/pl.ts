@@ -168,6 +168,11 @@ export const pl = {
     'hub.road.act2': 'Akt II — Weteran',
     'hub.road.next': 'Następna',
     'hub.road.seasonTitle': 'Ścieżka Sezonu',
+    // HUB-6 — Ranking (mini-board)
+    'hub.rank.full': 'Pełny ranking',
+    'hub.rank.you': 'TY',
+    'hub.rank.empty': 'Brak wyników — zagraj mecz!',
+    'hub.rank.error': 'Nie udało się wczytać rankingu',
 
     // ============================================================
     // Scenario Picker (Ekran 1)

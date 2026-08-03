@@ -314,6 +314,39 @@ body.bt-desktop .bt-hub0-road-list {
     display: block; margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--hub-ink-faint);
 }
 
+/* ---------- RANKING (HUB-6) ---------- */
+.bt-hub0-ranklist { display: flex; flex-direction: column; gap: 5px; }
+.bt-hub0-rankrow {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--hub-line); border-radius: var(--radius-md, 12px);
+    background: var(--hub-steel-850); padding: 9px 12px;
+}
+.bt-hub0-rankrow .pos {
+    flex: 0 0 auto; width: 34px; text-align: center; font-size: 15px; font-weight: 800;
+    font-variant-numeric: tabular-nums; color: var(--hub-ink-dim);
+}
+.bt-hub0-rankrow .who {
+    flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bt-hub0-rankrow .pts {
+    flex: 0 0 auto; font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 14px; color: var(--hub-accent); font-variant-numeric: tabular-nums;
+}
+.bt-hub0-rankrow.is-me {
+    border-color: rgba(241, 196, 15, 0.4);
+    background: linear-gradient(160deg, rgba(241, 196, 15, 0.1), var(--hub-steel-850));
+}
+.bt-hub0-rankrow.is-you { margin-top: 8px; border-color: var(--hub-accent); }
+.bt-hub0-rankrow.is-you .who { color: var(--hub-accent); }
+.bt-hub0-rankfull {
+    display: block; margin: 12px auto 0; border: 0; background: transparent;
+    color: var(--hub-accent); font-family: var(--font-body, system-ui, sans-serif);
+    font-weight: 800; font-size: 12px; letter-spacing: 0.4px; cursor: pointer;
+    padding: 8px 14px; border-radius: 10px; min-height: 40px;
+}
+.bt-hub0-rankfull:hover { background: rgba(241, 196, 15, 0.1); }
+
 @media (prefers-reduced-motion: reduce) {
     .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play,
     .bt-hub0-mode, .bt-hub0-mapchip, .bt-hub0-trophybar-track .fill { transition: none; }

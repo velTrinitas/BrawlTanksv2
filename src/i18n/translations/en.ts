@@ -159,6 +159,11 @@ export const en: typeof pl = {
     'hub.road.act2': 'Act II — Veteran',
     'hub.road.next': 'Next',
     'hub.road.seasonTitle': 'Season Track',
+    // HUB-6 — Ranking (mini-board)
+    'hub.rank.full': 'Full ranking',
+    'hub.rank.you': 'YOU',
+    'hub.rank.empty': 'No scores yet — play a match!',
+    'hub.rank.error': 'Failed to load ranking',
 
     // ============================================================
     // Scenario Picker

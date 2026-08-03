@@ -34,21 +34,24 @@ export class HubShell implements IScreen {
     private activeSection: SectionId = 'battle';
 
     private readonly battle = new BattleSection();
+    private readonly rank = new RankSection();
     private readonly sections: HubSection[];
 
     // callbacki wpinane przez MainMenu.createHub0Screen()
     public onOpenSettings: (() => void) | null = null;
     public onOpenProfile: (() => void) | null = null;
+    public onOpenLeaderboard: (() => void) | null = null;
     public onPlay: ((scenario: ScenarioId, map: MapId) => void) | null = null;
 
     constructor() {
         this.battle.onPlay = (scenario, map) => this.onPlay?.(scenario, map);
+        this.rank.onOpenLeaderboard = () => this.onOpenLeaderboard?.();
         this.sections = [
             this.battle,
             new GarageSection(),
             new QuestsSection(),
             new TrophyRoadSection(),
-            new RankSection(),
+            this.rank,
         ];
     }
 

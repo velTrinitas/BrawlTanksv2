@@ -1,0 +1,92 @@
+/**
+ * cosmetics.ts — rejestr kosmetykow profilowych (F2a).
+ *
+ * Design: BT_Progression_System_Design_v1.md §4/§7. ZASADA: skrzynki dropia
+ * KOSMETYKE (flex), NIGDY moc/staty (moce -> Szlak §18, staty nietykalne §7).
+ * F2a = kosmetyki PROFILOWE czysto CSS/DOM (kolory nicku / ramki avatara / tytuly)
+ * aplikowane w readoucie hubu — ZERO dotykania silnika gry / bakera. Flagi + skiny
+ * czolgu (dotykaja FlagId/bakera) = pozniejsza pula.
+ *
+ * i18n: labelKey literal (nie dynamiczny t(var)); tytuly wyswietlaja t(labelKey).
+ */
+
+import type { TranslationKey } from '../i18n/i18n';
+
+export type CosmeticType = 'nickColor' | 'frame' | 'title';
+export type Rarity = 'c' | 'r' | 'e' | 'l';
+
+export interface CosmeticDef {
+    readonly id: string;
+    readonly type: CosmeticType;
+    readonly rarity: Rarity;
+    readonly labelKey: TranslationKey;      // etykieta w GARAZU; dla 'title' = tekst tytulu (literal t())
+    /** nickColor: kolor/gradient tekstu nicku. */
+    readonly color?: string;
+    /** nickColor: traktuj `color` jako gradient (background-clip:text). */
+    readonly gradient?: boolean;
+    /** nickColor: animowany shimmer (klasa CSS bt-cos-shimmer). */
+    readonly animated?: boolean;
+    /** frame: border shorthand ringu avatara. */
+    readonly border?: string;
+    /** frame: box-shadow glow. */
+    readonly glow?: string;
+}
+
+/** Kolor rzadkosci (obwodki reveal / kropki w gridzie). */
+export const RARITY_COLOR: Record<Rarity, string> = {
+    c: '#8ba3b6', r: '#3aa0e0', e: '#9b59b6', l: '#f1c40f',
+};
+export const RARITY_LABEL_KEY: Record<Rarity, TranslationKey> = {
+    c: 'crate.rarity.c', r: 'crate.rarity.r', e: 'crate.rarity.e', l: 'crate.rarity.l',
+};
+
+// ── Rejestr (F2a: ~14 kosmetykow profilowych CSS) ────────────────────────────
+export const COSMETICS: readonly CosmeticDef[] = [
+    // kolory nicku
+    { id: 'nc_silver',  type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_silver',  color: '#c8cfda' },
+    { id: 'nc_gold',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_gold',    color: '#f1c40f' },
+    { id: 'nc_lime',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_lime',    color: '#a3e635' },
+    { id: 'nc_fire',    type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_fire',    color: 'linear-gradient(90deg,#ff6b35,#f7c948)', gradient: true },
+    { id: 'nc_ocean',   type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_ocean',   color: 'linear-gradient(90deg,#37a0e0,#7ef0a8)', gradient: true },
+    { id: 'nc_shimmer', type: 'nickColor', rarity: 'l', labelKey: 'cosmetic.nc_shimmer', color: 'linear-gradient(90deg,#ffe066,#f1c40f,#fff6c2,#f1c40f)', gradient: true, animated: true },
+    // ramki avatara
+    { id: 'fr_steel',   type: 'frame', rarity: 'c', labelKey: 'cosmetic.fr_steel',  border: '2px solid #64748b' },
+    { id: 'fr_blue',    type: 'frame', rarity: 'r', labelKey: 'cosmetic.fr_blue',   border: '2px solid #3aa0e0' },
+    { id: 'fr_purple',  type: 'frame', rarity: 'e', labelKey: 'cosmetic.fr_purple', border: '2px solid #9b59b6', glow: '0 0 10px rgba(155,89,182,0.7)' },
+    { id: 'fr_gold',    type: 'frame', rarity: 'l', labelKey: 'cosmetic.fr_gold',   border: '2px solid #f1c40f', glow: '0 0 12px rgba(241,196,15,0.8)' },
+    // tytuly (tekst = t(labelKey))
+    { id: 'ti_recruit', type: 'title', rarity: 'r', labelKey: 'cosmetic.ti_recruit' },
+    { id: 'ti_gunner',  type: 'title', rarity: 'r', labelKey: 'cosmetic.ti_gunner' },
+    { id: 'ti_ace',     type: 'title', rarity: 'e', labelKey: 'cosmetic.ti_ace' },
+    { id: 'ti_legend',  type: 'title', rarity: 'l', labelKey: 'cosmetic.ti_legend' },
+];
+
+const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));
+
+export function getCosmetic(id: string): CosmeticDef | undefined { return _BY_ID[id]; }
+
+export function cosmeticsByType(type: CosmeticType): CosmeticDef[] {
+    return COSMETICS.filter(c => c.type === type);
+}
+
+/** Ids kosmetykow danej rzadkosci (do losowania w skrzynce). */
+export function cosmeticIdsOfRarity(rarity: Rarity): string[] {
+    return COSMETICS.filter(c => c.rarity === rarity).map(c => c.id);
+}
+
+/** Inline-style dla nicku wg equipped nickColor (helper dla readout + preview). */
+export function nickColorStyle(def: CosmeticDef | undefined): string {
+    if (!def || def.type !== 'nickColor' || !def.color) return '';
+    if (def.gradient) {
+        return `background:${def.color};-webkit-background-clip:text;background-clip:text;color:transparent;`;
+    }
+    return `color:${def.color};`;
+}
+
+/** Inline-style dla ramki avatara wg equipped frame. */
+export function frameStyle(def: CosmeticDef | undefined): string {
+    if (!def || def.type !== 'frame') return '';
+    const b = def.border ? `border:${def.border};` : '';
+    const g = def.glow ? `box-shadow:${def.glow},inset 0 0 0 2px rgba(255,255,255,0.15);` : '';
+    return b + g;
+}

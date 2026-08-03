@@ -20,8 +20,11 @@ import {
     getMilestonesCrossed,
     getNextMilestone,
     BOLTS_PER_TROPHY,
+    openCrate as configOpenCrate,
     type TrophyMilestone,
+    type CrateOpenResult,
 } from '../config/progression';
+import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kosmetyki
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
 
 const STORAGE_KEY = 'bt2:progression';
@@ -39,6 +42,26 @@ interface ProgressionState {
     lastRunDayKey: string | null;
     totalRuns: number;
     updatedAt: number;
+
+    // ── F2a: Zrzuty + kosmetyki (lokalnie; sync = F2b) ──
+    /** Ilosc nieotwartych skrzynek. */
+    crateCount: number;
+    /** Licznik otwartych skrzynek (pity: co 10 rzadki+, co 30 legendarny). */
+    pityCounter: number;
+    /** Posiadane kosmetyki (id z config/cosmetics). */
+    ownedCosmetics: string[];
+    /** Zalozone kosmetyki per typ. */
+    equipped: Partial<Record<CosmeticType, string>>;
+    /** Progi milestone za ktore juz skredytowano skrzynke (idempotencja + backfill). */
+    crateMilestonesCredited: number[];
+}
+
+/** Migawka kosmetyczna do GARAZU / readout. */
+export interface CosmeticState {
+    crateCount: number;
+    pityCounter: number;
+    owned: readonly string[];
+    equipped: Partial<Record<CosmeticType, string>>;
 }
 
 /** Wynik recordRun — zasila endcard ("+X trofea", milestone) + telemetrie. */
@@ -123,6 +146,7 @@ class ProgressionServiceImpl {
         st.lastRunDayKey = dayKey;
         st.totalRuns += 1;
         for (const m of crossed) st.claimedMilestones.push(m.threshold);
+        this.creditMilestoneCrates(st); // F2a — skrzynka za milestony przekroczone tym runem
         st.updatedAt = Date.now();
         this.save();
         this.syncPush(profileId); // PROG-F1b — best-effort push do chmury (fire-and-forget)
@@ -222,6 +246,58 @@ class ProgressionServiceImpl {
         return this.getOrCreate(profileId).bolts;
     }
 
+    // === F2a: Zrzuty + kosmetyki (lokalnie; sync = F2b) ===
+
+    /** Migawka kosmetyczna (GARAZ + readout). */
+    getCosmeticState(profileId: string): CosmeticState {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        return {
+            crateCount: st.crateCount,
+            pityCounter: st.pityCounter,
+            owned: st.ownedCosmetics,
+            equipped: st.equipped,
+        };
+    }
+
+    /**
+     * Otworz jedna skrzynke. Zwraca wynik do reveal UI albo null (brak skrzynek).
+     * Pity deterministyczny (openIndex = pityCounter+1: co 10 rzadki+, co 30 legendarny).
+     * Kosmetyk (jesli nieposiadany) -> ownedCosmetics; zawsze srubki. Bolts syncuja (F1b).
+     */
+    openCrate(profileId: string): CrateOpenResult | null {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        if (st.crateCount <= 0) return null;
+
+        const openIndex = st.pityCounter + 1;
+        const result = configOpenCrate(openIndex, Math.random, st.ownedCosmetics);
+
+        st.crateCount -= 1;
+        st.pityCounter = openIndex;
+        st.bolts += result.bolts;
+        if (result.cosmeticId && !st.ownedCosmetics.includes(result.cosmeticId)) {
+            st.ownedCosmetics.push(result.cosmeticId);
+        }
+        st.updatedAt = Date.now();
+        this.save();
+        this.syncPush(profileId); // srubki z crate syncuja (kosmetyki = F2b)
+        return result;
+    }
+
+    /** Zaloz/zdejmij kosmetyk (toggle po typie). No-op gdy nieposiadany. */
+    equipCosmetic(profileId: string, cosmeticId: string): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        if (!st.ownedCosmetics.includes(cosmeticId)) return;
+        const def = getCosmetic(cosmeticId);
+        if (!def) return;
+        if (st.equipped[def.type] === cosmeticId) delete st.equipped[def.type]; // toggle off
+        else st.equipped[def.type] = cosmeticId;
+        st.updatedAt = Date.now();
+        this.save();
+    }
+
     // === Internal ===
 
     private prevThresholdBelow(nextThreshold: number, _trophies: number): number {
@@ -246,10 +322,35 @@ class ProgressionServiceImpl {
                 lastRunDayKey: null,
                 totalRuns: 0,
                 updatedAt: Date.now(),
+                crateCount: 0,
+                pityCounter: 0,
+                ownedCosmetics: [],
+                equipped: {},
+                crateMilestonesCredited: [],
             };
             this.states[profileId] = st;
+        } else {
+            // normalizacja starych stanow z localStorage (sprzed F2a) — dopelnij nowe pola
+            st.crateCount ??= 0;
+            st.pityCounter ??= 0;
+            st.ownedCosmetics ??= [];
+            st.equipped ??= {};
+            st.crateMilestonesCredited ??= [];
         }
+        // backfill: skrzynka za kazdy osiagniety milestone jeszcze nieskredytowany (idempotentne)
+        this.creditMilestoneCrates(st);
         return st;
+    }
+
+    /** Grantuje 1 skrzynke za kazdy osiagniety (trophies>=threshold) milestone niebedacy
+     *  jeszcze w crateMilestonesCredited. Idempotentne (backfill + biezace przekroczenia). */
+    private creditMilestoneCrates(st: ProgressionState): void {
+        for (const m of TROPHY_MILESTONES) {
+            if (st.trophies >= m.threshold && !st.crateMilestonesCredited.includes(m.threshold)) {
+                st.crateCount += 1;
+                st.crateMilestonesCredited.push(m.threshold);
+            }
+        }
     }
 
     private ensureInitialized(): void {

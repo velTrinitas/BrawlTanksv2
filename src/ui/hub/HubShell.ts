@@ -11,6 +11,8 @@ import { QuestsSection } from './sections/QuestsSection';
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
 import { StatsOverlay } from './overlays/StatsOverlay';
+import { CrateOverlay } from './overlays/CrateOverlay';
+import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
 
 import './hub-styles.css';
 
@@ -35,8 +37,10 @@ export class HubShell implements IScreen {
     private activeSection: SectionId = 'battle';
 
     private readonly battle = new BattleSection();
+    private readonly garage = new GarageSection();
     private readonly rank = new RankSection();
     private readonly stats = new StatsOverlay();
+    private readonly crate = new CrateOverlay();
     private readonly sections: HubSection[];
 
     // callbacki wpinane przez MainMenu.createHub0Screen()
@@ -47,13 +51,28 @@ export class HubShell implements IScreen {
     constructor() {
         this.battle.onPlay = (scenario, map) => this.onPlay?.(scenario, map);
         this.rank.onOpenLeaderboard = () => this.onOpenLeaderboard?.();
+        // F2a — GARAŻ: OTWÓRZ skrzynkę => CrateOverlay; po zamknięciu re-render GARAŻU
+        this.garage.onOpenCrate = () => {
+            if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => this.renderMain());
+        };
+        this.garage.onCosmeticChanged = () => this.refreshReadout();
         this.sections = [
             this.battle,
-            new GarageSection(),
+            this.garage,
             new QuestsSection(),
             new TrophyRoadSection(),
             this.rank,
         ];
+    }
+
+    private pid(): string {
+        return ProfileService.getActiveProfile()?.id ?? 'default';
+    }
+
+    /** F2a — odswiez tylko gorny readout (po equip kosmetyku). */
+    private refreshReadout(): void {
+        const top = this.rootEl?.querySelector('.bt-hub0-top') as HTMLElement | null;
+        if (top) top.innerHTML = this.renderReadout();
     }
 
     mount(root: HTMLElement): void {
@@ -67,6 +86,7 @@ export class HubShell implements IScreen {
 
     unmount(): void {
         this.stats.close();
+        this.crate.close();
         this.rootEl?.remove();
         this.rootEl = null;
     }
@@ -95,10 +115,22 @@ export class HubShell implements IScreen {
         const trophies = ProgressionService.getTrophies(pid);
         const bolts = ProgressionService.getBolts(pid);
 
+        // F2a — equipped kosmetyki (kolor nicku / ramka avatara / tytul)
+        const cos = ProgressionService.getCosmeticState(pid);
+        const nickDef = cos.equipped.nickColor ? getCosmetic(cos.equipped.nickColor) : undefined;
+        const frameDef = cos.equipped.frame ? getCosmetic(cos.equipped.frame) : undefined;
+        const titleDef = cos.equipped.title ? getCosmetic(cos.equipped.title) : undefined;
+        const nickStyle = nickColorStyle(nickDef);
+        const shimmer = nickDef?.animated ? ' bt-cos-shimmer' : '';
+        const titleHtml = titleDef ? `<span class="bt-hub0-ptitle">${t(titleDef.labelKey)}</span>` : '';
+
         return `
             <button class="bt-hub0-profile" data-action="profile" type="button">
-                <span class="bt-hub0-avatar" aria-hidden="true">${initial}</span>
-                <span class="bt-hub0-pname">${name}</span>
+                <span class="bt-hub0-avatar" aria-hidden="true" style="${frameStyle(frameDef)}">${initial}</span>
+                <span class="bt-hub0-pnamewrap">
+                    <span class="bt-hub0-pname${shimmer}" style="${nickStyle}">${name}</span>
+                    ${titleHtml}
+                </span>
             </button>
             <span class="bt-hub0-spacer"></span>
             <span class="bt-hub0-wallet">

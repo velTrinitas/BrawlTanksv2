@@ -124,3 +124,65 @@ export function getNextMilestone(trophies: number): TrophyMilestone | null {
 export function getMilestonesCrossed(before: number, after: number): TrophyMilestone[] {
     return TROPHY_MILESTONES.filter(m => m.threshold > before && m.threshold <= after);
 }
+
+// ── ZRZUTY / skrzynki (F2a, design doc §4) ──────────────────────────────────
+// ZASADA: skrzynki dropia KOSMETYKE + srubki, NIGDY moc/staty. Jawne pule + pity (§4.2).
+import { cosmeticIdsOfRarity, type Rarity } from './cosmetics';
+
+export const CRATE_RARITY_WEIGHTS: Record<Rarity, number> = { c: 60, r: 28, e: 10, l: 2 };
+export const CRATE_BOLT_RANGE: Record<Rarity, readonly [number, number]> = {
+    c: [30, 60], r: [60, 100], e: [100, 160], l: [200, 200],
+};
+/** Gdy pula kosmetykow danej rzadkosci wyczerpana -> jawna konwersja na srubki. */
+export const CRATE_DUP_BOLTS: Record<Rarity, number> = { c: 40, r: 80, e: 140, l: 250 };
+export const PITY_RARE_AT = 10;       // co 10. skrzynka: gwarantowany rzadki+ (§4.2)
+export const PITY_LEGENDARY_AT = 30;  // co 30. skrzynka: gwarantowany legendarny
+
+export interface CrateOpenResult {
+    rarity: Rarity;
+    cosmeticId: string | null;   // null = pula rzadkosci wyczerpana -> same srubki (konwersja)
+    bolts: number;
+    wasPity: boolean;
+}
+
+function rollRarity(rng: () => number, allowed: readonly Rarity[]): Rarity {
+    const total = allowed.reduce((s, r) => s + CRATE_RARITY_WEIGHTS[r], 0);
+    let x = rng() * total;
+    for (const r of allowed) {
+        x -= CRATE_RARITY_WEIGHTS[r];
+        if (x < 0) return r;
+    }
+    return allowed[allowed.length - 1];
+}
+
+function randInt(rng: () => number, range: readonly [number, number]): number {
+    const [lo, hi] = range;
+    return lo + Math.floor(rng() * (hi - lo + 1));
+}
+
+/**
+ * Otwarcie skrzynki (CZYSTA funkcja — deterministyczna przy danym rng). openIndex =
+ * 1-bazowy numer otwarcia (pityCounter+1) => pity: co 10. rzadki+, co 30. legendarny.
+ * Losuje NIEPOSIADANY kosmetyk wylosowanej rzadkosci; pula pusta -> konwersja na srubki.
+ */
+export function openCrate(
+    openIndex: number,
+    rng: () => number,
+    owned: readonly string[],
+): CrateOpenResult {
+    let rarity: Rarity;
+    let wasPity = false;
+    if (openIndex % PITY_LEGENDARY_AT === 0) { rarity = 'l'; wasPity = true; }
+    else if (openIndex % PITY_RARE_AT === 0) { rarity = rollRarity(rng, ['r', 'e', 'l']); wasPity = true; }
+    else { rarity = rollRarity(rng, ['c', 'r', 'e', 'l']); }
+
+    const pool = cosmeticIdsOfRarity(rarity).filter(id => !owned.includes(id));
+    let bolts = randInt(rng, CRATE_BOLT_RANGE[rarity]);
+    let cosmeticId: string | null = null;
+    if (pool.length > 0) {
+        cosmeticId = pool[Math.floor(rng() * pool.length)];
+    } else {
+        bolts += CRATE_DUP_BOLTS[rarity]; // pula wyczerpana -> jawna konwersja
+    }
+    return { rarity, cosmeticId, bolts, wasPity };
+}

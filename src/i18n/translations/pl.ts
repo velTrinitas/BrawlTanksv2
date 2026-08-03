@@ -150,6 +150,10 @@ export const pl = {
     'hub.changePlayer': 'Zmień gracza',
     'hub.welcome': 'Witaj, {name}!',
     'hub.editProfile': 'Edytuj profil',
+    // PROG-F1 — pasek trofeów w hubie
+    'hub.trophyLabel': 'TROFEA',
+    'hub.trophyNext': 'jeszcze {n} 🏆 do nagrody',
+    'hub.trophyMax': 'Wszystkie nagrody zdobyte! 🏆',
 
     // ============================================================
     // Scenario Picker (Ekran 1)
@@ -339,6 +343,10 @@ export const pl = {
     'end.dmgBonus': 'DMG',
     'end.hpBonus': 'HP',
     'end.backToMenu': 'POWRÓT DO MENU',
+    // PROG-F1 — progresja na endcardzie
+    'end.trophies': 'TROFEA',
+    'end.bolts': 'ŚRUBKI',
+    'end.milestone': 'KAMIEŃ MILOWY',
 
     // ============================================================
     // HUD notifications (v0.51.0 — i18n migration z main.ts + HUD.ts)

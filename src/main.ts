@@ -144,6 +144,7 @@ import {
     POWERCUBE_HP_BONUS_PER_PICKUP,
 } from './services/GameSession';
 import { scoreService } from './services/ScoreService';
+import { ProgressionService, type RunProgressionResult } from './services/ProgressionService'; // PROG-F1
 import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
 import { t, i18n } from './i18n/i18n';
@@ -1949,6 +1950,12 @@ interface EndScreenData {
     tankImg: string;
     /** FAZA CTF F2 — zdobyte flagi (null = scenariusz bez flag, tile heartow zostaje). */
     ctfFlags: number | null;
+    /** PROG-F1 — trofea zdobyte w tym runie (undefined = brak progresji, np. sesja bez profilu). */
+    trophiesGained?: number;
+    /** PROG-F1 — srubki zdobyte (run + milestony). */
+    boltsGained?: number;
+    /** PROG-F1 — srubki z przekroczonych milestonow (>0 => celebracja kamienia milowego). */
+    milestoneBolts?: number;
 }
 
 /**
@@ -2070,6 +2077,15 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
             ${d.dmgBonusPct > 0 ? `<span style="font-family:${SYS};font-size:0.74rem;font-weight:700;color:#fff;background:#e74c3c;padding:4px 11px;border-radius:11px;white-space:nowrap;">🟦 +${d.dmgBonusPct}% ${t('end.dmgBonus')}</span>` : ''}
             ${d.hpCubesPicked > 0 ? `<span style="font-family:${SYS};font-size:0.74rem;font-weight:700;color:#fff;background:#2980b9;padding:4px 11px;border-radius:11px;white-space:nowrap;">🟦 +${d.hpCubesPicked * 25} ${t('end.hpBonus')}</span>` : ''}
+        </div>` : '';
+
+    // PROG-F1 — wiersz progresji: "+X trofea" + "+Y srubki" (+ celebracja milestone gdy pekl).
+    // Zloty chip = trofea (spine), szary = srubki (waluta). Wzorzec bonusRow (DOM endcard, zero in-game).
+    const trophyRow = (d.trophiesGained && d.trophiesGained > 0) ? `
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#3a2b0f;background:linear-gradient(135deg,#ffe066,#f1c40f);padding:5px 14px;border-radius:12px;border:2px solid #b8860b;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🏆 +${d.trophiesGained} ${t('end.trophies')}</span>
+            ${d.boltsGained ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#5b6672;padding:5px 14px;border-radius:12px;border:2px solid #3a434d;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🔩 +${d.boltsGained} ${t('end.bolts')}</span>` : ''}
+            ${d.milestoneBolts && d.milestoneBolts > 0 ? `<span style="font-family:${TITAN};font-size:0.82rem;color:#fff;background:#27ae60;padding:5px 14px;border-radius:12px;border:2px solid #1e8449;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎖️ ${t('end.milestone')}!</span>` : ''}
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
@@ -2206,6 +2222,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
                     </div>
                     ${bonusRow}
+                    ${trophyRow}
                     ${victoryBadge}
                     <button class="brawl-btn" id="${btnId}" style="font-size:1.4rem;padding:11px 34px;margin-top:16px;">${t('end.backToMenu')}</button>
                 </div>
@@ -2235,6 +2252,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                 ${chip('⏱️', `${d.seconds}s`, t('end.time'))}
             </div>
             ${bonusRow}
+            ${trophyRow}
             ${victoryBadge}
 
             <button class="brawl-btn" id="${btnId}" style="font-size:1.6rem;padding:13px 40px;margin-top:22px;">${t('end.backToMenu')}</button>
@@ -2288,6 +2306,23 @@ async function triggerGameOver(): Promise<void> {
         }
     }
 
+    // PROG-F1: progresja konta (trofea + srubki). Dziala dla WSZYSTKICH scenariuszy
+    // (lokalna, niezalezna od submitu leaderboardu — CTF tez liczy sie do progresji).
+    // Przegrana => perfectRun=false.
+    let runProg: RunProgressionResult | null = null;
+    if (currentSession) {
+        try {
+            runProg = ProgressionService.recordRun(
+                currentSession.config.profileId,
+                currentSession.score,
+                currentSession.config.map,
+                { perfectRun: false },
+            );
+        } catch (e) {
+            console.warn('[Progression] recordRun failed (GameOver):', (e as Error).stack ?? e);
+        }
+    }
+
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
     const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, true) : '';
     const screenEl = document.getElementById('gameOverScreen')!;
@@ -2305,6 +2340,9 @@ async function triggerGameOver(): Promise<void> {
         supers: currentSession?.superPowersUsed ?? 0,
         tankImg,
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
+        trophiesGained: runProg?.trophiesGained,          // PROG-F1
+        boltsGained: runProg?.boltsGained,
+        milestoneBolts: runProg ? runProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -2318,6 +2356,8 @@ async function triggerVictory(): Promise<void> {
     audio.playVictory();
 
     touchManager.hide();
+
+    let victoryRunProg: RunProgressionResult | null = null; // PROG-F1
 
     if (currentSession) {
         // v0.50.0 Scoring v2.2: Perfect Run check + apply bonus PRZED submit, zeby
@@ -2339,6 +2379,18 @@ async function triggerVictory(): Promise<void> {
                 console.warn('[Score] Submit failed:', e);
             }
         }
+
+        // PROG-F1: progresja konta (po Perfect Run bonus, wiec score juz finalny).
+        try {
+            victoryRunProg = ProgressionService.recordRun(
+                currentSession.config.profileId,
+                currentSession.score,
+                currentSession.config.map,
+                { perfectRun: perfectRun.applied },
+            );
+        } catch (e) {
+            console.warn('[Progression] recordRun failed (Victory):', (e as Error).stack ?? e);
+        }
     }
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
@@ -2358,6 +2410,9 @@ async function triggerVictory(): Promise<void> {
         supers: currentSession?.superPowersUsed ?? 0,
         tankImg,
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
+        trophiesGained: victoryRunProg?.trophiesGained,   // PROG-F1
+        boltsGained: victoryRunProg?.boltsGained,
+        milestoneBolts: victoryRunProg ? victoryRunProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');

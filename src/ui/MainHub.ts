@@ -34,6 +34,7 @@ import { AVATARS } from '../config/avatars';
 import { FLAGS, type FlagConfig } from '../config/flags';
 import { showToast } from './toast';
 import { MENU_MAP_CARDS } from '../types/MapType';
+import { ProgressionService } from '../services/ProgressionService'; // PROG-F1
 
 // ============================================================
 // MainHub
@@ -82,6 +83,7 @@ export class MainHub implements IScreen {
         root.className = 'bt-hub-screen';
 
         const welcomeBar = this.renderProfileChip();
+        const trophyBar = this.activeProfile ? this.renderTrophyBar() : ''; // PROG-F1
         const continueCard = this.lastSession ? this.renderContinueCard(this.lastSession) : '';
 
         const heroPlay = `
@@ -120,12 +122,35 @@ export class MainHub implements IScreen {
             <div class="bt-hub-bg" aria-hidden="true"></div>
             <div class="bt-hub-overlay" aria-hidden="true"></div>
             ${welcomeBar}
+            ${trophyBar}
             ${continueCard}
             ${heroPlay}
             ${secondaryGrid}
         `;
 
         return root;
+    }
+
+    /**
+     * PROG-F1 — poziomy pasek Szlaku Trofeow (§3.3): 🏆 {trofea} + pasek % do nastepnej
+     * nagrody + "jeszcze N 🏆". Zawsze widoczny pod profile-chip. Klik = na razie no-op
+     * (pelnoekranowy Szlak = pozniejsza pod-faza). DOM, zero kosztu in-game.
+     */
+    private renderTrophyBar(): string {
+        const snap = ProgressionService.getSnapshot(this.activeProfile!.id);
+        const pct = Math.round(snap.progressToNext * 100);
+        const nextTxt = snap.nextMilestone
+            ? t('hub.trophyNext', { n: snap.nextMilestone.threshold - snap.trophies })
+            : t('hub.trophyMax');
+        return `
+            <div class="bt-hub-trophybar" aria-label="${t('hub.trophyLabel')}">
+                <span class="bt-hub-trophybar-count">🏆 ${snap.trophies}</span>
+                <div class="bt-hub-trophybar-track">
+                    <div class="bt-hub-trophybar-fill" style="width:${pct}%;"></div>
+                </div>
+                <span class="bt-hub-trophybar-next">${nextTxt}</span>
+            </div>
+        `;
     }
 
     /**

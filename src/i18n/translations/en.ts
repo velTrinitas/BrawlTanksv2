@@ -141,6 +141,10 @@ export const en: typeof pl = {
     'hub.changePlayer': 'Change player',
     'hub.welcome': 'Welcome, {name}!',
     'hub.editProfile': 'Edit profile',
+    // PROG-F1 — trophy bar in hub
+    'hub.trophyLabel': 'TROPHIES',
+    'hub.trophyNext': '{n} 🏆 to next reward',
+    'hub.trophyMax': 'All rewards unlocked! 🏆',
 
     // ============================================================
     // Scenario Picker
@@ -329,6 +333,10 @@ export const en: typeof pl = {
     'end.dmgBonus': 'DMG',
     'end.hpBonus': 'HP',
     'end.backToMenu': 'BACK TO MENU',
+    // PROG-F1 — progression on endcard
+    'end.trophies': 'TROPHIES',
+    'end.bolts': 'BOLTS',
+    'end.milestone': 'MILESTONE',
 
     // ============================================================
     // HUD notifications (v0.51.0 — i18n migration from main.ts + HUD.ts)

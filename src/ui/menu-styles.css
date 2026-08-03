@@ -809,6 +809,7 @@
 
 /* Children sit above bg + overlay */
 .bt-hub-screen > .bt-hub-welcome,
+.bt-hub-screen > .bt-hub-trophybar,
 .bt-hub-screen > .bt-hub-continue,
 .bt-hub-screen > .bt-hub-hero-play,
 .bt-hub-screen > .bt-hub-secondary-grid {
@@ -826,11 +827,60 @@
 
 /* When hub screen is mounted directly, wrap children with inner class */
 .bt-hub-screen > .bt-hub-welcome,
+.bt-hub-screen > .bt-hub-trophybar,
 .bt-hub-screen > .bt-hub-continue,
 .bt-hub-screen > .bt-hub-hero-play,
 .bt-hub-screen > .bt-hub-secondary-grid {
     width: 100%;
     max-width: 480px;
+}
+
+/* === PROG-F1: pasek Szlaku Trofeow (§3.3) === */
+.bt-hub-trophybar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    background: rgba(15, 20, 35, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(241, 196, 15, 0.35);
+    border-radius: 14px;
+    box-sizing: border-box;
+}
+.bt-hub-trophybar-count {
+    font-family: 'Titan One', cursive;
+    font-size: 1.05rem;
+    color: #f1c40f;
+    -webkit-text-stroke: 1px rgba(0, 0, 0, 0.55);
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.bt-hub-trophybar-track {
+    flex: 1 1 auto;
+    height: 10px;
+    min-width: 0;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bt-hub-trophybar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ffe066, #f1c40f);
+    border-radius: 6px;
+    transition: width 0.4s ease;
+}
+.bt-hub-trophybar-next {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #cbd5e1;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+@media (max-width: 420px) {
+    .bt-hub-trophybar-next { display: none; }
 }
 
 /* === Welcome bar === */

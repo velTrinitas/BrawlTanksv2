@@ -1,0 +1,183 @@
+/* ============================================================
+   HUB-0 — Menu Hub "COMMAND DECK" (DOM-overlay, za flaga ?hub=1)
+   Wzorzec: makieta docs/prototypes/BrawlTanks_Menu_Sim_v1.html.
+   Palette command-deck (stal/plazma/zloto) scoped do .bt-hub0-screen
+   (nie leje sie na reszte menu). Wspoldzieli globalne :root tokeny
+   (spacing/radius/shadow) z menu-styles.css. Mobile-first: base = dock,
+   body.bt-desktop = rail (konwencja repo, jak endcard scale 1.5).
+   ============================================================ */
+
+.bt-hub0-screen {
+    /* lokalne tokeny command-deck (nie globalne — izolacja) */
+    --hub-steel-950: #0d141b;
+    --hub-steel-900: #1a252f;
+    --hub-steel-850: #1f2c39;
+    --hub-steel-800: #243545;
+    --hub-steel-700: #31465a;
+    /* akcent = ZLOTO identyfikacji gry (bez niebieskosci/plazmy — feedback Mariusza) */
+    --hub-accent: #f1c40f;
+    --hub-accent-dim: #d35400;
+    --hub-gold: #f1c40f;
+    --hub-ink: #eef5fa;
+    --hub-ink-dim: #8ba3b6;
+    --hub-ink-faint: #5d7284;
+    --hub-line: rgba(255, 255, 255, 0.07);
+
+    position: absolute;
+    inset: 0;
+    display: grid;
+    /* MOBILE (base): top / main / dock */
+    grid-template-columns: 1fr;
+    grid-template-rows: 52px 1fr 58px;
+    grid-template-areas: "top" "main" "nav";
+    color: var(--hub-ink);
+    font-family: var(--font-body, 'Inter', system-ui, sans-serif);
+    overflow: hidden;
+    background-image:
+        linear-gradient(180deg, rgba(13, 20, 27, 0.82) 0%, rgba(13, 20, 27, 0.9) 100%),
+        url('/BrawlTanksv2/intro/MainHub_Background.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+
+/* DESKTOP: rail (76px) po lewej + top na pelna szerokosc */
+body.bt-desktop .bt-hub0-screen {
+    grid-template-columns: 76px 1fr;
+    grid-template-rows: 56px 1fr;
+    grid-template-areas: "top top" "nav main";
+}
+
+/* ---------- TOP READOUT ---------- */
+.bt-hub0-top {
+    grid-area: top;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    background: linear-gradient(180deg, var(--hub-steel-850), var(--hub-steel-900));
+    border-bottom: 1px solid var(--hub-line);
+    z-index: 3;
+}
+.bt-hub0-profile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 10px;
+    min-height: 44px;
+    transition: background 0.15s;
+}
+.bt-hub0-profile:hover { background: rgba(255, 255, 255, 0.05); }
+.bt-hub0-avatar {
+    width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto;
+    display: grid; place-items: center; font-size: 16px; overflow: hidden;
+    color: #1a2530; font-family: var(--font-display, 'Titan One', cursive);
+    background: linear-gradient(160deg, #f1c40f, #d35400);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+.bt-hub0-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.bt-hub0-pname {
+    font-family: var(--font-display, 'Titan One', cursive);
+    font-size: 13px; line-height: 1; white-space: nowrap;
+    max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+}
+.bt-hub0-spacer { flex: 1; }
+.bt-hub0-wallet { display: flex; gap: 6px; }
+.bt-hub0-coin {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--hub-steel-800); border: 1px solid var(--hub-line);
+    border-radius: 100px; padding: 5px 10px 5px 7px;
+    font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.bt-hub0-coin .ic { font-size: 13px; line-height: 1; }
+.bt-hub0-gear {
+    width: 40px; height: 40px; flex: 0 0 auto; border-radius: 10px;
+    border: 1px solid var(--hub-line); background: var(--hub-steel-800);
+    color: var(--hub-ink-dim); font-size: 16px; cursor: pointer;
+    display: grid; place-items: center; transition: transform 0.15s, color 0.15s;
+}
+.bt-hub0-gear:hover { color: var(--hub-accent); transform: rotate(35deg); }
+.bt-hub0-s2 {
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 11px; color: #2a2100;
+    padding: 5px 8px; border-radius: 8px; flex: 0 0 auto;
+    background: repeating-linear-gradient(45deg, var(--hub-gold) 0 7px, #141414 7px 14px);
+}
+.bt-hub0-s2 span { background: var(--hub-gold); padding: 1px 5px; border-radius: 4px; }
+
+/* ---------- NAV (rail desktop / dock mobile — jeden element) ---------- */
+.bt-hub0-nav {
+    grid-area: nav;
+    z-index: 3;
+    display: flex;
+    /* MOBILE dock = poziomo */
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 4px;
+    padding: 5px 6px;
+    background: linear-gradient(0deg, var(--hub-steel-850), var(--hub-steel-900));
+    border-top: 1px solid var(--hub-line);
+}
+body.bt-desktop .bt-hub0-nav {
+    /* DESKTOP rail = pionowo */
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 12px 0;
+    border-top: 0;
+    border-right: 1px solid var(--hub-line);
+}
+.bt-hub0-navbtn {
+    flex: 1 1 0;
+    min-width: 44px; min-height: 44px;
+    border: 1px solid transparent; background: transparent; border-radius: 12px;
+    color: var(--hub-ink-dim); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    transition: color 0.15s, background 0.15s;
+    position: relative;
+}
+body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
+.bt-hub0-navbtn .gi { font-size: 19px; line-height: 1; }
+.bt-hub0-navbtn small { font-size: 9px; font-weight: 800; letter-spacing: 0.3px; }
+.bt-hub0-navbtn:hover { color: var(--hub-ink); background: rgba(255, 255, 255, 0.04); }
+.bt-hub0-navbtn.is-active {
+    color: var(--hub-accent); background: rgba(241, 196, 15, 0.12);
+    border-color: rgba(241, 196, 15, 0.35);
+}
+
+/* ---------- MAIN CONTENT ---------- */
+.bt-hub0-main {
+    grid-area: main;
+    position: relative;
+    overflow-y: auto;
+    padding: 14px;
+    z-index: 1;
+}
+.bt-hub0-sectitle {
+    font-family: var(--font-display, 'Titan One', cursive);
+    font-size: 17px; margin: 2px 0 12px; display: flex; align-items: center; gap: 8px;
+}
+.bt-hub0-placeholder {
+    border: 1px dashed var(--hub-line); border-radius: var(--radius-md, 12px);
+    padding: 22px 16px; text-align: center; color: var(--hub-ink-faint);
+    font-size: 12px; font-weight: 600; background: rgba(0, 0, 0, 0.15);
+}
+.bt-hub0-play {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 18px;
+    color: #1a2530; background: var(--hub-accent); border: 0;
+    border-radius: 14px; padding: 12px 28px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(241, 196, 15, 0.35); min-height: 48px;
+    transition: transform 0.12s;
+}
+.bt-hub0-play:active { transform: translateY(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+    .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play { transition: none; }
+}

@@ -32,6 +32,7 @@ import { SettingsScreen } from './SettingsScreen';
 import { ProfileEditScreen } from './ProfileEditScreen';
 import { HowToPlayScreen } from './HowToPlayScreen';
 import { LeaderboardScreen } from './LeaderboardScreen';
+import { HubShell } from './hub/HubShell'; // HUB-0 (nowy hub za flaga ?hub=1)
 import { sessionService, type LastSession } from '../services/SessionService';
 import { ProfileService } from '../services/ProfileService';
 import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/GameConfig';
@@ -47,12 +48,19 @@ export type ScreenId =
     | 'intro'
     | 'identity'
     | 'hub'
+    | 'hub0'         // HUB-0 — nowy Menu Hub „COMMAND DECK” (za flaga ?hub=1)
     | 'scenarioPicker'
     | 'brawlerPicker'
     | 'settings'
     | 'profileEdit'
     | 'howToPlay'
     | 'leaderboard';
+
+/**
+ * HUB-0 feature flag (opt-in ?hub=1). Domyslnie OFF => produkcja uzywa starego 'hub'.
+ * Wzorzec END_V2_ENABLED (main.ts). Nowy hub niegotowy do HUB-8, wiec default stary.
+ */
+const HUB_V2_ENABLED: boolean = new URLSearchParams(location.search).has('hub');
 
 export interface IScreen {
     mount(root: HTMLElement): void;
@@ -195,6 +203,8 @@ export class MainMenu {
                 return this.createIdentityScreen();
             case 'hub':
                 return this.createMainHub();
+            case 'hub0':
+                return this.createHub0Screen();
             case 'scenarioPicker':
                 return this.createScenarioPicker();
             case 'brawlerPicker':
@@ -222,7 +232,7 @@ export class MainMenu {
             if (ProfileService.needsOnboarding()) {
                 this.show('identity');
             } else {
-                this.show('hub');
+                this.show(this.hubId());
             }
         };
         return screen;
@@ -231,7 +241,7 @@ export class MainMenu {
     private createIdentityScreen(): IScreen {
         const screen = new IdentityScreen({
             onProfileCreated: () => {
-                this.show('hub');
+                this.show(this.hubId());
             },
         });
         return screen;
@@ -280,7 +290,7 @@ export class MainMenu {
         picker.selectedMap = this.lastMapSelection;
 
         picker.onBack = () => {
-            this.show('hub');
+            this.show(this.hubId());
         };
 
         picker.onNext = (scenario, map) => {
@@ -343,7 +353,7 @@ export class MainMenu {
     private createSettingsScreen(): IScreen {
         const screen = new SettingsScreen();
         screen.onBack = () => {
-            this.show('hub');
+            this.show(this.hubId());
         };
         // Direct navigation — eliminuje external callback chain.
         screen.onEditProfileClick = () => {
@@ -355,21 +365,40 @@ export class MainMenu {
 
     private createHowToPlayScreen(): IScreen {
         const screen = new HowToPlayScreen();
-        screen.onBack = () => this.show('hub');
+        screen.onBack = () => this.show(this.hubId());
         screen.onReplayTutorial = () => this.onHowToPlayRequested?.(); // istniejacy replay samouczka
         return screen;
     }
 
     private createLeaderboardScreen(): IScreen {
         const screen = new LeaderboardScreen();
-        screen.onBack = () => this.show('hub');
+        screen.onBack = () => this.show(this.hubId());
         return screen;
+    }
+
+    /** HUB-0 — nowy Menu Hub. Nav wewnetrzna przez this.show(); GRAJ → scenarioPicker (HUB-1 doda wlasny flow). */
+    private createHub0Screen(): IScreen {
+        const screen = new HubShell();
+        screen.onOpenSettings = () => this.show('settings');
+        screen.onOpenProfile = () => this.show('profileEdit');
+        screen.onPlay = () => this.show('scenarioPicker');
+        return screen;
+    }
+
+    /** Ktory hub pokazac wg flagi (HUB-0 opt-in ?hub=1). Domyslnie stary 'hub'. */
+    private hubId(): ScreenId {
+        return HUB_V2_ENABLED ? 'hub0' : 'hub';
+    }
+
+    /** Publiczne wejscie do hubu (respektuje flage). Uzywane przez main.ts (powrot z meczu). */
+    showHub(): void {
+        void this.show(this.hubId());
     }
 
     private createProfileEditScreen(): IScreen {
         const screen = new ProfileEditScreen();
         screen.onBack = () => {
-            this.show('hub');
+            this.show(this.hubId());
         };
         return screen;
     }

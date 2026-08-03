@@ -154,6 +154,12 @@ export const pl = {
     'hub.trophyLabel': 'TROFEA',
     'hub.trophyNext': 'jeszcze {n} 🏆 do nagrody',
     'hub.trophyMax': 'Wszystkie nagrody zdobyte! 🏆',
+    // HUB-0 — nawigacja Menu Hub (rail/dock)
+    'hub.nav.battle': 'BITWA',
+    'hub.nav.garage': 'GARAŻ',
+    'hub.nav.quests': 'ROZKAZY',
+    'hub.nav.trophies': 'TROFEA',
+    'hub.nav.rank': 'RANKING',
 
     // ============================================================
     // Scenario Picker (Ekran 1)

@@ -145,6 +145,12 @@ export const en: typeof pl = {
     'hub.trophyLabel': 'TROPHIES',
     'hub.trophyNext': '{n} 🏆 to next reward',
     'hub.trophyMax': 'All rewards unlocked! 🏆',
+    // HUB-0 — Menu Hub navigation (rail/dock)
+    'hub.nav.battle': 'BATTLE',
+    'hub.nav.garage': 'GARAGE',
+    'hub.nav.quests': 'ORDERS',
+    'hub.nav.trophies': 'TROPHIES',
+    'hub.nav.rank': 'RANKING',
 
     // ============================================================
     // Scenario Picker

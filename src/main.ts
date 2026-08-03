@@ -913,7 +913,7 @@ function returnToMenuFromEnd(): void {
     audio.startHubMusic();
 
     menu.reshow();
-    menu.show('hub');
+    menu.showHub(); // HUB-0: respektuje flage ?hub=1 (domyslnie stary 'hub')
 }
 
 document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);

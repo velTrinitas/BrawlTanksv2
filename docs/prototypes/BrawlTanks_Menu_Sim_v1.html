@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brawl Tanks S2 — Symulacja Menu (MAKIETA)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   BRAWL TANKS S2 — MENU SIMULATION (mockup, not production)
+   Direction: "COMMAND DECK" — tactical console meets arcade juice
+   All-CSS art (mirrors game's all-programmatic constraint)
+   ============================================================ */
+:root{
+  --steel-950:#0d141b; --steel-900:#1a252f; --steel-850:#1f2c39;
+  --steel-800:#243545; --steel-700:#31465a; --steel-600:#43607a;
+  --plasma:#37e0d6;  --plasma-dim:#1c8f89;
+  --gold:#ffc93c;    --gold-deep:#e0a316;
+  --hazard:#ff5b39;  --go:#4ade80; --trophy:#ffd24a;
+  --ink:#eef5fa; --ink-dim:#8ba3b6; --ink-faint:#5d7284;
+  --line:rgba(255,255,255,.07);
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, #1c2f3e 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 120%, #12232e 0%, transparent 55%),
+    var(--steel-950);
+  color:var(--ink);
+  display:flex; flex-direction:column; align-items:center;
+  padding:14px; gap:12px; min-height:100%;
+  -webkit-font-smoothing:antialiased;
+}
+.disp{font-family:'Titan One',cursive;letter-spacing:.3px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- device toolbar ---------- */
+.toolbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+  background:var(--steel-900);border:1px solid var(--line);border-radius:100px;
+  padding:7px 8px 7px 16px;box-shadow:var(--shadow)
+}
+.toolbar .brand{font-family:'Titan One',cursive;font-size:15px;color:var(--plasma);letter-spacing:.5px}
+.toolbar .brand b{color:var(--gold)}
+.toolbar .tag{font-size:10px;color:var(--ink-faint);border:1px dashed var(--ink-faint);border-radius:6px;padding:2px 6px;text-transform:uppercase;letter-spacing:1px}
+.seg{display:flex;background:var(--steel-800);border-radius:100px;padding:3px;gap:2px}
+.seg button{
+  border:0;background:transparent;color:var(--ink-dim);font-family:'Inter';font-weight:700;
+  font-size:12px;padding:7px 14px;border-radius:100px;cursor:pointer;transition:.18s
+}
+.seg button.on{background:var(--plasma);color:#062a28;box-shadow:0 3px 10px rgba(55,224,214,.35)}
+.seg button:focus-visible{outline:2px solid var(--plasma);outline-offset:2px}
+
+/* ---------- stage + frame ---------- */
+.stage{display:flex;justify-content:center;width:100%}
+.frame{
+  position:relative;background:var(--steel-900);overflow:hidden;
+  border:1px solid var(--line);box-shadow:var(--shadow),0 0 0 8px #05090d;
+  display:grid;
+}
+/* DESKTOP */
+.frame[data-device="desktop"]{
+  width:min(1180px,96vw); aspect-ratio:16/10; border-radius:18px;
+  grid-template-columns:82px 1fr; grid-template-rows:64px 1fr;
+  grid-template-areas:"top top" "rail main";
+}
+/* MOBILE (landscape phone) */
+.frame[data-device="mobile"]{
+  width:min(860px,96vw); aspect-ratio:2.16/1; border-radius:34px;
+  grid-template-columns:1fr; grid-template-rows:52px 1fr 60px;
+  grid-template-areas:"top" "main" "dock";
+  box-shadow:var(--shadow),0 0 0 10px #05090d,0 0 0 12px #1a2732;
+}
+
+/* backdrop pattern inside frame */
+.frame::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;z-index:0;
+  background:
+    radial-gradient(700px 340px at 15% 0%, rgba(55,224,214,.10), transparent 60%),
+    radial-gradient(600px 300px at 100% 100%, rgba(255,201,60,.07), transparent 55%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(255,255,255,.015) 39px 40px);
+}
+
+/* ---------- TOP READOUT STRIP ---------- */
+.top{grid-area:top;z-index:5;display:flex;align-items:center;gap:10px;padding:0 12px;
+  background:linear-gradient(180deg,var(--steel-850),var(--steel-900));
+  border-bottom:1px solid var(--line);position:relative}
+.top::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--plasma-dim),transparent);opacity:.6}
+.profile{display:flex;align-items:center;gap:9px;cursor:pointer;border:0;background:transparent;color:inherit;padding:4px 8px;border-radius:12px;transition:.15s}
+.profile:hover{background:rgba(255,255,255,.05)}
+.profile:focus-visible{outline:2px solid var(--plasma);outline-offset:1px}
+.avatar{width:36px;height:36px;border-radius:11px;flex:0 0 auto;position:relative;
+  background:conic-gradient(from 200deg,#3aa2ff,#37e0d6,#7ef0a8,#3aa2ff);
+  display:grid;place-items:center;font-size:18px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.15)}
+.avatar .lv{position:absolute;bottom:-6px;right:-6px;background:var(--gold);color:#3a2a00;
+  font-family:'Titan One';font-size:10px;padding:1px 5px;border-radius:8px;border:2px solid var(--steel-900)}
+.pname{display:flex;flex-direction:column;line-height:1.05}
+.pname b{font-family:'Titan One';font-size:14px}
+.pname .xp{width:96px;height:5px;border-radius:4px;background:var(--steel-700);margin-top:4px;overflow:hidden}
+.pname .xp i{display:block;height:100%;width:64%;background:linear-gradient(90deg,var(--plasma),#7ef0a8)}
+.top .spacer{flex:1}
+.wallet{display:flex;gap:7px}
+.coin{display:flex;align-items:center;gap:6px;background:var(--steel-800);border:1px solid var(--line);
+  border-radius:100px;padding:5px 11px 5px 8px;font-weight:800;font-size:13px}
+.coin .ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px}
+.coin.tr .ic{background:radial-gradient(circle at 35% 30%,#ffe58a,#e0a316)}
+.coin.sc .ic{background:radial-gradient(circle at 35% 30%,#9fb6c6,#5d7284)}
+.coin.ky .ic{background:radial-gradient(circle at 35% 30%,#ffd24a,#b8791a)}
+.coin .plus{width:16px;height:16px;border-radius:50%;background:var(--plasma);color:#052a28;font-weight:900;font-size:12px;display:grid;place-items:center;margin-left:2px}
+.gear{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--steel-800);
+  color:var(--ink-dim);font-size:17px;cursor:pointer;display:grid;place-items:center;transition:.15s}
+.gear:hover{color:var(--plasma);transform:rotate(35deg)}
+.gear:focus-visible{outline:2px solid var(--plasma);outline-offset:1px}
+
+/* season chip (S2) — signature hazard tab */
+.s2tab{position:relative;font-family:'Titan One';font-size:12px;color:#2a2100;padding:5px 10px;border-radius:9px;
+  background:repeating-linear-gradient(45deg,var(--gold) 0 8px,#141414 8px 16px);
+  box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.s2tab span{background:var(--gold);padding:1px 5px;border-radius:5px}
+
+/* ---------- LEFT RAIL (desktop) ---------- */
+.rail{grid-area:rail;z-index:5;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0;
+  background:linear-gradient(180deg,var(--steel-850),var(--steel-900));border-right:1px solid var(--line)}
+.frame[data-device="mobile"] .rail{display:none}
+.railbtn{width:58px;height:56px;border:1px solid transparent;background:transparent;border-radius:14px;
+  color:var(--ink-dim);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:.16s;position:relative}
+.railbtn .gi{font-size:20px}
+.railbtn small{font-size:9px;font-weight:800;letter-spacing:.4px}
+.railbtn:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.railbtn.on{color:var(--plasma);background:rgba(55,224,214,.10);border-color:rgba(55,224,214,.3)}
+.railbtn.on::before{content:"";position:absolute;left:-1px;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--plasma);box-shadow:0 0 10px var(--plasma)}
+.railbtn:focus-visible{outline:2px solid var(--plasma);outline-offset:1px}
+.rail .grow{flex:1}
+
+/* ---------- MAIN CONTENT ---------- */
+.main{grid-area:main;z-index:2;position:relative;overflow:hidden}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding:14px;scrollbar-width:thin;scrollbar-color:var(--steel-600) transparent}
+.scroll::-webkit-scrollbar{width:7px}
+.scroll::-webkit-scrollbar-thumb{background:var(--steel-600);border-radius:4px}
+.panel{display:none;animation:rise .32s cubic-bezier(.2,.7,.3,1)}
+.panel.on{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+h2.sec{font-family:'Titan One';font-size:17px;margin:2px 0 12px;display:flex;align-items:center;gap:8px}
+h2.sec .chip{font-family:'Inter';font-weight:800;font-size:11px;color:var(--ink-faint);border:1px solid var(--line);padding:3px 8px;border-radius:100px}
+
+/* ===== BITWA (home) ===== */
+.seasonbar{position:relative;border-radius:var(--r);overflow:hidden;margin-bottom:14px;
+  background:linear-gradient(110deg,#123a4d,#0e2634 60%,#1a2f22);border:1px solid var(--line);padding:14px 16px;
+  display:flex;align-items:center;gap:14px}
+.seasonbar::before{content:"";position:absolute;inset:0;opacity:.25;
+  background:radial-gradient(300px 200px at 90% -30%,var(--plasma),transparent 60%)}
+.seasonbar .art{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;font-size:30px;flex:0 0 auto;z-index:1;
+  background:linear-gradient(160deg,#1e5866,#0c2b34);box-shadow:inset 0 0 0 2px rgba(255,255,255,.08)}
+.seasonbar .info{z-index:1;flex:1;min-width:0}
+.seasonbar .info .eyebrow{font-size:10px;letter-spacing:2px;color:var(--plasma);font-weight:800;text-transform:uppercase}
+.seasonbar .info h3{font-family:'Titan One';font-size:18px;line-height:1;margin:3px 0 8px}
+.stbar{height:8px;border-radius:6px;background:rgba(0,0,0,.35);overflow:hidden}
+.stbar i{display:block;height:100%;width:42%;background:linear-gradient(90deg,var(--gold),#ffe58a)}
+.seasonbar .cd{z-index:1;text-align:center;flex:0 0 auto;background:rgba(0,0,0,.3);border-radius:12px;padding:8px 12px}
+.seasonbar .cd b{font-family:'Titan One';font-size:16px;color:var(--gold);display:block}
+.seasonbar .cd small{font-size:9px;color:var(--ink-dim);letter-spacing:1px;text-transform:uppercase}
+
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.frame[data-device="mobile"] .modes{grid-template-columns:repeat(4,1fr);gap:8px}
+.mode{border:1px solid var(--line);border-radius:var(--r);padding:12px 10px;cursor:pointer;background:var(--steel-850);
+  transition:.16s;text-align:left;position:relative;overflow:hidden}
+.mode:hover{transform:translateY(-2px);border-color:var(--plasma-dim)}
+.mode.on{border-color:var(--plasma);background:linear-gradient(160deg,rgba(55,224,214,.14),var(--steel-850));
+  box-shadow:0 6px 18px rgba(55,224,214,.15)}
+.mode.on::after{content:"✓";position:absolute;top:8px;right:10px;color:var(--plasma);font-weight:900;font-size:13px}
+.mode .em{font-size:22px}
+.mode b{display:block;font-family:'Titan One';font-size:13px;margin-top:6px}
+.mode small{color:var(--ink-dim);font-size:10px}
+.mode.locked{opacity:.5;cursor:not-allowed}
+.mode.locked b::after{content:" 🔒"}
+
+.mapchips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}
+.mapchip{border:1px solid var(--line);background:var(--steel-800);border-radius:100px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--ink-dim);cursor:pointer;transition:.14s}
+.mapchip:hover{color:var(--ink)}
+.mapchip.on{background:var(--plasma);color:#052a28;border-color:var(--plasma)}
+
+.playrow{display:flex;align-items:center;gap:14px}
+.crazy{display:flex;align-items:center;gap:9px;background:var(--steel-850);border:1px solid var(--line);border-radius:14px;padding:11px 13px;flex:0 0 auto}
+.crazy .lbl{font-size:11px;font-weight:800;line-height:1.1}
+.crazy .lbl small{display:block;color:var(--ink-faint);font-weight:600;font-size:9px}
+.tgl{width:46px;height:26px;border-radius:100px;background:var(--steel-700);position:relative;cursor:pointer;border:0;transition:.2s;flex:0 0 auto}
+.tgl i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--ink);transition:.2s}
+.tgl.on{background:linear-gradient(90deg,#a855f7,#ec4899)}
+.tgl.on i{left:23px;background:#fff}
+.tgl:focus-visible{outline:2px solid var(--plasma);outline-offset:2px}
+
+.playbtn{flex:1;position:relative;border:0;cursor:pointer;border-radius:16px;color:#052a28;
+  font-family:'Titan One';font-size:24px;letter-spacing:1px;padding:16px;
+  background:linear-gradient(180deg,#5cf0e6,#25c5bb);
+  box-shadow:0 8px 0 var(--plasma-dim),0 12px 24px rgba(55,224,214,.4);
+  transition:transform .1s, box-shadow .1s;overflow:hidden}
+.playbtn::before{content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(45deg,transparent 0 14px,rgba(0,0,0,.06) 14px 28px)}
+.playbtn:active{transform:translateY(6px);box-shadow:0 2px 0 var(--plasma-dim),0 4px 12px rgba(55,224,214,.4)}
+.playbtn:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.playbtn small{display:block;font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.5px;opacity:.75;margin-top:2px}
+
+/* ===== GARAŻ ===== */
+.garwrap{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+.frame[data-device="mobile"] .garwrap{grid-template-columns:1fr 1fr}
+.hero{border:1px solid var(--line);border-radius:var(--r);padding:16px;background:
+  radial-gradient(240px 200px at 50% 20%,rgba(55,224,214,.14),transparent 60%),var(--steel-850);text-align:center;position:relative}
+.hero .tank{font-size:74px;line-height:1;filter:drop-shadow(0 8px 12px rgba(0,0,0,.5));animation:bob 3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-7px)}}
+.hero h3{font-family:'Titan One';font-size:20px;margin-top:4px}
+.hero .role{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:1.5px;font-weight:700}
+.rank{margin-top:12px;text-align:left}
+.rank .rt{display:flex;justify-content:space-between;font-size:11px;font-weight:800;margin-bottom:5px}
+.rank .rt small{color:var(--ink-faint);font-weight:600}
+.mbar{height:9px;border-radius:6px;background:var(--steel-700);overflow:hidden}
+.mbar i{display:block;height:100%;width:70%;background:linear-gradient(90deg,var(--gold),#ffe58a)}
+.rank .note{font-size:9px;color:var(--ink-faint);margin-top:5px}
+
+.selector{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+.selector::-webkit-scrollbar{display:none}
+.bcard{flex:0 0 auto;width:64px;height:64px;border-radius:14px;border:1px solid var(--line);background:var(--steel-800);
+  font-size:30px;display:grid;place-items:center;cursor:pointer;transition:.15s;position:relative}
+.bcard:hover{transform:translateY(-2px)}
+.bcard.on{border-color:var(--plasma);box-shadow:0 0 0 2px rgba(55,224,214,.4);background:rgba(55,224,214,.1)}
+.bcard.lock{opacity:.4}
+.bcard.lock::after{content:"🔒";position:absolute;font-size:15px}
+.bcard .m{position:absolute;bottom:-4px;right:-4px;background:var(--gold);color:#3a2a00;font-family:'Titan One';font-size:8px;padding:1px 4px;border-radius:6px;border:2px solid var(--steel-900)}
+
+.garpanel{display:flex;flex-direction:column;gap:12px}
+.sub{font-family:'Titan One';font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.loadout{display:flex;gap:10px}
+.slot{flex:1;aspect-ratio:1;border:2px dashed var(--steel-600);border-radius:16px;background:var(--steel-850);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:.15s;position:relative}
+.slot:hover{border-color:var(--plasma)}
+.slot.filled{border-style:solid;border-color:var(--plasma-dim);background:radial-gradient(circle at 50% 30%,rgba(55,224,214,.16),var(--steel-850))}
+.slot .em{font-size:30px}
+.slot .nm{font-size:10px;font-weight:800}
+.slot .empty{font-size:11px;color:var(--ink-faint);font-weight:700}
+.slot.mystery{border-color:#a855f7;background:radial-gradient(circle at 50% 30%,rgba(168,85,247,.2),var(--steel-850))}
+.slot .tag3{position:absolute;top:5px;left:6px;font-size:8px;font-weight:800;color:#e9b3ff;background:rgba(168,85,247,.25);padding:1px 5px;border-radius:5px}
+
+.skins{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.skins::-webkit-scrollbar{display:none}
+.skin{flex:0 0 auto;width:70px;border:1px solid var(--line);border-radius:12px;padding:8px 6px;text-align:center;background:var(--steel-800);cursor:pointer;transition:.15s;position:relative}
+.skin:hover{transform:translateY(-2px)}
+.skin.on{border-color:var(--plasma)}
+.skin .em{font-size:26px}
+.skin .pr{font-size:9px;font-weight:800;margin-top:4px;color:var(--gold)}
+.skin.owned .pr{color:var(--go)}
+.skin.lock .em{filter:grayscale(1) brightness(.6)}
+
+.crate{border:1px solid var(--line);border-radius:var(--r);padding:14px;background:
+  radial-gradient(200px 160px at 80% 0%,rgba(255,201,60,.14),transparent 60%),var(--steel-850);
+  display:flex;align-items:center;gap:14px}
+.crate .box{font-size:44px;animation:wobble 2.4s ease-in-out infinite;flex:0 0 auto}
+@keyframes wobble{25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}
+.crate .ct{flex:1}
+.crate .ct b{font-family:'Titan One';font-size:14px}
+.crate .ct .pity{font-size:10px;color:var(--ink-dim);margin-top:3px}
+.crate .ct .pity b{color:var(--plasma);font-family:'Inter'}
+.pill-btn{border:0;border-radius:12px;padding:11px 16px;font-family:'Titan One';font-size:13px;cursor:pointer;
+  background:linear-gradient(180deg,var(--gold),var(--gold-deep));color:#3a2a00;box-shadow:0 4px 0 #9c6f0f;transition:.1s}
+.pill-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #9c6f0f}
+.pill-btn:disabled{filter:grayscale(.6) brightness(.7);cursor:not-allowed;box-shadow:none}
+.pill-btn:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.pill-btn.ghost{background:var(--steel-800);color:var(--ink);box-shadow:0 4px 0 #10171e;border:1px solid var(--line)}
+.pill-btn.ghost:active{box-shadow:0 1px 0 #10171e}
+
+/* ===== ROZKAZY (quests) ===== */
+.general{display:flex;align-items:center;gap:12px;background:linear-gradient(110deg,#2a1f3d,#1a2532);
+  border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
+.general .face{font-size:36px}
+.general .txt b{font-family:'Titan One';font-size:15px}
+.general .txt p{font-size:11px;color:var(--ink-dim);margin-top:2px}
+.qgroup{margin-bottom:16px}
+.qhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.qhead b{font-family:'Titan One';font-size:13px}
+.qhead .reset{font-size:10px;color:var(--ink-faint)}
+.quest{display:flex;align-items:center;gap:12px;background:var(--steel-850);border:1px solid var(--line);
+  border-radius:12px;padding:11px 13px;margin-bottom:8px;transition:.2s}
+.quest.claimed{opacity:.5}
+.quest .qi{font-size:22px;flex:0 0 auto}
+.quest .qb{flex:1;min-width:0}
+.quest .qb .qn{font-size:12px;font-weight:800}
+.quest .qb .qp{height:7px;border-radius:5px;background:var(--steel-700);margin-top:6px;overflow:hidden}
+.quest .qb .qp i{display:block;height:100%;background:linear-gradient(90deg,var(--plasma),#7ef0a8);transition:width .8s cubic-bezier(.2,.7,.3,1)}
+.quest .qb .qv{font-size:10px;color:var(--ink-dim);margin-top:3px;font-weight:700}
+.quest .rew{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+.rewtag{display:flex;align-items:center;gap:4px;background:var(--steel-800);border:1px solid var(--line);border-radius:100px;padding:4px 9px;font-size:11px;font-weight:800}
+.claimbtn{border:0;border-radius:10px;padding:9px 13px;font-family:'Titan One';font-size:11px;cursor:pointer;
+  background:linear-gradient(180deg,var(--go),#2fae5e);color:#04240f;box-shadow:0 3px 0 #1c7a3f;transition:.1s}
+.claimbtn:active{transform:translateY(3px);box-shadow:0 0 0}
+.claimbtn:disabled{background:var(--steel-700);color:var(--ink-faint);box-shadow:none;cursor:not-allowed}
+.claimbtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* ===== TROFEA (trophy road) ===== */
+.actrow{display:flex;gap:8px;margin-bottom:14px}
+.act{flex:1;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;background:var(--steel-850)}
+.act.cur{border-color:var(--gold);background:linear-gradient(160deg,rgba(255,201,60,.12),var(--steel-850))}
+.act b{font-family:'Titan One';font-size:12px;display:block}
+.act small{font-size:9px;color:var(--ink-dim)}
+.road{position:relative;padding:6px 2px 14px}
+.roadline{position:absolute;left:24px;right:24px;top:44px;height:5px;border-radius:4px;background:var(--steel-700)}
+.roadline i{display:block;height:100%;width:55%;background:linear-gradient(90deg,var(--gold),#ffe58a);border-radius:4px}
+.nodes{display:flex;gap:10px;overflow-x:auto;padding:6px 4px 10px;scrollbar-width:none;position:relative}
+.nodes::-webkit-scrollbar{display:none}
+.node{flex:0 0 auto;width:96px;text-align:center;position:relative}
+.node .rw{width:74px;height:74px;margin:0 auto;border-radius:16px;border:2px solid var(--steel-600);background:var(--steel-800);
+  display:grid;place-items:center;font-size:30px;position:relative;transition:.2s}
+.node.done .rw{border-color:var(--go);background:rgba(74,222,128,.12)}
+.node.done .rw::after{content:"✓";position:absolute;top:-8px;right:-8px;width:22px;height:22px;background:var(--go);color:#04240f;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:12px;border:2px solid var(--steel-900)}
+.node.ready .rw{border-color:var(--gold);box-shadow:0 0 0 4px rgba(255,201,60,.2);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px rgba(255,201,60,.05)}}
+.node.lock .rw{opacity:.5}
+.node .th{font-size:10px;font-weight:800;color:var(--gold);margin-top:8px}
+.node .lb{font-size:9px;color:var(--ink-dim);margin-top:2px}
+.node .claim{margin-top:6px;border:0;border-radius:8px;padding:5px 10px;font-family:'Titan One';font-size:9px;cursor:pointer;background:var(--gold);color:#3a2a00}
+.node .claim:disabled{visibility:hidden}
+
+/* ===== RANKING ===== */
+.lbmini{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--steel-850)}
+.lbrow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700}
+.lbrow:last-child{border-bottom:0}
+.lbrow .rk{width:26px;font-family:'Titan One';font-size:15px;text-align:center;color:var(--ink-dim)}
+.lbrow.g1 .rk{color:var(--gold)} .lbrow.g2 .rk{color:#cfd8df} .lbrow.g3 .rk{color:#d98a4a}
+.lbrow.g1{background:linear-gradient(90deg,rgba(255,201,60,.14),transparent)}
+.lbrow.g2{background:linear-gradient(90deg,rgba(200,200,200,.1),transparent)}
+.lbrow.g3{background:linear-gradient(90deg,rgba(210,120,60,.1),transparent)}
+.lbrow.me{background:linear-gradient(90deg,rgba(55,224,214,.16),transparent);border-top:1px solid var(--plasma-dim);border-bottom:1px solid var(--plasma-dim)}
+.lbrow .av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;background:var(--steel-700);flex:0 0 auto}
+.lbrow .nm{flex:1;font-size:13px}
+.lbrow .nm small{display:block;color:var(--ink-faint);font-size:9px;font-weight:600}
+.lbrow .sc{font-family:'Titan One';font-size:14px;color:var(--gold)}
+
+/* ---------- BOTTOM DOCK (mobile) ---------- */
+.dock{grid-area:dock;z-index:6;display:none;align-items:center;justify-content:space-around;padding:0 10px;
+  background:linear-gradient(180deg,var(--steel-850),var(--steel-950));border-top:1px solid var(--line);position:relative}
+.frame[data-device="mobile"] .dock{display:flex}
+.dock::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--plasma-dim),transparent)}
+.dockbtn{flex:1;border:0;background:transparent;color:var(--ink-faint);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;transition:.15s;position:relative}
+.dockbtn .gi{font-size:19px}
+.dockbtn small{font-size:8.5px;font-weight:800;letter-spacing:.3px}
+.dockbtn.on{color:var(--plasma)}
+.dockbtn.on .gi{filter:drop-shadow(0 0 6px var(--plasma))}
+.dockbtn:focus-visible{outline:2px solid var(--plasma);outline-offset:-2px;border-radius:8px}
+.dockbtn.center{flex:0 0 auto}
+.dockbtn.center .ring{width:56px;height:56px;margin-top:-22px;border-radius:50%;display:grid;place-items:center;
+  font-size:24px;color:#052a28;background:linear-gradient(180deg,#5cf0e6,#25c5bb);
+  box-shadow:0 6px 16px rgba(55,224,214,.5),inset 0 0 0 4px var(--steel-950);border:2px solid var(--steel-950)}
+.dockbtn.center small{color:var(--plasma);margin-top:1px}
+
+/* ---------- OVERLAYS ---------- */
+.overlay{position:absolute;inset:0;z-index:20;background:rgba(5,9,13,.72);backdrop-filter:blur(3px);
+  display:none;align-items:center;justify-content:center;padding:18px;animation:fade .2s}
+.overlay.on{display:flex}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{background:var(--steel-900);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);
+  width:min(560px,100%);max-height:100%;overflow:hidden;display:flex;flex-direction:column;animation:pop .25s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+.sheet .sh{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.sheet .sh b{font-family:'Titan One';font-size:16px}
+.sheet .sb{padding:16px;overflow-y:auto}
+.close{width:32px;height:32px;border-radius:10px;border:1px solid var(--line);background:var(--steel-800);color:var(--ink-dim);cursor:pointer;font-size:16px}
+.close:hover{color:var(--hazard)}
+.close:focus-visible{outline:2px solid var(--plasma);outline-offset:1px}
+
+/* stats grid */
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.frame[data-device="mobile"] .statgrid{grid-template-columns:repeat(4,1fr)}
+.stat{background:var(--steel-850);border:1px solid var(--line);border-radius:12px;padding:11px 8px;text-align:center}
+.stat .sv{font-family:'Titan One';font-size:17px;color:var(--plasma)}
+.stat .sl{font-size:9px;color:var(--ink-dim);margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+.divh{font-family:'Titan One';font-size:12px;color:var(--ink-dim);margin:16px 0 9px;letter-spacing:.5px}
+.perbraw{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+.perbraw::-webkit-scrollbar{display:none}
+.pbcard{flex:0 0 auto;width:96px;background:var(--steel-850);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.pbcard .em{font-size:26px}
+.pbcard .kn{font-family:'Titan One';font-size:12px;margin-top:3px}
+.pbcard .kv{font-size:10px;color:var(--ink-dim);margin-top:4px}
+.pbcard .kv b{color:var(--gold)}
+
+/* loadout picker */
+.tiertabs{display:flex;gap:6px;margin-bottom:12px}
+.tiertab{border:1px solid var(--line);background:var(--steel-800);border-radius:100px;padding:7px 13px;font-size:11px;font-weight:800;color:var(--ink-dim);cursor:pointer}
+.tiertab.on{background:var(--plasma);color:#052a28;border-color:var(--plasma)}
+.tiertab.t3.on{background:linear-gradient(90deg,#a855f7,#ec4899);color:#fff}
+.powgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px}
+.frame[data-device="mobile"] .powgrid{grid-template-columns:repeat(5,1fr)}
+.pow{border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center;background:var(--steel-850);cursor:pointer;transition:.14s;position:relative}
+.pow:hover{transform:translateY(-2px);border-color:var(--plasma)}
+.pow.lock{opacity:.45;cursor:not-allowed}
+.pow.lock::after{content:"🔒";position:absolute;top:6px;right:7px;font-size:11px}
+.pow .em{font-size:26px}
+.pow .pn{font-size:9px;font-weight:800;margin-top:4px;line-height:1.1}
+.pdesc{font-size:10px;color:var(--ink-faint);margin-bottom:10px}
+
+/* crate open overlay */
+.opening{text-align:center;padding:10px 4px}
+.opening .bigbox{font-size:96px;animation:shake .5s infinite}
+@keyframes shake{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-6px) rotate(-6deg)}75%{transform:translateX(6px) rotate(6deg)}}
+.opening .reveal{display:none}
+.opening.done .bigbox{display:none}
+.opening.done .reveal{display:block;animation:pop .4s cubic-bezier(.2,.9,.3,1.3)}
+.reveal .rem{font-size:80px;filter:drop-shadow(0 0 22px var(--gold))}
+.reveal .rtitle{font-family:'Titan One';font-size:22px;margin-top:6px}
+.reveal .rrare{display:inline-block;margin-top:6px;font-size:11px;font-weight:800;padding:4px 12px;border-radius:100px;text-transform:uppercase;letter-spacing:1px}
+.rare-c{background:rgba(140,160,180,.2);color:#c8d6df}
+.rare-r{background:rgba(55,224,214,.2);color:var(--plasma)}
+.rare-e{background:rgba(168,85,247,.25);color:#e9b3ff}
+.rare-l{background:rgba(255,201,60,.25);color:var(--gold)}
+
+.spark{position:absolute;width:8px;height:8px;border-radius:2px;pointer-events:none;opacity:0}
+
+/* toast */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--steel-800);border:1px solid var(--plasma-dim);border-radius:100px;padding:11px 20px;
+  font-weight:800;font-size:13px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:99;display:flex;align-items:center;gap:8px}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.hint{font-size:11px;color:var(--ink-faint);text-align:center;max-width:900px}
+.hint b{color:var(--ink-dim)}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.05ms !important}}
+</style>
+</head>
+<body>
+
+<div class="toolbar" role="toolbar" aria-label="Podgląd makiety">
+  <span class="brand">BRAWL <b>TANKS</b> · S2</span>
+  <span class="tag">Makieta menu</span>
+  <div class="seg" role="tablist" aria-label="Urządzenie">
+    <button id="dvDesktop" class="on" onclick="setDevice('desktop')">🖥️ Desktop</button>
+    <button id="dvMobile" onclick="setDevice('mobile')">📱 Telefon</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="frame" data-device="desktop" id="frame">
+
+    <!-- TOP READOUT -->
+    <header class="top">
+      <button class="profile" onclick="openStats()" aria-label="Profil i statystyki">
+        <span class="avatar">🎖️<span class="lv num">24</span></span>
+        <span class="pname"><b>KAPITAN_M</b><span class="xp"><i></i></span></span>
+      </button>
+      <span class="s2tab" title="Sezon 2"><span>S2</span></span>
+      <span class="spacer"></span>
+      <div class="wallet">
+        <span class="coin tr" title="Trofea — progresja, nie spadają"><span class="ic">🏆</span><span class="num" id="wTr">3 180</span></span>
+        <span class="coin sc" title="Złom — waluta kosmetyczna"><span class="ic">🔩</span><span class="num" id="wSc">1 240</span><span class="plus">+</span></span>
+        <span class="coin ky" title="Klucze — tylko zdobywane"><span class="ic">🔑</span><span class="num" id="wKy">3</span></span>
+      </div>
+      <button class="gear" onclick="toast('⚙️ Ustawienia — audio, język, Szalone Moce, reset samouczka')" aria-label="Ustawienia">⚙️</button>
+    </header>
+
+    <!-- LEFT RAIL (desktop) -->
+    <nav class="rail" aria-label="Nawigacja">
+      <button class="railbtn" data-tab="garage" onclick="go('garage')"><span class="gi">🔧</span><small>GARAŻ</small></button>
+      <button class="railbtn" data-tab="quests" onclick="go('quests')"><span class="gi">📋</span><small>ROZKAZY</small></button>
+      <button class="railbtn on" data-tab="battle" onclick="go('battle')"><span class="gi">⚔️</span><small>BITWA</small></button>
+      <button class="railbtn" data-tab="road" onclick="go('road')"><span class="gi">🏆</span><small>TROFEA</small></button>
+      <button class="railbtn" data-tab="rank" onclick="go('rank')"><span class="gi">🥇</span><small>RANKING</small></button>
+      <span class="grow"></span>
+    </nav>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div class="scroll">
+
+        <!-- ===== BITWA ===== -->
+        <section class="panel on" id="p-battle">
+          <div class="seasonbar">
+            <div class="art">❄️</div>
+            <div class="info">
+              <div class="eyebrow">Sezon 2 · Free Track</div>
+              <h3>ARKTYCZNA OFENSYWA</h3>
+              <div class="stbar"><i style="width:42%"></i></div>
+            </div>
+            <div class="cd"><b id="cdDays">18d</b><small>do końca</small></div>
+          </div>
+
+          <h2 class="sec">Wybierz tryb <span class="chip">4 dostępne</span></h2>
+          <div class="modes">
+            <button class="mode on" data-mode="ktb" onclick="pickMode(this)"><span class="em">💥</span><b>Kill the Boss</b><small>Przetrwaj i pokonaj bossa</small></button>
+            <button class="mode" data-mode="ctf" onclick="pickMode(this)"><span class="em">🚩</span><b>Flaga</b><small>Dostarcz flagę do bazy</small></button>
+            <button class="mode" data-mode="castle" onclick="pickMode(this)"><span class="em">🏰</span><b>Zamek</b><small>Obroń fortecę</small></button>
+            <button class="mode locked" data-mode="duel"><span class="em">⚔️</span><b>Pojedynek</b><small>Multiplayer — wkrótce</small></button>
+          </div>
+
+          <h2 class="sec">Mapa <span class="chip">Kill the Boss</span></h2>
+          <div class="mapchips" id="mapchips">
+            <button class="mapchip on" onclick="pickMap(this)">🌆 Miasto</button>
+            <button class="mapchip" onclick="pickMap(this)">🏜️ Pustynia</button>
+            <button class="mapchip" onclick="pickMap(this)">🌴 Tropiki</button>
+            <button class="mapchip" onclick="pickMap(this)">🏛️ Ruiny</button>
+            <button class="mapchip" onclick="pickMap(this)">❄️ Arktyka</button>
+          </div>
+
+          <div class="playrow">
+            <div class="crazy">
+              <div class="lbl">🎲 Szalone Moce<small>4. slot mystery</small></div>
+              <button class="tgl" id="crazyTgl" onclick="toggleCrazy()" aria-label="Szalone Moce" aria-pressed="false"><i></i></button>
+            </div>
+            <button class="playbtn" onclick="toast('▶️ Ładowanie meczu… (makieta)')">GRAJ<small>Kill the Boss · Miasto · loadout gotowy</small></button>
+          </div>
+        </section>
+
+        <!-- ===== GARAŻ ===== -->
+        <section class="panel" id="p-garage">
+          <h2 class="sec">Garaż <span class="chip">8 brawlerów</span></h2>
+          <div class="selector" id="bsel"></div>
+          <div class="garwrap" style="margin-top:12px">
+            <div class="hero">
+              <div class="tank" id="hTank">🛡️</div>
+              <h3 id="hName">Pancerz</h3>
+              <div class="role" id="hRole">Ciężki · Tank</div>
+              <div class="rank">
+                <div class="rt"><span>Ranga Załogi <small id="rLvl">Sierżant</small></span><span class="num" id="rXp">70%</span></div>
+                <div class="mbar"><i id="rBar" style="width:70%"></i></div>
+                <div class="note">Ranga = prestiż + skiny. Zero bonusów do statów (fair-play).</div>
+              </div>
+            </div>
+            <div class="garpanel">
+              <div>
+                <div class="sub">🎯 Loadout — 2 super-moce</div>
+                <div class="loadout" id="loadout">
+                  <button class="slot" onclick="openLoadout(0)"><span class="empty">+ Slot 1</span></button>
+                  <button class="slot" onclick="openLoadout(1)"><span class="empty">+ Slot 2</span></button>
+                  <button class="slot mystery" id="mysterySlot" style="display:none"><span class="tag3">SZALONE</span><span class="em">🎲</span><span class="nm">Mystery</span></button>
+                </div>
+              </div>
+              <div>
+                <div class="sub">🎨 Skiny <span style="font-size:10px;color:var(--ink-faint);font-weight:600">(za 🔩 Złom)</span></div>
+                <div class="skins">
+                  <div class="skin owned on"><div class="em">🛡️</div><div class="pr">Posiadane</div></div>
+                  <div class="skin"><div class="em">🟦</div><div class="pr">🔩 350</div></div>
+                  <div class="skin"><div class="em">🟥</div><div class="pr">🔩 350</div></div>
+                  <div class="skin lock"><div class="em">👑</div><div class="pr">Zrzut</div></div>
+                  <div class="skin lock"><div class="em">🌈</div><div class="pr">Sezon</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="crate" style="margin-top:14px">
+            <div class="box">📦</div>
+            <div class="ct">
+              <b>Zrzut Zaopatrzenia</b>
+              <div class="pity">Gwarantowany rzadki+ za: <b><span id="pityLeft">3</span> otwarcia</b> · Pula jawna 👁️</div>
+            </div>
+            <button class="pill-btn" id="crateBtn" onclick="openCrate()">🔑 Otwórz</button>
+          </div>
+        </section>
+
+        <!-- ===== ROZKAZY ===== -->
+        <section class="panel" id="p-quests">
+          <div class="general">
+            <div class="face">🎖️</div>
+            <div class="txt"><b>Generał Pancerz melduje:</b><p>„Rozkazy czekają, żołnierzu. Wykonaj je po nagrody sezonowe.”</p></div>
+          </div>
+
+          <div class="qgroup">
+            <div class="qhead"><b>📅 Rozkazy Dnia</b><span class="reset">reset za 8h 12m</span></div>
+            <div class="quest" data-q>
+              <span class="qi">💀</span>
+              <div class="qb"><div class="qn">Zniszcz 30 wrogów</div><div class="qp"><i style="width:80%"></i></div><div class="qv num">24 / 30</div></div>
+              <div class="rew"><span class="rewtag">🔩 120</span><button class="claimbtn" disabled>W toku</button></div>
+            </div>
+            <div class="quest" data-q>
+              <span class="qi">💎</span>
+              <div class="qb"><div class="qn">Zbierz 50 gemów</div><div class="qp"><i style="width:100%"></i></div><div class="qv num">50 / 50</div></div>
+              <div class="rew"><span class="rewtag">🔑 1</span><button class="claimbtn" onclick="claim(this,'🔑',1,'ky')">Odbierz</button></div>
+            </div>
+            <div class="quest" data-q>
+              <span class="qi">🎮</span>
+              <div class="qb"><div class="qn">Zagraj 3 mecze</div><div class="qp"><i style="width:33%"></i></div><div class="qv num">1 / 3</div></div>
+              <div class="rew"><span class="rewtag">🏆 15</span><button class="claimbtn" disabled>W toku</button></div>
+            </div>
+          </div>
+
+          <div class="qgroup">
+            <div class="qhead"><b>🗓️ Rozkaz Tygodnia</b><span class="reset">reset za 3d</span></div>
+            <div class="quest" data-q>
+              <span class="qi">👹</span>
+              <div class="qb"><div class="qn">Pokonaj 10 bossów</div><div class="qp"><i style="width:60%"></i></div><div class="qv num">6 / 10</div></div>
+              <div class="rew"><span class="rewtag">🔑 3</span><button class="claimbtn" disabled>W toku</button></div>
+            </div>
+          </div>
+
+          <div class="qgroup">
+            <div class="qhead"><b>🎯 Operacja Miesiąca</b><span class="reset">reset za 18d</span></div>
+            <div class="quest" data-q>
+              <span class="qi">🏆</span>
+              <div class="qb"><div class="qn">Zdobądź 1500 trofeów w sezonie</div><div class="qp"><i style="width:65%"></i></div><div class="qv num">980 / 1500</div></div>
+              <div class="rew"><span class="rewtag">🎨 Skin</span><button class="claimbtn" disabled>W toku</button></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== TROFEA (Trophy Road) ===== -->
+        <section class="panel" id="p-road">
+          <h2 class="sec">Trophy Road <span class="chip num" id="roadTr">🏆 3 180</span></h2>
+          <div class="actrow">
+            <div class="act"><b>Akt I</b><small>Dzień 1</small></div>
+            <div class="act cur"><b>Akt II</b><small>Dzień 7 · TERAZ</small></div>
+            <div class="act"><b>Akt III</b><small>Dzień 30</small></div>
+          </div>
+          <div class="road">
+            <div class="roadline"><i></i></div>
+            <div class="nodes" id="nodes"></div>
+          </div>
+        </section>
+
+        <!-- ===== RANKING ===== -->
+        <section class="panel" id="p-rank">
+          <h2 class="sec">Ranking <span class="chip">Kill the Boss · Wszech czasów</span></h2>
+          <div class="lbmini">
+            <div class="lbrow g1"><span class="rk">1</span><span class="av">🔥</span><span class="nm">DragonSlayer<small>🇵🇱 Polska</small></span><span class="sc num">98 400</span></div>
+            <div class="lbrow g2"><span class="rk">2</span><span class="av">⚡</span><span class="nm">TankMaster<small>🇩🇪 Niemcy</small></span><span class="sc num">91 200</span></div>
+            <div class="lbrow g3"><span class="rk">3</span><span class="av">💀</span><span class="nm">xX_Boom_Xx<small>🇺🇸 USA</small></span><span class="sc num">88 750</span></div>
+            <div class="lbrow"><span class="rk">4</span><span class="av">🎯</span><span class="nm">SnajperPL<small>🇵🇱 Polska</small></span><span class="sc num">84 100</span></div>
+            <div class="lbrow me"><span class="rk">17</span><span class="av">🎖️</span><span class="nm">KAPITAN_M (TY)<small>🇵🇱 Polska · ▲ awans!</small></span><span class="sc num">84 200</span></div>
+          </div>
+          <div style="text-align:center;margin-top:14px">
+            <button class="pill-btn ghost" onclick="toast('🏆 Otwieram pełny LeaderboardScreen (istniejący ekran DOM)')">Zobacz pełny ranking →</button>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- BOTTOM DOCK (mobile) -->
+    <nav class="dock" aria-label="Nawigacja">
+      <button class="dockbtn" data-tab="garage" onclick="go('garage')"><span class="gi">🔧</span><small>GARAŻ</small></button>
+      <button class="dockbtn" data-tab="quests" onclick="go('quests')"><span class="gi">📋</span><small>ROZKAZY</small></button>
+      <button class="dockbtn center" data-tab="battle" onclick="go('battle')"><span class="ring">⚔️</span><small>GRAJ</small></button>
+      <button class="dockbtn" data-tab="road" onclick="go('road')"><span class="gi">🏆</span><small>TROFEA</small></button>
+      <button class="dockbtn" data-tab="rank" onclick="go('rank')"><span class="gi">🥇</span><small>RANKING</small></button>
+    </nav>
+
+    <!-- OVERLAY: STATS -->
+    <div class="overlay" id="ovStats">
+      <div class="sheet">
+        <div class="sh"><b>📊 Twoje statystyki</b><button class="close" onclick="closeOv('ovStats')">✕</button></div>
+        <div class="sb">
+          <div class="statgrid">
+            <div class="stat"><div class="sv num">342</div><div class="sl">Mecze</div></div>
+            <div class="stat"><div class="sv num">55%</div><div class="sl">Win-rate</div></div>
+            <div class="stat"><div class="sv num">12 480</div><div class="sl">Zabójstwa</div></div>
+            <div class="stat"><div class="sv num">84 200</div><div class="sl">Rekord</div></div>
+            <div class="stat"><div class="sv num">210</div><div class="sl">Bossowie</div></div>
+            <div class="stat"><div class="sv num">41</div><div class="sl">Mega-bossy</div></div>
+            <div class="stat"><div class="sv num">9 310</div><div class="sl">Gemy</div></div>
+            <div class="stat"><div class="sv num">28h</div><div class="sl">Czas gry</div></div>
+          </div>
+          <div class="divh">🛠️ Per brawler</div>
+          <div class="perbraw">
+            <div class="pbcard"><div class="em">🎯</div><div class="kn">Zwiad</div><div class="kv">Ranga <b>12</b><br>W-rate <b>61%</b></div></div>
+            <div class="pbcard"><div class="em">🛡️</div><div class="kn">Pancerz</div><div class="kv">Ranga <b>9</b><br>W-rate <b>58%</b></div></div>
+            <div class="pbcard"><div class="em">⚡</div><div class="kn">Burza</div><div class="kv">Ranga <b>7</b><br>W-rate <b>52%</b></div></div>
+            <div class="pbcard"><div class="em">💪</div><div class="kn">Twardy</div><div class="kv">Ranga <b>5</b><br>W-rate <b>49%</b></div></div>
+            <div class="pbcard"><div class="em">👻</div><div class="kn">Widmo</div><div class="kv">Ranga <b>3</b><br>W-rate <b>44%</b></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERLAY: LOADOUT PICKER -->
+    <div class="overlay" id="ovLoad">
+      <div class="sheet">
+        <div class="sh"><b>🎯 Wybierz super-moc</b><button class="close" onclick="closeOv('ovLoad')">✕</button></div>
+        <div class="sb">
+          <div class="tiertabs">
+            <button class="tiertab on" data-tier="1" onclick="pickTier(this,1)">Tier 1 · Podstawa</button>
+            <button class="tiertab" data-tier="2" onclick="pickTier(this,2)">Tier 2 · Premium</button>
+            <button class="tiertab t3" data-tier="3" onclick="pickTier(this,3)">Tier 3 · Szalone</button>
+          </div>
+          <div class="pdesc" id="tierDesc">Odblokowywane na Trophy Road. Dostępne dla każdego.</div>
+          <div class="powgrid" id="powgrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERLAY: CRATE OPEN -->
+    <div class="overlay" id="ovCrate">
+      <div class="sheet" style="width:min(420px,100%)">
+        <div class="sh"><b>📦 Zrzut Zaopatrzenia</b><button class="close" onclick="closeOv('ovCrate')">✕</button></div>
+        <div class="sb">
+          <div class="opening" id="opening">
+            <div class="bigbox">📦</div>
+            <div class="reveal" id="reveal">
+              <div class="rem" id="revEm">🎨</div>
+              <div class="rtitle" id="revTitle">Skin: Neonowy Pancerz</div>
+              <div><span class="rrare rare-r" id="revRare">Rzadki</span></div>
+              <div style="margin-top:16px"><button class="pill-btn" onclick="closeOv('ovCrate')">Świetnie!</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="hint">Przełącz <b>🖥️ Desktop / 📱 Telefon</b> na górze. Klikaj: nawigacja, tryby, <b>GRAJ</b>, sloty loadoutu, <b>Otwórz</b> skrzynkę, awatar → statystyki, toggle <b>Szalone Moce</b>. Wszystko interaktywne (makieta, nie produkcja).</p>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- data ---------------- */
+const BRAWLERS = [
+  {em:'🛡️',name:'Pancerz',role:'Ciężki · Tank',rank:'Sierżant',xp:70,m:9},
+  {em:'🎯',name:'Zwiad',role:'Zwiadowca · Szybki',rank:'Kapitan',xp:88,m:12},
+  {em:'💪',name:'Twardy',role:'Bijca · Bruiser',rank:'Kapral',xp:40,m:5},
+  {em:'🔧',name:'Tech',role:'Inżynier · Support',rank:'Kapral',xp:55,m:6},
+  {em:'⚡',name:'Burza',role:'Artyleria · AoE',rank:'Sierżant',xp:62,m:7},
+  {em:'✨',name:'Iskra',role:'Berserk · DPS',rank:'Szeregowy',xp:22,m:2,lock:true},
+  {em:'🗿',name:'Kolos',role:'Kolos · Wall',rank:'Szeregowy',xp:12,m:1,lock:true},
+  {em:'👻',name:'Widmo',role:'Zwiad · Stealth',rank:'Kapral',xp:35,m:3},
+];
+const POWERS = {
+  1:[{em:'🌀',n:'Aura'},{em:'💣',n:'Mega Bomba'},{em:'❄️',n:'Zamrożenie'},{em:'🚀',n:'Turbo'},{em:'🔧',n:'Naprawa'},
+     {em:'🛡️',n:'Tarcza'},{em:'🧨',n:'Miny'},{em:'🎇',n:'Rakiety'},{em:'🧲',n:'Magnes'},{em:'🔫',n:'Salwa'}],
+  2:[{em:'✈️',n:'Nalot'},{em:'🕳️',n:'Czarna Dziura'},{em:'🔆',n:'Laser Orbit.'},{em:'🦾',n:'Tryb Tytana'}],
+  3:[{em:'🦆',n:'Giga Kaczka'},{em:'📦',n:'Paczkomat',lock:true},{em:'🪩',n:'Disco Szał',lock:true},
+     {em:'👵',n:'Wściekła Babcia'},{em:'💻',n:'Hakuj',lock:true},{em:'🗯️',n:'Mega Beknięcie'}],
+};
+const TIERDESC = {
+  1:'Odblokowywane na Trophy Road. Dostępne dla każdego.',
+  2:'Odblokowania sezonowe. Warianty tylko kosmetyczne — nigdy nie sprzedajemy mocy.',
+  3:'Eventy · Prima Aprilis · Operacja Miesiąca. Kolekcjonuj, żeby rosła pula 🎲.',
+};
+const NODES = [
+  {th:'🏆 500',em:'🔩',lb:'200 Złomu',st:'done'},
+  {th:'🏆 900',em:'🔑',lb:'Klucz',st:'done'},
+  {th:'🏆 1500',em:'🌀',lb:'Moc: Aura',st:'done'},
+  {th:'🏆 2200',em:'🎨',lb:'Skin',st:'done'},
+  {th:'🏆 3000',em:'📦',lb:'Zrzut ×3',st:'ready'},
+  {th:'🏆 4000',em:'👻',lb:'Brawler: Widmo',st:'lock'},
+  {th:'🏆 5500',em:'🦆',lb:'Szalona: Kaczka',st:'lock'},
+  {th:'🏆 7000',em:'👑',lb:'Skin Legenda',st:'lock'},
+];
+
+/* ---------------- state ---------------- */
+let state={tab:'battle',crazy:false,selBraw:0,pickSlot:0,tier:1,pity:7,scrap:1240,keys:3,trophies:3180,loadout:[null,null]};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+/* ---------------- device ---------------- */
+function setDevice(d){
+  $('#frame').dataset.device=d;
+  $('#dvDesktop').classList.toggle('on',d==='desktop');
+  $('#dvMobile').classList.toggle('on',d==='mobile');
+}
+
+/* ---------------- nav ---------------- */
+function go(tab){
+  state.tab=tab;
+  $$('.panel').forEach(p=>p.classList.remove('on'));
+  $('#p-'+tab).classList.add('on');
+  $$('.railbtn,.dockbtn').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  $('.scroll').scrollTop=0;
+}
+
+/* ---------------- battle ---------------- */
+function pickMode(el){ if(el.classList.contains('locked'))return;
+  $$('.mode').forEach(m=>m.classList.remove('on')); el.classList.add('on'); }
+function pickMap(el){ $$('.mapchip').forEach(m=>m.classList.remove('on')); el.classList.add('on'); }
+function toggleCrazy(){
+  state.crazy=!state.crazy;
+  const t=$('#crazyTgl'); t.classList.toggle('on',state.crazy); t.setAttribute('aria-pressed',state.crazy);
+  $('#mysterySlot').style.display=state.crazy?'flex':'none';
+  toast(state.crazy?'🎲 Szalone Moce: ON — dodano 4. slot mystery':'Szalone Moce: OFF');
+}
+
+/* ---------------- garage ---------------- */
+function buildSelector(){
+  const box=$('#bsel'); box.innerHTML='';
+  BRAWLERS.forEach((b,i)=>{
+    const el=document.createElement('button');
+    el.className='bcard'+(i===state.selBraw?' on':'')+(b.lock?' lock':'');
+    el.innerHTML=b.lock?b.em:b.em+'<span class="m">R'+b.m+'</span>';
+    el.onclick=()=>{ if(b.lock){toast('🔒 Odblokuj na Trophy Road');return;} selectBrawler(i); };
+    box.appendChild(el);
+  });
+}
+function selectBrawler(i){
+  state.selBraw=i; const b=BRAWLERS[i];
+  $('#hTank').textContent=b.em; $('#hName').textContent=b.name; $('#hRole').textContent=b.role;
+  $('#rLvl').textContent=b.rank; $('#rXp').textContent=b.xp+'%'; $('#rBar').style.width=b.xp+'%';
+  $$('.bcard').forEach((c,idx)=>c.classList.toggle('on',idx===i));
+}
+
+/* ---------------- loadout picker ---------------- */
+function openLoadout(slot){ state.pickSlot=slot; pickTier($('.tiertab'),1); openOv('ovLoad'); }
+function pickTier(el,t){
+  state.tier=t;
+  $$('.tiertab').forEach(x=>x.classList.remove('on')); el.classList.add('on');
+  $('#tierDesc').textContent=TIERDESC[t];
+  const g=$('#powgrid'); g.innerHTML='';
+  POWERS[t].forEach(p=>{
+    const el2=document.createElement('button');
+    el2.className='pow'+(p.lock?' lock':'');
+    el2.innerHTML='<div class="em">'+p.em+'</div><div class="pn">'+p.n+'</div>';
+    el2.onclick=()=>{ if(p.lock){toast('🔒 '+p.n+' — odblokuj w evencie / na Trophy Road');return;} assignPower(p); };
+    g.appendChild(el2);
+  });
+}
+function assignPower(p){
+  state.loadout[state.pickSlot]=p;
+  const slots=$$('#loadout .slot');
+  const s=slots[state.pickSlot];
+  s.classList.add('filled');
+  s.innerHTML='<span class="em">'+p.em+'</span><span class="nm">'+p.n+'</span>';
+  s.onclick=()=>openLoadout(state.pickSlot);
+  closeOv('ovLoad'); toast('✅ '+p.n+' w slocie '+(state.pickSlot+1));
+}
+
+/* ---------------- crate ---------------- */
+const POOL=[
+  {em:'🔩',t:'150 Złomu',r:'c',rare:'Zwykły'},
+  {em:'🔩',t:'300 Złomu',r:'c',rare:'Zwykły'},
+  {em:'🎨',t:'Skin: Neonowy Pancerz',r:'r',rare:'Rzadki'},
+  {em:'🌀',t:'Wariant mocy: Aura Plazma',r:'r',rare:'Rzadki'},
+  {em:'🦆',t:'Szalona Moc: Giga Kaczka',r:'e',rare:'Epicki'},
+  {em:'👑',t:'Skin Legenda: Złoty Kadłub',r:'l',rare:'Legendarny'},
+];
+function openCrate(){
+  if(state.keys<=0){ toast('🔑 Brak kluczy — zdobądź w Rozkazach lub na Trophy Road'); return; }
+  state.keys--; setWallet();
+  state.pity++;
+  // guaranteed rare+ at pity 10
+  let pick;
+  if(state.pity>=10){ pick=POOL[Math.floor(Math.random()*4)+2]; state.pity=0; }
+  else{ pick=POOL[Math.floor(Math.random()*POOL.length)]; }
+  $('#pityLeft').textContent=Math.max(0,10-state.pity);
+  const op=$('#opening'); op.classList.remove('done');
+  openOv('ovCrate');
+  setTimeout(()=>{
+    op.classList.add('done');
+    $('#revEm').textContent=pick.em;
+    $('#revTitle').textContent=pick.t;
+    const rr=$('#revRare'); rr.textContent=pick.rare;
+    rr.className='rrare rare-'+pick.r;
+    burst($('#reveal'));
+    if(pick.r==='c'){ state.scrap+=(pick.t.includes('300')?300:150); setWallet(); }
+  },1100);
+}
+
+/* ---------------- quests ---------------- */
+function claim(btn,em,amt,cur){
+  const q=btn.closest('.quest'); q.classList.add('claimed');
+  btn.textContent='Odebrano ✓'; btn.disabled=true;
+  if(cur==='ky'){state.keys+=amt;} else if(cur==='sc'){state.scrap+=amt;} else {state.trophies+=amt;}
+  setWallet(); burst(btn); toast('🎁 Odebrano: '+em+' '+amt);
+}
+
+/* ---------------- trophy road ---------------- */
+function buildRoad(){
+  const box=$('#nodes'); box.innerHTML='';
+  NODES.forEach((n,i)=>{
+    const el=document.createElement('div');
+    el.className='node '+n.st;
+    el.innerHTML='<div class="rw">'+n.em+'</div><div class="th">'+n.th+'</div><div class="lb">'+n.lb+'</div>'+
+      (n.st==='ready'?'<button class="claim" onclick="claimNode(this)">Odbierz</button>':'<button class="claim" disabled></button>');
+    box.appendChild(el);
+  });
+}
+function claimNode(btn){
+  const node=btn.closest('.node'); node.classList.remove('ready'); node.classList.add('done');
+  btn.remove(); state.keys+=3; setWallet(); burst(node); toast('🏆 Odebrano z Trophy Road: 📦 Zrzut ×3');
+}
+
+/* ---------------- stats ---------------- */
+function openStats(){ openOv('ovStats'); }
+
+/* ---------------- overlays ---------------- */
+function openOv(id){ $('#'+id).classList.add('on'); }
+function closeOv(id){ $('#'+id).classList.remove('on'); }
+$$('.overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o)o.classList.remove('on'); }));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape')$$('.overlay.on').forEach(o=>o.classList.remove('on')); });
+
+/* ---------------- wallet + counters ---------------- */
+function fmt(n){ return n.toLocaleString('pl-PL').replace(/,/g,' '); }
+function setWallet(){
+  $('#wTr').textContent=fmt(state.trophies);
+  $('#wSc').textContent=fmt(state.scrap);
+  $('#wKy').textContent=state.keys;
+  $('#roadTr').textContent='🏆 '+fmt(state.trophies);
+}
+function countUp(el,to){
+  let s=0,dur=800,t0=performance.now();
+  function tick(t){ let p=Math.min(1,(t-t0)/dur); el.textContent=fmt(Math.floor((s+(to-s)*(1-Math.pow(1-p,3))))); if(p<1)requestAnimationFrame(tick); }
+  requestAnimationFrame(tick);
+}
+
+/* ---------------- juice: spark burst ---------------- */
+function burst(anchor){
+  if(window.matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const frame=$('#frame'); const r=anchor.getBoundingClientRect(), fr=frame.getBoundingClientRect();
+  const cx=r.left-fr.left+r.width/2, cy=r.top-fr.top+r.height/2;
+  const cols=['#37e0d6','#ffc93c','#ff5b39','#7ef0a8','#a855f7'];
+  for(let i=0;i<14;i++){
+    const s=document.createElement('div'); s.className='spark';
+    s.style.left=cx+'px'; s.style.top=cy+'px'; s.style.background=cols[i%cols.length];
+    s.style.zIndex=30; frame.appendChild(s);
+    const a=Math.random()*Math.PI*2, d=40+Math.random()*70;
+    s.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},
+      {transform:`translate(${Math.cos(a)*d-4}px,${Math.sin(a)*d-4}px) scale(0)`,opacity:0}],
+      {duration:600+Math.random()*300,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=()=>s.remove();
+  }
+}
+
+/* ---------------- toast ---------------- */
+let toastT;
+function toast(msg){
+  const el=$('#toast'); el.textContent=msg; el.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),2200);
+}
+
+/* ---------------- season countdown ---------------- */
+const seasonEnd=Date.now()+ (18*24*3600 + 6*3600 + 42*60)*1000;
+function tickCd(){
+  let s=Math.max(0,Math.floor((seasonEnd-Date.now())/1000));
+  const d=Math.floor(s/86400); s%=86400; const h=Math.floor(s/3600); s%=3600; const m=Math.floor(s/60);
+  $('#cdDays').textContent = d>0? d+'d '+h+'h' : h+'h '+m+'m';
+}
+
+/* ---------------- init ---------------- */
+buildSelector(); selectBrawler(0); buildRoad(); setWallet();
+countUp($('#wTr'),state.trophies); countUp($('#wSc'),state.scrap);
+tickCd(); setInterval(tickCd,30000);
+</script>
+</body>
+</html>

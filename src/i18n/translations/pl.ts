@@ -216,6 +216,74 @@ export const pl = {
     'cosmetic.ti_legend': 'Legenda Areny',
 
     // ============================================================
+    // ROZKAZY (PROG-F3 / HUB-3) — skladnia: IKONA + CZASOWNIK + LICZNIK
+    // Forma "Czasownik rzecz: {n}" jest odporna na polska odmiane liczebnika
+    // (2 wrogow / 5 wrogow) i skanuje sie wzrokiem, a nie czyta zdaniem.
+    // ============================================================
+    'hub.quests.daily': 'ROZKAZY DNIA',
+    'hub.quests.weekly': 'ROZKAZY TYGODNIA',
+    'hub.quests.claim': 'ODBIERZ',
+    'hub.quests.claimed': 'ODEBRANE',
+    'hub.quests.setTitle': 'Komplet dnia',
+    'hub.quests.setDesc': 'Wykonaj wszystkie 3 rozkazy dnia',
+    'hub.quests.setReward': '+{bolts} 🔩 i skrzynka',
+    'hub.quests.locked': 'Rozkazy od {n} 🏆',
+    'hub.quests.lockedHint': 'Zdobywaj trofea w meczach — zostało {n} 🏆',
+    'hub.quests.resetDaily': 'Nowe rozkazy jutro',
+    'hub.quests.resetWeekly': 'Nowy zestaw w poniedziałek',
+    'hub.quests.general': 'Generał Pancerz',
+    'hub.quests.done': 'WYKONANO',
+
+    'quest.e_kill': 'Zniszcz wrogów: {n}',
+    'quest.e_gem': 'Zbierz gemy: {n}',
+    'quest.e_heart': 'Zbierz serca: {n}',
+    'quest.e_supershot': 'Odpal super strzały: {n}',
+    'quest.e_superpwr': 'Użyj super mocy: {n}',
+    'quest.e_seconds': 'Przetrwaj łącznie: {n} min',
+    'quest.e_match': 'Rozegraj mecze: {n}',
+
+    'quest.m_kill': 'Zniszcz wrogów: {n}',
+    'quest.m_boss': 'Pokonaj bossów: {n}',
+    'quest.m_magnet': 'Złap magnesy: {n}',
+    'quest.m_cube': 'Zbierz kostki mocy: {n}',
+    'quest.m_combo': 'Zrób combo ×{n}',
+    'quest.m_trophies': 'Zdobądź {n} trofeów w jednym meczu',
+    'quest.m_runtime': 'Przetrwaj {n} min w jednym meczu',
+    'quest.m_rungems': 'Zbierz {n} gemów w jednym meczu',
+
+    'quest.d_frozen': 'Zniszcz zamrożonych wrogów: {n}',
+    'quest.d_bomb': 'Zniszcz {n} wrogów jedną Mega Bombą',
+    'quest.d_ram': 'Staranuj wrogów: {n}',
+    'quest.d_stealth': 'Zniszcz wrogów ze strefy ukrycia: {n}',
+    'quest.d_medipad': 'Skorzystaj z pada leczącego: {n}',
+    'quest.d_flag': 'Zdobądź flagi w CTF: {n}',
+    'quest.d_trophies': 'Zdobądź dziś trofea: {n}',
+    'quest.d_map': 'Rozegraj mecz na mapie: {map}',
+
+    'quest.w_trophies': 'Zdobądź trofea w tym tygodniu: {n}',
+    'quest.w_maps': 'Zagraj na {n} różnych mapach',
+    'quest.s_perfect': 'Ukończ mecz bez utraty życia',
+    'quest.s_combo': 'Zrób combo ×{n}',
+    'quest.s_trophies': 'Zdobądź {n} trofeów w jednym meczu',
+
+    'quest.general.1': 'Rekrucie, te gemy same się nie zbiorą!',
+    'quest.general.2': 'Melduj się po nagrodę — ale najpierw robota.',
+    'quest.general.3': 'W moich czasach czołgi jeździły pod górkę. W obie strony.',
+    'quest.general.4': 'Rozkaz to rozkaz. Lizak dostaniesz później.',
+    'quest.general.5': 'Widziałem twój ostatni mecz. Może być lepiej!',
+    'quest.general.6': 'Nie stój, bo zardzewiejesz!',
+    'quest.general.7': 'Kto dziś zrobi wszystkie trzy, ten je ze mną obiad.',
+    'quest.general.8': 'Pancerz masz. Odwagę? Zaraz sprawdzimy.',
+    'quest.general.9': 'Trzy rozkazy. Jeden dzień. Zero wymówek.',
+    'quest.general.10': 'Śrubki nie rosną na drzewach, rekrucie.',
+    'quest.general.11': 'Uśmiech na twarz i marsz do czołgu!',
+    'quest.general.12': 'Generał Pancerz melduje: masz robotę.',
+
+    'hud.questDone': '✅ {name}',
+    'hud.questProgress': '📋 {name} — {cur}/{max}',
+    'end.questsDone': 'Rozkazy: {n}',
+
+    // ============================================================
     // Scenario Picker (Ekran 1)
     // ============================================================
     'picker.scenarioTitle': 'Wybierz scenariusz',

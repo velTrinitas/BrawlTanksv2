@@ -1,3 +1,9 @@
+// @ts-nocheck
+// ^ plik dziala w runtime DENO (Supabase Edge), nie w przegladarce.
+// tsconfig projektu ma include:["src"] i lib DOM, wiec edytor zglaszalby tu 4 falszywe
+// bledy: import z URL (esm.sh) + globalny `Deno` (serve/env). Zadnego z nich nie da sie
+// naprawic bez wciagania toolingu Deno do repo, a kod i tak jest typowany po stronie
+// Supabase przy deployu. Wylaczamy sprawdzanie TYLKO w tym pliku.
 // ══════════════════════════════════════════════════════════════════════════════
 // Edge Function: submit-score — Anti-cheat L2a (walidacja serwerowa + insert)
 // Brawl Tanks S2 · Supabase (Deno runtime)
@@ -17,8 +23,11 @@
 // KOLEJNOSC WDROZENIA (zeby nie zabic zywych submitow):
 //   1) deploy tej funkcji  2) push klienta (routing przez funkcje)  3) DOPIERO potem rls_lockdown_scores.sql
 //
-// L2b (pozniej): gdy submit zacznie niesc staty (kills/shots/game_seconds), dolozyc
-// tu kill-rate cap, score/time ratio, megaboss XOR survival>600s.
+// v0.100.0: submit NIESIE JUZ STATY (kills/gems/shots/game_seconds/...). Sa walidowane
+// i KLAMPOWANE do rozsadnych gornych granic, nie odrzucaja submitu — staty sa danymi
+// analitycznymi, nie wynikiem, wiec nie chcemy przez nie tracic legalnych wynikow.
+// L2b (nastepny krok): na tych polach dolozyc REGULY ODRZUCENIA — kill-rate cap
+// (kills/game_seconds), score/time ratio, celnosc > 100%, megaboss XOR survival.
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -44,6 +53,27 @@ function json(body: unknown, status = 200): Response {
 
 const isUuid = (s: unknown): s is string =>
     typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
+// ── Staty meczu (v0.100.0) ────────────────────────────────────────────────────
+// Gorne granice sa SANITY, nie balansem: maja odciac absurdy (NaN, ujemne, 10^9),
+// nie ograniczac dobrej gry. Wartosc poza zakresem jest przycinana, nie odrzucana.
+const STAT_CAPS: Record<string, number> = {
+    game_seconds: 86_400,     // doba — dluzszy mecz nie istnieje
+    kills: 100_000,
+    gems_collected: 100_000,
+    cubes_collected: 1_000,
+    shots_fired: 1_000_000,
+    shots_hit: 1_000_000,
+    supers_fired: 100_000,
+    powers_used: 100_000,
+};
+
+/** Nieujemny int przyciety do capa; brak/smiec => 0. */
+function stat(body: Record<string, unknown>, key: string): number {
+    const v = body[key];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return 0;
+    return Math.min(Math.round(v), STAT_CAPS[key] ?? 0);
+}
 
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -94,10 +124,26 @@ Deno.serve(async (req: Request) => {
     if (countErr) return json({ error: 'rate_check_failed' }, 500);
     if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) return json({ error: 'rate_limited' }, 429);
 
-    // ── Insert (created_at = server default; staty na DEFAULT do L2b) ───────────
+    // ── Staty meczu: przycinane do sanity-capow, nigdy nie odrzucaja submitu ────
+    const shots_fired = stat(body, 'shots_fired');
+    const stats = {
+        game_seconds: stat(body, 'game_seconds'),
+        kills: stat(body, 'kills'),
+        gems_collected: stat(body, 'gems_collected'),
+        cubes_collected: stat(body, 'cubes_collected'),
+        shots_fired,
+        // klient liczy POCISKI (nie pociagniecia spustu), wiec trafien nie moze byc wiecej
+        // niz wystrzelonych pociskow — z zapasem na pierce/bumerang (1 pocisk, wiele trafien)
+        shots_hit: Math.min(stat(body, 'shots_hit'), shots_fired * 4),
+        supers_fired: stat(body, 'supers_fired'),
+        powers_used: stat(body, 'powers_used'),
+        mega_boss_defeated: body.mega_boss_defeated === true,
+    };
+
+    // ── Insert (created_at = server default) ───────────────────────────────────
     const { data, error } = await admin
         .from('scores')
-        .insert({ profile_id, score, scenario, map, difficulty, brawler_id, session_id, score_version })
+        .insert({ profile_id, score, scenario, map, difficulty, brawler_id, session_id, score_version, ...stats })
         .select()
         .single();
     if (error) return json({ error: 'insert_failed', detail: error.message }, 500);

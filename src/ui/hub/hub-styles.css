@@ -469,8 +469,78 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-reveal-cos b { font-size: 16px; color: var(--hub-ink); }
 .bt-hub0-reveal-bolts { font-weight: 800; font-size: 14px; color: var(--hub-accent); margin-bottom: 4px; }
 
+/* ── ROZKAZY (HUB-3 / PROG-F3) ───────────────────────────────────────────── */
+/* Karta rozkazu = ikona + jedno zdanie + pasek + licznik. Kolor lewej krawedzi
+   koduje tier (szary/niebieski/pomaranczowy/zloty) — czytelnosc przez powtarzalnosc. */
+
+.bt-hub0-general {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    padding: 10px 12px; border-radius: var(--radius-md, 14px);
+    border: 1px solid rgba(241, 196, 15, 0.28);
+    background: linear-gradient(110deg, #2a2412, #1a2530 70%);
+}
+.bt-hub0-general .face {
+    width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%;
+    display: grid; place-items: center; font-size: 20px;
+    background: rgba(0, 0, 0, 0.3); border: 2px solid rgba(241, 196, 15, 0.5);
+}
+.bt-hub0-general .say { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bt-hub0-general .say b {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--hub-accent);
+}
+.bt-hub0-general .say span { font-size: 12px; line-height: 1.25; color: var(--hub-ink-dim); font-style: italic; }
+
+.bt-hub0-q-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--hub-ink-faint); margin: 14px 2px 8px;
+}
+.bt-hub0-q-head small { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+.bt-hub0-q {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    padding: 9px 12px 9px 10px; border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--hub-line); border-left: 4px solid var(--qc, #64748b);
+    background: var(--hub-steel-850);
+}
+.bt-hub0-q--easy        { --qc: #8ba3b6; }
+.bt-hub0-q--medium      { --qc: #3aa0e0; }
+.bt-hub0-q--directional { --qc: #e8873d; }
+.bt-hub0-q--weekly      { --qc: #9b59b6; }
+.bt-hub0-q--special     { --qc: #f1c40f; box-shadow: 0 0 10px rgba(241, 196, 15, 0.18); }
+.bt-hub0-q.is-done { border-color: rgba(46, 204, 113, 0.55); }
+.bt-hub0-q.is-claimed { opacity: 0.55; }
+
+.bt-hub0-q .qi { font-size: 22px; flex: 0 0 auto; width: 28px; text-align: center; }
+.bt-hub0-q .qbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.bt-hub0-q .qbody b {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700; font-size: 12.5px;
+    line-height: 1.2; overflow-wrap: anywhere;
+}
+.bt-hub0-q .qbody small { font-size: 10px; font-weight: 700; color: var(--hub-ink-dim); }
+.bt-hub0-q .qbar {
+    height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.35); overflow: hidden;
+}
+.bt-hub0-q .qbar i {
+    display: block; height: 100%; border-radius: 999px; background: var(--qc, #8ba3b6);
+    transition: width 0.35s ease;
+}
+.bt-hub0-q .qact { flex: 0 0 auto; display: flex; align-items: center; }
+.bt-hub0-q-count {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 13px;
+    color: var(--hub-ink-dim); white-space: nowrap;
+}
+.bt-hub0-q-claimed {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    color: #2ecc71; white-space: nowrap;
+}
+.bt-hub0-q .bt-hub0-q-claim { margin: 0; font-size: 13px; padding: 8px 14px; min-height: 40px; }
+.bt-hub0-q-set { margin-top: 4px; }
+
 @media (prefers-reduced-motion: reduce) {
     .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play,
-    .bt-hub0-mode, .bt-hub0-mapchip, .bt-hub0-trophybar-track .fill, .bt-hub0-cos { transition: none; }
+    .bt-hub0-mode, .bt-hub0-mapchip, .bt-hub0-trophybar-track .fill, .bt-hub0-cos,
+    .bt-hub0-q .qbar i { transition: none; }
     .bt-hub0-overlay, .bt-cos-shimmer, .bt-hub0-parachute, .bt-hub0-crate-box.shake, .bt-hub0-reveal { animation: none; }
 }

@@ -4,9 +4,11 @@
  * Design: docs/PROGRESSION_DESIGN_v1_2.md. Wzorzec: ProfileService (singleton,
  * localStorage, defensywne parsowanie). Per-profil (keyed by profileId).
  *
- * OFFLINE-FIRST: localStorage = zrodlo prawdy. Sync do Supabase = OSOBNA pod-faza
- * (F1b) — wymaga migracji tabeli/kolumny (profiles.progression JSONB); trofea/rubki
- * tylko rosna => merge trywialny (max/suma), do zaprojektowania z anti-cheat L2.
+ * OFFLINE-FIRST: localStorage = zrodlo prawdy, chmura (tabela `progression`) = warstwa
+ * dokladana best-effort. F1b = trofea/srubki/PB, F2b = kosmetyki + ekonomia skrzynek.
+ * Merge: pola monotoniczne przez max/union, `equipped` przez last-write-wins (equippedAt).
+ * ZASADA: nigdy nie synchronizujemy pola MALEJACEGO — max wskrzesilby wydany zasob
+ * (dlatego liczba skrzynek jest wyliczana z cratesEarned - cratesOpened).
  *
  * recordRun() woluj RAZ na koncu meczu (triggerVictory/triggerGameOver) PO ustaleniu
  * finalnego score (po Perfect Run bonus). Dziala dla WSZYSTKICH scenariuszy — progresja
@@ -26,6 +28,8 @@ import {
 } from '../config/progression';
 import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kosmetyki
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
+import type { ProgressionCosmetics } from './supabase/types'; // PROG-F2b sync kosmetykow
+import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedna sciezka upsertu)
 
 const STORAGE_KEY = 'bt2:progression';
 
@@ -43,17 +47,30 @@ interface ProgressionState {
     totalRuns: number;
     updatedAt: number;
 
-    // ── F2a: Zrzuty + kosmetyki (lokalnie; sync = F2b) ──
-    /** Ilosc nieotwartych skrzynek. */
-    crateCount: number;
-    /** Licznik otwartych skrzynek (pity: co 10 rzadki+, co 30 legendarny). */
+    // ── F2a: Zrzuty + kosmetyki (F2b: syncowane) ──
+    /** Ile skrzynek gracz LACZNIE zdobyl (MONOTONICZNY — merge: max). */
+    cratesEarned: number;
+    /** Ile skrzynek gracz LACZNIE otworzyl (MONOTONICZNY — merge: max). */
+    cratesOpened: number;
+    /** Licznik otwartych skrzynek dla pity (co 10 rzadki+, co 30 legendarny). */
     pityCounter: number;
-    /** Posiadane kosmetyki (id z config/cosmetics). */
+    /** Posiadane kosmetyki (id z config/cosmetics). Merge: union. */
     ownedCosmetics: string[];
-    /** Zalozone kosmetyki per typ. */
+    /** Zalozone kosmetyki per typ. Merge: last-write-wins po equippedAt. */
     equipped: Partial<Record<CosmeticType, string>>;
+    /** Kiedy ostatnio zmieniono equipped (ms) — rozstrzyga LWW przy merdze. */
+    equippedAt: number;
     /** Progi milestone za ktore juz skredytowano skrzynke (idempotencja + backfill). */
     crateMilestonesCredited: number[];
+}
+
+/**
+ * Liczba NIEOTWARTYCH skrzynek — zawsze WYLICZANA z dwoch licznikow monotonicznych.
+ * Nigdy nie trzymamy jej w stanie: pole malejace zmergowane przez `max` (wzorzec F1b)
+ * wskrzeszaloby wydane skrzynki miedzy urzadzeniami = duplikacja zasobu.
+ */
+function crateCountOf(st: ProgressionState): number {
+    return Math.max(0, st.cratesEarned - st.cratesOpened);
 }
 
 /** Migawka kosmetyczna do GARAZU / readout. */
@@ -102,6 +119,8 @@ function localDayKey(now: number = Date.now()): string {
 class ProgressionServiceImpl {
     private states: Record<string, ProgressionState> = {};
     private initialized = false;
+    /** Subskrybenci "chmura wlasnie domergowala stan" (PROG-F2b) — patrz subscribeSync. */
+    private syncListeners = new Set<(profileId: string) => void>();
 
     // === Public API ===
 
@@ -214,8 +233,17 @@ class ProgressionServiceImpl {
                 if (remote.last_run_day && (!st.lastRunDayKey || remote.last_run_day > st.lastRunDayKey)) {
                     st.lastRunDayKey = remote.last_run_day;
                 }
+                // F2b — kosmetyki + ekonomia skrzynek. KOLEJNOSC KRYTYCZNA: merge MUSI byc
+                // przed creditMilestoneCrates, inaczej backfill zobaczy jeszcze niescalona
+                // liste crateMilestonesCredited i wygeneruje skrzynki za milestony ktore
+                // gracz juz otworzyl (dziura w ekonomii przy czystym localStorage).
+                this.mergeCosmetics(st, remote.cosmetics);
+                this.creditMilestoneCrates(st);
+                // PROG-F3 — rozkazy scalane PO trofeach (skalowanie celow czyta trofea konta).
+                QuestService.mergeRemote(profileId, remote.quests, st.trophies);
                 st.updatedAt = Date.now();
                 this.save();
+                this.notifySynced(profileId);
             }
         } catch (e) {
             console.warn('[Progression] syncPull failed (offline / brak tabeli?):', (e as Error).message);
@@ -237,8 +265,88 @@ class ProgressionServiceImpl {
                 per_map_best: st.perMapBest,
                 claimed_milestones: st.claimedMilestones,
                 last_run_day: st.lastRunDayKey,
+                cosmetics: {
+                    v: 1,
+                    owned: st.ownedCosmetics,
+                    equipped: st.equipped as Record<string, string>,
+                    equippedAt: st.equippedAt,
+                    cratesEarned: st.cratesEarned,
+                    cratesOpened: st.cratesOpened,
+                    pityCounter: st.pityCounter,
+                    crateMilestones: st.crateMilestonesCredited,
+                },
+                quests: QuestService.serialize(profileId), // PROG-F3
             })
             .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
+    }
+
+    /**
+     * Subskrybuj "chmura domergowala stan" (PROG-F2b). Zwraca funkcje odsubskrybowania.
+     * Potrzebne, bo syncPull startuje na boocie fire-and-forget (main.ts) — hub potrafi
+     * wyrenderowac sie ZANIM dane wroca i pokazalby stary readout/kolekcje.
+     */
+    subscribeSync(fn: (profileId: string) => void): () => void {
+        this.syncListeners.add(fn);
+        return () => { this.syncListeners.delete(fn); };
+    }
+
+    private notifySynced(profileId: string): void {
+        for (const fn of this.syncListeners) {
+            try {
+                fn(profileId);
+            } catch (e) {
+                console.error('[Progression] sync listener failed:', (e as Error).stack ?? e, { profileId });
+            }
+        }
+    }
+
+    /**
+     * Merge pod-dokumentu kosmetycznego (F2b). Reguly:
+     *  - owned / crateMilestones     -> UNION (bezstratne)
+     *  - cratesEarned/Opened, pity   -> MAX (monotoniczne; liczba skrzynek = roznica)
+     *  - equipped                    -> LAST-WRITE-WINS po equippedAt (to preferencja,
+     *                                   nie zasob — union nie mialby sensu)
+     * Brak pola / pusty '{}' (wiersz sprzed migracji) => stan lokalny zostaje nietkniety.
+     * SWIADOMY KOMPROMIS: dwa urzadzenia offline otwierajace skrzynke jednoczesnie daja
+     * cratesOpened=max (zero duplikacji skrzynek), ale owned=union => gracz zachowuje oba
+     * kosmetyki. Na korzysc gracza, bez wplywu na balans (kosmetyka nie daje statow).
+     */
+    private mergeCosmetics(st: ProgressionState, remote: ProgressionCosmetics | null | undefined): void {
+        if (!remote || typeof remote !== 'object') return;
+
+        if (Array.isArray(remote.owned)) {
+            const owned = new Set<string>([...st.ownedCosmetics, ...remote.owned.filter(id => !!getCosmetic(id))]);
+            st.ownedCosmetics = [...owned];
+        }
+        if (Array.isArray(remote.crateMilestones)) {
+            const ms = new Set<number>([
+                ...st.crateMilestonesCredited,
+                ...remote.crateMilestones.map(Number).filter(n => Number.isFinite(n)),
+            ]);
+            st.crateMilestonesCredited = [...ms].sort((a, b) => a - b);
+        }
+        st.cratesEarned = Math.max(st.cratesEarned, Number(remote.cratesEarned) || 0);
+        st.cratesOpened = Math.max(st.cratesOpened, Number(remote.cratesOpened) || 0);
+        st.pityCounter = Math.max(st.pityCounter, Number(remote.pityCounter) || 0);
+
+        // Adoptuj zdalny wyglad gdy jest NOWSZY, albo gdy to urzadzenie NIGDY nie dokonalo
+        // wlasnego wyboru (equippedAt=0 = swieza instalacja / wyczyszczony localStorage) —
+        // nie ma wtedy czego nadpisac. Bez tej sciezki stan sprzed F2b (znacznik 0 po obu
+        // stronach) nie odtworzylby sie nigdy. Swiadome zdjecie kosmetyku stempluje czas,
+        // wiec nie zostanie cofniete przez starszy wpis w chmurze.
+        const remoteAt = Number(remote.equippedAt) || 0;
+        const localNeverChosen = st.equippedAt === 0;
+        if (remote.equipped && (remoteAt > st.equippedAt || localNeverChosen)) {
+            const next: Partial<Record<CosmeticType, string>> = {};
+            for (const [type, id] of Object.entries(remote.equipped)) {
+                const def = getCosmetic(String(id));
+                // odrzuc nieznane id (kosmetyk wyciety z rejestru / recznie zmajstrowany wiersz)
+                // oraz takie, ktorych gracz po merdze nie posiada
+                if (def && def.type === type && st.ownedCosmetics.includes(def.id)) next[def.type] = def.id;
+            }
+            st.equipped = next;
+            st.equippedAt = remoteAt;
+        }
     }
 
     getBolts(profileId: string): number {
@@ -246,14 +354,14 @@ class ProgressionServiceImpl {
         return this.getOrCreate(profileId).bolts;
     }
 
-    // === F2a: Zrzuty + kosmetyki (lokalnie; sync = F2b) ===
+    // === F2a: Zrzuty + kosmetyki (F2b: syncowane przez kolumne progression.cosmetics) ===
 
     /** Migawka kosmetyczna (GARAZ + readout). */
     getCosmeticState(profileId: string): CosmeticState {
         this.ensureInitialized();
         const st = this.getOrCreate(profileId);
         return {
-            crateCount: st.crateCount,
+            crateCount: crateCountOf(st), // wyliczane (earned - opened), nigdy trzymane
             pityCounter: st.pityCounter,
             owned: st.ownedCosmetics,
             equipped: st.equipped,
@@ -263,17 +371,17 @@ class ProgressionServiceImpl {
     /**
      * Otworz jedna skrzynke. Zwraca wynik do reveal UI albo null (brak skrzynek).
      * Pity deterministyczny (openIndex = pityCounter+1: co 10 rzadki+, co 30 legendarny).
-     * Kosmetyk (jesli nieposiadany) -> ownedCosmetics; zawsze srubki. Bolts syncuja (F1b).
+     * Kosmetyk (jesli nieposiadany) -> ownedCosmetics; zawsze srubki. Wszystko syncuje (F2b).
      */
     openCrate(profileId: string): CrateOpenResult | null {
         this.ensureInitialized();
         const st = this.getOrCreate(profileId);
-        if (st.crateCount <= 0) return null;
+        if (crateCountOf(st) <= 0) return null;
 
         const openIndex = st.pityCounter + 1;
         const result = configOpenCrate(openIndex, Math.random, st.ownedCosmetics);
 
-        st.crateCount -= 1;
+        st.cratesOpened += 1; // MONOTONICZNY — licznik nieotwartych to (earned - opened)
         st.pityCounter = openIndex;
         st.bolts += result.bolts;
         if (result.cosmeticId && !st.ownedCosmetics.includes(result.cosmeticId)) {
@@ -281,7 +389,7 @@ class ProgressionServiceImpl {
         }
         st.updatedAt = Date.now();
         this.save();
-        this.syncPush(profileId); // srubki z crate syncuja (kosmetyki = F2b)
+        this.syncPush(profileId); // F2b — srubki + kosmetyk + licznik otwarc ida do chmury
         return result;
     }
 
@@ -294,8 +402,28 @@ class ProgressionServiceImpl {
         if (!def) return;
         if (st.equipped[def.type] === cosmeticId) delete st.equipped[def.type]; // toggle off
         else st.equipped[def.type] = cosmeticId;
+        st.equippedAt = Date.now(); // znacznik LWW — rozstrzyga merge miedzy urzadzeniami
+        st.updatedAt = st.equippedAt;
+        this.save();
+        this.syncPush(profileId); // F2b — bez tego zmiana wygladu nie przechodzi na inne urzadzenie
+    }
+
+    // === F3: nagrody za rozkazy ===
+
+    /**
+     * Zaksieguj nagrode za rozkaz (PROG-F3). JEDYNA sciezka przyznawania srubek/skrzynek
+     * za questy — dzieki temu `cratesEarned` pozostaje jedynym autorytetem skrzynek
+     * (lekcja F2b: pole malejace + merge max = duplikacja zasobu).
+     * Idempotencje pilnuje QuestService (klucz claimed z prefiksem okresu) — tutaj tylko ksiegujemy.
+     */
+    grantQuestReward(profileId: string, reward: { bolts: number; crates: number }): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        st.bolts += Math.max(0, Math.round(reward.bolts));
+        st.cratesEarned += Math.max(0, Math.round(reward.crates));
         st.updatedAt = Date.now();
         this.save();
+        this.syncPush(profileId);
     }
 
     // === Internal ===
@@ -322,20 +450,37 @@ class ProgressionServiceImpl {
                 lastRunDayKey: null,
                 totalRuns: 0,
                 updatedAt: Date.now(),
-                crateCount: 0,
+                cratesEarned: 0,
+                cratesOpened: 0,
                 pityCounter: 0,
                 ownedCosmetics: [],
                 equipped: {},
+                equippedAt: 0,
                 crateMilestonesCredited: [],
             };
             this.states[profileId] = st;
         } else {
             // normalizacja starych stanow z localStorage (sprzed F2a) — dopelnij nowe pola
-            st.crateCount ??= 0;
             st.pityCounter ??= 0;
             st.ownedCosmetics ??= [];
             st.equipped ??= {};
+            st.equippedAt ??= 0;
             st.crateMilestonesCredited ??= [];
+            // F2b — migracja z malejacego crateCount na dwa liczniki monotoniczne.
+            // Do F2a pityCounter == liczba otwarc, wiec earned = nieotwarte + otwarte
+            // odtwarza stan gracza 1:1 (bez gubienia i bez dosypywania skrzynek).
+            const legacy = st as ProgressionState & { crateCount?: number };
+            if (legacy.cratesEarned === undefined || legacy.cratesOpened === undefined) {
+                st.cratesOpened = st.pityCounter;
+                st.cratesEarned = (legacy.crateCount ?? 0) + st.pityCounter;
+            }
+            delete legacy.crateCount;
+            // F2b — kosmetyk zalozony jeszcze w F2a nie ma znacznika LWW (equippedAt=0),
+            // wiec przegralby kazde porownanie i nie odtworzylby sie na innym urzadzeniu.
+            // Nadaj mu czas ostatniego zapisu stanu (realny moment tamtej zmiany).
+            if (st.equippedAt === 0 && Object.keys(st.equipped).length > 0) {
+                st.equippedAt = st.updatedAt || Date.now();
+            }
         }
         // backfill: skrzynka za kazdy osiagniety milestone jeszcze nieskredytowany (idempotentne)
         this.creditMilestoneCrates(st);
@@ -347,7 +492,7 @@ class ProgressionServiceImpl {
     private creditMilestoneCrates(st: ProgressionState): void {
         for (const m of TROPHY_MILESTONES) {
             if (st.trophies >= m.threshold && !st.crateMilestonesCredited.includes(m.threshold)) {
-                st.crateCount += 1;
+                st.cratesEarned += 1;
                 st.crateMilestonesCredited.push(m.threshold);
             }
         }

@@ -143,8 +143,10 @@ import {
     MAX_POWERCUBES_PER_MATCH,
     POWERCUBE_HP_BONUS_PER_PICKUP,
 } from './services/GameSession';
-import { scoreService } from './services/ScoreService';
+import { scoreService, type RunStats } from './services/ScoreService';
 import { ProgressionService, type RunProgressionResult } from './services/ProgressionService'; // PROG-F1
+import { QuestService, type QuestView } from './services/QuestService'; // PROG-F3 — ROZKAZY
+import { MAP_LABEL_KEY, questDisplayValue } from './config/quests';
 import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
 import { t, i18n } from './i18n/i18n';
@@ -352,6 +354,8 @@ let wasInNeonLastFrame: boolean = false; // v0.60.0 — stealth NEON-OASIS
 let wasInRuinsBushLastFrame: boolean = false; // FAZA CTF F1 — stealth zarosla
 let neonDidShootLastFrame = false; // v0.60.0 TIER 3 — strzal z poprzedniej klatki (panika drona)
 let wasStealthActiveLastFrame: boolean = false;
+// PROG-F3 — mirror stanu stealth dostepny poza petla (rozkaz "zniszcz wrogow ze strefy ukrycia").
+let stealthActiveNow: boolean = false;
 // v0.50.1 fix: track czy ostatnie zerwanie stealth bylo wynikiem strzalu (anti-cheese Michala).
 // Strzal ze strefy stealth = natychmiastowe wykrycie. Flag pozwala pokazac inny komunikat HUD.
 let stealthBrokenByShot: boolean = false;
@@ -931,6 +935,7 @@ function tryActivateSuper(): void {
     if (!result.activated) return;
 
     currentSession.superPowersUsed++;
+    QuestService.track('super_power'); // PROG-F3
 
     if (result.powerId === 'aura') {
         hud.addNotif(t('hud.shieldActive'), '#ffdd00');
@@ -1911,7 +1916,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             difficulty: getDifficultyModifiers(config.difficulty),
             hudNotif: (text, cssColor) => hud.addNotif(text, cssColor),
             onPickupSfx: () => { audio.playMagnetPickup(); audio.startFlagCarryMusic(); }, // F4: carry-state music ON
-            onCaptureSfx: () => { audio.playHeartPickup(); audio.stopFlagCarryMusic(); }, // F4: wroc do muzyki mapy
+            onCaptureSfx: () => {
+                audio.playHeartPickup(); audio.stopFlagCarryMusic(); // F4: wroc do muzyki mapy
+                QuestService.track('flag_capture'); // PROG-F3
+            },
             onBombExplosionSfx: () => audio.playExplosion(),
             onEnrage: () => hud.triggerCtfEnrage(), // F4.3: baner eskalacji
         });
@@ -1931,10 +1939,104 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
     audio.startMusic(config.map);
 
+    // PROG-F3 — ROZKAZY: od tego momentu track() ksieguje postep. Tutorial NIE liczy sie
+    // do rozkazow (beginRun nie jest wolane => track() jest no-opem).
+    if (!tutorialMode && currentSession) {
+        const questPid = currentSession.config.profileId;
+        questsCompletedThisRun = 0;
+        QuestService.beginRun(questPid, ProgressionService.getTrophies(questPid));
+        QuestService.track('match');
+        QuestService.track('map_played', config.map, config.map);
+    }
+
     // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
     if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf')) {
         showModeGoal(config.scenario, touchManager.isActive);
     }
+}
+
+// ============================================================
+// PROG-F3 — ROZKAZY: feedback w grze + domkniecie metryk po meczu
+// ============================================================
+
+/** Ile rozkazow domknelo sie w biezacym meczu (chip na endcardzie). Reset w beginRun. */
+let questsCompletedThisRun = 0;
+
+/**
+ * v0.100.0 — staty meczu wysylane RAZEM z wynikiem. Kolumny scores.kills/gems_collected/
+ * game_seconds/... istnialy od FAZY 9b, ale interfejs ich nie niosl => 491 wierszy zer
+ * (kalibracja rozkazow i anti-cheat L2b nie mialy z czego liczyc). Wszystkie wartosci
+ * pochodza z licznikow, ktore juz sa — zero nowej pracy w petli gry.
+ */
+function collectRunStats(): RunStats {
+    return {
+        gameSeconds: currentSession?.getElapsedSeconds() ?? 0,
+        kills: spawnSystem?.totalKills ?? 0,
+        gemsCollected: spawnSystem?.gemsCollected ?? 0,
+        cubesCollected: currentSession?.cubesTotal ?? 0,
+        shotsFired: currentSession?.shotsFired ?? 0,
+        shotsHit: currentSession?.shotsHit ?? 0,
+        supersFired: currentSession?.superShotsFired ?? 0,
+        powersUsed: currentSession?.superPowersUsed ?? 0,
+        megaBossDefeated: spawnSystem?.megaBossKilled ?? false,
+    };
+}
+
+/** Etykieta rozkazu z podstawionym celem i (opcjonalnie) nazwa mapy dnia. */
+function questLabel(q: QuestView): string {
+    const mapKey = q.param ? MAP_LABEL_KEY[q.param] : undefined;
+    return t(q.def.labelKey, {
+        n: questDisplayValue(q.def.metric, q.target),
+        map: mapKey ? t(mapKey) : '',
+    });
+}
+
+/**
+ * Postep rozkazu widoczny NATYCHMIAST w grze (§17.1 pkt 3 — dziecko nie prowadzi ksiegowosci
+ * w glowie). Uzywa istniejacego slotu notyfikacji HUD — zero nowych elementow, zero ryzyka
+ * kolizji layoutu @375px. Throttle progu 50% siedzi w QuestService.
+ */
+QuestService.onQuestEvent = (kind, quest) => {
+    if (kind === 'done') {
+        questsCompletedThisRun++;
+        hud.addNotif(t('hud.questDone', { name: questLabel(quest) }), '#ffcc33');
+    } else {
+        hud.addNotif(t('hud.questProgress', {
+            name: questLabel(quest),
+            cur: questDisplayValue(quest.def.metric, quest.current),
+            max: questDisplayValue(quest.def.metric, quest.target),
+        }), '#e8a33d');
+    }
+};
+
+/**
+ * Domkniecie rozkazow po meczu: metryki "rekordowe" (mode 'max') i sumaryczne, ktore znane sa
+ * dopiero na koncu. Wolane PO recordRun (trofea z runa sa jedna z metryk).
+ * Zwraca liczbe rozkazow domknietych w tym meczu (do endcardu).
+ */
+function finalizeRunQuests(trophiesGained: number, perfectRun: boolean): number {
+    if (!currentSession) { QuestService.endRun(); return 0; }
+    try {
+        const secs = currentSession.getElapsedSeconds();
+        QuestService.track('run_score', currentSession.score);
+        QuestService.track('combo', currentSession.maxCombo);
+        QuestService.track('run_seconds', secs);
+        QuestService.track('seconds', secs);
+        QuestService.track('run_gems', spawnSystem?.gemsCollected ?? 0);
+        if (trophiesGained > 0) {
+            QuestService.track('trophies', trophiesGained);      // suma (dzien/tydzien)
+            QuestService.track('run_trophies', trophiesGained);  // rekord jednego meczu (mapowo uczciwy)
+        }
+        if (perfectRun) QuestService.track('perfect_run');
+    } catch (e) {
+        console.warn('[Quests] finalizeRunQuests failed:', (e as Error).stack ?? e);
+    }
+    const done = questsCompletedThisRun;
+    QuestService.endRun();
+    // Postep rozkazow leci do chmury PO domknieciu metryk koncowych (recordRun pchnal
+    // stan sprzed nich). Best-effort — offline nie blokuje niczego.
+    ProgressionService.syncPush(currentSession.config.profileId);
+    return done;
 }
 
 // ============================================================
@@ -1961,6 +2063,8 @@ interface EndScreenData {
     boltsGained?: number;
     /** PROG-F1 — srubki z przekroczonych milestonow (>0 => celebracja kamienia milowego). */
     milestoneBolts?: number;
+    /** PROG-F3 — ile rozkazow domknieto w tym meczu (chip w trophyRow, bez nowego kafelka). */
+    questsDone?: number;
 }
 
 /**
@@ -2091,6 +2195,24 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             <span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#3a2b0f;background:linear-gradient(135deg,#ffe066,#f1c40f);padding:5px 14px;border-radius:12px;border:2px solid #b8860b;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🏆 +${d.trophiesGained} ${t('end.trophies')}</span>
             ${d.boltsGained ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#5b6672;padding:5px 14px;border-radius:12px;border:2px solid #3a434d;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🔩 +${d.boltsGained} ${t('end.bolts')}</span>` : ''}
             ${d.milestoneBolts && d.milestoneBolts > 0 ? `<span style="font-family:${TITAN};font-size:0.82rem;color:#fff;background:#27ae60;padding:5px 14px;border-radius:12px;border:2px solid #1e8449;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎖️ ${t('end.milestone')}!</span>` : ''}
+            ${d.questsDone && d.questsDone > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#c0721c;padding:5px 14px;border-radius:12px;border:2px solid #8a4f12;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📋 ${t('end.questsDone', { n: d.questsDone })}</span>` : ''}
+        </div>` : '';
+
+    // v0.100.0 FIX REGRESJI — wariant KOMPAKTOWY wiersza progresji dla layoutu v2 (landscape @375px).
+    // Chip rozkazow (4. element) lamal wiersz do drugiej linii i przycisk "DO MENU" zjezdzal pod
+    // krawedz ekranu => powracal scroll, ktorego ENDCARD v2 mial sie pozbyc na stale.
+    // Rozwiazanie: same IKONY + LICZBY w jednej linii (slowa "trofea"/"srubki" sa redundantne
+    // obok ikony — to one zjadaly szerokosc), milestone pokazuje swoja nagrode zamiast dlugiego
+    // napisu. Czytelnosc > Flex: przycisk musi byc widoczny bez przewijania.
+    const chipC = (bg: string, border: string, color: string, text: string): string =>
+        `<span style="font-family:${SYS};font-size:0.72rem;font-weight:800;color:${color};background:${bg};padding:3px 9px;border-radius:10px;border:2px solid ${border};white-space:nowrap;box-shadow:1px 1px 0 rgba(0,0,0,0.15);">${text}</span>`;
+
+    const trophyRowV2 = (d.trophiesGained && d.trophiesGained > 0) ? `
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:nowrap;margin-top:2px;">
+            ${chipC('linear-gradient(135deg,#ffe066,#f1c40f)', '#b8860b', '#3a2b0f', `🏆 +${d.trophiesGained}`)}
+            ${d.boltsGained ? chipC('#5b6672', '#3a434d', '#fff', `🔩 +${d.boltsGained}`) : ''}
+            ${d.milestoneBolts && d.milestoneBolts > 0 ? chipC('#27ae60', '#1e8449', '#fff', `🎖️ +${d.milestoneBolts}`) : ''}
+            ${d.questsDone && d.questsDone > 0 ? chipC('#c0721c', '#8a4f12', '#fff', `📋 ${d.questsDone}`) : ''}
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
@@ -2227,9 +2349,9 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
                     </div>
                     ${bonusRow}
-                    ${trophyRow}
+                    ${trophyRowV2}
                     ${victoryBadge}
-                    <button class="brawl-btn" id="${btnId}" style="font-size:1.4rem;padding:11px 34px;margin-top:16px;">${t('end.backToMenu')}</button>
+                    <button class="brawl-btn" id="${btnId}" style="font-size:1.4rem;padding:11px 34px;margin-top:12px;">${t('end.backToMenu')}</button>
                 </div>
             </div>
         </div>`;
@@ -2304,7 +2426,7 @@ async function triggerGameOver(): Promise<void> {
         console.log('[Score] CTF: score submit skipped (local endcard only)');
     } else if (currentSession) {
         try {
-            await scoreService.submitScore(currentSession.score, currentSession.config);
+            await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
             console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -2327,6 +2449,8 @@ async function triggerGameOver(): Promise<void> {
             console.warn('[Progression] recordRun failed (GameOver):', (e as Error).stack ?? e);
         }
     }
+    // PROG-F3 — metryki koncowe rozkazow (przegrana => perfectRun=false).
+    const questsDoneRun = finalizeRunQuests(runProg?.trophiesGained ?? 0, false);
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
     const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, true) : '';
@@ -2348,6 +2472,7 @@ async function triggerGameOver(): Promise<void> {
         trophiesGained: runProg?.trophiesGained,          // PROG-F1
         boltsGained: runProg?.boltsGained,
         milestoneBolts: runProg ? runProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
+        questsDone: questsDoneRun,                        // PROG-F3
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -2363,11 +2488,13 @@ async function triggerVictory(): Promise<void> {
     touchManager.hide();
 
     let victoryRunProg: RunProgressionResult | null = null; // PROG-F1
+    let victoryPerfectRun = false;                          // PROG-F3 (metryka rozkazu specjalnego)
 
     if (currentSession) {
         // v0.50.0 Scoring v2.2: Perfect Run check + apply bonus PRZED submit, zeby
         // submitowany score juz uwzglednial bonus. Wolane RAZ na koncu matchu.
         const perfectRun = currentSession.applyPerfectRunBonus();
+        victoryPerfectRun = perfectRun.applied;
         if (perfectRun.applied) {
             console.log(`[Score] PERFECT RUN bonus applied: +${perfectRun.bonus} pts`);
             hud.addNotif(t('hud.perfectRun', { bonus: perfectRun.bonus }), '#f1c40f');
@@ -2378,7 +2505,7 @@ async function triggerVictory(): Promise<void> {
             console.log('[Score] CTF: score submit skipped (local endcard only)');
         } else {
             try {
-                await scoreService.submitScore(currentSession.score, currentSession.config);
+                await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
                 console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
             } catch (e) {
                 console.warn('[Score] Submit failed:', e);
@@ -2397,6 +2524,8 @@ async function triggerVictory(): Promise<void> {
             console.warn('[Progression] recordRun failed (Victory):', (e as Error).stack ?? e);
         }
     }
+    // PROG-F3 — metryki koncowe rozkazow (zwyciestwo => Perfect Run moze domknac rozkaz Generala).
+    const questsDoneVictory = finalizeRunQuests(victoryRunProg?.trophiesGained ?? 0, victoryPerfectRun);
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
     const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, false) : '';
@@ -2418,6 +2547,7 @@ async function triggerVictory(): Promise<void> {
         trophiesGained: victoryRunProg?.trophiesGained,   // PROG-F1
         boltsGained: victoryRunProg?.boltsGained,
         milestoneBolts: victoryRunProg ? victoryRunProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
+        questsDone: questsDoneVictory,                    // PROG-F3
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -2667,6 +2797,7 @@ app.ticker.add((rawDelta) => {
     }
 
     const isStealthActive = playerInAnyStealth && nowMs < oasisStealthEndTime;
+    stealthActiveNow = isStealthActive; // PROG-F3 — mirror dla metryki "kill ze strefy ukrycia"
 
     if (isStealthActive && !wasStealthActiveLastFrame) {
         if (playerInSugarcaneField && !playerInOasis) {
@@ -2844,6 +2975,7 @@ app.ticker.add((rawDelta) => {
             effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
             hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
             audio.playHeartPickup();
+            QuestService.track('medi_pad'); // PROG-F3
         }
     }
     for (const pad of powerPads) {
@@ -2866,6 +2998,7 @@ app.ticker.add((rawDelta) => {
             if (h.pickup(effects)) {
                 player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
                 if (currentSession) currentSession.heartsHealed++;
+                QuestService.track('heart'); // PROG-F3
                 hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
                 audio.playHeartPickup();
                 hearts.splice(i, 1);
@@ -2910,6 +3043,7 @@ app.ticker.add((rawDelta) => {
                 powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
                 hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
                 audio.playMagnetPickup();
+                QuestService.track('magnet'); // PROG-F3
                 magnets.splice(i, 1);
             }
         }
@@ -2931,6 +3065,7 @@ app.ticker.add((rawDelta) => {
         if (dx * dx + dy * dy < touchR * touchR) {
             const type = pc.type;
             currentSession.registerCubePickup(type);
+            QuestService.track('cube'); // PROG-F3
 
             const isDmg = type === 'dmg';
             const color = isDmg ? 0xe74c3c : 0x2980b9;
@@ -2978,6 +3113,8 @@ app.ticker.add((rawDelta) => {
 
         if (justActivated) {
             audio.playSuperShotActivate();
+            currentSession.superShotsFired++;
+            QuestService.track('super_shot'); // PROG-F3
         }
 
         audio.playShoot(player.brawler.id);
@@ -2998,6 +3135,10 @@ app.ticker.add((rawDelta) => {
             if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
             bullets.push(b);
         }
+        // v0.100.0 — staty meczu: liczymy POCISKI, nie pociagniecia spustu. Dzieki temu
+        // celnosc (shots_hit / shots_fired) jest sensowna dla brawlerow salwowych i nigdy
+        // nie przekracza 100% — inaczej L2b nie mialby na czym postawic reguly.
+        currentSession.shotsFired += volleyOffsets.length;
         
         player.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
         lastShotTime = now;
@@ -3157,6 +3298,7 @@ app.ticker.add((rawDelta) => {
                 // Tylko gdy damage faktycznie applied (shielded hit = brak liczby, gold sparks
                 // z takeDamage wystarcza). Super shot = fioletowa liczba (motyw super), reszta biala.
                 if (damageApplied) {
+                    currentSession.shotsHit++; // v0.100.0 — celnosc do statow meczu
                     const dmgColor = wasSuperShot ? 0xc850ff : 0xffffff;
                     effects.spawnFloatingText(hitX, hitY - 15, `${Math.round(b.dmg)}`, dmgColor);
                 }
@@ -3164,6 +3306,9 @@ app.ticker.add((rawDelta) => {
                 if (killed) {
                     audio.playExplosion();
                     spawnSystem.registerKill(enemy);
+                    // PROG-F3 — strzal ze strefy ukrycia zrywa stealth dopiero po tej klatce,
+                    // wiec flaga jest jeszcze aktualna w momencie zabicia (risk/reward stealtha).
+                    if (stealthActiveNow) QuestService.track('stealth_kill');
                     handleEnemyDrop(enemy);
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
 

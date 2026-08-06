@@ -207,6 +207,72 @@ export const en: typeof pl = {
     'cosmetic.ti_legend': 'Arena Legend',
 
     // ============================================================
+    // ORDERS (PROG-F3 / HUB-3) — syntax: ICON + VERB + COUNTER
+    // ============================================================
+    'hub.quests.daily': 'DAILY ORDERS',
+    'hub.quests.weekly': 'WEEKLY ORDERS',
+    'hub.quests.claim': 'CLAIM',
+    'hub.quests.claimed': 'CLAIMED',
+    'hub.quests.setTitle': 'Daily set',
+    'hub.quests.setDesc': 'Complete all 3 daily orders',
+    'hub.quests.setReward': '+{bolts} 🔩 and a crate',
+    'hub.quests.locked': 'Orders from {n} 🏆',
+    'hub.quests.lockedHint': 'Earn trophies in battles — {n} 🏆 to go',
+    'hub.quests.resetDaily': 'New orders tomorrow',
+    'hub.quests.resetWeekly': 'New set on Monday',
+    'hub.quests.general': 'General Armour',
+    'hub.quests.done': 'DONE',
+
+    'quest.e_kill': 'Destroy enemies: {n}',
+    'quest.e_gem': 'Collect gems: {n}',
+    'quest.e_heart': 'Collect hearts: {n}',
+    'quest.e_supershot': 'Fire super shots: {n}',
+    'quest.e_superpwr': 'Use super powers: {n}',
+    'quest.e_seconds': 'Survive in total: {n} min',
+    'quest.e_match': 'Play battles: {n}',
+
+    'quest.m_kill': 'Destroy enemies: {n}',
+    'quest.m_boss': 'Defeat bosses: {n}',
+    'quest.m_magnet': 'Grab magnets: {n}',
+    'quest.m_cube': 'Collect power cubes: {n}',
+    'quest.m_combo': 'Land a x{n} combo',
+    'quest.m_trophies': 'Earn {n} trophies in one battle',
+    'quest.m_runtime': 'Survive {n} min in one battle',
+    'quest.m_rungems': 'Collect {n} gems in one battle',
+
+    'quest.d_frozen': 'Destroy frozen enemies: {n}',
+    'quest.d_bomb': 'Destroy {n} enemies with one Mega Bomb',
+    'quest.d_ram': 'Ram enemies: {n}',
+    'quest.d_stealth': 'Destroy enemies from a hiding zone: {n}',
+    'quest.d_medipad': 'Use a healing pad: {n}',
+    'quest.d_flag': 'Capture CTF flags: {n}',
+    'quest.d_trophies': 'Earn trophies today: {n}',
+    'quest.d_map': 'Play a battle on map: {map}',
+
+    'quest.w_trophies': 'Earn trophies this week: {n}',
+    'quest.w_maps': 'Play on {n} different maps',
+    'quest.s_perfect': 'Finish a battle without taking damage',
+    'quest.s_combo': 'Land a x{n} combo',
+    'quest.s_trophies': 'Earn {n} trophies in one battle',
+
+    'quest.general.1': 'Recruit, those gems will not collect themselves!',
+    'quest.general.2': 'Report for your reward — after the work is done.',
+    'quest.general.3': 'In my day tanks drove uphill. Both ways.',
+    'quest.general.4': 'An order is an order. Lollipop comes later.',
+    'quest.general.5': 'I watched your last battle. Room for improvement!',
+    'quest.general.6': 'Do not just stand there, you will rust!',
+    'quest.general.7': 'Whoever clears all three today eats lunch with me.',
+    'quest.general.8': 'You have the armour. Courage? We will see.',
+    'quest.general.9': 'Three orders. One day. Zero excuses.',
+    'quest.general.10': 'Bolts do not grow on trees, recruit.',
+    'quest.general.11': 'Chin up and into the tank!',
+    'quest.general.12': 'General Armour reporting: you have work to do.',
+
+    'hud.questDone': '✅ {name}',
+    'hud.questProgress': '📋 {name} — {cur}/{max}',
+    'end.questsDone': 'Orders: {n}',
+
+    // ============================================================
     // Scenario Picker
     // ============================================================
     'picker.scenarioTitle': 'Choose scenario',

@@ -42,6 +42,7 @@
 
 import type { GameConfig } from '../types/GameConfig';
 import { getDifficultyMultiplier } from '../types/GameConfig';
+import { QuestService } from './QuestService'; // PROG-F3 — metryki rozkazow (skill bonusy = zdarzenia questowe)
 
 /**
  * Tier indicator combo (1-4+). Uzywany jako toast text label ("DOUBLE!"/"TRIPLE!"/"MEGA").
@@ -321,6 +322,16 @@ export class GameSession {
     /** Ilosc uzytych supermocy (aura/bomba/freeze) — inkrement w main.ts. */
     public superPowersUsed: number = 0;
 
+    // v0.100.0 — staty meczu wysylane z wynikiem (kolumny scores.* byly puste od 9b).
+    // Zasilaja kalibracje celow rozkazow i przyszla walidacje anti-cheat L2b
+    // (kill-rate, celnosc, score/time ratio). Czyste inkrementacje intow.
+    /** Ile razy gracz pociagnal za spust (salwa = 1, nie liczba pociskow). */
+    public shotsFired: number = 0;
+    /** Ile pociskow gracza faktycznie zadalo obrazenia (celnosc = hit/fired). */
+    public shotsHit: number = 0;
+    /** Ile razy odpalono SUPER STRZAL (ladunek z gemow) — inne niz superPowersUsed. */
+    public superShotsFired: number = 0;
+
     constructor(config: GameConfig) {
         this.config = config;
         this.startTime = config.timestamp;
@@ -456,6 +467,8 @@ export class GameSession {
         this.scoreFromBonus += bonus;
         this.bonusFrozen += bonus;
         this.recomputeScore();
+        // PROG-F3 — jeden punkt dla wszystkich 3 sciezek zabicia zamrozonego wroga.
+        QuestService.track('frozen_kill');
         return { added: bonus };
     }
 
@@ -479,6 +492,7 @@ export class GameSession {
         this.scoreFromBonus += bonus;
         this.bonusMultiKill += bonus;
         this.recomputeScore();
+        QuestService.track('bomb_multikill', killCount); // PROG-F3 (mode 'max' — rekord w jednej bombie)
         return { added: bonus };
     }
 
@@ -497,6 +511,7 @@ export class GameSession {
         this.scoreFromBonus += bonus;
         this.bonusCollision += bonus;
         this.recomputeScore();
+        QuestService.track('ramming_kill'); // PROG-F3 — "taran istnieje!" (cichy tutor)
         return { added: bonus };
     }
 

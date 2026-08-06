@@ -123,6 +123,38 @@ export interface SessionInsert {
 // progression (PROG-F1b — cloud sync progresji konta, 1:1 z profilem)
 // ──────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Pod-dokument kosmetyczny (PROG-F2b, kolumna progression.cosmetics JSONB).
+ * Wszystkie pola opcjonalne — stare wiersze maja '{}' i merge traktuje braki jako puste/0.
+ * cratesEarned/cratesOpened/pityCounter sa MONOTONICZNE (merge = max); liczba nieotwartych
+ * skrzynek jest WYLICZANA (earned - opened), nigdy przechowywana (pole malejace + max = duplikacja).
+ */
+export interface ProgressionCosmetics {
+    v?: number;                              // wersja dokumentu (1)
+    owned?: string[];                        // id z config/cosmetics — merge: union
+    equipped?: Record<string, string>;       // CosmeticType -> id — merge: last-write-wins
+    equippedAt?: number;                     // ms (klient) — rozstrzyga LWW dla equipped
+    cratesEarned?: number;
+    cratesOpened?: number;
+    pityCounter?: number;
+    crateMilestones?: number[];              // progi ze skredytowana skrzynka — merge: union
+}
+
+/**
+ * Pod-dokument rozkazow (PROG-F3, kolumna progression.quests JSONB).
+ * `claimed` = klucze z prefiksem okresu ("2026-08-04:e_kill") — merge przez UNION,
+ * wiec nagrody sa nieodbieralne po raz drugi nawet po wyczyszczeniu localStorage.
+ * `progress` scalany tylko gdy dayKey/weekKey sie zgadzaja (starszy okres = smiec).
+ */
+export interface ProgressionQuests {
+    v?: number;
+    dayKey?: string;
+    weekKey?: string;
+    progress?: Record<string, number | string[]>;
+    claimed?: string[];
+    updatedAt?: number;
+}
+
 export interface ProgressionRow {
     profile_id: string;
     trophies: number;
@@ -131,6 +163,8 @@ export interface ProgressionRow {
     per_map_best: Record<string, number>;   // JSONB: { city: 174, arctic: 748, ... }
     claimed_milestones: number[];            // JSONB: [30, 70, ...]
     last_run_day: string | null;             // YYYY-MM-DD
+    cosmetics: ProgressionCosmetics;         // JSONB (F2b; stare wiersze = {})
+    quests: ProgressionQuests;               // JSONB (F3; stare wiersze = {})
     created_at: string;
     updated_at: string;
 }
@@ -143,6 +177,8 @@ export interface ProgressionInsert {
     per_map_best?: Record<string, number>;
     claimed_milestones?: number[];
     last_run_day?: string | null;
+    cosmetics?: ProgressionCosmetics;
+    quests?: ProgressionQuests;
     // created_at / updated_at — NIE wysylamy (server-side)
 }
 

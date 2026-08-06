@@ -27,7 +27,7 @@
  *  jest wymazywany przy kompilacji -> brak cyklu w runtime.
  */
 
-import type { IScoreService, ScoreEntry, ScoreFilter } from './ScoreService';
+import type { IScoreService, ScoreEntry, ScoreFilter, RunStats } from './ScoreService';
 import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
 import type { DifficultyId, GameConfig } from '../types/GameConfig';
@@ -38,6 +38,11 @@ import type {
     BoardDefinition, ILeaderboardService, LeaderboardEntry, LeaderboardQuery, MyRank,
 } from './leaderboard';
 import { sanitizeDisplayName } from './leaderboard';
+
+/** Staty ida do bazy jako nieujemne inty — zabezpieczenie przed NaN/float/ujemnym. */
+function nonNegInt(v: number | undefined): number {
+    return Number.isFinite(v) ? Math.max(0, Math.round(v as number)) : 0;
+}
 
 /** Ksztalt wiersza z RPC leaderboard_top (patrz supabase/leaderboard_rpc.sql). */
 interface LeaderboardTopRow {
@@ -176,7 +181,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
 
     // ── IScoreService ────────────────────────────────────────────────────────────
 
-    async submitScore(score: number, config: GameConfig): Promise<ScoreEntry> {
+    async submitScore(score: number, config: GameConfig, stats?: RunStats): Promise<ScoreEntry> {
         const insert: ScoreInsert = {
             profile_id: config.profileId,
             score,
@@ -186,6 +191,19 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
             brawler_id: config.brawlerId,
             session_id: config.sessionId,
             score_version: CURRENT_SCORE_VERSION,
+            // v0.100.0 — staty meczu. Edge Function waliduje i klampuje je serwerowo;
+            // brak pola => kolumna zostaje na DEFAULT (zgodnosc ze starymi wpisami w kolejce).
+            ...(stats ? {
+                game_seconds: nonNegInt(stats.gameSeconds),
+                kills: nonNegInt(stats.kills),
+                gems_collected: nonNegInt(stats.gemsCollected),
+                cubes_collected: nonNegInt(stats.cubesCollected),
+                shots_fired: nonNegInt(stats.shotsFired),
+                shots_hit: nonNegInt(stats.shotsHit),
+                supers_fired: nonNegInt(stats.supersFired),
+                powers_used: nonNegInt(stats.powersUsed),
+                mega_boss_defeated: !!stats.megaBossDefeated,
+            } : {}),
         };
 
         try {

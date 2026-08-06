@@ -35,9 +35,12 @@ type SectionId = 'battle' | 'garage' | 'quests' | 'trophies' | 'rank';
 export class HubShell implements IScreen {
     private rootEl: HTMLElement | null = null;
     private activeSection: SectionId = 'battle';
+    /** PROG-F2b — odsubskrybowanie nasluchu "chmura domergowala progresje". */
+    private unsubscribeSync: (() => void) | null = null;
 
     private readonly battle = new BattleSection();
     private readonly garage = new GarageSection();
+    private readonly quests = new QuestsSection();
     private readonly rank = new RankSection();
     private readonly stats = new StatsOverlay();
     private readonly crate = new CrateOverlay();
@@ -56,10 +59,12 @@ export class HubShell implements IScreen {
             if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => this.renderMain());
         };
         this.garage.onCosmeticChanged = () => this.refreshReadout();
+        // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
+        this.quests.onRewardClaimed = () => this.refreshReadout();
         this.sections = [
             this.battle,
             this.garage,
-            new QuestsSection(),
+            this.quests,
             new TrophyRoadSection(),
             this.rank,
         ];
@@ -76,6 +81,16 @@ export class HubShell implements IScreen {
     }
 
     mount(root: HTMLElement): void {
+        // PROG-F2b — syncPull startuje na boocie fire-and-forget (main.ts), wiec hub potrafi
+        // wyrenderowac sie zanim chmura wroci. Po domergowaniu odswiez readout + aktywna sekcje
+        // (inaczej gracz po zmianie urzadzenia widzi stara kolekcje az do restartu).
+        this.unsubscribeSync?.();
+        this.unsubscribeSync = ProgressionService.subscribeSync(() => {
+            if (!this.rootEl) return;
+            this.refreshReadout();
+            this.renderMain();
+        });
+
         this.rootEl = document.createElement('div');
         this.rootEl.className = 'bt-hub0-screen';
         this.rootEl.innerHTML = this.renderChrome();
@@ -85,6 +100,8 @@ export class HubShell implements IScreen {
     }
 
     unmount(): void {
+        this.unsubscribeSync?.();
+        this.unsubscribeSync = null;
         this.stats.close();
         this.crate.close();
         this.rootEl?.remove();

@@ -35,6 +35,33 @@ export interface ScoreEntry {
 }
 
 /**
+ * Statystyki jednego meczu wysylane razem z wynikiem (v0.100.0).
+ *
+ * PO CO: kolumny `kills`/`gems_collected`/`game_seconds`/... istnieja w tabeli `scores`
+ * od FAZY 9b, ale interfejs ich NIE niosl => 491 wierszy z samymi zerami. Skutki byly
+ * dwa i oba realne: (1) kalibracja celow rozkazow (PROG-F3) nie miala z czego liczyc,
+ * (2) anti-cheat L2b (kill-rate, score/time ratio, megaboss XOR survival) nie mial
+ * czego walidowac. Ten patch zamyka zrodlo danych — wartosci ida z licznikow, ktore
+ * juz istnieja w GameSession/SpawnSystem, wiec gameplay jest nietkniety.
+ *
+ * Wszystkie pola opcjonalne: brak = kolumna zostaje na DEFAULT (kompatybilnosc wstecz
+ * z kolejka offline zapisana przed tym patchem).
+ */
+export interface RunStats {
+    gameSeconds?: number;
+    kills?: number;
+    gemsCollected?: number;
+    cubesCollected?: number;
+    shotsFired?: number;
+    shotsHit?: number;
+    /** Super STRZALY (ladunek z gemow), nie super moce. */
+    supersFired?: number;
+    /** Super MOCE (Aura / MegaBomba / Freeze). */
+    powersUsed?: number;
+    megaBossDefeated?: boolean;
+}
+
+/**
  * Filter dla zapytań — wszystkie pola optional.
  * Brak filtru = wszystkie wpisy.
  */
@@ -51,8 +78,8 @@ export interface ScoreFilter {
  * Wszystkie metody async — przygotowane na REST/backend impl.
  */
 export interface IScoreService {
-    /** Zapisz score z aktualnej rozgrywki (po victory / game over). */
-    submitScore(score: number, config: GameConfig): Promise<ScoreEntry>;
+    /** Zapisz score z aktualnej rozgrywki (po victory / game over). `stats` = metryki meczu. */
+    submitScore(score: number, config: GameConfig, stats?: RunStats): Promise<ScoreEntry>;
 
     /** Pobierz top scores wg filtra (sortowane DESC po score). */
     getTopScores(filter: ScoreFilter): Promise<ScoreEntry[]>;
@@ -106,7 +133,9 @@ export class LocalStorageScoreService implements IScoreService {
         return this.load();
     }
 
-    async submitScore(score: number, config: GameConfig): Promise<ScoreEntry> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async submitScore(score: number, config: GameConfig, _stats?: RunStats): Promise<ScoreEntry> {
+        // LocalStorage impl (legacy/migracje) nie przechowuje statystyk — ScoreEntry ich nie ma.
         const entry: ScoreEntry = Object.freeze({
             id: this.generateEntryId(),
             profileId: config.profileId,

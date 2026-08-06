@@ -7,6 +7,7 @@ import { PICKUP_CONFIG } from '../config/powers';
 import { WORLD_W, WORLD_H } from '../config/constants';
 import type { ICollidable } from '../types/MapType';
 import type { DifficultyModifiers } from '../config/difficulty';
+import { QuestService } from '../services/QuestService'; // PROG-F3 — metryki rozkazow
 
 export interface SpawnResult {
     newEnemies: Enemy[];
@@ -275,6 +276,10 @@ export class SpawnSystem {
         } else {
             this.regularKills++;
         }
+        // PROG-F3 — JEDEN punkt dla wszystkich 3 sciezek zabicia (pocisk / mega bomba / taran).
+        // QuestService ignoruje track() poza meczem (beginRun/endRun), wiec tutorial nie liczy.
+        QuestService.track('kill');
+        if (enemy.isBoss || enemy.isMegaBoss) QuestService.track('boss_kill');
     }
 
     /**
@@ -282,6 +287,7 @@ export class SpawnSystem {
      */
     registerGemCollected(): void {
         this.gemsCollected++;
+        QuestService.track('gem'); // PROG-F3
     }
 
     private findSafeSpawnPos(

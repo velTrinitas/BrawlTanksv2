@@ -155,6 +155,19 @@ export interface ProgressionQuests {
     updatedAt?: number;
 }
 
+/**
+ * Pod-dokument super mocy (PROG-F7a, kolumna progression.powers JSONB).
+ * `owned` = jawnie przyznane moce (merge: union; bazowa trojka wynika z unlockAtTrophies=0,
+ * a odblokowania progowe liczy klient z trofeow — samonaprawialne miedzy urzadzeniami).
+ * `loadout` = 2 sloty z GARAZU (merge: last-write-wins po loadoutAt — to preferencja, nie zasob).
+ */
+export interface ProgressionPowers {
+    v?: number;
+    owned?: string[];
+    loadout?: (string | null)[];
+    loadoutAt?: number;
+}
+
 export interface ProgressionRow {
     profile_id: string;
     trophies: number;
@@ -165,6 +178,7 @@ export interface ProgressionRow {
     last_run_day: string | null;             // YYYY-MM-DD
     cosmetics: ProgressionCosmetics;         // JSONB (F2b; stare wiersze = {})
     quests: ProgressionQuests;               // JSONB (F3; stare wiersze = {})
+    powers: ProgressionPowers;               // JSONB (F7a; stare wiersze = {})
     created_at: string;
     updated_at: string;
 }
@@ -179,6 +193,7 @@ export interface ProgressionInsert {
     last_run_day?: string | null;
     cosmetics?: ProgressionCosmetics;
     quests?: ProgressionQuests;
+    powers?: ProgressionPowers;
     // created_at / updated_at — NIE wysylamy (server-side)
 }
 

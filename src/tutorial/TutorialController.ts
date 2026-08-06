@@ -119,7 +119,9 @@ export class TutorialController {
                 hint: opts.isTouch ? t('tutorial.power.hintTouch') : t('tutorial.power.hintDesktop'),
                 onEnter: () => opts.armSuperPower(),
                 isDone: () => opts.superPowerUsed(),
-                ringSelector: '.bt-super-button',
+                // F7a: dwa przyciski slotow — samouczek podswietla JEDNOZNACZNIE slot 1
+                // (querySelector na '.bt-super-button' zlapalby pierwszy w DOM = kruche).
+                ringSelector: '.bt-super-button--slot1',
             },
             // Przedmioty/strefy (serce/magnes/kostka/medi-pad/power-pad) uczone teraz JUST-IN-TIME
             // w meczu (ItemHints), nie kartami tutorialu — decyzja Mariusza + best practice.

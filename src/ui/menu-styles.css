@@ -2897,8 +2897,12 @@
     /* Pozycja: above right joystick */
     right: calc(40px + env(safe-area-inset-right, 0px));
     bottom: calc(170px + env(safe-area-inset-bottom, 0px));
-    width: 72px;
-    height: 72px;
+    /* F7a tuning (Mariusz): -25% rozmiaru + 50% przezroczystosci w spoczynku — dwa
+       przyciski zaslanialy pole gry. Stan is-charged wraca do ~90% (sygnal sensoryczny
+       "moc gotowa" musi byc widoczny — na touch nie ma paska HUD). */
+    width: 54px;
+    height: 54px;
+    opacity: 0.5;
     border-radius: 50%;
     border: 4px solid var(--bt-navy);
     background: radial-gradient(
@@ -2928,13 +2932,14 @@
 }
 
 .bt-super-button-icon {
-    font-size: 2rem;
+    font-size: 1.5rem;
     line-height: 1;
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
 }
 
 /* === Charged state: pulsing gold glow === */
 .bt-super-button.is-charged {
+    opacity: 0.92; /* F7a: gotowa moc MUSI byc widoczna (Sensoryka) — spoczynek jest przygaszony */
     background: radial-gradient(
         circle at 30% 30%,
         rgba(241, 196, 15, 1) 0%,
@@ -2962,6 +2967,7 @@
 
 /* Pressed state — tactile compression */
 .bt-super-button.is-pressed {
+    opacity: 1; /* F7a: dotkniety = pelna widocznosc (feedback) */
     transform: translateY(2px) scale(0.96);
     box-shadow:
         inset 0 -2px 4px rgba(0, 0, 0, 0.4),
@@ -2969,16 +2975,12 @@
     animation: none !important;
 }
 
-/* v0.23.1: long-press cycle feedback — quick scale pulse */
-.bt-super-button.is-cycling {
-    animation: bt-super-btn-cycle 0.25s ease-out;
+/* PROG-F7a: slot 2 na LEWO od slotu 1 (gap 12px). Pozycja NADPISANA w kazdej galezi
+   media queries nizej — bazowa prawa krawedz slotu 1 to 40px, przycisk 54px. */
+.bt-super-button--slot2 {
+    right: calc(106px + env(safe-area-inset-right, 0px)); /* 40 + 54 + 12 */
 }
-
-@keyframes bt-super-btn-cycle {
-    0%   { transform: scale(1.0); }
-    40%  { transform: scale(1.15); box-shadow: 0 0 24px rgba(241, 196, 15, 0.9); }
-    100% { transform: scale(1.0); }
-}
+/* (v0.23.1 long-press cycle USUNIETY w F7a — kazdy slot ma wlasny przycisk) */
 
 /* =============================================================
    RESPONSIVE — small phones (≤375px) get slightly smaller controls
@@ -2998,14 +3000,20 @@
     }
 
     .bt-super-button {
-        width: 62px;
-        height: 62px;
+        /* F7a: -25% dalby 46px < komfortowy cel kciuka — PODLOGA 48px na najmniejszych */
+        width: 48px;
+        height: 48px;
         right: calc(32px + env(safe-area-inset-right, 0px));
         bottom: calc(145px + env(safe-area-inset-bottom, 0px));
     }
 
+    /* F7a: slot 2 obok slotu 1 (32 + 48 + 10) */
+    .bt-super-button--slot2 {
+        right: calc(90px + env(safe-area-inset-right, 0px));
+    }
+
     .bt-super-button-icon {
-        font-size: 1.7rem;
+        font-size: 1.3rem;
     }
 }
 
@@ -3027,13 +3035,20 @@
     }
 
     .bt-super-button {
-        width: 84px;
-        height: 84px;
+        /* F7a tuning (Mariusz): 84 -> 63px (-25%) — zaslanialy pole gry */
+        width: 63px;
+        height: 63px;
         bottom: calc(195px + env(safe-area-inset-bottom, 0px));
     }
 
+    /* F7a: slot 2 obok slotu 1 (40 + 63 + 12). To jest galaz, ktora REALNIE gra na A54
+       landscape (851x393 => min-width:768 + pointer:coarse). */
+    .bt-super-button--slot2 {
+        right: calc(115px + env(safe-area-inset-right, 0px));
+    }
+
     .bt-super-button-icon {
-        font-size: 2.4rem;
+        font-size: 1.8rem;
     }
 }
 
@@ -3042,8 +3057,7 @@
    ============================================================= */
 
 @media (prefers-reduced-motion: reduce) {
-    .bt-super-button.is-charged,
-    .bt-super-button.is-cycling {
+    .bt-super-button.is-charged {
         animation: none !important;
     }
 

@@ -469,6 +469,51 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-reveal-cos b { font-size: 16px; color: var(--hub-ink); }
 .bt-hub0-reveal-bolts { font-weight: 800; font-size: 14px; color: var(--hub-accent); margin-bottom: 4px; }
 
+/* ── LOADOUT SUPER MOCY (HUB-2 / PROG-F7a) ──────────────────────────────── */
+/* 2 sloty (tap = uzbroj, zloty ring) + siatka mocy z rejestru. Wzorzec chipow
+   kosmetyków — spojnosc czytana przez powtarzalnosc. */
+
+.bt-hub0-loadout {
+    margin-bottom: 16px; padding: 12px 14px;
+    border: 1px solid rgba(241, 196, 15, 0.3); border-radius: var(--radius-md, 14px);
+    background: linear-gradient(110deg, #241f10, #1a2530 70%);
+}
+.bt-hub0-lslots { display: flex; gap: 10px; margin: 10px 0 12px; }
+.bt-hub0-lslot {
+    flex: 1 1 0; min-height: 64px; padding: 8px 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    border-radius: var(--radius-md, 12px); border: 2px solid var(--hub-line);
+    background: rgba(0, 0, 0, 0.25); color: var(--hub-ink); cursor: pointer;
+    font-family: var(--font-body, system-ui, sans-serif);
+}
+.bt-hub0-lslot.is-armed {
+    border-color: var(--hub-accent);
+    box-shadow: 0 0 10px rgba(241, 196, 15, 0.35), inset 0 0 0 1px rgba(241, 196, 15, 0.4);
+}
+.bt-hub0-lslot .num {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--hub-ink-faint);
+}
+.bt-hub0-lslot .pi { font-size: 22px; line-height: 1.1; }
+.bt-hub0-lslot .pn { font-size: 11px; font-weight: 700; }
+
+.bt-hub0-pow-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.bt-hub0-pow {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+    min-height: 40px; border-radius: 999px; border: 1px solid var(--hub-line);
+    background: var(--hub-steel-850); color: var(--hub-ink); cursor: pointer;
+    font-family: var(--font-body, system-ui, sans-serif); font-size: 12px; font-weight: 700;
+    position: relative;
+}
+.bt-hub0-pow .pi { font-size: 16px; }
+.bt-hub0-pow.is-locked { opacity: 0.45; cursor: default; }
+.bt-hub0-pow.is-equipped { border-color: var(--hub-accent); }
+.bt-hub0-pow .eq {
+    display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--hub-accent); color: #1a2530; font-size: 10px; font-weight: 800;
+}
+.bt-hub0-lhint { display: block; margin-top: 8px; font-size: 10px; color: var(--hub-ink-dim); }
+
 /* ── ROZKAZY (HUB-3 / PROG-F3) ───────────────────────────────────────────── */
 /* Karta rozkazu = ikona + jedno zdanie + pasek + licznik. Kolor lewej krawedzi
    koduje tier (szary/niebieski/pomaranczowy/zloty) — czytelnosc przez powtarzalnosc. */

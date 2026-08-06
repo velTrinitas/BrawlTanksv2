@@ -4,8 +4,9 @@
  * v0.23.1 updates:
  *  - Left joystick: mode='floating' (Brawl Stars pattern — tap anywhere w lewej 40% zone → joystick teleports under finger)
  *  - Right joystick: mode='fixed' (aim precision wymaga stalej pozycji dla wizualnego sprzezenia palec→cel)
- *  - onCycleRequested callback (long-press SuperButton → cycle do next power)
- *  - updateSelectedPower(emoji) — forward selected power icon do SuperButton
+ *
+ * PROG-F7a: DWA przyciski super mocy = dwa sloty loadoutu (long-press cycle usuniety).
+ * Aktywacja wylacznie callbackiem onSuperRequested(slot) — jedna sciezka.
  *
  * Detection priority (highest wins):
  *  1. URL param ?touch=force / ?touch=never (dev override)
@@ -29,16 +30,14 @@ export class TouchInputManager {
     private rootEl: HTMLElement | null = null;
     private moveJoystick: VirtualJoystick;
     private aimJoystick: VirtualJoystick;
-    private superButton: SuperButton;
+    /** PROG-F7a: dwa przyciski = dwa sloty loadoutu (index 0/1). */
+    private superButtons: [SuperButton, SuperButton];
 
     /** Whether touch UI is active (detected as touch device OR forced). */
     readonly isActive: boolean;
 
-    /** Edge-triggered super-shot tap (consumed by main.ts via consumeSuperRequest). */
-    onSuperRequested: (() => void) | null = null;
-
-    /** v0.23.1: long-press super button → cycle selected power. */
-    onCycleRequested: (() => void) | null = null;
+    /** F7a: tap przycisku slotu → aktywacja mocy z tego slotu (JEDYNA sciezka aktywacji). */
+    onSuperRequested: ((slot: 0 | 1) => void) | null = null;
 
     constructor() {
         this.isActive = this.detectTouchDevice();
@@ -46,7 +45,7 @@ export class TouchInputManager {
         this.moveJoystick = new VirtualJoystick('left', 'floating');
         // v0.23.1: right joystick = FIXED (aim precision)
         this.aimJoystick = new VirtualJoystick('right', 'fixed');
-        this.superButton = new SuperButton();
+        this.superButtons = [new SuperButton(0), new SuperButton(1)];
     }
 
     init(): void {
@@ -63,19 +62,15 @@ export class TouchInputManager {
 
         this.moveJoystick.mount(this.rootEl);
         this.aimJoystick.mount(this.rootEl);
-        this.superButton.mount(this.rootEl);
-
-        this.superButton.onRequest = () => {
-            this.onSuperRequested?.();
-        };
-
-        this.superButton.onCycleRequested = () => {
-            this.onCycleRequested?.();
-        };
+        // Slot 1 montowany PIERWSZY (tutorial ringSelector '.bt-super-button--slot1').
+        for (const [i, btn] of this.superButtons.entries()) {
+            btn.mount(this.rootEl);
+            btn.onRequest = () => this.onSuperRequested?.(i as 0 | 1);
+        }
 
         this.hide();
 
-        console.log('[TouchInput] initialized — left=floating, right=fixed');
+        console.log('[TouchInput] initialized — left=floating, right=fixed, 2 super slots');
     }
 
     show(): void {
@@ -83,7 +78,7 @@ export class TouchInputManager {
         this.rootEl.style.display = '';
         this.moveJoystick.show();
         this.aimJoystick.show();
-        this.superButton.show();
+        for (const btn of this.superButtons) btn.show();
     }
 
     hide(): void {
@@ -91,7 +86,7 @@ export class TouchInputManager {
         this.rootEl.style.display = 'none';
         this.moveJoystick.hide();
         this.aimJoystick.hide();
-        this.superButton.hide();
+        for (const btn of this.superButtons) btn.hide();
     }
 
     // === Bridge API for main.ts gameLoop ===
@@ -115,19 +110,17 @@ export class TouchInputManager {
         return this.aimJoystick.isActive && this.aimJoystick.magnitude > 0.1;
     }
 
-    consumeSuperRequest(): boolean {
-        if (!this.isActive) return false;
-        return this.superButton.consumeRequest();
+    /** F7a: charged glow per slot (wolane per-frame z main.ts; no-op wewnatrz przy braku zmiany). */
+    updateSuperChargedVisual(slot: 0 | 1, charged: boolean): void {
+        if (!this.isActive) return;
+        this.superButtons[slot].setCharged(charged);
     }
 
-    updateSuperChargedVisual(hasCharges: boolean): void {
+    /** F7a: ikony mocy z loadoutu — RAZ na mecz (startGame), nie per-frame. */
+    setSlotPowers(emojis: [string, string]): void {
         if (!this.isActive) return;
-        this.superButton.setHasCharges(hasCharges);
-    }
-
-    updateSelectedPower(emoji: string): void {
-        if (!this.isActive) return;
-        this.superButton.setSelectedPower(emoji);
+        this.superButtons[0].setPowerIcon(emojis[0]);
+        this.superButtons[1].setPowerIcon(emojis[1]);
     }
 
     // === Internal ===

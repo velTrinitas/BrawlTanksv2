@@ -28,7 +28,11 @@ import {
 } from '../config/progression';
 import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kosmetyki
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
-import type { ProgressionCosmetics } from './supabase/types'; // PROG-F2b sync kosmetykow
+import type { ProgressionCosmetics, ProgressionPowers } from './supabase/types'; // PROG-F2b/F7a sync
+import {
+    getPowerDef, POWER_ORDER, DEFAULT_LOADOUT,
+    type PowerId, type LoadoutPair,
+} from '../config/powers'; // PROG-F7a — loadout Super Mocy
 import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedna sciezka upsertu)
 
 const STORAGE_KEY = 'bt2:progression';
@@ -62,6 +66,13 @@ interface ProgressionState {
     equippedAt: number;
     /** Progi milestone za ktore juz skredytowano skrzynke (idempotencja + backfill). */
     crateMilestonesCredited: number[];
+
+    // ── F7a: Super Moce (loadout z GARAZU) ──
+    /** Moce przyznane JAWNIE (F7b eventy/granty). Bazowa trojka + progi liczone z rejestru. */
+    ownedPowers: string[];
+    /** 2 sloty loadoutu. Merge: last-write-wins po loadoutAt (preferencja, nie zasob). */
+    loadout: (string | null)[];
+    loadoutAt: number;
 }
 
 /**
@@ -238,6 +249,7 @@ class ProgressionServiceImpl {
                 // liste crateMilestonesCredited i wygeneruje skrzynki za milestony ktore
                 // gracz juz otworzyl (dziura w ekonomii przy czystym localStorage).
                 this.mergeCosmetics(st, remote.cosmetics);
+                this.mergePowers(st, remote.powers); // F7a — po merdze trofeow (progi licza z trofeow)
                 this.creditMilestoneCrates(st);
                 // PROG-F3 — rozkazy scalane PO trofeach (skalowanie celow czyta trofea konta).
                 QuestService.mergeRemote(profileId, remote.quests, st.trophies);
@@ -276,6 +288,12 @@ class ProgressionServiceImpl {
                     crateMilestones: st.crateMilestonesCredited,
                 },
                 quests: QuestService.serialize(profileId), // PROG-F3
+                powers: {                                   // PROG-F7a
+                    v: 1,
+                    owned: st.ownedPowers,
+                    loadout: st.loadout,
+                    loadoutAt: st.loadoutAt,
+                },
             })
             .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
     }
@@ -408,6 +426,70 @@ class ProgressionServiceImpl {
         this.syncPush(profileId); // F2b — bez tego zmiana wygladu nie przechodzi na inne urzadzenie
     }
 
+    // === F7a: Super Moce (loadout z GARAZU) ===
+
+    /** Migawka mocy: dostepne moce (prog trofeow LUB jawny grant) + loadout 2 slotow. */
+    getPowerState(profileId: string): { owned: readonly PowerId[]; loadout: LoadoutPair; trophies: number } {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        return {
+            owned: POWER_ORDER.filter(id => this.isPowerOwned(st, id)),
+            loadout: [asPowerId(st.loadout[0]), asPowerId(st.loadout[1])],
+            trophies: st.trophies,
+        };
+    }
+
+    /**
+     * Ustaw moc w slocie loadoutu (GARAZ). Duplikat w drugim slocie => SWAP (klasyk
+     * pickerow — gracz nie moze miec 2x tej samej mocy). No-op gdy moc nieznana/niedostepna.
+     */
+    setLoadoutSlot(profileId: string, slot: 0 | 1, id: PowerId): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        if (!this.isPowerOwned(st, id)) return;
+        const other = slot === 0 ? 1 : 0;
+        if (st.loadout[other] === id) st.loadout[other] = st.loadout[slot] ?? null; // swap
+        st.loadout[slot] = id;
+        st.loadoutAt = Date.now(); // znacznik LWW — rozstrzyga merge miedzy urzadzeniami
+        st.updatedAt = st.loadoutAt;
+        this.save();
+        this.syncPush(profileId); // preferencja idzie do chmury od razu (jak equip kosmetyku)
+    }
+
+    /**
+     * Dostepnosc mocy: prog trofeow z REJESTRU (samonaprawialne miedzy urzadzeniami —
+     * trofea sa monotoniczne) LUB jawny grant w ownedPowers (F7b eventy).
+     */
+    private isPowerOwned(st: ProgressionState, id: PowerId): boolean {
+        const def = getPowerDef(id);
+        if (!def) return false;
+        return st.trophies >= def.unlockAtTrophies || st.ownedPowers.includes(id);
+    }
+
+    /**
+     * Merge pod-dokumentu mocy (F7a, wzorzec F2b): owned = UNION (grant gdziekolwiek =
+     * grant wszedzie), loadout = LAST-WRITE-WINS po loadoutAt (preferencja, nie zasob).
+     * Nieznane id (moc wycieta z rejestru / zmajstrowany wiersz) sa odrzucane.
+     */
+    private mergePowers(st: ProgressionState, remote: ProgressionPowers | null | undefined): void {
+        if (!remote || typeof remote !== 'object') return;
+
+        if (Array.isArray(remote.owned)) {
+            const owned = new Set<string>([...st.ownedPowers, ...remote.owned.filter(id => !!getPowerDef(String(id)))]);
+            st.ownedPowers = [...owned];
+        }
+
+        const remoteAt = Number(remote.loadoutAt) || 0;
+        const localNeverChosen = st.loadoutAt === 0;
+        if (Array.isArray(remote.loadout) && (remoteAt > st.loadoutAt || localNeverChosen)) {
+            const next = remote.loadout.slice(0, 2).map(id => (getPowerDef(String(id)) ? String(id) : null));
+            if (next.some(id => id !== null)) {
+                st.loadout = [next[0] ?? null, next[1] ?? null];
+                st.loadoutAt = Math.max(remoteAt, st.loadoutAt);
+            }
+        }
+    }
+
     // === F3: nagrody za rozkazy ===
 
     /**
@@ -457,6 +539,9 @@ class ProgressionServiceImpl {
                 equipped: {},
                 equippedAt: 0,
                 crateMilestonesCredited: [],
+                ownedPowers: [],
+                loadout: [...DEFAULT_LOADOUT],
+                loadoutAt: 0,
             };
             this.states[profileId] = st;
         } else {
@@ -475,6 +560,10 @@ class ProgressionServiceImpl {
                 st.cratesEarned = (legacy.crateCount ?? 0) + st.pityCounter;
             }
             delete legacy.crateCount;
+            // F7a — normalizacja starych stanow o pola super mocy
+            st.ownedPowers ??= [];
+            st.loadout ??= [...DEFAULT_LOADOUT];
+            st.loadoutAt ??= 0;
             // F2b — kosmetyk zalozony jeszcze w F2a nie ma znacznika LWW (equippedAt=0),
             // wiec przegralby kazde porownanie i nie odtworzylby sie na innym urzadzeniu.
             // Nadaj mu czas ostatniego zapisu stanu (realny moment tamtej zmiany).
@@ -549,6 +638,11 @@ class ProgressionServiceImpl {
             typeof e.totalRuns === 'number'
         );
     }
+}
+
+/** Waliduj id mocy ze stanu (localStorage/chmura moga niesc smieci) — nieznane => null. */
+function asPowerId(id: string | null | undefined): PowerId | null {
+    return id && getPowerDef(id) ? (id as PowerId) : null;
 }
 
 // import lokalny bez cyklu — lista milestonow do prevThresholdBelow

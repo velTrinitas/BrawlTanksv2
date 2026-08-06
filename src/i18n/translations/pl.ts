@@ -69,7 +69,7 @@ export const pl = {
     'howto.super': 'Super-strzał',
     'howto.superVal': 'Naładuj gemami',
     'howto.power': 'Super-moc',
-    'howto.powerVal': 'Przycisk SUPER / SPACJA · PPM (długo = zmień)',
+    'howto.powerVal': 'Klawisze 1/2 · scroll = wybierz · SPACJA/PPM = użyj',
     'howto.heart': '❤️ Serce — leczy czołg',
     'howto.magnet': '🧲 Magnes — przyciąga gemy',
     'howto.cube': '📦 Kostka — ⚔ mocniejszy strzał / 💙 więcej HP',
@@ -120,8 +120,8 @@ export const pl = {
     'tutorial.super.hintTouch': 'Masz super-pocisk! Strzelaj i zmieć wroga',
     'tutorial.super.hintDesktop': 'Masz super-pocisk! Strzelaj i zmieć wroga',
     'tutorial.power.title': 'SUPER MOC!',
-    'tutorial.power.hintTouch': 'Naciśnij przycisk mocy! (przytrzymaj = zmień moc)',
-    'tutorial.power.hintDesktop': 'Wciśnij SPACJĘ lub PPM, by użyć mocy! (scroll myszy = zmień moc)',
+    'tutorial.power.hintTouch': 'Tapnij przycisk mocy!',
+    'tutorial.power.hintDesktop': 'Wciśnij 1 lub 2 (albo SPACJĘ), by użyć mocy!',
     'tutorial.finish.title': 'GOTOWY!',
     'tutorial.finish.hint': 'Świetnie! Znasz już podstawy. Co teraz?',
     'tutorial.finish.play': 'GRAJ DALEJ',
@@ -220,6 +220,17 @@ export const pl = {
     // Forma "Czasownik rzecz: {n}" jest odporna na polska odmiane liczebnika
     // (2 wrogow / 5 wrogow) i skanuje sie wzrokiem, a nie czyta zdaniem.
     // ============================================================
+    // ============================================================
+    // Super Moce (PROG-F7a — nazwy w rejestrze przez labelKey)
+    // ============================================================
+    'power.aura': 'Aura',
+    'power.megaBomb': 'Bomba',
+    'power.freeze': 'Mróz',
+    'hub.garage.loadout': 'Loadout Super Mocy',
+    'hub.garage.loadoutHint': 'Tapnij slot, potem moc — z tym wjedziesz do bitwy!',
+    'hub.garage.slot': 'Slot {n}',
+    'hub.garage.powerLocked': 'Od {n} 🏆',
+
     'hub.quests.daily': 'ROZKAZY DNIA',
     'hub.quests.weekly': 'ROZKAZY TYGODNIA',
     'hub.quests.claim': 'ODBIERZ',
@@ -544,7 +555,7 @@ export const pl = {
     // Pille i hinty
     'hud.superShot':           'SUPER SHOT',
     'hud.killProgressTaunt':   '💀 ZNISZCZ BOSSÓW!',
-    'hud.powerHint':           'scroll = wybierz   ·   PPM/SPACE = użyj',
+    'hud.powerHint':           '1/2 = moc   ·   scroll = wybierz   ·   SPACJA/PPM = użyj',
 
     // Active power status (bottom-center, gdy aura/mroz aktywne)
     'hud.auraActive':          '🛡️ TARCZA — {sec}s 🛡️',

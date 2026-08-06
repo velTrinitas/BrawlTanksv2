@@ -130,7 +130,7 @@ import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS } from './config/powers';
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, resolveLoadoutForMatch } from './config/powers'; // F7a registry
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -536,13 +536,10 @@ if (_bootProgPid) void ProgressionService.syncPull(_bootProgPid);
 
 const touchManager = new TouchInputManager();
 touchManager.init();
-touchManager.onSuperRequested = () => {
-    tryActivateSuper();
-};
-touchManager.onCycleRequested = () => {
-    if (powerSystem) {
-        powerSystem.cycleSelected(1);
-    }
+// PROG-F7a: dwa przyciski = dwa sloty; JEDNA sciezka aktywacji (callback). Long-press
+// cycle usuniety — nie ma ukrytego stanu "wybranej" mocy.
+touchManager.onSuperRequested = (slot) => {
+    tryActivateSuper(slot);
 };
 
 if (touchManager.isActive) {
@@ -719,8 +716,7 @@ function tutorialSuperPillRect(): { x: number; y: number; w: number; h: number }
 let tutSuperPowerBase = 0;
 function tutorialArmSuperPower(): void {
     if (powerSystem) {
-        powerSystem.powerCooldowns = { aura: 0, megaBomb: 0, freeze: 0 }; // gwarancja: moc gotowa do uzycia
-        powerSystem.activePowerId = null;
+        powerSystem.clearCooldowns(); // gwarancja: moc gotowa do uzycia (F7a: bez literalu ksztaltu rekordu)
     }
     tutSuperPowerBase = currentSession ? currentSession.superPowersUsed : 0;
     tutorialEnemies = [];
@@ -765,9 +761,7 @@ function resetPlayerStateForMatch(matchConfig: GameConfig): void {
         player.hp = player.maxHp;
     }
     if (powerSystem) {
-        powerSystem.powerCooldowns = { aura: 0, megaBomb: 0, freeze: 0 };
-        powerSystem.activePowerId = null;
-        powerSystem.framesLeft = 0;
+        powerSystem.clearCooldowns(); // F7a: bez literalu ksztaltu rekordu (przezyje nowe moce F7b)
     }
     currentSession = new GameSession(matchConfig); // score/kille/combo od zera
 }
@@ -928,24 +922,24 @@ function returnToMenuFromEnd(): void {
 document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
 document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
 
-function tryActivateSuper(): void {
+/**
+ * PROG-F7a: aktywacja mocy ZE SLOTU (0 = przycisk 1/Space/PPM, 1 = przycisk 2/Q).
+ * Zachowanie mocy zyje w PowerDef.onActivate (registry) — tutaj zostaje TYLKO to,
+ * co nalezy do petli gry: kill-path mega bomby (registerKill/score/drop/victory).
+ */
+function tryActivateSuper(slot: 0 | 1 = 0): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects || !currentSession) return;
 
-    const result = powerSystem.activate(player, enemies);
+    const result = powerSystem.activate(slot, { player, enemies, effects, audio, hud });
     if (!result.activated) return;
+
+    // Desktop: wybor podaza za ostatnia uzyta moca (PPM/SPACJA powtarza ja bez scrollowania).
+    powerSystem.selectedSlot = slot;
 
     currentSession.superPowersUsed++;
     QuestService.track('super_power'); // PROG-F3
 
-    if (result.powerId === 'aura') {
-        hud.addNotif(t('hud.shieldActive'), '#ffdd00');
-        effects.shake(4, 6);
-        audio.playSuperActivate('aura');
-    } else if (result.powerId === 'megaBomb' && result.megaBombTargets) {
-        effects.spawnMegaBomb(player.x, player.y);
-        hud.addNotif(t('hud.megaBombHit', { count: result.megaBombTargets.length }), '#ff4400');
-        audio.playSuperActivate('megaBomb');
-
+    if (result.megaBombTargets) {
         // v0.50.0 Scoring v2.1: track ile zabilo + sum base values dla multi-kill bonus.
         let multiKillCount = 0;
         let multiKillSumBase = 0;
@@ -978,23 +972,23 @@ function tryActivateSuper(): void {
             currentSession.addMultiKillBonus(multiKillSumBase, multiKillCount);
             hud.addNotif(t('hud.multiKill', { count: multiKillCount }), '#ff8800');
         }
-    } else if (result.powerId === 'freeze' && result.freezeUntil !== undefined) {
-        for (const enemy of enemies) {
-            if (enemy.active) enemy.freeze(result.freezeUntil);
-        }
-        effects.spawnFreezeOverlay(300);
-        hud.addNotif(t('hud.freezeAll'), '#66ddff');
-        effects.shake(3, 8);
-        audio.playSuperActivate('freeze');
     }
 }
 
 window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k in keys) (keys as any)[k] = true;
+    // PROG-F7a (+feedback Mariusza): 1/2 = odpal slot BEZPOSREDNIO (skaluje sie na 3+ w F7b),
+    // SPACJA = odpal slot WYBRANY scrollem (strzalka w HUD), Q = alias slotu 2.
     if (e.code === 'Space') {
         e.preventDefault();
-        tryActivateSuper();
+        tryActivateSuper(powerSystem?.selectedSlot ?? 0);
+    }
+    if (k === '1') {
+        tryActivateSuper(0);
+    }
+    if (k === '2' || k === 'q') {
+        tryActivateSuper(1);
     }
     if (k === 'm') {
         const nowMuted = audio.toggleMute();
@@ -1024,16 +1018,18 @@ window.addEventListener('keyup', e => {
     isMouseDown = false;
 });
 
+// PROG-F7a (+feedback Mariusza): PPM odpala WYBRANY slot, scroll przesuwa wybor —
+// pamiec miesniowa z legacy (scroll = wybierz, PPM = uzyj) zostaje. Wybor jest widoczny
+// w pasku HUD (strzalka), wiec to nie jest ukryty stan na desktopie.
 (app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => {
     e.preventDefault();
-    tryActivateSuper();
+    tryActivateSuper(powerSystem?.selectedSlot ?? 0);
 });
 
 (app.view as HTMLCanvasElement).addEventListener('wheel', (e: any) => {
     if (gameState !== 'PLAYING' || !powerSystem) return;
     e.preventDefault();
-    const direction = e.deltaY > 0 ? 1 : -1;
-    powerSystem.cycleSelected(direction);
+    powerSystem.cycleSlot(e.deltaY > 0 ? 1 : -1);
 }, { passive: false });
 
 /**
@@ -1806,7 +1802,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         getDifficultyModifiers(config.difficulty),
         config.scenario === 'ctf' ? { roamerCap: 10 } : null,
     );
-    powerSystem = new PowerSystem(worldContainer);
+    // PROG-F7a: loadout z GARAZU (ProgressionService), rozwiazany pod scenariusz
+    // (macierz allowedPowers + walidacja id — gracz nigdy nie wchodzi z pustym slotem).
+    const matchLoadout = resolveLoadoutForMatch(
+        ProgressionService.getPowerState(config.profileId).loadout,
+        config.scenario,
+    );
+    powerSystem = new PowerSystem(worldContainer, matchLoadout);
+    touchManager.setSlotPowers([POWERS[matchLoadout[0]].emoji, POWERS[matchLoadout[1]].emoji]);
 
     if (config.map === 'tropics') {
         for (const cl of TROPICS_CRATES_LAYOUT) {
@@ -2676,14 +2679,11 @@ app.ticker.add((rawDelta) => {
 
     let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {
-        touchManager.updateSuperChargedVisual(powerSystem.canActivate());
-
-        const selectedPower = POWERS[powerSystem.selectedPowerId];
-        touchManager.updateSelectedPower(selectedPower.emoji);
-
-        if (touchManager.consumeSuperRequest()) {
-            tryActivateSuper();
-        }
+        // PROG-F7a: charged glow per slot. Aktywacja idzie WYLACZNIE callbackiem
+        // onSuperRequested (legacy polling consumeSuperRequest usuniety — dubla sciezka
+        // dawalaby 2 moce z jednego tapu przy 2 slotach).
+        touchManager.updateSuperChargedVisual(0, powerSystem.canActivateSlot(0));
+        touchManager.updateSuperChargedVisual(1, powerSystem.canActivateSlot(1));
 
         touchMoveVector = touchManager.moveVector;
 

@@ -60,7 +60,7 @@ export const en: typeof pl = {
     'howto.super': 'Super shot',
     'howto.superVal': 'Charge it with gems',
     'howto.power': 'Super power',
-    'howto.powerVal': 'SUPER button / SPACE · RMB (hold = switch)',
+    'howto.powerVal': 'Keys 1/2 · scroll = select · SPACE/RMB = use',
     'howto.heart': '❤️ Heart — heals your tank',
     'howto.magnet': '🧲 Magnet — pulls gems in',
     'howto.cube': '📦 Cube — ⚔ stronger shot / 💙 more HP',
@@ -111,8 +111,8 @@ export const en: typeof pl = {
     'tutorial.super.hintTouch': "You've got a super shot! Fire and wipe the enemy",
     'tutorial.super.hintDesktop': "You've got a super shot! Fire and wipe the enemy",
     'tutorial.power.title': 'SUPER POWER!',
-    'tutorial.power.hintTouch': 'Tap the power button! (hold to switch power)',
-    'tutorial.power.hintDesktop': 'Press SPACE or right-click to use a power! (scroll to switch)',
+    'tutorial.power.hintTouch': 'Tap a power button!',
+    'tutorial.power.hintDesktop': 'Press 1 or 2 (or SPACE) to use a power!',
     'tutorial.finish.title': 'READY!',
     'tutorial.finish.hint': 'Great! You know the basics. What now?',
     'tutorial.finish.play': 'KEEP PLAYING',
@@ -209,6 +209,17 @@ export const en: typeof pl = {
     // ============================================================
     // ORDERS (PROG-F3 / HUB-3) — syntax: ICON + VERB + COUNTER
     // ============================================================
+    // ============================================================
+    // Super Powers (PROG-F7a — names via registry labelKey)
+    // ============================================================
+    'power.aura': 'Aura',
+    'power.megaBomb': 'Bomb',
+    'power.freeze': 'Freeze',
+    'hub.garage.loadout': 'Super Power Loadout',
+    'hub.garage.loadoutHint': 'Tap a slot, then a power — this is what you bring to battle!',
+    'hub.garage.slot': 'Slot {n}',
+    'hub.garage.powerLocked': 'From {n} 🏆',
+
     'hub.quests.daily': 'DAILY ORDERS',
     'hub.quests.weekly': 'WEEKLY ORDERS',
     'hub.quests.claim': 'CLAIM',
@@ -527,7 +538,7 @@ export const en: typeof pl = {
     // Pills and hints
     'hud.superShot':           'SUPER SHOT',
     'hud.killProgressTaunt':   '💀 DESTROY BOSSES!',
-    'hud.powerHint':           'scroll = select   ·   RMB/SPACE = use',
+    'hud.powerHint':           '1/2 = power   ·   scroll = select   ·   SPACE/RMB = use',
 
     // Active power status (bottom-center, when aura/freeze active)
     'hud.auraActive':          '🛡️ SHIELD — {sec}s 🛡️',

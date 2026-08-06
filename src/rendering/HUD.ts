@@ -3,7 +3,7 @@ import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
 import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
-import { POWERS, type PowerId } from '../config/powers';
+import { POWERS } from '../config/powers';
 import { t as tr } from '../i18n/i18n';
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
@@ -16,7 +16,7 @@ const SUPER_TINT_HEX = '#c850ff';
  */
 const FONT_FAMILY = 'Titan One';
 // v0.73.7 PERF (minor-GC): stala kolejnosc mocy — module-const zamiast alokacji tablicy co klatke w drawSuperPowerBar.
-const POWER_ORDER: PowerId[] = ['aura', 'megaBomb', 'freeze'];
+// (F7a: POWER_ORDER usuniety — pasek rysuje 2 sloty z powerSystem.loadout, nie stala liste 3 mocy)
 
 /**
  * v0.46.0 HUD typography pass: jednolity rozmiar labeli pilli (HP/WYNIK/ZABICI/SUPER).
@@ -397,33 +397,40 @@ export class HUD {
     private drawSuperPowerBar(powerSystem: PowerSystem): void {
         const c = this.ctx;
         const cx = this.screenW / 2;
-        
+
         const ICON_SIZE = 72;
         const ICON_GAP = 14;
         const BOTTOM_MARGIN = 40;
-        
+
         const iconsBaseY = this.screenH - BOTTOM_MARGIN - ICON_SIZE;
         const hintY = iconsBaseY - 18;
-        
-        const totalW = ICON_SIZE * 3 + ICON_GAP * 2;
+
+        // PROG-F7a: 2 SLOTY LOADOUTU zamiast 3 mocy z cyklowaniem. Kazdy slot = wlasny
+        // trigger (SPACE/PPM i Q) => "wybrana moc" nie istnieje; gotowy slot = zloty puls.
+        const loadout = powerSystem.loadout;
+        const totalW = ICON_SIZE * loadout.length + ICON_GAP * (loadout.length - 1);
         const startX = cx - totalW / 2;
-        
-        // v0.73.7 PERF: for-loop na module-const zamiast .forEach (bez alokacji tablicy+domkniecia co klatke).
-        for (let i = 0; i < POWER_ORDER.length; i++) {
-            const id = POWER_ORDER[i];
+
+        // v0.73.7 PERF: for-loop (bez alokacji tablicy+domkniecia co klatke).
+        for (let i = 0; i < loadout.length; i++) {
+            const id = loadout[i];
             const power = POWERS[id];
+            const isSelected = powerSystem.selectedSlot === i;
             const ix = startX + i * (ICON_SIZE + ICON_GAP);
-            const iy = iconsBaseY;
-            const isSelected = powerSystem.selectedPowerId === id;
+            // F7a fix czytelnosci (feedback Mariusza): WYBOR to inny kanal niz GOTOWOSC.
+            // Gotowosc = zloty puls ramki; wybor = kafelek UNIESIONY o 8px + wskaznik nad nim
+            // (pozycja+ruch zamiast koloru — czytelne mimo pulsu na obu gotowych slotach).
+            const iy = iconsBaseY - (isSelected ? 8 : 0);
             const isActive = powerSystem.activePowerId === id;
             const cooldownProgress = powerSystem.getCooldownProgress(id);
             const onCooldown = cooldownProgress > 0;
-            
+            const isReady = !isActive && !onCooldown && powerSystem.activePowerId === null;
+
             if (isActive) {
                 c.fillStyle = 'rgba(60,40,0,0.95)';
             } else if (onCooldown) {
                 c.fillStyle = 'rgba(8,8,18,0.7)';
-            } else if (isSelected) {
+            } else if (isReady) {
                 c.fillStyle = 'rgba(40,30,8,0.85)';
             } else {
                 c.fillStyle = 'rgba(8,8,18,0.75)';
@@ -431,13 +438,13 @@ export class HUD {
             c.beginPath();
             c.roundRect(ix, iy, ICON_SIZE, ICON_SIZE, 12);
             c.fill();
-            
+
             if (isActive) {
                 const pulse = 0.8 + Math.sin(Date.now() / 100) * 0.2;
                 c.strokeStyle = `rgba(255,221,0,${pulse})`;
                 c.lineWidth = 4;
                 c.stroke();
-            } else if (isSelected && !onCooldown) {
+            } else if (isReady) {
                 const pulse = 0.7 + Math.sin(Date.now() / 150) * 0.3;
                 c.strokeStyle = `rgba(255,221,0,${pulse})`;
                 c.lineWidth = 3.5;
@@ -488,20 +495,41 @@ export class HUD {
             }
             
             // v0.27.0 FAZA F-fix2: 11px za maly dla Titan One → 13px + dark stroke dla kontrastu
+            // F7a: etykieta z i18n (typowana zmienna labelKey), zamiast hardcoded power.name.
+            const label = tr(power.labelKey).toUpperCase();
             c.font = `13px "${FONT_FAMILY}",cursive`;
             c.strokeStyle = 'rgba(0,0,0,0.85)';
             c.lineWidth = 3;
-            c.strokeText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
-            c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isSelected ? '#ffdd00' : '#ffffff');
-            c.fillText(power.name.toUpperCase(), ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
-            
+            c.strokeText(label, ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
+            c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isReady ? '#ffdd00' : '#ffffff');
+            c.fillText(label, ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
+
+            // F7a: numer slotu (klawisz bezposredni) w rogu kafelka — mapowanie 1/2 → moc.
+            c.font = `12px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'left';
+            c.strokeStyle = 'rgba(0,0,0,0.85)';
+            c.lineWidth = 3;
+            c.strokeText(`${i + 1}`, ix + 6, iy + 12);
+            c.fillStyle = 'rgba(255,255,255,0.75)';
+            c.fillText(`${i + 1}`, ix + 6, iy + 12);
+            c.textAlign = 'center';
+
+            // Wskaznik WYBRANEGO slotu: duza strzalka POD kafelkiem celujaca W GORE,
+            // podskakuje (sin), biala z czarnym konturem — inny kolor, inna pozycja
+            // i ruch niz zloty puls gotowosci (nie zlewa sie; dolny margines 40px jest wolny).
             if (isSelected && !isActive) {
-                c.fillStyle = '#ffdd00';
+                const bob = Math.sin(Date.now() / 150) * 2.5;
+                const axc = ix + ICON_SIZE / 2;
+                const ay = iy + ICON_SIZE + 8 + bob; // czubek strzalki tuz pod kafelkiem
                 c.beginPath();
-                c.moveTo(ix + ICON_SIZE / 2 - 7, iy + ICON_SIZE + 4);
-                c.lineTo(ix + ICON_SIZE / 2 + 7, iy + ICON_SIZE + 4);
-                c.lineTo(ix + ICON_SIZE / 2, iy + ICON_SIZE + 14);
+                c.moveTo(axc - 12, ay + 12);
+                c.lineTo(axc + 12, ay + 12);
+                c.lineTo(axc, ay);
                 c.closePath();
+                c.fillStyle = '#ffffff';
+                c.strokeStyle = 'rgba(0,0,0,0.9)';
+                c.lineWidth = 3;
+                c.stroke();
                 c.fill();
             }
         }

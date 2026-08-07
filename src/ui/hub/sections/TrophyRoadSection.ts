@@ -2,7 +2,7 @@ import { t } from '../../../i18n/i18n';
 import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
-import { TROPHY_MILESTONES } from '../../../config/progression';
+import { ACT_I_MILESTONES, ACT_II_MILESTONES, type TrophyMilestone } from '../../../config/progression';
 
 /**
  * TrophyRoadSection (TROFEA) — HUB-4. Pelnoekranowy Szlak Trofeow zasilony shipped
@@ -25,7 +25,8 @@ export class TrophyRoadSection implements HubSection {
             ? t('hub.trophyNext', { n: snap.nextMilestone.threshold - trophies })
             : t('hub.trophyMax');
 
-        const nodes = TROPHY_MILESTONES.map(m => {
+        // F7b: labelKey (odblokowana moc) renderowany przy nagrodzie — marchewka contentu.
+        const node = (m: TrophyMilestone): string => {
             const achieved = trophies >= m.threshold;
             const isNext = !achieved && snap.nextMilestone?.threshold === m.threshold;
             const cls = achieved ? 'is-done' : isNext ? 'is-next' : 'is-future';
@@ -34,11 +35,13 @@ export class TrophyRoadSection implements HubSection {
                     <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
                     <div class="info">
                         <b>${m.threshold} 🏆</b>
-                        <span class="reward">🔩 ${m.bolts}</span>
+                        <span class="reward">🔩 ${m.bolts}${m.labelKey ? ` · ${t(m.labelKey)}` : ''}</span>
                     </div>
                     ${isNext ? `<span class="tag">${t('hub.road.next')}</span>` : ''}
                 </div>`;
-        }).join('');
+        };
+        const act1Nodes = ACT_I_MILESTONES.map(node).join('');
+        const act2Nodes = ACT_II_MILESTONES.map(node).join('');
 
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.trophies')}</h2>
@@ -52,11 +55,14 @@ export class TrophyRoadSection implements HubSection {
             </div>
 
             <div class="bt-hub0-road-act">${t('hub.road.act1')}</div>
-            <div class="bt-hub0-road-list">${nodes}</div>
+            <div class="bt-hub0-road-list">${act1Nodes}</div>
+
+            <div class="bt-hub0-road-act">${t('hub.road.act2')}</div>
+            <div class="bt-hub0-road-list">${act2Nodes}</div>
 
             <div class="bt-hub0-node is-future is-teaser">
                 <span class="mark" aria-hidden="true">🔒</span>
-                <div class="info"><b>${t('hub.road.act2')}</b><span class="reward">${t('common.soon')}</span></div>
+                <div class="info"><b>${t('common.soon')}</b><span class="reward">1500+ 🏆</span></div>
             </div>
 
             <div class="bt-hub0-road-act">${t('hub.road.seasonTitle')}</div>

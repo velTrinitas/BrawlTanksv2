@@ -542,12 +542,15 @@ export class HUD {
         if (powerSystem.activePowerId !== null) {
             const power = POWERS[powerSystem.activePowerId];
             const secsLeft = powerSystem.getActiveSecondsLeft();
-            
+
+            // F7b: tekst i kolory GENERYCZNIE z PowerDef (activeLabelKey + power.color) —
+            // if-chain aura/freeze ubity, nowa moc czasowa = zero zmian w HUD.
             const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
-            const activeText = power.id === 'aura'
-                ? tr('hud.auraActive', { sec: secsLeft.toFixed(1) })
-                : tr('hud.freezeActiveStatus', { sec: secsLeft.toFixed(1) });
-            
+            const powerColor = `#${power.color.toString(16).padStart(6, '0')}`;
+            const activeText = power.activeLabelKey
+                ? tr(power.activeLabelKey, { sec: secsLeft.toFixed(1) })
+                : `${power.emoji} ${secsLeft.toFixed(1)}s`;
+
             c.save();
             c.globalAlpha = pulse;
             c.font = `24px "${FONT_FAMILY}",cursive`;
@@ -555,22 +558,22 @@ export class HUD {
             c.strokeStyle = '#000';
             c.lineWidth = 5;
             c.strokeText(activeText, cx, hintY - 38);
-            c.fillStyle = power.id === 'aura' ? '#ffdd00' : '#66ddff';
+            c.fillStyle = powerColor;
             c.fillText(activeText, cx, hintY - 38);
             c.restore();
-            
+
             const TIME_BAR_W = 200;
             const TIME_BAR_H = 6;
             const tbX = cx - TIME_BAR_W / 2;
             const tbY = hintY - 22;
-            
+
             c.fillStyle = 'rgba(0,0,0,0.7)';
             c.beginPath();
             c.roundRect(tbX - 2, tbY - 2, TIME_BAR_W + 4, TIME_BAR_H + 4, 4);
             c.fill();
-            
+
             const timeProgress = powerSystem.framesLeft / power.durationFrames;
-            const barColor = timeProgress > 0.3 ? (power.id === 'aura' ? '#ffdd00' : '#66ddff') : '#ff6600';
+            const barColor = timeProgress > 0.3 ? powerColor : '#ff6600';
             c.fillStyle = barColor;
             c.beginPath();
             c.roundRect(tbX, tbY, TIME_BAR_W * timeProgress, TIME_BAR_H, 3);

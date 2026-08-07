@@ -37,6 +37,17 @@ import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedn
 
 const STORAGE_KEY = 'bt2:progression';
 
+/**
+ * F7b dev-flaga `?powersdev=1` — bypass progow trofeow mocy (testy przed 750/1500 🏆).
+ * Inertna bez wpisania w URL. NIE wycieka na inne urzadzenia: nawet jesli zapiszesz
+ * loadout z moca zza progu (syncPush), mecz i tak filtruje po owned
+ * (resolveLoadoutForMatch), a owned liczy sie na kazdym urzadzeniu lokalnie.
+ */
+const DEV_ALL_POWERS: boolean = (() => {
+    try { return new URLSearchParams(window.location.search).get('powersdev') === '1'; }
+    catch { return false; }
+})();
+
 /** Stan progresji jednego profilu (localStorage). */
 interface ProgressionState {
     profileId: string;
@@ -463,6 +474,7 @@ class ProgressionServiceImpl {
     private isPowerOwned(st: ProgressionState, id: PowerId): boolean {
         const def = getPowerDef(id);
         if (!def) return false;
+        if (DEV_ALL_POWERS) return true; // ?powersdev=1 — testy przed progiem
         return st.trophies >= def.unlockAtTrophies || st.ownedPowers.includes(id);
     }
 

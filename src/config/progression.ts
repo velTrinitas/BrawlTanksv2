@@ -11,6 +11,7 @@
  */
 
 import type { MapId } from '../types/MapType';
+import type { TranslationKey } from '../i18n/i18n';
 
 // ── Parametry wzoru trofeow (Doc v1.2 §B/§F) ────────────────────────────────
 export const TROPHY_TARGET_AT_P90 = 50;   // "swietna gra" (p90) ~= tyle trofeow na kazdej mapie
@@ -88,8 +89,8 @@ export interface TrophyMilestone {
     threshold: number;
     /** Nagroda rubkowa (F1: milestony = rubki; content-unlocki wpieta w pozniejsze pod-fazy). */
     bolts: number;
-    /** Opcjonalny opis contentu (display-only, do przyszlego ekranu Szlaku). */
-    labelKey?: string;
+    /** Opcjonalna nagroda-content (display-only na Szlaku, np. odblokowana moc). */
+    labelKey?: TranslationKey;
 }
 
 /**
@@ -103,14 +104,27 @@ export const ACT_I_MILESTONES: readonly TrophyMilestone[] = [
     { threshold: 120, bolts: 60 },
     { threshold: 180, bolts: 70 },
     { threshold: 250, bolts: 90 },
-    { threshold: 330, bolts: 110 },
+    // F7b-3: Salwa Rakiet w Akcie I (decyzja Mariusza — zamiast Turbo, ktore duplikowalo pady)
+    { threshold: 330, bolts: 110, labelKey: 'road.unlock.rockets' },
     { threshold: 430, bolts: 130 },
     { threshold: 560, bolts: 160 },
-    { threshold: 750, bolts: 200 },
+    // F7b: domkniecie Aktu I odblokowuje NAPRAWE (unlockAtTrophies 750 w rejestrze mocy;
+    // labelKey = marchewka na Szlaku — sama mechanika odblokowania liczy sie z trofeow).
+    { threshold: 750, bolts: 200, labelKey: 'road.unlock.repair' },
 ];
 
-/** Wszystkie milestony (F1 = tylko Akt I). Zawsze posortowane rosnaco po threshold. */
-export const TROPHY_MILESTONES: readonly TrophyMilestone[] = ACT_I_MILESTONES;
+/**
+ * F7b: POCZATEK Aktu II — dwa pierwsze milestony, zeby Szlak pokazywal marchewke za 750
+ * (bez nich Wieza @1500 lezalaby poza cala droga i odblokowanie nie mialoby celebracji).
+ * Bolty = kontynuacja kadencji Aktu I; PROWIZORYCZNE — pelny Akt II przy jego designie.
+ */
+export const ACT_II_MILESTONES: readonly TrophyMilestone[] = [
+    { threshold: 1000, bolts: 240 },
+    { threshold: 1500, bolts: 280, labelKey: 'road.unlock.tower' },
+];
+
+/** Wszystkie milestony. Zawsze posortowane rosnaco po threshold. */
+export const TROPHY_MILESTONES: readonly TrophyMilestone[] = [...ACT_I_MILESTONES, ...ACT_II_MILESTONES];
 
 /** Najblizszy nieosiagniety milestone dla danej liczby trofeow (null = wszystkie zdobyte). */
 export function getNextMilestone(trophies: number): TrophyMilestone | null {

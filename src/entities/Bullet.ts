@@ -73,6 +73,11 @@ export class Bullet {
     public vy: number = 0;
     public gfx: PIXI.Graphics | null = null;  // flat path display object (null w trybie bake)
     public isSuper: boolean = false;
+    /**
+     * F7b-2: zrodlo pocisku. 'tower' = pocisk Wiezy MG — kill-path w main.ts pomija
+     * combo/celnosc/frozen-bonus (auto-aim != skill; celnosc >100% lamalaby L2b).
+     */
+    public source: 'player' | 'tower' = 'player';
 
     // FAZA P5 Batch 2 — behavior system (breakup / boomerang)
     public behavior: 'straight' | 'breakup' | 'boomerang' | 'shockwave' = 'straight';
@@ -155,6 +160,8 @@ export class Bullet {
         this.vy = Math.sin(angle) * this.speed;
 
         // ── ZEROWANIE stanu zachowan (kluczowe: brak sladu po poprzednim strzale) ──
+        this.source = 'player'; // F7b-2: pooled pocisk Wiezy nie moze wrocic jako 'tower'
+        this.brawlerColor = COLOR_MAP[b.id] ?? 0x2ecc71; // F7b-2: cofniecie teal-tracera
         this.behavior = 'straight';
         this.maxDist = 1000;
         this.shockwaveRadius = 0;
@@ -180,6 +187,9 @@ export class Bullet {
             } else {
                 this.sprite.texture = BulletSpriteBaker.getTexture(b.id, isSuper); // super/normal swap
             }
+            // F7b-2: cofniecie restylingu Wiezy (pooled sprite mogl byc teal + zmniejszony).
+            this.sprite.tint = 0xffffff;
+            this.sprite.scale.set(BULLET_DISPLAY_SCALE);
             if (this.spinMode === 'dir') this.sprite.rotation = angle;
             this.sprite.x = this.x;
             this.sprite.y = this.y;
@@ -366,6 +376,31 @@ export class Bullet {
             frag.vy = Math.sin(a) * frag.speed;
             frag.maxDist = 300;
             ctx.bullets.push(frag);
+        }
+    }
+
+    /**
+     * F7b-2: przemaluj na tracer Wiezy MG (teal, mniejszy) — pocisk NIE moze wygladac
+     * jak strzal gracza (Czytelnosc: "skad nadszedl ogien" musi byc jednoznaczne).
+     * Wolane raz po acquireBullet w spawnerze wiezy; reset() cofa wszystko przy reuzyciu.
+     * trailLen celowo NIETKNIETY (ring-buffer smugi jest zwymiarowany pod trailLen —
+     * zmiana w locie rozjechalaby indeksowanie); smuga dziedziczy teal przez brawlerColor.
+     */
+    styleAsTowerTracer(): void {
+        this.source = 'tower';
+        this.radius = 4;                 // maly tracer MG (wchodzi do hit-testu jako +radius)
+        this.brawlerColor = 0x4dd7c8;    // smuga w barwie wiezy
+        if (this.bakerActive && this.sprite) {
+            this.sprite.tint = 0x4dd7c8;
+            this.sprite.scale.set(BULLET_DISPLAY_SCALE * 0.6);
+        } else if (this.gfx) {
+            this.gfx.clear();
+            this.gfx.beginFill(0xaef3ec);
+            this.gfx.drawCircle(0, 0, this.radius);
+            this.gfx.endFill();
+            this.gfx.beginFill(0xffffff, 0.7);
+            this.gfx.drawCircle(-1.2, -1.2, 1.6);
+            this.gfx.endFill();
         }
     }
 

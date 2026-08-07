@@ -282,6 +282,64 @@ export class EffectsManager {
         });
     }
 
+    /**
+     * F7b-3: pojedynczy klab dymu za rakieta (wolane co 2 klatki/rakiete z PowerSystem —
+     * twardy cap designu §18.2; miekki, wolno gasnacy = smuga jak w sim).
+     */
+    spawnRocketSmoke(x: number, y: number): void {
+        this.spawnParticles(x, y, 0xbdbdbd, 1, {
+            speed: 0.6, size: 3, decay: 0.055,
+        });
+    }
+
+    /**
+     * F7b-3: mala eksplozja rakiety (r~60 AoE) — ostra, pomaranczowa, ale BEZ wielkiego
+     * fireballa (8 boomow na salwe; fill-rate na A54 to ship-blocker, design §18.2).
+     */
+    spawnRocketExplosion(x: number, y: number): void {
+        this.spawnParticles(x, y, 0xff9f43, 8, {
+            speed: 5, size: 3, decay: 0.07,
+        });
+        this.spawnParticles(x, y, 0xffd166, 3, {
+            speed: 7, size: 2, decay: 0.12,
+        });
+        this.spawnParticles(x, y, 0x555555, 4, {
+            speed: 1.6, size: 4.5, decay: 0.028,
+        });
+        // blysk rdzenia (jak muzzle flash — jedna duza, szybko gasnaca)
+        const p = this.getParticle();
+        p.sprite.x = x;
+        p.sprite.y = y;
+        p.sprite.tint = 0xffffff;
+        p.sprite.scale.set(5);
+        p.sprite.alpha = 1.0;
+        p.vx = 0;
+        p.vy = 0;
+        p.life = 1.0;
+        p.decay = 0.22;
+        p.scaleDecay = 0.14;
+    }
+
+    /**
+     * F7b-2: kurz osadzenia Wiezy MG — niski, szeroki pierscien pylu przy gruncie
+     * (jakby ktos WBIL wieze w ziemie) + ciezsze, wolno gasnace klody + drobiny betonu.
+     * Pooled (spawnParticles), 26 czastek jednorazowo = koszt pomijalny.
+     */
+    spawnTowerDeployDust(x: number, y: number): void {
+        // pierscien pylu — plasko, nisko, na boki
+        this.spawnParticles(x, y + 10, 0x9a8f7a, 14, {
+            speed: 5, size: 3, decay: 0.035, scaleDecay: 0.02,
+        });
+        // ciezkie kleby (wolne, duze, dlugo wisza)
+        this.spawnParticles(x, y + 6, 0x6e675c, 6, {
+            speed: 2.2, size: 5, decay: 0.022,
+        });
+        // drobiny betonu wybite w gore
+        this.spawnParticles(x, y - 6, 0xb8b0a0, 6, {
+            speed: 4.5, size: 1.8, decay: 0.06,
+        });
+    }
+
     spawnWallImpact(x: number, y: number): void {
         this.spawnParticles(x, y, 0x888888, 6, {
             speed: 3.5, size: 2, decay: 0.06,

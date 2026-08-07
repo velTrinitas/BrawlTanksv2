@@ -60,6 +60,10 @@ interface MyRankRow { rank: number | null; my_score: number | null; total: numbe
  * Historia bumpow:
  *  - v1 (do v0.48.0): plaska suma `score += gem.value | enemy.scoreValue`,
  *    bez mnoznikow, bez bonusow.
+ *  - v3 (od v0.102.0 / PROG-F7b): pierwsza NOWA moc (Naprawa) — sustain wydluza runy,
+ *    sufit wynikow rosnie wzgledem puli 3 mocy legacy. Formula scoringu BEZ zmian;
+ *    bump = separacja rankingu (fair porownanie). Wpisy v2 z kolejki offline weszly
+ *    do bazy, ale ranking filtruje =3. Trofea/Szlak NIE zaleza od score_version.
  *  - v2 (od v0.50.0): pelny refactor scoringu w fazie Scoring v2 + Difficulty Balance v1:
  *     - Difficulty score multipliers (Easy/Normal x1.0, Hard x1.2, Nightmare x1.4)
  *     - Combo score multipliers (DOUBLE x1.2, TRIPLE x1.5, MEGA KILL x2.0 cap)
@@ -72,7 +76,7 @@ interface MyRankRow { rank: number | null; my_score: number | null; total: numbe
  * NASTEPNY BUMP: po anti-cheat fazie (Layer 1+2) zeby wymusic nowe walidacje
  * server-side, ALBO przy kolejnym duzym balance refactor.
  */
-export const CURRENT_SCORE_VERSION = 2;
+export const CURRENT_SCORE_VERSION = 3;
 
 const QUEUE_KEY = 'brawltanks.scores.queue.v1';
 

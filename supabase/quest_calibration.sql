@@ -15,7 +15,10 @@
 --   KIERUNKOWY ~ rzadka mechanika        (nie z rozkladu — z tego, czego gracz nie tyka)
 -- ============================================================================
 
--- Q7.1 — rozklad metryk questowych na mecz (score_version = 2, wszystkie scenariusze)
+-- Q7.1 — rozklad metryk questowych na mecz (wszystkie scenariusze)
+-- UWAGA v0.102.0: CURRENT_SCORE_VERSION zbity do 3 (PROG-F7b) — przy uruchamianiu
+-- po 2026-08-07 zmien ponizsze filtry score_version = 2 na = 3 (albo IN (2,3)
+-- jesli chcesz objac dane sprzed bumpu; staty per-run sa porownywalne miedzy wersjami).
 SELECT
     count(*)                                                              AS runs,
     percentile_cont(0.50) WITHIN GROUP (ORDER BY kills)          AS kills_p50,

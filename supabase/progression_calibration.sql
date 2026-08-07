@@ -23,6 +23,8 @@ SELECT
   count(*) FILTER (WHERE scenario = 'castle') AS castle_rows
 FROM scores
 WHERE score_version = 2;
+-- UWAGA v0.102.0 (PROG-F7b): CURRENT_SCORE_VERSION = 3 — filtry score_version=2 ponizej
+-- obejmuja dane sprzed bumpu; nowe dane = 3 (przy re-kalibracji uzyj IN (2,3) albo =3).
 
 
 -- ── Q2. ROZKLAD WYNIKOW per scenariusz x mapa (RDZEN KALIBRACJI) ─────────────

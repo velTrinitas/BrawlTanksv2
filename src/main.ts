@@ -130,7 +130,7 @@ import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, resolveLoadoutForMatch } from './config/powers'; // F7a registry
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b wieza/salwa/widmo
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -1802,14 +1802,61 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         getDifficultyModifiers(config.difficulty),
         config.scenario === 'ctf' ? { roamerCap: 10 } : null,
     );
-    // PROG-F7a: loadout z GARAZU (ProgressionService), rozwiazany pod scenariusz
-    // (macierz allowedPowers + walidacja id — gracz nigdy nie wchodzi z pustym slotem).
-    const matchLoadout = resolveLoadoutForMatch(
-        ProgressionService.getPowerState(config.profileId).loadout,
-        config.scenario,
-    );
-    powerSystem = new PowerSystem(worldContainer, matchLoadout);
+    // PROG-F7a/b: loadout z GARAZU, rozwiazany pod scenariusz + WLASNOSC (filtr po owned
+    // = bramka progow trofeow — reczna edycja localStorage/chmury nie daje mocy zza progu).
+    const powerState = ProgressionService.getPowerState(config.profileId);
+    const remapped = { value: false };
+    const matchLoadout = resolveLoadoutForMatch(powerState.loadout, config.scenario, powerState.owned, remapped);
+    // F7b-2: spawner pociskow Wiezy — WYMAGANY parametr (nie wstrzykniecie po fakcie:
+    // przy ponownym `new PowerSystem` cichy null-callback bylby klasycznym `?.()`-skipem).
+    // Wieza strzela realnymi pociskami z puli gracza => kolizje/dmg-numbery/drop/quest-kille
+    // za darmo z petli; przemalowanie na teal tracer, zeby nie wygladaly jak strzal gracza.
+    powerSystem = new PowerSystem(worldContainer, matchLoadout, (x, y, angle) => {
+        const dmg = Math.round(player!.brawler.dmg * TOWER_CONFIG.dmgMult * (1 + currentSession.dmgBonus));
+        const b = acquireBullet(x, y, angle, false, dmg);
+        b.styleAsTowerTracer();
+        b.speed = TOWER_CONFIG.bulletSpeed;
+        b.vx = Math.cos(angle) * b.speed;
+        b.vy = Math.sin(angle) * b.speed;
+        b.maxDist = TOWER_CONFIG.bulletMaxDist;
+        bullets.push(b);
+    }, (x, y, radius, dmg) => {
+        // F7b-3/4: generyczna eksplozja AoE mocy (rakiety + wybuch konca Widma) — kill-path
+        // 1:1 wzorzec mega bomby (tryActivateSuper): registerKill(spawn)+score+frozen+drop
+        // +victory+multiKill, ale BEZ combo-streaku (AoE != skill) i BEZ statow celnosci.
+        if (!effects || !spawnSystem || !currentSession) return;
+        effects.spawnRocketExplosion(x, y);
+        audio.playRocketBoom();
+        effects.shake(3, 5);
+        const r2 = radius * radius;
+        let multiKillCount = 0;
+        let multiKillSumBase = 0;
+        for (const enemy of enemies) {
+            if (!enemy.active) continue;
+            if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 > r2) continue;
+            const wasFrozen = Date.now() < enemy.frozenUntil;
+            const killed = enemy.takeDamage(dmg, enemy.x, enemy.y, worldContainer, effects);
+            if (killed) {
+                spawnSystem.registerKill(enemy);
+                currentSession.addKillScore(enemy.scoreValue);
+                if (wasFrozen) currentSession.addFrozenKillBonus(enemy.scoreValue);
+                multiKillCount++;
+                multiKillSumBase += enemy.scoreValue;
+                handleEnemyDrop(enemy);
+                if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
+            }
+        }
+        if (multiKillCount >= 3) {
+            currentSession.addMultiKillBonus(multiKillSumBase, multiKillCount);
+            hud.addNotif(t('hud.multiKill', { count: multiKillCount }), '#ff8800');
+        }
+    });
     touchManager.setSlotPowers([POWERS[matchLoadout[0]].emoji, POWERS[matchLoadout[1]].emoji]);
+    // Podmiana slotu (moc niedozwolona w trybie / nieposiadana) MUSI byc zakomunikowana —
+    // cicha podmiana wyglada jak bug dla 9-latka (przeglad F7b).
+    if (remapped.value && !tutorialMode) {
+        hud.addNotif(t('hud.loadoutRemapped'), '#e8a33d');
+    }
 
     if (config.map === 'tropics') {
         for (const cl of TROPICS_CRATES_LAYOUT) {
@@ -3168,6 +3215,16 @@ app.ticker.add((rawDelta) => {
             enemyBulletPool.push(eb); // POOLING
             continue;
         }
+        // F7b-4 WIDMO: wabik ABSORBUJE pociski wroga (sim 1:1 — fioletowy puff).
+        // Sensoryka + uczciwosc: skoro wrogowie strzelaja DO wabika, pociski nie moga
+        // przelatywac przez niego i trafiac gracza stojacego za nim.
+        if (powerSystem.ghostAbsorbs(eb.x, eb.y)) {
+            effects.spawnEnemyHitSparks(eb.x, eb.y, 0xb39ddb);
+            eb.deactivate();
+            enemyBullets.splice(i, 1);
+            enemyBulletPool.push(eb); // POOLING
+            continue;
+        }
         const dx = eb.x - player.x, dy = eb.y - player.y;
         if (dx * dx + dy * dy < 25 * 25) {
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
@@ -3220,7 +3277,10 @@ app.ticker.add((rawDelta) => {
     const enemyBuildings = ctfEnemyBuildings ?? buildings;
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-        const shotInfo = enemy.update(delta, player.x, player.y, enemyBuildings, powerCubes);
+        // F7b-4 WIDMO: wrog w promieniu wabika celuje w WABIK zamiast gracza ("targetRef"
+        // przez iniekcje wspolrzednych — null = normalnie gracz; boss ignoruje po 2s).
+        const taunt = powerSystem.ghostTauntFor(enemy);
+        const shotInfo = enemy.update(delta, taunt ? taunt.x : player.x, taunt ? taunt.y : player.y, enemyBuildings, powerCubes);
         if (shotInfo) spawnEnemyShot(shotInfo);
 
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
@@ -3288,7 +3348,9 @@ app.ticker.add((rawDelta) => {
                 // czy damage faktycznie applied (NIE shielded). Shielded mega boss
                 // hits NIE triggerują hit-stop (gold sparks tylko).
                 const hpBefore = enemy.hp;
-                const wasSuperShot = player.isSuperShotActive;
+                // F7b-2: super-shot dotyczy TYLKO pociskow gracza — kill Wiezy w oknie
+                // super-shotu nie moze dostac fioletowego floatera ani super hit-stopu.
+                const wasSuperShot = b.source === 'player' && player.isSuperShotActive;
                 // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (frozen kill bonus).
                 const wasFrozen = Date.now() < enemy.frozenUntil;
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
@@ -3298,7 +3360,9 @@ app.ticker.add((rawDelta) => {
                 // Tylko gdy damage faktycznie applied (shielded hit = brak liczby, gold sparks
                 // z takeDamage wystarcza). Super shot = fioletowa liczba (motyw super), reszta biala.
                 if (damageApplied) {
-                    currentSession.shotsHit++; // v0.100.0 — celnosc do statow meczu
+                    // v0.100.0 — celnosc do statow meczu. F7b-2: TYLKO pociski gracza —
+                    // hity Wiezy bez shotsFired dawalyby celnosc >100% (lamie L2b).
+                    if (b.source === 'player') currentSession.shotsHit++;
                     const dmgColor = wasSuperShot ? 0xc850ff : 0xffffff;
                     effects.spawnFloatingText(hitX, hitY - 15, `${Math.round(b.dmg)}`, dmgColor);
                 }
@@ -3308,25 +3372,36 @@ app.ticker.add((rawDelta) => {
                     spawnSystem.registerKill(enemy);
                     // PROG-F3 — strzal ze strefy ukrycia zrywa stealth dopiero po tej klatce,
                     // wiec flaga jest jeszcze aktualna w momencie zabicia (risk/reward stealtha).
-                    if (stealthActiveNow) QuestService.track('stealth_kill');
+                    // F7b-2: tylko pocisk GRACZA — wieza koszaca z pola nie farmi questa.
+                    if (b.source === 'player' && stealthActiveNow) QuestService.track('stealth_kill');
                     handleEnemyDrop(enemy);
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
 
-                    // v0.49.0 Scoring v2 (opcja A): registerKill PRZED addKillScore.
-                    // Drugi kill w serii dostaje comboMult=1.2 (DOUBLE) bo comboCount
-                    // jest juz inkrementowane do 2 zanim addKillScore zapyta o mnoznik.
-                    const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
-                    currentSession.addKillScore(enemy.scoreValue);
+                    if (b.source === 'player') {
+                        // v0.49.0 Scoring v2 (opcja A): registerKill PRZED addKillScore.
+                        // Drugi kill w serii dostaje comboMult=1.2 (DOUBLE) bo comboCount
+                        // jest juz inkrementowane do 2 zanim addKillScore zapyta o mnoznik.
+                        const comboNow = currentSession.registerKill(COMBO_WINDOW_MS);
+                        currentSession.addKillScore(enemy.scoreValue);
 
-                    // v0.50.0 Scoring v2.1: frozen kill bonus jezeli enemy byl zamrozony PRZED hit.
-                    // Stackuje sie z combo (oba sa aplikowane do tego samego killa).
-                    if (wasFrozen) {
-                        currentSession.addFrozenKillBonus(enemy.scoreValue);
+                        // v0.50.0 Scoring v2.1: frozen kill bonus jezeli enemy byl zamrozony PRZED hit.
+                        // Stackuje sie z combo (oba sa aplikowane do tego samego killa).
+                        if (wasFrozen) {
+                            currentSession.addFrozenKillBonus(enemy.scoreValue);
+                        }
+
+                        if (comboNow === 2) { hud.comboText = t('hud.comboDouble'); hud.comboTextTimer = 90; }
+                        else if (comboNow === 3) { hud.comboText = t('hud.comboTriple'); hud.comboTextTimer = 100; }
+                        else if (comboNow >= 4) { hud.comboText = t('hud.comboMega'); hud.comboTextTimer = 110; }
+                    } else {
+                        // F7b-2 Wieza: score TAK, combo-streak NIE (wzorzec mega bomby:
+                        // auto-aim != skill streak). Frozen bonus ZOSTAJE — tez jak mega
+                        // bomba: nagroda za decyzje gracza o freezie, nie za sam auto-aim.
+                        currentSession.addKillScore(enemy.scoreValue);
+                        if (wasFrozen) {
+                            currentSession.addFrozenKillBonus(enemy.scoreValue);
+                        }
                     }
-
-                    if (comboNow === 2) { hud.comboText = t('hud.comboDouble'); hud.comboTextTimer = 90; }
-                    else if (comboNow === 3) { hud.comboText = t('hud.comboTriple'); hud.comboTextTimer = 100; }
-                    else if (comboNow >= 4) { hud.comboText = t('hud.comboMega'); hud.comboTextTimer = 110; }
                 }
 
                 // v0.45.0 FAZA 8.7: trigger hit-stop based on event priority.

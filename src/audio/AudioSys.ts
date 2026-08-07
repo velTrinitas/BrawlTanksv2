@@ -106,6 +106,11 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'super_aura',   file: 'super_aura.mp3',   volume: VOLUMES.superActivate },
     { key: 'super_bomb',   file: 'super_bomb.mp3',   volume: VOLUMES.superActivate * 1.1 },
     { key: 'super_freeze', file: 'super_freeze.mp3', volume: VOLUMES.superActivate },
+    { key: 'super_tower',  file: 'super_tower.wav',  volume: VOLUMES.superActivate }, // F7b-2: generowany proceduralnie (scratchpad gen_tower_sfx.js)
+    { key: 'super_ghost',  file: 'super_ghost.wav',  volume: VOLUMES.superActivate }, // F7b-4: generowany (gen_ghost_sfx.js)
+    // F7b-3 Salwa Rakiet — oba generowane proceduralnie (scratchpad gen_rocket_sfx.js)
+    { key: 'rocket_launch', file: 'rocket_launch.wav', volume: VOLUMES.superActivate * 0.7 }, // grany 8x co ~80ms = rytm tuk-tuk
+    { key: 'rocket_boom',   file: 'rocket_boom.wav',   volume: VOLUMES.explosion * 0.7 },     // mniejszy niz explosion.mp3 (8 boomow/salwa)
     { key: 'super_shot',   file: 'super_shot.mp3',   volume: VOLUMES.superActivate * 0.9 },
 
     { key: 'victory',  file: 'victory.mp3',  volume: VOLUMES.endgame },
@@ -528,13 +533,22 @@ export class AudioSys {
         this.safePlay('yeti_roar');
     }
 
-    playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze'): void {
+    playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost'): void {
         const key = powerId === 'megaBomb' ? 'super_bomb' : `super_${powerId}`;
         this.safePlay(key);
     }
 
     playSuperShotActivate(): void {
         this.safePlay('super_shot');
+    }
+
+    // F7b-3 Salwa Rakiet
+    playRocketLaunch(): void {
+        this.safePlay('rocket_launch');
+    }
+
+    playRocketBoom(): void {
+        this.safePlay('rocket_boom');
     }
 
     playVictory(): void {

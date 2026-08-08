@@ -21,7 +21,9 @@ import type { TranslationKey } from '../i18n/i18n';
 import type { ScenarioId } from '../types/Scenario';
 import { t } from '../i18n/i18n';
 
-export type PowerId = 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost' | 'mines' | 'build';
+export type PowerId =
+    | 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost' | 'mines' | 'build'
+    | 'strike' | 'hole' | 'laser' | 'pong'; // TIER 2 premium (v0.111.0)
 
 /** Loadout gracza: 2 sloty (GARAZ). null = pusty slot (nie powinno sie zdarzyc po normalizacji). */
 export type LoadoutPair = readonly [PowerId | null, PowerId | null];
@@ -44,8 +46,8 @@ export interface PowerActivationCtx {
      * (playHeartPickup/playShockwave), nie playSuperActivate z nowym id.
      */
     audio: {
-        /** F7b-2/4/5/6: nowe id w unii TYLKO gdy plik super_*.wav ISTNIEJE (generowane/assety). */
-        playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build'): void;
+        /** Nowe id w unii TYLKO gdy plik super_*.wav ISTNIEJE (generowane/assety). */
+        playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build' | 'strike' | 'hole' | 'laser' | 'pong'): void;
         playHeartPickup(): void;
         playShockwave(): void;
     };
@@ -169,6 +171,56 @@ export const BUILDER_CONFIG = {
     fadeFrames: 60,         // ostatnia 1s: alpha fade = telegraf zniknieciu (sim 1:1)
     maxPerActivation: 20,   // budzet LACZNY (lekcja min: zero "drugiego setu") = mur ~600px
     growFrames: 12,         // scale-in narodzin segmentu (sim: sc=age*5 => pelny w 0.2s)
+};
+
+// ═══ TIER 2 PREMIUM (v0.111.0, spec: sim v6 153-172/206-208/334-356/436-451) ═══
+// Progi trofeow PROWIZORYCZNE (poza Szlakiem, ktory konczy sie na 1500) — docelowe
+// wejscie Tier 2 = transze sezonowe (decyzja przy planie S2). Testy: ?powersdev=1.
+
+// ── NALOT 🛸 — eskadra bombowcow wzdluz linii celowania (v2: MASAKRA) ──
+export const STRIKE_CONFIG = {
+    planeCount: 5,          // v2 (Mariusz): 5 maszyn (sim mial 3)
+    planeScale: 1.5,        // v2: sylwetki +50%
+    planeSpeed: 15,         // px/klatka (sim 900 px/s)
+    planeLifeFrames: 84,    // ~1.4s przelotu
+    planeSpreadPx: 62,      // rozstaw eskadry w poprzek linii (5 maszyn = gestszy szyk)
+    bombCount: 12,          // v2: dywan 12 bomb (bylo 8) — masakra
+    bombStartDist: 120,     // pierwsza bomba (sim 1:1)
+    bombStepDist: 55,       // kolejne co 55px => dywan ~725px
+    bombSpreadPx: 30,       // v2: losowy rozrzut w poprzek linii (organiczny dywan)
+    bombStaggerFrames: 4,   // detonacje ida FALA po linii (rytm, sensoryka)
+    bombRadius: 80,         // AoE per bomba (sim ring r80)
+    bombDmg: 400,           // miedzy rakieta (300) a mina (500)
+    craterFrames: 600,      // v2: chwilowe DZIURY w podlodze (decal 1:1 z BossBomb CTF), fade 10s
+};
+
+// ── CZARNA DZIURA 🕳️ — wir zasysajacy wrogow ──
+export const HOLE_CONFIG = {
+    spawnDist: 200,         // przed lufa (sim 1:1)
+    durationFrames: 300,    // 5s (feedback Mariusza: +2s vs sim 3s)
+    pullRadius: 420,        // +20% (feedback: szerszy pierscien; sim 350)
+    pullPerFrame: 4.4,      // sila przy srodku, gasnie liniowo do 0 na krawedzi (sim 260 px/s)
+    bossPullMult: 0.35,     // boss/mega opiera sie wirowi (inaczej trywializuje bossfighty)
+    crushRadius: 28,        // rdzen (sim 1:1)
+    crushDmg: 800,          // grunt ginie, boss dostaje powazny kes (sim insta-killowal)
+    crushEveryFrames: 12,   // tick miazdzenia (nie co klatke — 0.2s)
+};
+
+// ── LASER ORBITALNY 🔦 — v2 (Mariusz): SAMONAPROWADZAJACY, dluzszy, szerszy ──
+export const LASER_CONFIG = {
+    durationFrames: 450,    // 7.5s (v2: +4s vs sim 3.5s)
+    huntLerpPerFrame: 0.05, // v2: plamka SAMA GONI najblizszego wroga (nie gracza)
+    beamRadius: 64,         // v2: szerszy (bylo 48, sim 1:1)
+    tickEveryFrames: 6,     // tick obrazen co 0.1s
+    tickDmg: 60,            // 600 dmg/s — topi grunt w ~sekunde, boss musi uciekac
+};
+
+// ── PING-PONG 🏓 — pulsujaca aura odbijajaca pociski wroga ──
+export const PONG_CONFIG = {
+    durationFrames: 300,    // 5s (sim 1:1)
+    deflectRadius: 70,      // zasieg odbicia wokol gracza (sim 1:1)
+    reflectDmg: 250,        // dmg odbitego pocisku (flat x100; sim: 50% HP wroga)
+    reflectSpeedMult: 1.8,  // odbity pocisk przyspiesza (sim 1:1)
 };
 
 // ── F7b-4: CZOLG WIDMO (spec: sim v6 140-142/389-392/456/551-554 + design §18.2 #8) ──
@@ -399,10 +451,78 @@ export const POWERS: Record<PowerId, PowerDef> = {
             return { activated: true, powerId: 'build' };
         },
     },
+    // ═══ TIER 2 PREMIUM (v0.111.0) — wszystkie fire-and-forget (wlasne timery) ═══
+    strike: {
+        id: 'strike',
+        name: 'Nalot',
+        labelKey: 'power.strike',
+        emoji: '🛸',
+        color: 0x9fd0ff,
+        cooldownMs: 30000,       // sim 16s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 2500,  // PROWIZORYCZNE — Tier 2 wchodzi transzami sezonowymi
+        onActivate: (ctx) => {
+            ctx.system.strikeLaunch(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
+            ctx.hud.addNotif(t('hud.strikeStart'), '#9fd0ff');
+            ctx.audio.playSuperActivate('strike');
+            return { activated: true, powerId: 'strike' };
+        },
+    },
+    hole: {
+        id: 'hole',
+        name: 'Dziura',
+        labelKey: 'power.hole',
+        emoji: '🕳️',
+        color: 0xa78bfa,
+        cooldownMs: 30000,       // sim 16s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 3000,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.holeSpawn(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
+            ctx.hud.addNotif(t('hud.holeStart'), '#a78bfa');
+            ctx.audio.playSuperActivate('hole');
+            return { activated: true, powerId: 'hole' };
+        },
+    },
+    laser: {
+        id: 'laser',
+        name: 'Laser',
+        labelKey: 'power.laser',
+        emoji: '🔦',
+        color: 0xff6bcb,
+        cooldownMs: 30000,       // sim 16s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 3500,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.laserActivate(ctx.player.x, ctx.player.y);
+            ctx.hud.addNotif(t('hud.laserStart'), '#ff6bcb');
+            ctx.audio.playSuperActivate('laser');
+            return { activated: true, powerId: 'laser' };
+        },
+    },
+    pong: {
+        id: 'pong',
+        name: 'Ping-Pong',
+        labelKey: 'power.pong',
+        emoji: '🏓',
+        color: 0xffe066,
+        cooldownMs: 30000,       // sim 14s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 4000,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.pongActivate();
+            ctx.hud.addNotif(t('hud.pongStart'), '#ffe066');
+            ctx.audio.playSuperActivate('pong');
+            return { activated: true, powerId: 'pong' };
+        },
+    },
 };
 
 /** Kolejnosc wyswietlania (GARAZ picker) + inicjalizacja cooldownow. */
-export const POWER_ORDER: readonly PowerId[] = ['aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower', 'ghost'];
+export const POWER_ORDER: readonly PowerId[] = [
+    'aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower', 'ghost',
+    'strike', 'hole', 'laser', 'pong', // Tier 2 premium
+];
 
 export function getPowerDef(id: string): PowerDef | undefined {
     return (POWERS as Record<string, PowerDef>)[id];

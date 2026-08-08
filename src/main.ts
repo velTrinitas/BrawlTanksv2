@@ -130,7 +130,7 @@ import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b wieza/salwa/widmo/mur
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, PONG_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b + Tier 2
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -1820,15 +1820,17 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         b.vy = Math.sin(angle) * b.speed;
         b.maxDist = TOWER_CONFIG.bulletMaxDist;
         bullets.push(b);
-    }, (x, y, radius, dmg) => {
-        // F7b-3/4: generyczna eksplozja AoE mocy (rakiety + wybuch konca Widma) — kill-path
-        // 1:1 wzorzec mega bomby (tryActivateSuper): registerKill(spawn)+score+frozen+drop
-        // +victory+multiKill, ale BEZ combo-streaku (AoE != skill) i BEZ statow celnosci.
+    }, (x, y, radius, dmg, quiet) => {
+        // F7b-3/4 + Tier 2: generyczna eksplozja AoE mocy — kill-path 1:1 wzorzec mega
+        // bomby (registerKill(spawn)+score+frozen+drop+victory+multiKill), BEZ combo
+        // (AoE != skill) i BEZ statow celnosci. quiet=true (crush Dziury / tick Lasera):
+        // bez fireballa/shake — to tick obrazen, nie eksplozja (wizual robi wolajacy).
         if (!effects || !spawnSystem || !currentSession) return;
-        effects.spawnRocketExplosion(x, y);
-        // DZWIEK eksplozji gra WOLAJACY (PowerSystem) — kazda moc ma wlasna sygnature
-        // (rakiety/widmo: rocket_boom; miny: SP_tank_mine asset Mariusza).
-        effects.shake(3, 5);
+        if (!quiet) {
+            effects.spawnRocketExplosion(x, y);
+            // DZWIEK eksplozji gra WOLAJACY (PowerSystem) — kazda moc ma wlasna sygnature.
+            effects.shake(3, 5);
+        }
         const r2 = radius * radius;
         let multiKillCount = 0;
         let multiKillSumBase = 0;
@@ -3256,6 +3258,25 @@ app.ticker.add((rawDelta) => {
         // F3 (playtest): + "swiete altary" — pociski gina takze w kieszeni flagi
         // (100 px), zeby boss nie zestrzeliwal gracza podczas podnoszenia flagi.
         if (ctfSystem && (eb.x < 450 || ctfSystem.isInFlagSafePocket(eb.x, eb.y))) {
+            eb.deactivate();
+            enemyBullets.splice(i, 1);
+            enemyBulletPool.push(eb); // POOLING
+            continue;
+        }
+        // TIER 2 PING-PONG: aura ODBIJA pocisk wroga -> wraca jako pocisk GRACZA
+        // (dumb-reflect +180 stopni — EnemyBullet nie zna nadawcy, fallback z reguly;
+        // pula gracza => kolizje/dmg-numbery za darmo, source='tower' => zero combo/celnosci).
+        if (powerSystem.pongDeflects(eb.x, eb.y)) {
+            const backAngle = Math.atan2(-eb.vy, -eb.vx);
+            const rb = acquireBullet(eb.x, eb.y, backAngle, false, PONG_CONFIG.reflectDmg);
+            rb.styleAsTowerTracer();
+            rb.speed = Math.max(10, Math.hypot(eb.vx, eb.vy) * PONG_CONFIG.reflectSpeedMult);
+            rb.vx = Math.cos(backAngle) * rb.speed;
+            rb.vy = Math.sin(backAngle) * rb.speed;
+            rb.maxDist = 900;
+            bullets.push(rb);
+            audio.playPongDeflect();
+            effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffe066);
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING

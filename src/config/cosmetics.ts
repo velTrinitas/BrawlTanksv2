@@ -59,6 +59,31 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'ti_gunner',  type: 'title', rarity: 'r', labelKey: 'cosmetic.ti_gunner' },
     { id: 'ti_ace',     type: 'title', rarity: 'e', labelKey: 'cosmetic.ti_ace' },
     { id: 'ti_legend',  type: 'title', rarity: 'l', labelKey: 'cosmetic.ti_legend' },
+
+    // ── F2c (v0.110.0): +18 pozycji => pula 32. Nacisk na c/r (wagi c60/r28 —
+    //    2 commony z F2a robily dublet-city od pierwszych skrzynek). Nowe id
+    //    dolaczaja do puli bez migracji (owned=union, losowanie po rarity). ──
+    // kolory nicku (+7)
+    { id: 'nc_mint',    type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_mint',    color: '#7ef0c8' },
+    { id: 'nc_rose',    type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_rose',    color: '#ff8fa3' },
+    { id: 'nc_sky',     type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_sky',     color: '#7ec8f7' },
+    { id: 'nc_crimson', type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_crimson', color: '#e74c3c' },
+    { id: 'nc_violet',  type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_violet',  color: '#b07ef7' },
+    { id: 'nc_toxic',   type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_toxic',   color: 'linear-gradient(90deg,#a3e635,#2edcb0)', gradient: true },
+    { id: 'nc_rainbow', type: 'nickColor', rarity: 'l', labelKey: 'cosmetic.nc_rainbow', color: 'linear-gradient(90deg,#ff6b6b,#f7c948,#7ef0a8,#37a0e0,#b07ef7)', gradient: true, animated: true },
+    // ramki avatara (+5)
+    { id: 'fr_bronze',  type: 'frame', rarity: 'c', labelKey: 'cosmetic.fr_bronze', border: '2px solid #cd7f32' },
+    { id: 'fr_forest',  type: 'frame', rarity: 'c', labelKey: 'cosmetic.fr_forest', border: '2px solid #2ecc71' },
+    { id: 'fr_red',     type: 'frame', rarity: 'r', labelKey: 'cosmetic.fr_red',    border: '2px solid #e74c3c' },
+    { id: 'fr_teal',    type: 'frame', rarity: 'e', labelKey: 'cosmetic.fr_teal',   border: '2px solid #4dd7c8', glow: '0 0 10px rgba(77,215,200,0.7)' },
+    { id: 'fr_neon',    type: 'frame', rarity: 'l', labelKey: 'cosmetic.fr_neon',   border: '2px solid #fff6c2', glow: '0 0 14px rgba(255,246,194,0.9), 0 0 6px rgba(241,196,15,0.8)' },
+    // tytuly (+6; commony NOWOSC — tytul tez moze byc czesty)
+    { id: 'ti_driver',   type: 'title', rarity: 'c', labelKey: 'cosmetic.ti_driver' },
+    { id: 'ti_scout',    type: 'title', rarity: 'c', labelKey: 'cosmetic.ti_scout' },
+    { id: 'ti_sapper',   type: 'title', rarity: 'r', labelKey: 'cosmetic.ti_sapper' },
+    { id: 'ti_builder',  type: 'title', rarity: 'r', labelKey: 'cosmetic.ti_builder' },
+    { id: 'ti_bossbane', type: 'title', rarity: 'e', labelKey: 'cosmetic.ti_bossbane' },
+    { id: 'ti_immortal', type: 'title', rarity: 'l', labelKey: 'cosmetic.ti_immortal' },
 ];
 
 const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));

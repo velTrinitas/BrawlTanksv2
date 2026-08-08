@@ -4,7 +4,7 @@ import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
 import {
     POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, MINES_CONFIG,
-    BUILDER_CONFIG, getPowerDef,
+    BUILDER_CONFIG, STRIKE_CONFIG, HOLE_CONFIG, LASER_CONFIG, PONG_CONFIG, getPowerDef,
     type PowerId, type LoadoutPair, type PowerActivationCtx, type ActivationResult,
 } from '../config/powers';
 import { AudioSys } from '../audio/AudioSys'; // F7b-3: tuk-tuk wystrzalow (precedens: Bullet.ts)
@@ -101,10 +101,11 @@ export class PowerSystem {
     private rocketOriginY = 0;
     private rocketBaseAng = 0;
     /**
-     * Generyczna eksplozja AoE mocy (rakiety + wybuch konca Widma) — kill-path
-     * (dmg/score/drop/victory) zyje w main.ts, jak mega bomba. Radius/dmg per wywolanie.
+     * Generyczna eksplozja AoE mocy (rakiety, Widmo, bomby Nalotu, crush Dziury, tick
+     * Lasera) — kill-path (dmg/score/drop/victory) zyje w main.ts, jak mega bomba.
+     * quiet=true (Tier 2): bez fireballa/dzwieku/shake — tick obrazen, nie eksplozja.
      */
-    private readonly aoeExplode: (x: number, y: number, radius: number, dmg: number) => void;
+    private readonly aoeExplode: (x: number, y: number, radius: number, dmg: number, quiet?: boolean) => void;
 
     // ── F7b-4: CZOLG WIDMO — wabik (fire-and-forget; wlasny timer jak wieza/rakiety).
     // Wizual = baked tekstury AKTUALNEGO brawlera (SpriteFactory reuse, zero nowego artu,
@@ -150,6 +151,43 @@ export class PowerSystem {
      * null = miejsce niedozwolone (kolizja z budynkiem / wrog w srodku) => segment pominiety.
      */
     private readonly wallSpawner: (x: number, y: number) => (() => void) | null;
+    // ═══ TIER 2 (v0.111.0) — wszystkie fire-and-forget, wlasne timery ═══
+    // NALOT: eskadra cieni + bomby detonowane fala wzdluz linii celowania.
+    // v2: 5 maszyn +50% + doppler przelotu + KRATERY (decal gruntu 1:1 z BossBomb CTF,
+    // fade craterFrames) — "chwilowe dziury w podlodze".
+    private strikePlanes: Array<{ g: PIXI.Graphics; x: number; y: number; ang: number; life: number }> = [];
+    private strikeBombs: Array<{ x: number; y: number; delay: number }> = [];
+    private strikeCraters: Array<{ g: PIXI.Graphics; life: number }> = [];
+    // CZARNA DZIURA: wir przed lufa (pull na wrogach robi holeUpdate — ma enemies).
+    // v2 2.5D (feedback Mariusza): kontener scale.y=0.72 (lej w ziemi, nie placek),
+    // 2 pierscienie KONTR-rotujace (sim 1:1: t*4 vs -t*2.6) + 2 warstwy drobin
+    // zasysanych spiralnie (sawtooth scale+alpha, przesuniete w fazie = ciagly wir).
+    private holeC: PIXI.Container | null = null;
+    private holeRing1: PIXI.Graphics | null = null;
+    private holeRing2: PIXI.Graphics | null = null;
+    private holeDots1: PIXI.Graphics | null = null;
+    private holeDots2: PIXI.Graphics | null = null;
+    private holeX = 0;
+    private holeY = 0;
+    private holeFramesLeft = 0;
+    private holeCrushT = 0;
+    private holeAge = 0;
+    // LASER: plamka celownika goni czolg z opoznieniem ("malujesz jazda").
+    private laserGfx: PIXI.Graphics | null = null;
+    private laserX = 0;
+    private laserY = 0;
+    private laserFramesLeft = 0;
+    private laserTickT = 0;
+    // PING-PONG: pulsujaca aura odbijajaca pociski (check pongDeflects wola main.ts).
+    // v2 (feedback Mariusza): 3 PALETKI orbitujace + wiazki-trojkat miedzy nimi
+    // + kontr-rotujacy zewnetrzny ring segmentowy + iskry z poola co ~12 klatek.
+    private pongGfx: PIXI.Graphics | null = null;
+    private pongFramesLeft = 0;
+    private pongPlayerX = 0;
+    private pongPlayerY = 0;
+    private pongSparkT = 0;
+    private pongSparkIdx = 0;
+
     private readonly worldContainer: PIXI.Container;
     /**
      * Spawn pocisku Wiezy — WYMAGANY w konstruktorze (przeglad F7b-2: wstrzykiwanie
@@ -162,7 +200,7 @@ export class PowerSystem {
         worldContainer: PIXI.Container,
         loadout: readonly [PowerId, PowerId],
         towerBulletSpawner: (x: number, y: number, angle: number) => void,
-        aoeExplode: (x: number, y: number, radius: number, dmg: number) => void,
+        aoeExplode: (x: number, y: number, radius: number, dmg: number, quiet?: boolean) => void,
         wallSpawner: (x: number, y: number) => (() => void) | null,
     ) {
         this.loadout = loadout;
@@ -230,6 +268,7 @@ export class PowerSystem {
         this.ghostDespawn();  // F7b-4: ...ani wabika (bez wybuchu — czysty teardown)
         this.minesClear();    // F7b-5: ...ani uzbrojonych min (bez detonacji)
         this.buildClear();    // F7b-6: ...ani muru (collidery MUSZA wyjsc z tablic!)
+        this.tier2Clear();    // v0.111.0: ...ani nalotu/wiru/lasera/pongu
     }
 
     /**
@@ -284,12 +323,16 @@ export class PowerSystem {
             this.magnetActive = false;
         }
 
-        // F7b-2..6: Wieza, rakiety, Widmo, miny i mur tykaja NIEZALEZNIE od efektu czasowego.
+        // F7b-2..6 + Tier 2: wszystkie moce fire-and-forget tykaja NIEZALEZNIE.
         this.towerUpdate(delta, enemies, effects);
         this.rocketsUpdate(delta, enemies, effects);
         this.ghostUpdate(delta, effects);
         this.minesUpdate(delta, player, effects);
         this.buildUpdate(delta, player, effects);
+        this.strikeUpdate(delta, effects);
+        this.holeUpdate(delta, enemies, effects);
+        this.laserUpdate(delta, player, enemies, effects);
+        this.pongUpdate(delta, player, effects);
 
         // Generyczny tick efektu czasowego — zachowanie per-moc w PowerDef.onTick/onEnd.
         // F7b: onTick dostaje DELTE (efekty narastajace w czasie, np. heal, musza byc
@@ -1042,6 +1085,430 @@ export class PowerSystem {
             g.alpha = w.life < BUILDER_CONFIG.fadeFrames
                 ? Math.max(0.25, w.life / BUILDER_CONFIG.fadeFrames)
                 : 1;
+        }
+    }
+
+    // ═══ TIER 2 PREMIUM (v0.111.0, spec: sim v6 153-172/334-356/436-451) ═══
+
+    /** Teardown/handoff wszystkich mocy Tier 2 (bez efektow konca). */
+    tier2Clear(): void {
+        for (const p of this.strikePlanes) { if (p.g.parent) p.g.parent.removeChild(p.g); p.g.destroy(); }
+        this.strikePlanes = [];
+        this.strikeBombs = [];
+        for (const cr of this.strikeCraters) { if (cr.g.parent) cr.g.parent.removeChild(cr.g); cr.g.destroy(); }
+        this.strikeCraters = [];
+        this.holeFramesLeft = 0;
+        if (this.holeC) {
+            if (this.holeC.parent) this.holeC.parent.removeChild(this.holeC);
+            this.holeC.destroy({ children: true });
+            this.holeC = null;
+            this.holeRing1 = this.holeRing2 = this.holeDots1 = this.holeDots2 = null;
+        }
+        this.laserFramesLeft = 0;
+        if (this.laserGfx) { if (this.laserGfx.parent) this.laserGfx.parent.removeChild(this.laserGfx); this.laserGfx.destroy(); this.laserGfx = null; }
+        this.pongFramesLeft = 0;
+        if (this.pongGfx) { if (this.pongGfx.parent) this.pongGfx.parent.removeChild(this.pongGfx); this.pongGfx.destroy(); this.pongGfx = null; }
+    }
+
+    // ── NALOT 🛸 ─────────────────────────────────────────────────────────────
+
+    /** Eskadra cieni wzdluz linii celowania + 8 bomb detonowanych fala (sim 1:1). */
+    strikeLaunch(px: number, py: number, aimAngle: number): void {
+        const cos = Math.cos(aimAngle), sin = Math.sin(aimAngle);
+        // Cienie bombowcow: startuja 400px ZA graczem, przelatuja nad linia bomb.
+        for (let i = 0; i < STRIKE_CONFIG.planeCount; i++) {
+            const off = (i - (STRIKE_CONFIG.planeCount - 1) / 2) * STRIKE_CONFIG.planeSpreadPx;
+            const g = new PIXI.Graphics();
+            // Sylwetka krzyza samolotu (sim drawPlane 1:1: dziob + kadlub + skrzydla + ogon)
+            g.beginFill(0x0a1016, 0.45);
+            g.drawPolygon([18, 0, -12, -5, -12, 5]);
+            g.drawRect(-4, -16, 7, 32);
+            g.drawRect(-14, -7, 5, 14);
+            g.endFill();
+            g.rotation = aimAngle;
+            g.scale.set(STRIKE_CONFIG.planeScale); // v2: sylwetki +50%
+            g.zIndex = 1e6; // cien LECI NAD wszystkim (warstwa "pogodowa", wzorzec sniezycy)
+            this.worldContainer.addChild(g);
+            this.strikePlanes.push({
+                g,
+                x: px + cos * 80 - cos * 400 - sin * off,
+                y: py + sin * 80 - sin * 400 + cos * off,
+                ang: aimAngle,
+                life: STRIKE_CONFIG.planeLifeFrames,
+            });
+        }
+        AudioSys.getInstance().playStrikeFlyby(); // v2: doppler przelotu (rownolegle z super_strike)
+        // Bomby: wzdluz linii z losowym rozrzutem w poprzek (organiczny dywan),
+        // detonacje ida FALA (stagger narasta z dystansem).
+        this.strikeBombs = [];
+        for (let i = 0; i < STRIKE_CONFIG.bombCount; i++) {
+            const d = STRIKE_CONFIG.bombStartDist + i * STRIKE_CONFIG.bombStepDist;
+            const off = (Math.random() - 0.5) * 2 * STRIKE_CONFIG.bombSpreadPx;
+            this.strikeBombs.push({
+                x: px + cos * d - sin * off,
+                y: py + sin * d + cos * off,
+                delay: (i + 1) * STRIKE_CONFIG.bombStaggerFrames,
+            });
+        }
+    }
+
+    /** v2: chwilowy KRATER w gruncie (decal 1:1 z BossBomb CTF, fade w strikeUpdate). */
+    private strikeSpawnCrater(x: number, y: number): void {
+        const g = new PIXI.Graphics();
+        g.beginFill(0x140a00, 0.75);
+        g.drawEllipse(0, 0, 17, 11);
+        g.endFill();
+        g.beginFill(0x50280a, 0.5);
+        g.drawEllipse(1, 1, 13, 8);
+        g.endFill();
+        g.lineStyle(3, 0x3c1e00, 0.5);
+        g.drawCircle(0, 0, 18);
+        g.lineStyle(0);
+        g.x = x;
+        g.y = y;
+        g.zIndex = 9; // decal GRUNTU — pod wszystkim Y-sortowanym (wzorzec BossBomb zIndex 8)
+        this.worldContainer.addChild(g);
+        this.strikeCraters.push({ g, life: STRIKE_CONFIG.craterFrames });
+    }
+
+    private strikeUpdate(delta: number, effects: EffectsManager): void {
+        for (let i = this.strikePlanes.length - 1; i >= 0; i--) {
+            const p = this.strikePlanes[i];
+            p.life -= delta;
+            p.x += Math.cos(p.ang) * STRIKE_CONFIG.planeSpeed * delta;
+            p.y += Math.sin(p.ang) * STRIKE_CONFIG.planeSpeed * delta;
+            p.g.x = p.x;
+            p.g.y = p.y;
+            if (p.life <= 0) {
+                if (p.g.parent) p.g.parent.removeChild(p.g);
+                p.g.destroy();
+                this.strikePlanes.splice(i, 1);
+            }
+        }
+        for (let i = this.strikeBombs.length - 1; i >= 0; i--) {
+            const b = this.strikeBombs[i];
+            b.delay -= delta;
+            if (b.delay <= 0) {
+                this.strikeBombs.splice(i, 1);
+                AudioSys.getInstance().playRocketBoom(); // seria boomow = dywan (sygnatura mocy)
+                effects.spawnShockwaveRing(b.x, b.y, STRIKE_CONFIG.bombRadius);
+                this.strikeSpawnCrater(b.x, b.y); // v2: dziura w podlodze zostaje
+                this.aoeExplode(b.x, b.y, STRIKE_CONFIG.bombRadius, STRIKE_CONFIG.bombDmg);
+            }
+        }
+        // v2: kratery gasna (fade jak BossBomb CTF — alpha z life, potem destroy)
+        for (let i = this.strikeCraters.length - 1; i >= 0; i--) {
+            const cr = this.strikeCraters[i];
+            cr.life -= delta;
+            if (cr.life <= 0) {
+                if (cr.g.parent) cr.g.parent.removeChild(cr.g);
+                cr.g.destroy();
+                this.strikeCraters.splice(i, 1);
+            } else if (cr.life < 120) {
+                cr.g.alpha = cr.life / 120; // ostatnie 2s: znikanie
+            }
+        }
+    }
+
+    // ── CZARNA DZIURA 🕳️ ────────────────────────────────────────────────────
+
+    /** Wir 200px przed lufa: zasysa wrogow, miazdzy w rdzeniu, imploduje na koniec.
+     *  v2 2.5D: kontener scale.y=0.72 (lej w gruncie), pierscienie KONTR-rotujace,
+     *  2 warstwy drobin spiralnie wpadajacych (sawtooth w przeciwfazie). */
+    holeSpawn(px: number, py: number, aimAngle: number): void {
+        this.holeX = px + Math.cos(aimAngle) * HOLE_CONFIG.spawnDist;
+        this.holeY = py + Math.sin(aimAngle) * HOLE_CONFIG.spawnDist;
+        this.holeFramesLeft = HOLE_CONFIG.durationFrames;
+        this.holeCrushT = 0;
+        this.holeAge = 0;
+        if (!this.holeC) {
+            const c = new PIXI.Container();
+            c.scale.y = 0.72; // perspektywa 2.5D — wir to LEJ w ziemi, nie plaski placek
+
+            // Warstwa statyczna: cien leja + ciemny rdzen z fioletowa poswiata krawedzi
+            const base = new PIXI.Graphics();
+            base.beginFill(0x000000, 0.35);
+            base.drawCircle(0, 0, 78);            // miekki cien leja
+            base.endFill();
+            base.beginFill(0x1a1030, 0.55);
+            base.drawCircle(0, 0, 46);
+            base.endFill();
+            base.beginFill(0x0a0612, 0.92);
+            base.drawCircle(0, 0, 26);            // czarny rdzen
+            base.endFill();
+            base.lineStyle(2, 0xc4b5fd, 0.5);
+            base.drawCircle(0, 0, 27);            // gorejaca krawedz horyzontu zdarzen
+            base.lineStyle(0);
+            c.addChild(base);
+
+            // Pierscienie akrecyjne — OSOBNE gfx = kontr-rotacja roznymi predkosciami (sim 1:1)
+            const mkRing = (r: number, width: number, alpha: number, arcs: number, arcLen: number) => {
+                const g = new PIXI.Graphics();
+                g.lineStyle(width, 0xa78bfa, alpha);
+                for (let a = 0; a < arcs; a++) {
+                    const a0 = (a / arcs) * Math.PI * 2;
+                    g.moveTo(Math.cos(a0) * r, Math.sin(a0) * r);
+                    g.arc(0, 0, r, a0, a0 + arcLen);
+                }
+                g.lineStyle(0);
+                c.addChild(g);
+                return g;
+            };
+            this.holeRing1 = mkRing(62, 3, 0.8, 3, 1.4);   // szybki, +
+            this.holeRing2 = mkRing(89, 2, 0.4, 4, 1.0);   // wolniejszy, − (kontr-rotacja)
+
+            // Drobiny zasysane: 2 warstwy po 6 kropek na promieniu jednostkowym 100 —
+            // sawtooth scale 1->0.3 + rotacja = spirala wpadajaca; warstwy w przeciwfazie
+            // => wir nigdy nie "mruga".
+            const mkDots = () => {
+                const g = new PIXI.Graphics();
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2 + (i % 2) * 0.35;
+                    g.beginFill(0xc4b5fd, 0.85);
+                    g.drawCircle(Math.cos(a) * 100, Math.sin(a) * 100, 3);
+                    g.endFill();
+                }
+                c.addChild(g);
+                return g;
+            };
+            this.holeDots1 = mkDots();
+            this.holeDots2 = mkDots();
+
+            this.worldContainer.addChild(c);
+            this.holeC = c;
+        }
+        this.holeC.visible = true;
+        this.holeC.x = this.holeX;
+        this.holeC.y = this.holeY;
+        this.holeC.zIndex = this.holeY;
+    }
+
+    private holeUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
+        if (this.holeFramesLeft <= 0) return;
+        this.holeFramesLeft -= delta;
+        this.holeAge += delta;
+        const c = this.holeC;
+        if (this.holeFramesLeft <= 0) {
+            // Implozja na koniec (sim: ring r120 + puff) — kill-path w rdzeniu robi ostatni crush.
+            if (c) { c.visible = false; }
+            effects.spawnShockwaveRing(this.holeX, this.holeY, 120);
+            effects.spawnEnemyHitSparks(this.holeX, this.holeY, 0xa78bfa);
+            effects.shake(6, 8);
+            return;
+        }
+        if (c) {
+            // Kontr-rotacja pierscieni (sim: t*4 vs -t*2.6 => ~0.067 i -0.043 rad/klatke)
+            if (this.holeRing1) this.holeRing1.rotation += 0.067 * delta;
+            if (this.holeRing2) this.holeRing2.rotation -= 0.043 * delta;
+            // Drobiny: spirala wpadajaca — sawtooth scale 1->0.3 (45 klatek/cykl),
+            // warstwy w PRZECIWFAZIE; alpha gasnie przy rdzeniu ("polkniete").
+            const CYCLE = 45;
+            const spiral = (g: PIXI.Graphics | null, phase: number, dir: number) => {
+                if (!g) return;
+                const p = 1 - (((this.holeAge + phase) % CYCLE) / CYCLE) * 0.7; // 1 -> 0.3
+                g.scale.set(p);
+                g.alpha = Math.max(0, (p - 0.32) / 0.68);
+                g.rotation += dir * 0.1 * delta;
+            };
+            spiral(this.holeDots1, 0, 1);
+            spiral(this.holeDots2, CYCLE / 2, 1);
+            // Oddech calego leja (puls grawitacyjny) — scale.y zachowuje squash 2.5D
+            const breathe = 1 + 0.04 * Math.sin(Date.now() / 160);
+            c.scale.set(breathe, 0.72 * breathe);
+        }
+        // Zasysanie: sila gasnie liniowo od rdzenia do krawedzi; boss opiera sie wirowi.
+        const r2 = HOLE_CONFIG.pullRadius * HOLE_CONFIG.pullRadius;
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const dx = this.holeX - e.x;
+            const dy = this.holeY - e.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 > r2 || d2 < 1) continue;
+            const d = Math.sqrt(d2);
+            const resist = (e.isBoss || e.isMegaBoss) ? HOLE_CONFIG.bossPullMult : 1;
+            const f = HOLE_CONFIG.pullPerFrame * (1 - d / HOLE_CONFIG.pullRadius) * resist * delta;
+            e.x += (dx / d) * f;
+            e.y += (dy / d) * f;
+        }
+        // Miazdzenie w rdzeniu — tick co 0.2s (kill-path przez aoeExplode, quiet=krotka iskra).
+        this.holeCrushT -= delta;
+        if (this.holeCrushT <= 0) {
+            this.holeCrushT = HOLE_CONFIG.crushEveryFrames;
+            let anyInCore = false;
+            for (const e of enemies) {
+                if (!e.active) continue;
+                const dx = e.x - this.holeX, dy = e.y - this.holeY;
+                if (dx * dx + dy * dy < HOLE_CONFIG.crushRadius * HOLE_CONFIG.crushRadius) { anyInCore = true; break; }
+            }
+            if (anyInCore) {
+                effects.spawnEnemyHitSparks(this.holeX, this.holeY, 0xa78bfa);
+                this.aoeExplode(this.holeX, this.holeY, HOLE_CONFIG.crushRadius, HOLE_CONFIG.crushDmg, true);
+            }
+        }
+    }
+
+    // ── LASER ORBITALNY 🔦 ───────────────────────────────────────────────────
+
+    /** Plamka celownika startuje na graczu i GONI go z opoznieniem ("malujesz jazda"). */
+    laserActivate(px: number, py: number): void {
+        this.laserX = px;
+        this.laserY = py;
+        this.laserFramesLeft = LASER_CONFIG.durationFrames;
+        this.laserTickT = 0;
+        if (!this.laserGfx) {
+            // Rysowane RAZ: pierscien celownika + krzyz + polprzezroczysta KOLUMNA z nieba
+            // (waski pas — zero full-screen overdraw) + gorace jadro.
+            const g = new PIXI.Graphics();
+            g.beginFill(0xff6bcb, 0.16);
+            g.drawRect(-13, -560, 26, 560);       // kolumna wiazki (v2: szersza, jak plamka)
+            g.endFill();
+            g.beginFill(0xff6bcb, 0.35);
+            g.drawCircle(0, 0, 18);               // gorace jadro (v2: +)
+            g.endFill();
+            g.lineStyle(3, 0xff6bcb, 0.8);
+            g.drawCircle(0, 0, LASER_CONFIG.beamRadius);
+            g.moveTo(-LASER_CONFIG.beamRadius - 8, 0); g.lineTo(-LASER_CONFIG.beamRadius + 10, 0);
+            g.moveTo(LASER_CONFIG.beamRadius - 10, 0); g.lineTo(LASER_CONFIG.beamRadius + 8, 0);
+            g.moveTo(0, -LASER_CONFIG.beamRadius - 8); g.lineTo(0, -LASER_CONFIG.beamRadius + 10);
+            g.moveTo(0, LASER_CONFIG.beamRadius - 10); g.lineTo(0, LASER_CONFIG.beamRadius + 8);
+            g.lineStyle(0);
+            g.zIndex = 1e6; // wiazka z nieba NAD swiatem (warstwa "pogodowa")
+            this.worldContainer.addChild(g);
+            this.laserGfx = g;
+        }
+        this.laserGfx.visible = true;
+    }
+
+    private laserUpdate(delta: number, player: Player, enemies: Enemy[], effects: EffectsManager): void {
+        if (this.laserFramesLeft <= 0) return;
+        this.laserFramesLeft -= delta;
+        const g = this.laserGfx;
+        if (this.laserFramesLeft <= 0) {
+            if (g) g.visible = false;
+            effects.spawnEnemyHitSparks(this.laserX, this.laserY, 0xff6bcb);
+            return;
+        }
+        // v2 SAMONAPROWADZANIE: plamka GONI najblizszego zywego wroga (nie gracza);
+        // cel ginie => automatycznie nastepny. Zero wrogow => dryfuje do gracza (eskorta).
+        let tx = player.x, ty = player.y;
+        let bestD2 = Infinity;
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const dx = e.x - this.laserX, dy = e.y - this.laserY;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestD2) { bestD2 = d2; tx = e.x; ty = e.y; }
+        }
+        this.laserX += (tx - this.laserX) * LASER_CONFIG.huntLerpPerFrame * delta;
+        this.laserY += (ty - this.laserY) * LASER_CONFIG.huntLerpPerFrame * delta;
+        if (g) {
+            g.x = this.laserX;
+            g.y = this.laserY;
+            g.alpha = 0.75 + 0.25 * Math.sin(Date.now() / 60); // wibracja wiazki
+        }
+        // Tick obrazen co 0.1s — kazdy wrog w plamce (quiet aoeExplode per wrog = male
+        // trafienie z pelnym kill-pathem, bez fireballa per tick).
+        this.laserTickT -= delta;
+        if (this.laserTickT <= 0) {
+            this.laserTickT = LASER_CONFIG.tickEveryFrames;
+            const r2 = LASER_CONFIG.beamRadius * LASER_CONFIG.beamRadius;
+            for (const e of enemies) {
+                if (!e.active) continue;
+                const dx = e.x - this.laserX, dy = e.y - this.laserY;
+                if (dx * dx + dy * dy < r2) {
+                    effects.spawnEnemyHitSparks(e.x, e.y, 0xff6bcb);
+                    this.aoeExplode(e.x, e.y, 2, LASER_CONFIG.tickDmg, true);
+                }
+            }
+        }
+    }
+
+    // ── PING-PONG 🏓 ─────────────────────────────────────────────────────────
+
+    /** Pulsujaca aura odbijania — check pociskow robi main.ts (pongDeflects). */
+    pongActivate(): void {
+        this.pongFramesLeft = PONG_CONFIG.durationFrames;
+        if (!this.pongGfx) {
+            const g = new PIXI.Graphics();
+            g.zIndex = 400;
+            this.worldContainer.addChild(g);
+            this.pongGfx = g;
+        }
+        this.pongGfx.visible = true;
+    }
+
+    /** Czy aura pong lapie pocisk w (x,y)? main.ts wtedy odbija (deactivate + player bullet). */
+    pongDeflects(x: number, y: number): boolean {
+        if (this.pongFramesLeft <= 0) return false;
+        const dx = x - this.pongPlayerX;
+        const dy = y - this.pongPlayerY;
+        return dx * dx + dy * dy < PONG_CONFIG.deflectRadius * PONG_CONFIG.deflectRadius;
+    }
+
+    private pongUpdate(delta: number, player: Player, effects: EffectsManager): void {
+        if (this.pongFramesLeft <= 0) return;
+        this.pongFramesLeft -= delta;
+        this.pongPlayerX = player.x;
+        this.pongPlayerY = player.y;
+        const g = this.pongGfx;
+        if (!g) return;
+        if (this.pongFramesLeft <= 0) {
+            g.visible = false;
+            g.clear();
+            return;
+        }
+        // Aura v2 (redraw jak aura gracza — 1 Graphics, akceptowalny koszt):
+        // ring + kontr-rotujacy ring segmentowy + 3 PALETKI + wiazki-trojkat.
+        const t = Date.now() / 110;
+        const pulse = 0.5 + 0.35 * Math.sin(t);
+        const r = PONG_CONFIG.deflectRadius * (0.94 + 0.06 * Math.sin(t * 1.6));
+        g.x = player.x;
+        g.y = player.y;
+        g.clear();
+        // ring glowny (granica odbicia = Czytelnosc: hitbox zgodny z wizualem)
+        g.lineStyle(4, 0xffe066, pulse);
+        g.drawCircle(0, 0, r);
+        // zewnetrzny ring segmentowy — KONTR-rotacja (dynamika bez particles)
+        g.lineStyle(2, 0xfff6c2, pulse * 0.55);
+        for (let i = 0; i < 6; i++) {
+            const a0 = -t * 0.55 + (i / 6) * Math.PI * 2;
+            g.moveTo(Math.cos(a0) * (r + 9), Math.sin(a0) * (r + 9));
+            g.arc(0, 0, r + 9, a0, a0 + 0.55);
+        }
+        // pozycje paletek (orbitujace)
+        const px: number[] = [], py: number[] = [];
+        for (let i = 0; i < 3; i++) {
+            const a = t * 0.9 + (i / 3) * Math.PI * 2;
+            px.push(Math.cos(a) * r);
+            py.push(Math.sin(a) * r);
+        }
+        // WIAZKI: trojkat energii miedzy paletkami (pole sily — "wiazka laserowa")
+        g.lineStyle(1.5, 0xffe066, 0.16 + 0.14 * Math.sin(t * 2.3));
+        for (let i = 0; i < 3; i++) {
+            g.moveTo(px[i], py[i]);
+            g.lineTo(px[(i + 1) % 3], py[(i + 1) % 3]);
+        }
+        // PALETKI: prostokaciki styczne do orbity (raketki pingpongowe, nie kropki)
+        for (let i = 0; i < 3; i++) {
+            const a = t * 0.9 + (i / 3) * Math.PI * 2;
+            const tx = -Math.sin(a), ty = Math.cos(a); // wektor styczny
+            g.lineStyle({ width: 6, color: 0xffe066, alpha: Math.min(1, pulse + 0.3), cap: PIXI.LINE_CAP.ROUND });
+            g.moveTo(px[i] - tx * 9, py[i] - ty * 9);
+            g.lineTo(px[i] + tx * 9, py[i] + ty * 9);
+            g.lineStyle({ width: 2, color: 0xfff6c2, alpha: pulse, cap: PIXI.LINE_CAP.ROUND });
+            g.moveTo(px[i] - tx * 5, py[i] - ty * 5);
+            g.lineTo(px[i] + tx * 5, py[i] + ty * 5);
+        }
+        g.lineStyle(0);
+        // ISKRY: smuga za kolejna paletka co ~12 klatek (pooled — dymek/energia orbit)
+        this.pongSparkT -= delta;
+        if (this.pongSparkT <= 0) {
+            this.pongSparkT = 12;
+            this.pongSparkIdx = (this.pongSparkIdx + 1) % 3;
+            effects.spawnEnemyHitSparks(
+                player.x + px[this.pongSparkIdx],
+                player.y + py[this.pongSparkIdx],
+                0xffe066,
+            );
         }
     }
 

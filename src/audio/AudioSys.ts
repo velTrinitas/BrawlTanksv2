@@ -113,6 +113,12 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'super_mines',  file: 'mine_click.wav',   volume: VOLUMES.superActivate },
     { key: 'mine_boom',    file: 'SP_tank_mine.mp3', volume: VOLUMES.explosion },
     { key: 'super_build',  file: 'super_build.wav',  volume: VOLUMES.superActivate }, // F7b-6: generowany (gen_build_sfx.js) — thunk worka, aktywacja + per segment
+    // TIER 2 premium (v0.111.0) — wszystkie generowane (gen_tier2_sfx.js)
+    { key: 'super_strike', file: 'super_strike.wav', volume: VOLUMES.superActivate },        // drone eskadry + gwizd bomby
+    { key: 'strike_flyby', file: 'strike_flyby.wav', volume: VOLUMES.superActivate * 1.1 },  // doppler przelotu odrzutowcow (v2)
+    { key: 'super_hole',   file: 'super_hole.wav',   volume: VOLUMES.superActivate },        // zasysajacy sweep + sub-bas
+    { key: 'super_laser',  file: 'super_laser.wav',  volume: VOLUMES.superActivate * 0.9 },  // charge + hum wiazki
+    { key: 'super_pong',   file: 'super_pong.wav',   volume: VOLUMES.superActivate * 0.8 },  // ping — aktywacja I kazde odbicie
     // F7b-3 Salwa Rakiet — oba generowane proceduralnie (scratchpad gen_rocket_sfx.js)
     { key: 'rocket_launch', file: 'SP_missile.mp3',    volume: VOLUMES.superActivate * 0.7 }, // asset Mariusza (zastapil generowany); grany 8x co ~80ms = rytm tuk-tuk
     { key: 'rocket_boom',   file: 'rocket_boom.wav',   volume: VOLUMES.explosion * 0.7 },     // mniejszy niz explosion.mp3 (8 boomow/salwa)
@@ -538,7 +544,7 @@ export class AudioSys {
         this.safePlay('yeti_roar');
     }
 
-    playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build'): void {
+    playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build' | 'strike' | 'hole' | 'laser' | 'pong'): void {
         const key = powerId === 'megaBomb' ? 'super_bomb' : `super_${powerId}`;
         this.safePlay(key);
     }
@@ -564,6 +570,20 @@ export class AudioSys {
     // F7b-6 Builder
     playWallThunk(): void {
         this.safePlay('super_build'); // ten sam thunk co aktywacja (wzorzec min)
+    }
+
+    // Tier 2: Nalot — doppler przelotu eskadry (gra rownolegle z super_strike)
+    playStrikeFlyby(): void {
+        this.safePlay('strike_flyby');
+    }
+
+    // Tier 2: Ping-Pong — ping przy KAZDYM odbiciu (throttle 60ms: salwa wroga = 1 ping)
+    private pongTimer = 0;
+    playPongDeflect(): void {
+        const now = Date.now();
+        if (now - this.pongTimer < 60) return;
+        this.pongTimer = now;
+        this.safePlay('super_pong');
     }
 
     playMineExplosion(): void {

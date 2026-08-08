@@ -107,7 +107,8 @@ export const ACT_I_MILESTONES: readonly TrophyMilestone[] = [
     // F7b-3: Salwa Rakiet w Akcie I (decyzja Mariusza — zamiast Turbo, ktore duplikowalo pady)
     { threshold: 330, bolts: 110, labelKey: 'road.unlock.rockets' },
     { threshold: 430, bolts: 130 },
-    { threshold: 560, bolts: 160 },
+    // F7b-5: Miny w Akcie I (Tier 1 = 9 mocy, decyzja Mariusza 2026-08-07)
+    { threshold: 560, bolts: 160, labelKey: 'road.unlock.mines' },
     // F7b: domkniecie Aktu I odblokowuje NAPRAWE (unlockAtTrophies 750 w rejestrze mocy;
     // labelKey = marchewka na Szlaku — sama mechanika odblokowania liczy sie z trofeow).
     { threshold: 750, bolts: 200, labelKey: 'road.unlock.repair' },
@@ -119,7 +120,8 @@ export const ACT_I_MILESTONES: readonly TrophyMilestone[] = [
  * Bolty = kontynuacja kadencji Aktu I; PROWIZORYCZNE — pelny Akt II przy jego designie.
  */
 export const ACT_II_MILESTONES: readonly TrophyMilestone[] = [
-    { threshold: 1000, bolts: 240 },
+    // F7b-6: Builder w Akcie II (Tier 1 = 9 mocy, decyzja Mariusza 2026-08-07)
+    { threshold: 1000, bolts: 240, labelKey: 'road.unlock.build' },
     { threshold: 1500, bolts: 280, labelKey: 'road.unlock.tower' },
 ];
 

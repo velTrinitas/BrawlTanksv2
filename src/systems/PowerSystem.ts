@@ -3,7 +3,8 @@ import type { Enemy } from '../entities/Enemy';
 import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
 import {
-    POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, getPowerDef,
+    POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, MINES_CONFIG,
+    BUILDER_CONFIG, getPowerDef,
     type PowerId, type LoadoutPair, type PowerActivationCtx, type ActivationResult,
 } from '../config/powers';
 import { AudioSys } from '../audio/AudioSys'; // F7b-3: tuk-tuk wystrzalow (precedens: Bullet.ts)
@@ -117,6 +118,38 @@ export class PowerSystem {
     private ghostAge = 0;
     /** Reuzywany punkt dla ghostTauntFor — zero alokacji per wrog per klatka. */
     private readonly ghostTauntPoint = { x: 0, y: 0 };
+
+    // ── F7b-5: MINY — "moc jazdy": okno 7s, mina co 75px drogi, zegar 5s per mina.
+    // Wizuale = pula maxActive (talerz AT + osobna dioda blinkowana transformem alpha).
+    private mineVisuals: Array<{ c: PIXI.Container; diode: PIXI.Graphics }> = [];
+    private minesArmed: Array<{ vi: number; x: number; y: number; fuse: number }> = [];
+    private minesWindowLeft = 0;
+    private minesBudget = 0; // laczny budzet zrzutow na aktywacje (fix "drugiego setu")
+    private mineOdo = 0;
+    private mineLastX = 0;
+    private mineLastY = 0;
+
+    // ── F7b-6: BUILDER — druga "moc jazdy". Segment muru = REALNY collider w swiecie;
+    // collidery wstawia/usuwa main.ts przez wallSpawner (zwraca remover albo null =
+    // miejsce niedozwolone). PowerSystem trzyma okno/odometr/budzet + wizuale + timery.
+    private wallVisuals: PIXI.Graphics[] = [];
+    private wallsActive: Array<{
+        vi: number;
+        x: number; y: number;
+        life: number;
+        age: number;
+        remove: () => void;   // splice collidera z buildings/solidBuildings/ctf (main.ts)
+    }> = [];
+    private buildWindowLeft = 0;
+    private buildBudget = 0;
+    private buildOdo = 0;
+    private buildLastX = 0;
+    private buildLastY = 0;
+    /**
+     * Wstawienie collidera muru — WYMAGANE w konstruktorze (wzorzec towerBulletSpawner).
+     * null = miejsce niedozwolone (kolizja z budynkiem / wrog w srodku) => segment pominiety.
+     */
+    private readonly wallSpawner: (x: number, y: number) => (() => void) | null;
     private readonly worldContainer: PIXI.Container;
     /**
      * Spawn pocisku Wiezy — WYMAGANY w konstruktorze (przeglad F7b-2: wstrzykiwanie
@@ -130,11 +163,13 @@ export class PowerSystem {
         loadout: readonly [PowerId, PowerId],
         towerBulletSpawner: (x: number, y: number, angle: number) => void,
         aoeExplode: (x: number, y: number, radius: number, dmg: number) => void,
+        wallSpawner: (x: number, y: number) => (() => void) | null,
     ) {
         this.loadout = loadout;
         this.worldContainer = worldContainer;
         this.towerBulletSpawner = towerBulletSpawner;
         this.aoeExplode = aoeExplode;
+        this.wallSpawner = wallSpawner;
         this.powerCooldowns = Object.fromEntries(
             POWER_ORDER.map(id => [id, 0]),
         ) as Record<PowerId, number>;
@@ -193,6 +228,8 @@ export class PowerSystem {
         this.towerDespawn();  // F7b-2: handoff tutorial->mecz nie moze zostawic zywej wiezy
         this.rocketsClear();  // F7b-3: ...ani rakiet w locie / w kolejce startowej
         this.ghostDespawn();  // F7b-4: ...ani wabika (bez wybuchu — czysty teardown)
+        this.minesClear();    // F7b-5: ...ani uzbrojonych min (bez detonacji)
+        this.buildClear();    // F7b-6: ...ani muru (collidery MUSZA wyjsc z tablic!)
     }
 
     /**
@@ -247,10 +284,12 @@ export class PowerSystem {
             this.magnetActive = false;
         }
 
-        // F7b-2/3/4: Wieza, rakiety i Widmo tykaja NIEZALEZNIE od efektu czasowego.
+        // F7b-2..6: Wieza, rakiety, Widmo, miny i mur tykaja NIEZALEZNIE od efektu czasowego.
         this.towerUpdate(delta, enemies, effects);
         this.rocketsUpdate(delta, enemies, effects);
         this.ghostUpdate(delta, effects);
+        this.minesUpdate(delta, player, effects);
+        this.buildUpdate(delta, player, effects);
 
         // Generyczny tick efektu czasowego — zachowanie per-moc w PowerDef.onTick/onEnd.
         // F7b: onTick dostaje DELTE (efekty narastajace w czasie, np. heal, musza byc
@@ -665,7 +704,7 @@ export class PowerSystem {
             if (boom) {
                 this.rocketVisuals[r.vi].c.visible = false;
                 this.rocketsActive.splice(i, 1);
-                // wizual+dzwiek+AoE kill-path w main.ts
+                AudioSys.getInstance().playRocketBoom(); // dzwiek = sygnatura mocy (wolajacy)
                 this.aoeExplode(r.x, r.y, ROCKETS_CONFIG.explosionRadius, ROCKETS_CONFIG.explosionDmg);
                 continue;
             }
@@ -775,6 +814,7 @@ export class PowerSystem {
             const x = this.ghostX, y = this.ghostY;
             this.ghostDespawn();
             effects.spawnEnemyHitSparks(x, y, 0xb39ddb); // fioletowy puff rozplyniecia
+            AudioSys.getInstance().playRocketBoom(); // dzwiek = sygnatura mocy (wolajacy)
             this.aoeExplode(x, y, GHOST_CONFIG.endExplosionRadius, GHOST_CONFIG.endExplosionDmg);
             return;
         }
@@ -789,6 +829,219 @@ export class PowerSystem {
             this.ghostRing.rotation = t / 900;
             const pulse = 1 + 0.08 * Math.sin(t / 250);
             this.ghostRing.scale.set(pulse);
+        }
+    }
+
+    // ── F7b-5: MINY (spec: sim v6 143-145/276-289/539-543 — timer 5s, ZERO proximity) ──
+
+    /** Aktywacja: otwiera 7s okno zostawiania min podczas jazdy (sim: "MINY! jedz!"). */
+    minesActivate(player: Player): void {
+        this.minesWindowLeft = MINES_CONFIG.windowFrames;
+        this.minesBudget = MINES_CONFIG.maxPerActivation;
+        this.mineOdo = 0;
+        this.mineLastX = player.x;
+        this.mineLastY = player.y;
+    }
+
+    /** Handoff/teardown: schowaj miny bez detonacji + zamknij okno. */
+    minesClear(): void {
+        this.minesWindowLeft = 0;
+        for (const m of this.minesArmed) this.mineVisuals[m.vi].c.visible = false;
+        this.minesArmed = [];
+    }
+
+    /** Wizual miny z puli (talerz AT rysowany RAZ; dioda = osobna gfx blinkowana alpha). */
+    private mineAcquireVisual(): number {
+        for (let i = 0; i < this.mineVisuals.length; i++) {
+            if (!this.mineVisuals[i].c.visible) return i;
+        }
+        const c = new PIXI.Container();
+        const plate = new PIXI.Graphics();
+        plate.beginFill(0x3a3f45);                 // talerz przeciwpancerny (sim 1:1)
+        plate.drawCircle(0, 0, 11);
+        plate.endFill();
+        plate.lineStyle(3, 0x20242a);
+        plate.drawCircle(0, 0, 11);
+        plate.lineStyle(2, 0x20242a);
+        plate.moveTo(-11, 0); plate.lineTo(11, 0); // zebra talerza (krzyz)
+        plate.moveTo(0, -11); plate.lineTo(0, 11);
+        plate.lineStyle(0);
+        plate.beginFill(0x555c64, 0.9);            // srodkowy garb zapalnika
+        plate.drawCircle(0, 0, 4.5);
+        plate.endFill();
+        c.addChild(plate);
+        const diode = new PIXI.Graphics();
+        diode.beginFill(0xff5252);
+        diode.drawCircle(0, 0, 2.2);
+        diode.endFill();
+        diode.y = -6;
+        c.addChild(diode);
+        this.worldContainer.addChild(c);
+        this.mineVisuals.push({ c, diode });
+        return this.mineVisuals.length - 1;
+    }
+
+    /** Per-frame: okno jazdy (odometr -> drop) + zegary min + blink diod + detonacje. */
+    private minesUpdate(delta: number, player: Player, effects: EffectsManager): void {
+        // Okno zostawiania: mina co dropEveryPx przejechanej drogi, ZA czolgiem.
+        if (this.minesWindowLeft > 0) {
+            this.minesWindowLeft -= delta;
+            const dx = player.x - this.mineLastX;
+            const dy = player.y - this.mineLastY;
+            const moved = Math.hypot(dx, dy);
+            this.mineLastX = player.x;
+            this.mineLastY = player.y;
+            if (moved > 0 && this.minesBudget > 0) {
+                this.mineOdo += moved;
+                if (this.mineOdo >= MINES_CONFIG.dropEveryPx) {
+                    this.mineOdo -= MINES_CONFIG.dropEveryPx;
+                    this.minesBudget--;
+                    if (this.minesBudget <= 0) this.minesWindowLeft = 0; // set skonczony
+                    // ZA czolgiem wzdluz kierunku jazdy (sim: -cos(angle)*24)
+                    const inv = 1 / moved;
+                    const mx = player.x - dx * inv * MINES_CONFIG.dropBehindPx;
+                    const my = player.y - dy * inv * MINES_CONFIG.dropBehindPx;
+                    const vi = this.mineAcquireVisual();
+                    const v = this.mineVisuals[vi];
+                    v.c.visible = true;
+                    v.c.x = mx;
+                    v.c.y = my;
+                    v.c.zIndex = my - 2; // plasko na gruncie — czolgi przejezdzaja NAD talerzem
+                    this.minesArmed.push({ vi, x: mx, y: my, fuse: MINES_CONFIG.fuseFrames });
+                    effects.spawnEnemyHitSparks(mx, my, 0xff8a80); // puff zrzutu (sensoryka)
+                    AudioSys.getInstance().playMineDrop(); // klik zatrzasku per mina
+                }
+            }
+        }
+
+        // Zegary + blink + detonacje (timer-only, sim 1:1 — zero proximity).
+        for (let i = this.minesArmed.length - 1; i >= 0; i--) {
+            const m = this.minesArmed[i];
+            m.fuse -= delta;
+            if (m.fuse <= 0) {
+                this.mineVisuals[m.vi].c.visible = false;
+                this.minesArmed.splice(i, 1);
+                // "Swietna eksplozja" (sim): podwojny ring + mocniejszy wstrzas + AoE kill-path.
+                effects.spawnShockwaveRing(m.x, m.y, MINES_CONFIG.explosionRadius);
+                effects.shake(8, 10);
+                AudioSys.getInstance().playMineExplosion(); // SP_tank_mine (asset Mariusza)
+                this.aoeExplode(m.x, m.y, MINES_CONFIG.explosionRadius, MINES_CONFIG.explosionDmg);
+                continue;
+            }
+            // Dioda: miga; ostatnie 1.5s — szybciej (sim: freq 26 vs 10). Transform alpha only.
+            const fast = m.fuse < MINES_CONFIG.blinkFastFuseFrames;
+            const blink = (Math.sin(Date.now() / (fast ? 38 : 100)) + 1) / 2;
+            this.mineVisuals[m.vi].diode.alpha = 0.25 + 0.75 * blink;
+        }
+    }
+
+    // ── F7b-6: BUILDER (spec: sim v6 146-148/291-299/527-536 — worki, scale-in, fade) ──
+
+    /** Aktywacja: otwiera 4s okno budowania podczas jazdy; pierwszy segment natychmiast. */
+    buildActivate(player: Player): void {
+        this.buildWindowLeft = BUILDER_CONFIG.windowFrames;
+        this.buildBudget = BUILDER_CONFIG.maxPerActivation;
+        this.buildOdo = BUILDER_CONFIG.dropEveryPx; // sim: wallOdo=999 => pierwszy segment od razu
+        this.buildLastX = player.x;
+        this.buildLastY = player.y;
+    }
+
+    /** Handoff/teardown: usun WSZYSTKIE collidery muru z tablic swiata + schowaj wizuale. */
+    buildClear(): void {
+        this.buildWindowLeft = 0;
+        for (const w of this.wallsActive) {
+            w.remove(); // splice z buildings/solidBuildings/ctf — bez tego niewidzialne sciany!
+            this.wallVisuals[w.vi].visible = false;
+        }
+        this.wallsActive = [];
+    }
+
+    /** Wizual segmentu z puli (worki/cegly rysowane RAZ — paleta 1:1 z sim). */
+    private wallAcquireVisual(): number {
+        for (let i = 0; i < this.wallVisuals.length; i++) {
+            if (!this.wallVisuals[i].visible) return i;
+        }
+        const g = new PIXI.Graphics();
+        const s = BUILDER_CONFIG.segmentSize / 2; // 15
+        g.beginFill(0xc9a36a);                    // cialo worka
+        g.drawRoundedRect(-s, -s, s * 2, s * 2, 5);
+        g.endFill();
+        g.beginFill(0xb58d55);                    // dwa ciemniejsze pasy (warstwy workow)
+        g.drawRoundedRect(-s, -s, s * 2, 9, 4);
+        g.drawRoundedRect(-s, 6, s * 2, 9, 4);
+        g.endFill();
+        g.lineStyle(2, 0x8a6a3c);
+        g.drawRect(-s, -s, s * 2, s * 2);         // obrys
+        g.moveTo(0, -s); g.lineTo(0, -6);         // fugi cegiel (przesuniete rzedy)
+        g.moveTo(-7, -6); g.lineTo(-7, 6);
+        g.moveTo(7, -6); g.lineTo(7, 6);
+        g.moveTo(0, 6); g.lineTo(0, s);
+        g.lineStyle(0);
+        this.worldContainer.addChild(g);
+        this.wallVisuals.push(g);
+        return this.wallVisuals.length - 1;
+    }
+
+    /** Per-frame: okno jazdy (odometr -> segment) + starzenie (scale-in / fade / expiry). */
+    private buildUpdate(delta: number, player: Player, effects: EffectsManager): void {
+        if (this.buildWindowLeft > 0) {
+            this.buildWindowLeft -= delta;
+            const dx = player.x - this.buildLastX;
+            const dy = player.y - this.buildLastY;
+            const moved = Math.hypot(dx, dy);
+            this.buildLastX = player.x;
+            this.buildLastY = player.y;
+            if (moved > 0 && this.buildBudget > 0) {
+                this.buildOdo += moved;
+                if (this.buildOdo >= BUILDER_CONFIG.dropEveryPx) {
+                    this.buildOdo -= BUILDER_CONFIG.dropEveryPx;
+                    const inv = 1 / moved;
+                    const wx = player.x - dx * inv * BUILDER_CONFIG.dropBehindPx;
+                    const wy = player.y - dy * inv * BUILDER_CONFIG.dropBehindPx;
+                    // main.ts waliduje miejsce (budynek/wrog) i wstawia collider; null = pomin
+                    // segment (budzet NIE zuzyty — mur ma byc ciagly, nie dziurawy przez pecha).
+                    const remove = this.wallSpawner(wx, wy);
+                    if (remove) {
+                        this.buildBudget--;
+                        if (this.buildBudget <= 0) this.buildWindowLeft = 0; // zapora skonczona
+                        const vi = this.wallAcquireVisual();
+                        const g = this.wallVisuals[vi];
+                        g.visible = true;
+                        g.x = wx;
+                        g.y = wy;
+                        g.zIndex = wy + BUILDER_CONFIG.segmentSize / 2; // Y-sort po dolnej krawedzi
+                        g.alpha = 1;
+                        g.scale.set(0.1); // scale-in narodzin (sim: sc=age*5)
+                        this.wallsActive.push({ vi, x: wx, y: wy, life: BUILDER_CONFIG.lifeFrames, age: 0, remove });
+                        effects.spawnEnemyHitSparks(wx, wy, 0xe6b566); // puff piachu (sensoryka)
+                        AudioSys.getInstance().playWallThunk();        // thunk worka per segment
+                    }
+                }
+            }
+        }
+
+        // Starzenie segmentow: scale-in -> zycie -> fade (telegraf) -> expiry (collider OUT).
+        for (let i = this.wallsActive.length - 1; i >= 0; i--) {
+            const w = this.wallsActive[i];
+            w.age += delta;
+            w.life -= delta;
+            const g = this.wallVisuals[w.vi];
+            if (w.life <= 0) {
+                w.remove(); // NAJPIERW collider (niewidzialna sciana = smiertelny grzech Czytelnosci)
+                g.visible = false;
+                this.wallsActive.splice(i, 1);
+                effects.spawnEnemyHitSparks(w.x, w.y, 0xb58d55); // puff rozsypania
+                continue;
+            }
+            if (w.age < BUILDER_CONFIG.growFrames) {
+                g.scale.set(Math.min(1, w.age / BUILDER_CONFIG.growFrames));
+            } else if (g.scale.x !== 1) {
+                g.scale.set(1);
+            }
+            // Ostatnia sekunda: fade (sim: alpha=max(.25,dieIn)) — gracz WIE, ze zaraz zniknie.
+            g.alpha = w.life < BUILDER_CONFIG.fadeFrames
+                ? Math.max(0.25, w.life / BUILDER_CONFIG.fadeFrames)
+                : 1;
         }
     }
 

@@ -130,7 +130,7 @@ import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b wieza/salwa/widmo
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b wieza/salwa/widmo/mur
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -1826,7 +1826,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // +victory+multiKill, ale BEZ combo-streaku (AoE != skill) i BEZ statow celnosci.
         if (!effects || !spawnSystem || !currentSession) return;
         effects.spawnRocketExplosion(x, y);
-        audio.playRocketBoom();
+        // DZWIEK eksplozji gra WOLAJACY (PowerSystem) — kazda moc ma wlasna sygnature
+        // (rakiety/widmo: rocket_boom; miny: SP_tank_mine asset Mariusza).
         effects.shake(3, 5);
         const r2 = radius * radius;
         let multiKillCount = 0;
@@ -1850,6 +1851,41 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             currentSession.addMultiKillBonus(multiKillSumBase, multiKillCount);
             hud.addNotif(t('hud.multiKill', { count: multiKillCount }), '#ff8800');
         }
+    }, (wx, wy) => {
+        // F7b-6 BUILDER: segment muru = PELNOPRAWNY collider (gracz+wrogowie+pociski
+        // OBU stron — Czytelnosc: sciana to sciana). Wstawiany do buildings +
+        // solidBuildings + (gdy CTF ma osobna KOPIE) ctfEnemyBuildings; zwracany
+        // remover splice'uje ze wszystkich. null = miejsce niedozwolone.
+        const half = BUILDER_CONFIG.segmentSize / 2;
+        const wall: ICollidable = {
+            x: wx - half, y: wy - half,
+            w: BUILDER_CONFIG.segmentSize, h: BUILDER_CONFIG.segmentSize,
+            update: () => { /* statyczny — zycie/expiry prowadzi PowerSystem */ },
+        };
+        // Walidacja: nie W budynku (niewidzialny naklad hitboxow)...
+        for (const b of buildings) {
+            if (wall.x < b.x + b.w && wall.x + wall.w > b.x && wall.y < b.y + b.h && wall.y + wall.h > b.y) {
+                return null;
+            }
+        }
+        // ...nie NA wrogu (zamurowany wrog w srodku collidera = stuck na zawsze)...
+        for (const e of enemies) {
+            if (e.active && (e.x - wx) ** 2 + (e.y - wy) ** 2 < 45 * 45) return null;
+        }
+        // ...i nie NA graczu (pas + cofka moga zawinac droge na punkt zrzutu — mur
+        // spawnujacy sie na czolgu zablokowalby ruch gracza az do expiry 8s).
+        if (player && (player.x - wx) ** 2 + (player.y - wy) ** 2 < 42 * 42) return null;
+        buildings.push(wall);
+        solidBuildings.push(wall);
+        const ctfArr = ctfEnemyBuildings !== null && ctfEnemyBuildings !== buildings ? ctfEnemyBuildings : null;
+        if (ctfArr) ctfArr.push(wall);
+        return () => {
+            for (const arr of [buildings, solidBuildings, ctfArr]) {
+                if (!arr) continue;
+                const idx = arr.indexOf(wall);
+                if (idx >= 0) arr.splice(idx, 1);
+            }
+        };
     });
     touchManager.setSlotPowers([POWERS[matchLoadout[0]].emoji, POWERS[matchLoadout[1]].emoji]);
     // Podmiana slotu (moc niedozwolona w trybie / nieposiadana) MUSI byc zakomunikowana —

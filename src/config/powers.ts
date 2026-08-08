@@ -21,7 +21,7 @@ import type { TranslationKey } from '../i18n/i18n';
 import type { ScenarioId } from '../types/Scenario';
 import { t } from '../i18n/i18n';
 
-export type PowerId = 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost';
+export type PowerId = 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost' | 'mines' | 'build';
 
 /** Loadout gracza: 2 sloty (GARAZ). null = pusty slot (nie powinno sie zdarzyc po normalizacji). */
 export type LoadoutPair = readonly [PowerId | null, PowerId | null];
@@ -44,8 +44,8 @@ export interface PowerActivationCtx {
      * (playHeartPickup/playShockwave), nie playSuperActivate z nowym id.
      */
     audio: {
-        /** F7b-2/4: 'tower'/'ghost' w unii, bo pliki super_*.wav ISTNIEJA (generowane). */
-        playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost'): void;
+        /** F7b-2/4/5/6: nowe id w unii TYLKO gdy plik super_*.wav ISTNIEJE (generowane/assety). */
+        playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build'): void;
         playHeartPickup(): void;
         playShockwave(): void;
     };
@@ -141,6 +141,34 @@ export const ROCKETS_CONFIG = {
     explosionRadius: 60,    // AoE (sim 1:1, design "male eksplozje r~60")
     explosionDmg: 300,      // flat w skali x100 — 1-shot zwykly wrog, boss wymaga kilku
     smokeEveryFrames: 2,    // dymek co 2 klatki/rakiete (cap designu: max 3 particles/rakiete/klatke)
+};
+
+// ── F7b-5: MINY (spec: sim v6 143-145/276-289/539-543 — "MINY! (jedz!)") ──
+export const MINES_CONFIG = {
+    windowFrames: 420,      // 7s okna zostawiania (sim 1:1) — "moc jazdy", nie instant
+    dropEveryPx: 75,        // mina co 75px przejechanej drogi (sim 1:1)
+    dropBehindPx: 24,       // mina laduje ZA czolgiem (sim 1:1) — nie pod lufa
+    fuseFrames: 300,        // zegar 5s per mina (sim 1:1; BEZ proximity — czysty timer)
+    explosionRadius: 110,   // sim 1:1 ("swietna eksplozja", wiekszy niz rakieta r60)
+    explosionDmg: 500,      // flat x100 — 1-shot zwykly wrog, powazny kes bossa
+    // JEDEN set na aktywacje (fix z playtestu: cap ROWNOCZESNY + odometr rosnacy w tle
+    // wysypywal DRUGI set, gdy pierwsze miny wybuchly i zwolnily sloty). Budzet LACZNY:
+    maxPerActivation: 14,   // 12+2 (decyzja Mariusza) — po wyczerpaniu okno sie zamyka
+    blinkFastFuseFrames: 90, // ostatnie 1.5s: dioda miga szybko (sim: freq 26 vs 10)
+};
+
+// ── F7b-6: BUILDER (spec: sim v6 146-148/291-299/527-536 — "zapora", mur z workow) ──
+export const BUILDER_CONFIG = {
+    windowFrames: 240,      // 4s okna budowania (sim 1:1) — najkrotsza "moc jazdy"
+    dropEveryPx: 30,        // segment co 30px drogi (sim 1:1) — mur CIAGLY, nie kropki
+    dropBehindPx: 45,       // za czolgiem; sim mial 30, ale nasz collider jest REALNY:
+                            // promien czolgu ~22 + pol segmentu 15 => 30 nakladaloby mur
+                            // NA gracza (blokada ruchu na 8s). 45 = czysty przeswit.
+    segmentSize: 30,        // AABB 30x30 = wizual 1:1 (Czytelnosc: hitbox zgodny z rysunkiem)
+    lifeFrames: 480,        // 8s zycia segmentu (sim 1:1), potem znika z puffem
+    fadeFrames: 60,         // ostatnia 1s: alpha fade = telegraf zniknieciu (sim 1:1)
+    maxPerActivation: 20,   // budzet LACZNY (lekcja min: zero "drugiego setu") = mur ~600px
+    growFrames: 12,         // scale-in narodzin segmentu (sim: sc=age*5 => pelny w 0.2s)
 };
 
 // ── F7b-4: CZOLG WIDMO (spec: sim v6 140-142/389-392/456/551-554 + design §18.2 #8) ──
@@ -332,10 +360,49 @@ export const POWERS: Record<PowerId, PowerDef> = {
             return { activated: true, powerId: 'ghost' };
         },
     },
+    // ── F7b-5: MINY — "moc jazdy" (sim: MINY! jedz!): przez 7s czolg zostawia miny
+    //    co 75px drogi; kazda z zegarem 5s. Fire-and-forget (okno + miny = wlasny stan). ──
+    mines: {
+        id: 'mines',
+        name: 'Miny',
+        labelKey: 'power.mines',
+        emoji: '💥',
+        color: 0xff5252,
+        cooldownMs: 30000,       // sim 14s = demo; okno 7s + zegary 5s = dluga wartosc pola
+        durationFrames: 0,       // instant activation — okno zyje wlasnym timerem w systemie
+        unlockAtTrophies: 560,   // Akt I (Tier 1 = 9 mocy, decyzja Mariusza 2026-08-07);
+                                 // milestone 560 nosi marchewke road.unlock.mines
+        onActivate: (ctx) => {
+            ctx.system.minesActivate(ctx.player);
+            ctx.hud.addNotif(t('hud.minesStart'), '#ff5252');
+            ctx.audio.playSuperActivate('mines');
+            return { activated: true, powerId: 'mines' };
+        },
+    },
+    // ── F7b-6: BUILDER — druga "moc jazdy" (sim: BUILDER! jedz!): przez 4s czolg
+    //    zostawia za soba segmenty MURU (worki) co 30px; kazdy segment to PELNOPRAWNY
+    //    collider (gracz+wrogowie+pociski obu stron) zyjacy 8s. Jedyna moc dotykajaca
+    //    fizyki swiata — collidery wstawia/usuwa main.ts przez wallSpawner (konstruktor). ──
+    build: {
+        id: 'build',
+        name: 'Mur',
+        labelKey: 'power.build',
+        emoji: '🧱',
+        color: 0xe6b566,
+        cooldownMs: 30000,       // sim 14s = demo; zapora 8s zycia = duza wartosc obronna
+        durationFrames: 0,       // instant activation — okno zyje wlasnym timerem w systemie
+        unlockAtTrophies: 1000,  // Akt II (Tier 1 = 9 mocy); milestone 1000 nosi marchewke
+        onActivate: (ctx) => {
+            ctx.system.buildActivate(ctx.player);
+            ctx.hud.addNotif(t('hud.buildStart'), '#e6b566');
+            ctx.audio.playSuperActivate('build');
+            return { activated: true, powerId: 'build' };
+        },
+    },
 };
 
 /** Kolejnosc wyswietlania (GARAZ picker) + inicjalizacja cooldownow. */
-export const POWER_ORDER: readonly PowerId[] = ['aura', 'megaBomb', 'freeze', 'rockets', 'repair', 'tower', 'ghost'];
+export const POWER_ORDER: readonly PowerId[] = ['aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower', 'ghost'];
 
 export function getPowerDef(id: string): PowerDef | undefined {
     return (POWERS as Record<string, PowerDef>)[id];

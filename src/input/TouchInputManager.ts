@@ -116,6 +116,15 @@ export class TouchInputManager {
         this.superButtons[slot].setCharged(charged);
     }
 
+    /**
+     * v0.108.0: licznik cooldownu NA przycisku (mobile nie ma paska HUD) — wolane
+     * per-frame z main.ts; SuperButton wewnetrznie thrash-guarduje DOM.
+     */
+    updateSuperCooldown(slot: 0 | 1, progress: number, secsLeft: number): void {
+        if (!this.isActive) return;
+        this.superButtons[slot].setCooldown(progress, secsLeft);
+    }
+
     /** F7a: ikony mocy z loadoutu — RAZ na mecz (startGame), nie per-frame. */
     setSlotPowers(emojis: [string, string]): void {
         if (!this.isActive) return;

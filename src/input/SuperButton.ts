@@ -21,6 +21,14 @@ export class SuperButton {
     /** Whether button is visually enabled (moc gotowa). Set externally by TouchInputManager. */
     private _charged: boolean = false;
 
+    // v0.108.0 — licznik cooldownu NA przycisku (mobile nie ma paska HUD; feedback A54:
+    // "brakuje licznika po uzyciu"). Sweep = conic-gradient zegar, tekst = sekundy.
+    private cdSweepEl: HTMLElement | null = null;
+    private cdTextEl: HTMLElement | null = null;
+    /** Cache ostatnio wyrenderowanych wartosci — DOM ruszany TYLKO przy realnej zmianie. */
+    private lastCdPct: number = -1;
+    private lastCdSecs: number = -1;
+
     /** Slot loadoutu (0/1) — daje klase CSS pozycji + aria-label. */
     private readonly slot: 0 | 1;
 
@@ -41,9 +49,17 @@ export class SuperButton {
         // --slot1/--slot2: pozycje w CSS; --slot1 to tez jednoznaczny selektor dla tutorialu.
         this.rootEl.className = `bt-super-button bt-super-button--slot${this.slot + 1}`;
         this.rootEl.setAttribute('aria-label', `Super power slot ${this.slot + 1} — tap to activate`);
-        // Default icon = ⚡, nadpisywana z loadoutu przez setPowerIcon() na starcie meczu
-        this.rootEl.innerHTML = `<span class="bt-super-button-icon" aria-hidden="true">⚡</span>`;
+        // Default icon = ⚡, nadpisywana z loadoutu przez setPowerIcon() na starcie meczu.
+        // cd-sweep (zegar conic-gradient) + cd-text (sekundy) domyslnie ukryte (display:none
+        // w CSS, pokazywane przez .has-cd na przycisku) — patrz setCooldown().
+        this.rootEl.innerHTML = `
+            <span class="bt-super-button-icon" aria-hidden="true">⚡</span>
+            <div class="bt-super-button-cd" aria-hidden="true"></div>
+            <span class="bt-super-button-cd-text" aria-hidden="true"></span>
+        `;
         this.iconEl = this.rootEl.querySelector<HTMLElement>('.bt-super-button-icon');
+        this.cdSweepEl = this.rootEl.querySelector<HTMLElement>('.bt-super-button-cd');
+        this.cdTextEl = this.rootEl.querySelector<HTMLElement>('.bt-super-button-cd-text');
 
         parent.appendChild(this.rootEl);
         this.wireEvents();
@@ -55,6 +71,8 @@ export class SuperButton {
         this.rootEl.remove();
         this.rootEl = null;
         this.iconEl = null;
+        this.cdSweepEl = null;
+        this.cdTextEl = null;
     }
 
     show(): void {
@@ -83,6 +101,39 @@ export class SuperButton {
         if (!this.iconEl) return;
         if (this.iconEl.textContent === emoji) return;
         this.iconEl.textContent = emoji;
+    }
+
+    /**
+     * v0.108.0 — cooldown NA przycisku (wolane per-frame z TouchInputManager).
+     * progress 0..1 (1 = pelny cooldown), secsLeft w sekundach. progress=0 chowa
+     * wskaznik — takze przy blokadzie "inna moc aktywna" (to nie cooldown, przycisk
+     * jest wtedy szary bez liczby, jak dotad). DOM ruszany TYLKO przy zmianie
+     * (sweep: krok 1%; tekst: pelna sekunda) — zero thrashu przy 60fps.
+     */
+    setCooldown(progress: number, secsLeft: number): void {
+        if (!this.rootEl || !this.cdSweepEl || !this.cdTextEl) return;
+        if (progress <= 0) {
+            if (this.lastCdPct !== 0) {
+                this.lastCdPct = 0;
+                this.lastCdSecs = -1;
+                this.rootEl.classList.remove('has-cd');
+            }
+            return;
+        }
+        const pct = Math.min(100, Math.max(1, Math.round(progress * 100)));
+        if (this.lastCdPct <= 0) this.rootEl.classList.add('has-cd');
+        if (pct !== this.lastCdPct) {
+            this.lastCdPct = pct;
+            // Ciemny "zegar" od godziny 12 (jak pie w desktopowym HUD): zaciemnienie
+            // pokrywa POZOSTALY cooldown i kurczy sie do zera.
+            this.cdSweepEl.style.background =
+                `conic-gradient(rgba(0,0,0,0.55) 0turn ${pct / 100}turn, transparent ${pct / 100}turn)`;
+        }
+        const secs = Math.max(1, Math.ceil(secsLeft));
+        if (secs !== this.lastCdSecs) {
+            this.lastCdSecs = secs;
+            this.cdTextEl.textContent = String(secs);
+        }
     }
 
     // === Internal: event wiring ===

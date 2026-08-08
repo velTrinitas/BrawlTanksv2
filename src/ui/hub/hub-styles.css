@@ -151,6 +151,35 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
     border-color: rgba(241, 196, 15, 0.35);
 }
 
+/* v0.108.0 — BITWA centralnie w docku jako wyniesiony zloty FAB (mobile only;
+   desktop rail zostaje pionowy z BITWA na gorze). Kolejnosc przez flex order:
+   [garaz, rozkazy] (0, DOM) -> BITWA (1) -> [trofea, ranking] (2). */
+body:not(.bt-desktop) .bt-hub0-navbtn--battle { order: 1; }
+body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn:nth-child(4),
+body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn:nth-child(5) { order: 2; }
+
+body:not(.bt-desktop) .bt-hub0-navbtn--battle {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    margin-top: -20px; /* FAB wystaje NAD dock (z-index nav 3 > main 1) */
+    border-radius: 50%;
+    background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 60%, #d8a20c);
+    color: #1a2530;
+    border: 3px solid var(--hub-steel-900);
+    box-shadow: 0 4px 16px rgba(241, 196, 15, 0.45);
+}
+body:not(.bt-desktop) .bt-hub0-navbtn--battle .gi { font-size: 26px; }
+body:not(.bt-desktop) .bt-hub0-navbtn--battle small {
+    font-size: 8px; font-weight: 800; color: #1a2530; letter-spacing: 0.2px;
+}
+body:not(.bt-desktop) .bt-hub0-navbtn--battle:hover { color: #1a2530; background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 60%, #d8a20c); }
+body:not(.bt-desktop) .bt-hub0-navbtn--battle.is-active {
+    color: #1a2530;
+    border-color: #fff3c4; /* aktywna sekcja = jasny ring zamiast zlotego (FAB juz zloty) */
+    box-shadow: 0 4px 20px rgba(241, 196, 15, 0.65);
+}
+
 /* ---------- MAIN CONTENT ---------- */
 .bt-hub0-main {
     grid-area: main;
@@ -177,6 +206,33 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
     transition: transform 0.12s;
 }
 .bt-hub0-play:active { transform: translateY(2px); }
+
+/* v0.108.0 — GRAJ jako HERO (feedback Mariusza: przycisk ginal na koncu sekcji).
+   Pelna szerokosc + wiekszy + zloty gradient z pulsem + STICKY przy dolnej krawedzi
+   scrolla (na mobile karty trybow + chipy potrafily zepchnac GRAJ pod fold).
+   Wariant --hero uzywa TYLKO BattleSection — maly .bt-hub0-play w cratebox nietkniety. */
+.bt-hub0-play--hero {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    font-size: 24px;
+    letter-spacing: 1.5px;
+    min-height: 60px;
+    margin-top: 16px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 55%, #d8a20c);
+    box-shadow: 0 6px 22px rgba(241, 196, 15, 0.4), inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+    position: sticky;
+    bottom: 4px;
+    z-index: 4;
+    animation: bt-hub0-play-glow 2s ease-in-out infinite;
+}
+.bt-hub0-play--hero:hover { filter: brightness(1.06); }
+
+@keyframes bt-hub0-play-glow {
+    0%, 100% { box-shadow: 0 6px 22px rgba(241, 196, 15, 0.40), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+    50%      { box-shadow: 0 6px 32px rgba(241, 196, 15, 0.72), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+}
 
 /* ---------- BITWA (HUB-1) ---------- */
 .bt-hub0-season {
@@ -587,5 +643,6 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     .bt-hub0-gear, .bt-hub0-navbtn, .bt-hub0-profile, .bt-hub0-play,
     .bt-hub0-mode, .bt-hub0-mapchip, .bt-hub0-trophybar-track .fill, .bt-hub0-cos,
     .bt-hub0-q .qbar i { transition: none; }
-    .bt-hub0-overlay, .bt-cos-shimmer, .bt-hub0-parachute, .bt-hub0-crate-box.shake, .bt-hub0-reveal { animation: none; }
+    .bt-hub0-overlay, .bt-cos-shimmer, .bt-hub0-parachute, .bt-hub0-crate-box.shake, .bt-hub0-reveal,
+    .bt-hub0-play--hero { animation: none; }
 }

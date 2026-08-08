@@ -2811,10 +2811,49 @@
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
 
-/* Position: bottom-right (aim, fixed) */
+/* Position: bottom-right (aim, fixed).
+   v0.108.0 (feedback A54): -20% rozmiaru (130->104) — wiecej pola gry w rogu,
+   przyciski mocy schodza nizej. UWAGA: drazek CELUJE (maxRadius = 36% szerokosci),
+   wiec mocniejsze ciecie psuloby precyzje flick-aima. Knob proporcjonalnie 52->42. */
 .bt-joystick--right {
+    width: 104px;
+    height: 104px;
     right: calc(20px + env(safe-area-inset-right, 0px));
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.bt-joystick--right .bt-joystick-knob {
+    width: 42px;
+    height: 42px;
+    margin-top: -21px;
+    margin-left: -21px;
+}
+
+/* v0.108.0: zloty ring TYLKO przy dotyku — w spoczynku zostaje subtelne tlo
+   (afordancje "tu sie strzela" daje ikona pocisku). Sensoryka: ring wraca w .is-active. */
+.bt-joystick--right:not(.is-active) .bt-joystick-base {
+    border-color: transparent;
+}
+
+/* v0.108.0: ikona CELOWNIKA 🎯 (emoji, decyzja Mariusza) na srodku bazy.
+   Znika przy .is-active (nie klóci sie wizualnie z knobem nad palcem). */
+.bt-joystick-fireicon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.4rem;
+    line-height: 1;
+    opacity: 0.7;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity var(--transition-fast);
+}
+
+.bt-joystick--right.is-active .bt-joystick-fireicon {
+    opacity: 0;
 }
 
 
@@ -2894,15 +2933,15 @@
 
 .bt-super-button {
     position: absolute;
-    /* Pozycja: above right joystick */
-    right: calc(40px + env(safe-area-inset-right, 0px));
-    bottom: calc(170px + env(safe-area-inset-bottom, 0px));
-    /* F7a tuning (Mariusz): -25% rozmiaru + 50% przezroczystosci w spoczynku — dwa
-       przyciski zaslanialy pole gry. Stan is-charged wraca do ~90% (sygnal sensoryczny
-       "moc gotowa" musi byc widoczny — na touch nie ma paska HUD). */
+    /* v0.108.0 UKLAD RADIALNY (Mariusz): przyciski na LUKU wokol prawego drazka —
+       rowny promien od srodka drazka do srodka kazdego przycisku; slot1 ~godz. 10,
+       slot2 ~godz. 11 (katy 65°/25° od pionu => 40° rozstawu, kola sie nie stykaja).
+       Pozycje per-slot NIZEJ (i w kazdej galezi media queries) — tu tylko wspolne. */
+    /* F7a tuning (Mariusz): -25% rozmiaru; v0.108.0: opacity -20% (0.5->0.4 spoczynek,
+       0.92->0.74 charged) — mniejsza okluzja pola gry. */
     width: 54px;
     height: 54px;
-    opacity: 0.5;
+    opacity: 0.4;
     border-radius: 50%;
     border: 4px solid var(--bt-navy);
     background: radial-gradient(
@@ -2939,7 +2978,7 @@
 
 /* === Charged state: pulsing gold glow === */
 .bt-super-button.is-charged {
-    opacity: 0.92; /* F7a: gotowa moc MUSI byc widoczna (Sensoryka) — spoczynek jest przygaszony */
+    opacity: 0.74; /* v0.108.0: -20% (bylo 0.92) — puls + zloto nadal czytelne */
     background: radial-gradient(
         circle at 30% 30%,
         rgba(241, 196, 15, 1) 0%,
@@ -2975,12 +3014,56 @@
     animation: none !important;
 }
 
-/* PROG-F7a: slot 2 na LEWO od slotu 1 (gap 12px). Pozycja NADPISANA w kazdej galezi
-   media queries nizej — bazowa prawa krawedz slotu 1 to 40px, przycisk 54px. */
+/* v0.108.0 pozycje radialne (baza): srodek drazka = (right 72, bottom 72),
+   promien R=92 do srodka przycisku (54px => -27 na krawedz).
+   slot1 @ ~10:00 (65° od pionu): center (72+0.906R, 72+0.423R) = (155, 111)
+   slot2 @ ~11:00 (25° od pionu): center (72+0.423R, 72+0.906R) = (111, 155) */
+.bt-super-button--slot1 {
+    right: calc(128px + env(safe-area-inset-right, 0px));
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+}
+
 .bt-super-button--slot2 {
-    right: calc(106px + env(safe-area-inset-right, 0px)); /* 40 + 54 + 12 */
+    right: calc(84px + env(safe-area-inset-right, 0px));
+    bottom: calc(128px + env(safe-area-inset-bottom, 0px));
 }
 /* (v0.23.1 long-press cycle USUNIETY w F7a — kazdy slot ma wlasny przycisk) */
+
+/* === v0.108.0: licznik cooldownu NA przycisku (mobile nie ma paska HUD) ===
+   Sweep: conic-gradient "zegar" (tlo inline z SuperButton.setCooldown — kurczy sie
+   do zera). Tekst: pozostale sekundy, paleta #ffaa00 1:1 z desktopowym HUD. */
+.bt-super-button-cd {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    display: none;
+}
+
+.bt-super-button-cd-text {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Titan One', cursive;
+    font-size: 0.9rem;
+    color: #ffaa00;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.bt-super-button.has-cd .bt-super-button-cd {
+    display: block;
+}
+
+.bt-super-button.has-cd .bt-super-button-cd-text {
+    display: flex;
+}
+
+.bt-super-button.has-cd .bt-super-button-icon {
+    opacity: 0.35; /* ikona przygaszona pod zegarem — liczba jest komunikatem */
+}
 
 /* =============================================================
    RESPONSIVE — small phones (≤375px) get slightly smaller controls
@@ -2999,17 +3082,39 @@
         margin-left: -22px;
     }
 
+    /* v0.108.0: prawy -20% (110->88, knob 44->36) */
+    .bt-joystick--right {
+        width: 88px;
+        height: 88px;
+    }
+
+    .bt-joystick--right .bt-joystick-knob {
+        width: 36px;
+        height: 36px;
+        margin-top: -18px;
+        margin-left: -18px;
+    }
+
     .bt-super-button {
         /* F7a: -25% dalby 46px < komfortowy cel kciuka — PODLOGA 48px na najmniejszych */
         width: 48px;
         height: 48px;
-        right: calc(32px + env(safe-area-inset-right, 0px));
-        bottom: calc(145px + env(safe-area-inset-bottom, 0px));
     }
 
-    /* F7a: slot 2 obok slotu 1 (32 + 48 + 10) */
+    .bt-super-button-cd-text {
+        font-size: 0.8rem; /* v0.108.0 */
+    }
+
+    /* v0.108.0 radial: srodek drazka (64,64), R=78, przycisk 48 (-24 na krawedz):
+       slot1 @10:00 => (64+70.7, 64+33.0), slot2 @11:00 => lustrzanie */
+    .bt-super-button--slot1 {
+        right: calc(111px + env(safe-area-inset-right, 0px));
+        bottom: calc(73px + env(safe-area-inset-bottom, 0px));
+    }
+
     .bt-super-button--slot2 {
-        right: calc(90px + env(safe-area-inset-right, 0px));
+        right: calc(73px + env(safe-area-inset-right, 0px));
+        bottom: calc(111px + env(safe-area-inset-bottom, 0px));
     }
 
     .bt-super-button-icon {
@@ -3034,17 +3139,40 @@
         margin-left: -30px;
     }
 
+    /* v0.108.0: prawy -20% (150->120, knob 60->48). Ta galaz gra na A54 landscape. */
+    .bt-joystick--right {
+        width: 120px;
+        height: 120px;
+    }
+
+    .bt-joystick--right .bt-joystick-knob {
+        width: 48px;
+        height: 48px;
+        margin-top: -24px;
+        margin-left: -24px;
+    }
+
     .bt-super-button {
         /* F7a tuning (Mariusz): 84 -> 63px (-25%) — zaslanialy pole gry */
         width: 63px;
         height: 63px;
-        bottom: calc(195px + env(safe-area-inset-bottom, 0px));
     }
 
-    /* F7a: slot 2 obok slotu 1 (40 + 63 + 12). To jest galaz, ktora REALNIE gra na A54
-       landscape (851x393 => min-width:768 + pointer:coarse). */
+    .bt-super-button-cd-text {
+        font-size: 1.05rem; /* v0.108.0 */
+    }
+
+    /* v0.108.0 radial: srodek drazka (80,80), R=106, przycisk 63 (-31.5 na krawedz):
+       slot1 @10:00 => (80+96.0, 80+44.8), slot2 @11:00 => lustrzanie.
+       To jest galaz, ktora REALNIE gra na A54 landscape (851x393). */
+    .bt-super-button--slot1 {
+        right: calc(144px + env(safe-area-inset-right, 0px));
+        bottom: calc(93px + env(safe-area-inset-bottom, 0px));
+    }
+
     .bt-super-button--slot2 {
-        right: calc(115px + env(safe-area-inset-right, 0px));
+        right: calc(93px + env(safe-area-inset-right, 0px));
+        bottom: calc(144px + env(safe-area-inset-bottom, 0px));
     }
 
     .bt-super-button-icon {

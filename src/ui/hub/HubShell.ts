@@ -110,8 +110,10 @@ export class HubShell implements IScreen {
 
     // ── render ──────────────────────────────────────────────────────────────
     private renderChrome(): string {
+        // v0.108.0 — BITWA dostaje modyfikator: na mobile dock centruje ja jako
+        // wyniesiony zloty FAB (feedback Mariusza: glowna akcja byla nieodroznialna).
         const nav = this.sections.map(s => `
-            <button class="bt-hub0-navbtn${s.id === this.activeSection ? ' is-active' : ''}"
+            <button class="bt-hub0-navbtn${s.id === 'battle' ? ' bt-hub0-navbtn--battle' : ''}${s.id === this.activeSection ? ' is-active' : ''}"
                     data-section="${s.id}" type="button">
                 <span class="gi" aria-hidden="true">${s.icon}</span>
                 <small>${s.label()}</small>

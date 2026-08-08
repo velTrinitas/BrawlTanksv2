@@ -2767,6 +2767,16 @@ app.ticker.add((rawDelta) => {
         // dawalaby 2 moce z jednego tapu przy 2 slotach).
         touchManager.updateSuperChargedVisual(0, powerSystem.canActivateSlot(0));
         touchManager.updateSuperChargedVisual(1, powerSystem.canActivateSlot(1));
+        // v0.108.0 — licznik cooldownu NA przyciskach (feedback A54: po uzyciu mocy
+        // nie widac ile zostalo; pasek HUD z tym wskaznikiem jest desktop-only).
+        for (const slot of [0, 1] as const) {
+            const pid = powerSystem.loadout[slot];
+            touchManager.updateSuperCooldown(
+                slot,
+                powerSystem.getCooldownProgress(pid),
+                powerSystem.getCooldownSecondsLeft(pid),
+            );
+        }
 
         touchMoveVector = touchManager.moveVector;
 

@@ -71,7 +71,7 @@ export class BattleSection implements HubSection {
             ${season}
             <div class="bt-hub0-modes">${modes}</div>
             ${maps}
-            <button class="bt-hub0-play" data-action="play" type="button">▶ ${t('hub.play')}</button>
+            <button class="bt-hub0-play bt-hub0-play--hero" data-action="play" type="button">▶ ${t('hub.play')}</button>
         `;
     }
 

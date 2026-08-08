@@ -90,8 +90,15 @@ export class VirtualJoystick {
         this.rootEl.className = `bt-joystick bt-joystick--${this.side} bt-joystick--${this.mode}`;
         this.rootEl.setAttribute('aria-hidden', 'true');
 
+        // v0.108.0: prawy drazek dostaje ikone CELOWNIKA 🎯 na srodku bazy (decyzja
+        // Mariusza — bullseye zamiast CSS-owego pocisku). Afordancja "tu sie celuje
+        // i strzela" po zdjeciu zlotego ringu; znika przy .is-active.
+        const fireIcon = this.side === 'right'
+            ? `<span class="bt-joystick-fireicon" aria-hidden="true">🎯</span>`
+            : '';
         this.rootEl.innerHTML = `
             <div class="bt-joystick-base"></div>
+            ${fireIcon}
             <div class="bt-joystick-knob"></div>
         `;
 

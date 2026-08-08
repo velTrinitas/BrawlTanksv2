@@ -283,6 +283,19 @@ export class EffectsManager {
     }
 
     /**
+     * v0.112 Tier 3: DUZE rozowe "serduszka" Babci (feedback: male iskierki gineły).
+     * Wieksze, wolniejsze, dluzej zyjace czastki + biale bliki — widoczne przy zoom 0.6.
+     */
+    spawnGrannyHearts(x: number, y: number): void {
+        this.spawnParticles(x, y - 6, 0xff9ec4, 6, {
+            speed: 1.6, size: 5.5, decay: 0.025,
+        });
+        this.spawnParticles(x, y - 10, 0xffffff, 3, {
+            speed: 2.2, size: 3, decay: 0.045,
+        });
+    }
+
+    /**
      * F7b-3: pojedynczy klab dymu za rakieta (wolane co 2 klatki/rakiete z PowerSystem —
      * twardy cap designu §18.2; miekki, wolno gasnacy = smuga jak w sim).
      */

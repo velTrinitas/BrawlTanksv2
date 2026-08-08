@@ -130,7 +130,7 @@ import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, PONG_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b + Tier 2
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, PONG_CONFIG, DISCO_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b + Tier 2/3
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -3344,16 +3344,37 @@ app.ticker.add((rawDelta) => {
     const enemyBuildings = ctfEnemyBuildings ?? buildings;
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
-        // F7b-4 WIDMO: wrog w promieniu wabika celuje w WABIK zamiast gracza ("targetRef"
-        // przez iniekcje wspolrzednych — null = normalnie gracz; boss ignoruje po 2s).
-        const taunt = powerSystem.ghostTauntFor(enemy);
-        const shotInfo = enemy.update(delta, taunt ? taunt.x : player.x, taunt ? taunt.y : player.y, enemyBuildings, powerCubes);
-        if (shotInfo) spawnEnemyShot(shotInfo);
+        // KRYTYCZNY GUARD (crash-fix v0.112): moce zabijajace w powerSystem.update
+        // (wir-crush / paczki / laser / miny / kaczka) niszcza container PRZED ta
+        // petla (takeDamage -> container.destroy) — KAZDY dostep do enemy.container
+        // na trupie = wywrotka. Trup wypada TUTAJ, zanim czegokolwiek dotkniemy.
+        if (!enemy.active) { enemies.splice(i, 1); continue; }
+        // TIER 3 DISCO: wrogowie TANCZA — wiruja w miejscu, zero update (ruch/strzal/AI).
+        // Pozostaja wrazliwi na pociski/moce (dalsza czesc petli dziala normalnie).
+        let shotInfo: ReturnType<typeof enemy.update> = null;
+        if (powerSystem.discoActive) {
+            enemy.container.rotation += 0.13 * delta;
+        } else {
+            if (enemy.container.rotation !== 0) enemy.container.rotation = 0; // koniec imprezy
+            // TIER 3 BABCIA (strach — wrog UCIEKA) > F7b-4 WIDMO (taunt) > gracz.
+            // Oba wzorce = iniekcja wspolrzednych do enemy.update (zero zmian w AI).
+            const steer = powerSystem.grannyFearFor(enemy) ?? powerSystem.ghostTauntFor(enemy);
+            shotInfo = enemy.update(delta, steer ? steer.x : player.x, steer ? steer.y : player.y, enemyBuildings, powerCubes);
+        }
+        // TIER 3 DISCO v2: zmeczony tancerz bije 20% slabiej do konca meczu.
+        if (shotInfo) {
+            if (powerSystem.isDiscoTired(enemy)) shotInfo.dmg = Math.round(shotInfo.dmg * DISCO_CONFIG.danceDmgMult);
+            spawnEnemyShot(shotInfo);
+        }
 
         const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
-            const playerDied = player.takeDamage(enemy.collisionDmg, powerSystem.isInvulnerable || tutorialActive); // tutorial => niesmiertelny
+            // TIER 3 DISCO v2: taran zmeczonego tancerza tez -20%
+            const collDmg = powerSystem.isDiscoTired(enemy)
+                ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
+                : enemy.collisionDmg;
+            const playerDied = player.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive); // tutorial => niesmiertelny
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.

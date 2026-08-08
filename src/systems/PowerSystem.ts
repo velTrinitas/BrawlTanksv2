@@ -4,13 +4,22 @@ import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
 import {
     POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, MINES_CONFIG,
-    BUILDER_CONFIG, STRIKE_CONFIG, HOLE_CONFIG, LASER_CONFIG, PONG_CONFIG, getPowerDef,
+    BUILDER_CONFIG, STRIKE_CONFIG, HOLE_CONFIG, LASER_CONFIG, PONG_CONFIG,
+    DUCK_CONFIG, LOCKER_CONFIG, DISCO_CONFIG, GRANNY_CONFIG, BURP_CONFIG, getPowerDef,
     type PowerId, type LoadoutPair, type PowerActivationCtx, type ActivationResult,
 } from '../config/powers';
+import {
+    bakeDuck, bakeLocker, bakeLockerLed, bakeParcel, bakeGranny, bakeDiscoBall, bakeSoftShadow,
+} from '../rendering/Tier3Baker'; // v0.112.0 — pieczony art z gradientami (Canvas 2D)
+import { t } from '../i18n/i18n'; // v0.112.0 — kwestie Babci (literal keys)
+import { WORLD_W, WORLD_H } from '../config/constants'; // v0.112.0 — kaczka odbija sie od granic PLANSZY
 import { AudioSys } from '../audio/AudioSys'; // F7b-3: tuk-tuk wystrzalow (precedens: Bullet.ts)
 import { getBrawlerTextures } from '../rendering/SpriteFactory'; // F7b-4: kopia czolgu gracza
 
 export type { ActivationResult } from '../config/powers';
+
+/** v0.112: wizual wiru +20% (feedback Mariusza) — pull/crush w HOLE_CONFIG, to tylko wyglad. */
+const HOLE_VISUAL_SCALE = 1.2;
 
 // ── F7b-2: stale WIZUALNE wiezy (balans zyje w TOWER_CONFIG — tu tylko wyglad/animacja) ──
 const TOWER_TOP_LIFT = 36;      // px — wysokosc platformy lufy nad gruntem (2.5D bryla)
@@ -188,6 +197,44 @@ export class PowerSystem {
     private pongSparkT = 0;
     private pongSparkIdx = 0;
 
+    // ═══ TIER 3 SZALONE (v0.112.0) — art z Tier3Baker (baked Canvas 2D + transformy) ═══
+    // KACZKA: sprite + cien na gruncie (2.5D — kaczka LECI, cien zostaje na ziemi).
+    private duckSprite: PIXI.Sprite | null = null;
+    private duckShadow: PIXI.Sprite | null = null;
+    private duckX = 0; private duckY = 0;
+    private duckVx = 0; private duckVy = 0;
+    private duckLife = 0;
+    private duckWob = 0;
+    private duckQuackT = 0; // v2: kwacze CALY CZAS (interwal)
+    private duckTurnT = 0;  // v3: skret 90 stopni co 2s (zygzak po mapie)
+    // PACZKOMAT: szafa + blinkujacy LED + paczki w LUKU (kazda z wlasnym cieniem).
+    private lockerC: PIXI.Container | null = null;
+    private lockerLed: PIXI.Sprite | null = null;
+    private lockerX = 0; private lockerY = 0;
+    private lockerFramesLeft = 0;
+    private lockerFireT = 0;
+    private parcels: Array<{
+        sp: PIXI.Sprite; sh: PIXI.Sprite;
+        x0: number; y0: number; x1: number; y1: number; t: number;
+    }> = [];
+    // DISCO: kula nad graczem + 3 kolorowe swiatla na gruncie (rotacja kontenera).
+    private discoBall: PIXI.Sprite | null = null;
+    private discoLights: PIXI.Graphics | null = null;
+    private discoFramesLeft = 0;
+    private discoNoteT = 0;
+    /** v2: kto tanczyl, bije 20% slabiej do konca meczu (WeakSet — zero wyciekow). */
+    private readonly discoDancers = new WeakSet<Enemy>();
+    // BABCIA: sprite przy graczu (bob transformem) + fear-point (wzorzec ghostTauntFor).
+    private grannySprite: PIXI.Sprite | null = null;
+    private grannyX = 0; private grannyY = 0;
+    private grannyFramesLeft = 0;
+    private grannyFearFade = 0; // v3: strach gasnie 2s po odejsciu babci (transition)
+    private grannySayT = 0;
+    private grannySayAlt = false;
+    private readonly grannyFearPoint = { x: 0, y: 0 };
+    // MEGA BEKA: odrzut tikowany per wrog (decay), stun przez enemy.freeze.
+    private burpPushes: Array<{ e: Enemy; kx: number; ky: number }> = [];
+
     private readonly worldContainer: PIXI.Container;
     /**
      * Spawn pocisku Wiezy — WYMAGANY w konstruktorze (przeglad F7b-2: wstrzykiwanie
@@ -269,6 +316,7 @@ export class PowerSystem {
         this.minesClear();    // F7b-5: ...ani uzbrojonych min (bez detonacji)
         this.buildClear();    // F7b-6: ...ani muru (collidery MUSZA wyjsc z tablic!)
         this.tier2Clear();    // v0.111.0: ...ani nalotu/wiru/lasera/pongu
+        this.tier3Clear();    // v0.112.0: ...ani kaczki/paczkomatu/disco/babci/beki
     }
 
     /**
@@ -333,6 +381,11 @@ export class PowerSystem {
         this.holeUpdate(delta, enemies, effects);
         this.laserUpdate(delta, player, enemies, effects);
         this.pongUpdate(delta, player, effects);
+        this.duckUpdate(delta, enemies, effects);
+        this.lockerUpdate(delta, enemies, effects);
+        this.discoUpdate(delta, player, enemies, effects);
+        this.grannyUpdate(delta, player, enemies, effects);
+        this.burpUpdate(delta);
 
         // Generyczny tick efektu czasowego — zachowanie per-moc w PowerDef.onTick/onEnd.
         // F7b: onTick dostaje DELTE (efekty narastajace w czasie, np. heal, musza byc
@@ -1281,6 +1334,7 @@ export class PowerSystem {
         this.holeC.x = this.holeX;
         this.holeC.y = this.holeY;
         this.holeC.zIndex = this.holeY;
+        this.holeC.scale.set(HOLE_VISUAL_SCALE, 0.72 * HOLE_VISUAL_SCALE);
     }
 
     private holeUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
@@ -1312,8 +1366,9 @@ export class PowerSystem {
             };
             spiral(this.holeDots1, 0, 1);
             spiral(this.holeDots2, CYCLE / 2, 1);
-            // Oddech calego leja (puls grawitacyjny) — scale.y zachowuje squash 2.5D
-            const breathe = 1 + 0.04 * Math.sin(Date.now() / 160);
+            // Oddech calego leja (puls grawitacyjny) — scale.y zachowuje squash 2.5D;
+            // HOLE_VISUAL_SCALE 1.2 = wir wiekszy o 20% (feedback Mariusza)
+            const breathe = (1 + 0.04 * Math.sin(Date.now() / 160)) * HOLE_VISUAL_SCALE;
             c.scale.set(breathe, 0.72 * breathe);
         }
         // Zasysanie: sila gasnie liniowo od rdzenia do krawedzi; boss opiera sie wirowi.
@@ -1509,6 +1564,443 @@ export class PowerSystem {
                 player.y + py[this.pongSparkIdx],
                 0xffe066,
             );
+        }
+    }
+
+    // ═══ TIER 3 SZALONE (v0.112.0, spec: sim v6 177-208/358-392/412-417) ═══
+    // Art: baked Canvas 2D (Tier3Baker, gradienty) — w meczu TYLKO transformy.
+
+    /** Teardown/handoff wszystkich mocy Tier 3 (bez efektow konca). */
+    tier3Clear(): void {
+        this.duckLife = 0;
+        for (const d of [this.duckSprite, this.duckShadow]) {
+            if (d) { if (d.parent) d.parent.removeChild(d); d.destroy(); }
+        }
+        this.duckSprite = null;
+        this.duckShadow = null;
+        this.lockerFramesLeft = 0;
+        if (this.lockerC) {
+            if (this.lockerC.parent) this.lockerC.parent.removeChild(this.lockerC);
+            this.lockerC.destroy({ children: true });
+            this.lockerC = null;
+            this.lockerLed = null;
+        }
+        for (const p of this.parcels) {
+            for (const d of [p.sp, p.sh]) { if (d.parent) d.parent.removeChild(d); d.destroy(); }
+        }
+        this.parcels = [];
+        this.discoFramesLeft = 0;
+        for (const d of [this.discoBall, this.discoLights]) {
+            if (d) { if (d.parent) d.parent.removeChild(d); d.destroy(); }
+        }
+        this.discoBall = null;
+        this.discoLights = null;
+        this.grannyFramesLeft = 0;
+        if (this.grannySprite) {
+            if (this.grannySprite.parent) this.grannySprite.parent.removeChild(this.grannySprite);
+            this.grannySprite.destroy();
+            this.grannySprite = null;
+        }
+        this.burpPushes = [];
+    }
+
+    // ── GIGA KACZKA 🦆 ───────────────────────────────────────────────────────
+
+    /** Kaczka wlatuje z boku gracza i szaleje po CALEJ planszy (odbicia od granic mapy). */
+    duckLaunch(px: number, py: number): void {
+        const fromLeft = Math.random() < 0.5;
+        this.duckX = Math.max(DUCK_CONFIG.edgeMargin, Math.min(WORLD_W - DUCK_CONFIG.edgeMargin, px + (fromLeft ? -500 : 500)));
+        this.duckY = Math.max(DUCK_CONFIG.edgeMargin, Math.min(WORLD_H - DUCK_CONFIG.edgeMargin, py));
+        this.duckVx = (fromLeft ? 1 : -1) * DUCK_CONFIG.speedX;
+        this.duckVy = (Math.random() < 0.5 ? 1 : -1) * DUCK_CONFIG.speedY;
+        this.duckLife = DUCK_CONFIG.lifeFrames;
+        this.duckWob = 0;
+        this.duckQuackT = 0;
+        this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
+        if (!this.duckSprite) {
+            this.duckSprite = new PIXI.Sprite(bakeDuck());
+            this.duckSprite.anchor.set(0.5, 0.62);
+            this.duckSprite.zIndex = 1e6 - 1; // LECI nad polem (pod cieniem samolotow nalotu)
+            this.worldContainer.addChild(this.duckSprite);
+            this.duckShadow = new PIXI.Sprite(bakeSoftShadow());
+            this.duckShadow.anchor.set(0.5);
+            this.duckShadow.zIndex = 9;       // cien NA GRUNCIE (2.5D: wysokosc lotu)
+            this.worldContainer.addChild(this.duckShadow);
+        }
+        this.duckSprite.visible = true;
+        if (this.duckShadow) this.duckShadow.visible = true;
+    }
+
+    private duckUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
+        if (this.duckLife <= 0) return;
+        this.duckLife -= delta;
+        const sp = this.duckSprite, sh = this.duckShadow;
+        if (this.duckLife <= 0) {
+            if (sp) sp.visible = false;
+            if (sh) sh.visible = false;
+            effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b); // "kwak…" puff
+            return;
+        }
+        this.duckWob += DUCK_CONFIG.wobbleRate * delta;
+        this.duckX += this.duckVx * delta;
+        this.duckY += this.duckVy * delta;
+        // v2: odbicia od GRANIC PLANSZY (WORLD_W/H) — kaczka patroluje cala mape
+        const M = DUCK_CONFIG.edgeMargin;
+        let bounced = false;
+        if (this.duckX < M) { this.duckVx = Math.abs(this.duckVx); this.duckX = M; bounced = true; }
+        if (this.duckX > WORLD_W - M) { this.duckVx = -Math.abs(this.duckVx); this.duckX = WORLD_W - M; bounced = true; }
+        if (this.duckY < M) { this.duckVy = Math.abs(this.duckVy); this.duckY = M; bounced = true; }
+        if (this.duckY > WORLD_H - M) { this.duckVy = -Math.abs(this.duckVy); this.duckY = WORLD_H - M; bounced = true; }
+        if (bounced) effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b);
+        // v3: SKRET 90 stopni co 2s (zygzak — kaczka nie czeka na krawedz planszy);
+        // losowo w lewo/prawo, KWAK przy skrecie (sygnalizuje zmiane kursu).
+        this.duckTurnT -= delta;
+        if (this.duckTurnT <= 0) {
+            this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
+            const vx = this.duckVx, vy = this.duckVy;
+            if (Math.random() < 0.5) { this.duckVx = -vy; this.duckVy = vx; }  // 90 w lewo
+            else { this.duckVx = vy; this.duckVy = -vx; }                       // 90 w prawo
+            effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b);
+            bounced = true; // skret = tez kwak (nizej)
+        }
+        // v2: kwacze CALY CZAS (interwal; odbicie/skret kwacze przez zerowanie timera)
+        this.duckQuackT -= delta;
+        if (bounced) this.duckQuackT = 0;
+        if (this.duckQuackT <= 0) {
+            this.duckQuackT = DUCK_CONFIG.quackEveryFrames;
+            AudioSys.getInstance().playDuckQuack();
+        }
+        // Miazga na kontakcie: grunt insta (quiet=false => eksplozja per kill = spektakl),
+        // boss dostaje ulamek (bossfight zostaje bossfightem).
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const dx = e.x - this.duckX, dy = e.y - this.duckY;
+            if (dx * dx + dy * dy < DUCK_CONFIG.crushRadius * DUCK_CONFIG.crushRadius) {
+                const dmg = (e.isBoss || e.isMegaBoss)
+                    ? DUCK_CONFIG.crushDmg * DUCK_CONFIG.bossDmgMult
+                    : DUCK_CONFIG.crushDmg;
+                this.aoeExplode(e.x, e.y, 10, dmg);
+            }
+        }
+        // Transformy: pozycja + machanie (rotacja sinusem) + flip wg kierunku +
+        // podskok lotu (sprite buja sie NAD cieniem = 2.5D).
+        if (sp) {
+            const hop = Math.sin(this.duckWob * 1.7) * 7;
+            sp.x = this.duckX;
+            sp.y = this.duckY - 26 + hop;
+            sp.rotation = Math.sin(this.duckWob) * 0.14;
+            sp.scale.x = this.duckVx >= 0 ? 1 : -1; // dziob zawsze w strone lotu
+        }
+        if (sh) {
+            sh.x = this.duckX;
+            sh.y = this.duckY + 24;
+            const hopN = (Math.sin(this.duckWob * 1.7) + 1) / 2;
+            sh.scale.set(0.9 - 0.12 * hopN);       // cien oddycha z wysokoscia lotu
+            sh.alpha = 0.8 - 0.25 * hopN;
+        }
+    }
+
+    // ── PACZKOMAT 📦 ─────────────────────────────────────────────────────────
+
+    /** Szafa 120px przed lufa; przez 8s mozdzierzuje paczki LUKIEM w losowych wrogow. */
+    lockerSpawn(px: number, py: number, aimAngle: number): void {
+        this.lockerX = px + Math.cos(aimAngle) * LOCKER_CONFIG.spawnDist;
+        this.lockerY = py + Math.sin(aimAngle) * LOCKER_CONFIG.spawnDist;
+        this.lockerFramesLeft = LOCKER_CONFIG.durationFrames;
+        this.lockerFireT = 24; // pierwsza paczka po 0.4s (sim 1:1)
+        if (!this.lockerC) {
+            const c = new PIXI.Container();
+            const shadow = new PIXI.Sprite(bakeSoftShadow());
+            shadow.anchor.set(0.5);
+            shadow.y = 58;
+            shadow.scale.set(1.1, 0.75);
+            c.addChild(shadow);
+            const body = new PIXI.Sprite(bakeLocker());
+            body.anchor.set(0.5);
+            c.addChild(body);
+            const led = new PIXI.Sprite(bakeLockerLed());
+            led.anchor.set(0.5);
+            led.y = 44;
+            c.addChild(led);
+            this.lockerLed = led;
+            this.worldContainer.addChild(c);
+            this.lockerC = c;
+        }
+        this.lockerC.visible = true;
+        this.lockerC.x = this.lockerX;
+        this.lockerC.y = this.lockerY;
+        this.lockerC.zIndex = this.lockerY + 58; // Y-sort po podstawie szafy
+        this.lockerC.scale.set(0.1);             // scale-in "dostawy" (jak mur)
+    }
+
+    private lockerUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
+        // Paczki w locie zyja NIEZALEZNIE od szafy (szafa moze zniknac w trakcie lotu).
+        for (let i = this.parcels.length - 1; i >= 0; i--) {
+            const p = this.parcels[i];
+            p.t += delta / LOCKER_CONFIG.parcelFlightFrames;
+            if (p.t >= 1) {
+                for (const d of [p.sp, p.sh]) { if (d.parent) d.parent.removeChild(d); d.destroy(); }
+                this.parcels.splice(i, 1);
+                AudioSys.getInstance().playRocketBoom();
+                effects.spawnShockwaveRing(p.x1, p.y1, LOCKER_CONFIG.blastRadius);
+                this.aoeExplode(p.x1, p.y1, LOCKER_CONFIG.blastRadius, LOCKER_CONFIG.blastDmg);
+                continue;
+            }
+            // Pozycja XY liniowo + LUK w pionie (parabola sinusem) — cien zostaje na
+            // trajektorii GRUNTU i zbiega do celu: czytelny telegraf "tu spadnie".
+            const x = p.x0 + (p.x1 - p.x0) * p.t;
+            const y = p.y0 + (p.y1 - p.y0) * p.t;
+            const arc = Math.sin(p.t * Math.PI) * LOCKER_CONFIG.arcHeight;
+            p.sp.x = x;
+            p.sp.y = y - arc;
+            p.sp.rotation += 0.11 * delta; // paczka koziolkuje
+            p.sp.zIndex = 1e6 - 2;
+            p.sh.x = x;
+            p.sh.y = y;
+            const hN = arc / LOCKER_CONFIG.arcHeight;
+            p.sh.scale.set(0.45 - 0.2 * hN);
+            p.sh.alpha = 0.7 - 0.4 * hN;
+        }
+
+        if (this.lockerFramesLeft <= 0) return;
+        this.lockerFramesLeft -= delta;
+        const c = this.lockerC;
+        if (this.lockerFramesLeft <= 0) {
+            if (c) c.visible = false;
+            effects.spawnEnemyHitSparks(this.lockerX, this.lockerY, 0x8899aa); // puff demontazu
+            return;
+        }
+        if (c) {
+            if (c.scale.x < 1) c.scale.set(Math.min(1, c.scale.x + 0.09 * delta)); // scale-in
+            if (this.lockerLed) this.lockerLed.alpha = 0.4 + 0.6 * (Math.sin(Date.now() / 160) + 1) / 2;
+        }
+        // Mozdzierz: co 0.7s paczka w LOSOWEGO wroga w zasiegu (sim 1:1 — chaos dostaw)
+        this.lockerFireT -= delta;
+        if (this.lockerFireT <= 0) {
+            this.lockerFireT = LOCKER_CONFIG.fireEveryFrames;
+            const inRange = enemies.filter(e => {
+                if (!e.active) return false;
+                const dx = e.x - this.lockerX, dy = e.y - this.lockerY;
+                return dx * dx + dy * dy < LOCKER_CONFIG.range * LOCKER_CONFIG.range;
+            });
+            if (inRange.length > 0) {
+                const tgt = inRange[Math.floor(Math.random() * inRange.length)];
+                const sp = new PIXI.Sprite(bakeParcel());
+                sp.anchor.set(0.5);
+                const sh = new PIXI.Sprite(bakeSoftShadow());
+                sh.anchor.set(0.5);
+                sh.zIndex = 9;
+                this.worldContainer.addChild(sh);
+                this.worldContainer.addChild(sp);
+                this.parcels.push({ sp, sh, x0: this.lockerX, y0: this.lockerY - 64, x1: tgt.x, y1: tgt.y, t: 0 });
+                AudioSys.getInstance().playWallThunk(); // thoomp mozdzierza (reuse — pasuje 1:1)
+                effects.spawnMuzzleFlash(this.lockerX, this.lockerY - 64, -Math.PI / 2);
+            }
+        }
+    }
+
+    // ── DISCO SZAŁ 🪩 ────────────────────────────────────────────────────────
+
+    /** 6s: wrogowie wiruja i nie walcza (petla wrogow w main.ts pyta discoActive). */
+    discoActivate(): void {
+        this.discoFramesLeft = DISCO_CONFIG.durationFrames;
+        this.discoNoteT = 0;
+        AudioSys.getInstance().playDiscoGroove(); // v2: groove 6s W TLE (syntezowany)
+        if (!this.discoBall) {
+            this.discoBall = new PIXI.Sprite(bakeDiscoBall());
+            this.discoBall.anchor.set(0.5);
+            this.discoBall.zIndex = 1e6 - 3;
+            this.worldContainer.addChild(this.discoBall);
+            // 3 kolorowe plamy swiatla na gruncie — rysowane RAZ, wiruja kontenerem
+            const lights = new PIXI.Graphics();
+            const cols = [0xff7ce0, 0x7ef0f7, 0xffe066];
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * Math.PI * 2;
+                lights.beginFill(cols[i], 0.16);
+                lights.drawEllipse(Math.cos(a) * 90, Math.sin(a) * 90 * 0.6, 55, 33);
+                lights.endFill();
+            }
+            lights.zIndex = 9;
+            this.worldContainer.addChild(lights);
+            this.discoLights = lights;
+        }
+        this.discoBall.visible = true;
+        if (this.discoLights) this.discoLights.visible = true;
+    }
+
+    /** Czy trwa DISCO? (main.ts: wrogowie wiruja zamiast update — tancza, nie walcza). */
+    get discoActive(): boolean {
+        return this.discoFramesLeft > 0;
+    }
+
+    /** v2: kto tanczyl, bije 20% slabiej DO KONCA MECZU (main.ts skaluje dmg). */
+    isDiscoTired(enemy: Enemy): boolean {
+        return this.discoDancers.has(enemy);
+    }
+
+    private discoUpdate(delta: number, player: Player, enemies: Enemy[], effects: EffectsManager): void {
+        if (this.discoFramesLeft <= 0) return;
+        this.discoFramesLeft -= delta;
+        const ball = this.discoBall, lights = this.discoLights;
+        if (this.discoFramesLeft <= 0) {
+            if (ball) ball.visible = false;
+            if (lights) lights.visible = false;
+            return;
+        }
+        if (ball) {
+            ball.x = player.x;
+            ball.y = player.y - 96 + Math.sin(Date.now() / 300) * 5; // kula wisi i buja sie
+            ball.rotation += 0.02 * delta;
+        }
+        if (lights) {
+            lights.x = player.x;
+            lights.y = player.y;
+            lights.rotation += 0.035 * delta; // karuzela swiatel wokol parkietu
+        }
+        // v2: kazdy obecny na parkiecie = zmeczony do konca meczu (WeakSet, -20% dmg)
+        for (const e of enemies) {
+            if (e.active) this.discoDancers.add(e);
+        }
+        // ♪ nad losowym tancerzem — PIXI.Text jest drogi => twardy throttle (sim spamowal)
+        this.discoNoteT -= delta;
+        if (this.discoNoteT <= 0) {
+            this.discoNoteT = DISCO_CONFIG.noteEveryFrames;
+            const alive = enemies.filter(e => e.active);
+            if (alive.length > 0) {
+                const e = alive[Math.floor(Math.random() * alive.length)];
+                effects.spawnFloatingText(e.x, e.y - 26, '♪', 0xff7ce0);
+            }
+        }
+    }
+
+    // ── BABCIA 👵 ────────────────────────────────────────────────────────────
+
+    /** Babcia drepcze przy graczu 5s: leczy zupa, wrogowie w strachu UCIEKAJA. */
+    grannySpawn(player: Player): void {
+        this.grannyX = player.x + GRANNY_CONFIG.sideOffset;
+        this.grannyY = player.y;
+        this.grannyFramesLeft = GRANNY_CONFIG.durationFrames;
+        this.grannyFearFade = 0;
+        this.grannySayT = 0;
+        if (!this.grannySprite) {
+            this.grannySprite = new PIXI.Sprite(bakeGranny());
+            this.grannySprite.anchor.set(0.5, 0.78); // kotwica przy stopach (Y-sort)
+            this.worldContainer.addChild(this.grannySprite);
+        }
+        this.grannySprite.visible = true;
+    }
+
+    /**
+     * Fear-point dla AI wroga (wzorzec ghostTauntFor — INIEKCJA wspolrzednych):
+     * wrog w promieniu strachu dostaje cel PO PRZECIWNEJ stronie => UCIEKA.
+     * Zwracany obiekt REUZYWANY — czytaj natychmiast.
+     */
+    grannyFearFor(enemy: Enemy): { x: number; y: number } | null {
+        // v3: strach dziala TAKZE przez fearFadeFrames po odejsciu babci (transition —
+        // bez tego wrogowie w te pedy zawracali na gracza i moc konczyla sie kara).
+        if (this.grannyFramesLeft <= 0 && this.grannyFearFade <= 0) return null;
+        const dx = enemy.x - this.grannyX;
+        const dy = enemy.y - this.grannyY;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > GRANNY_CONFIG.fearRadius * GRANNY_CONFIG.fearRadius || d2 < 1) return null;
+        const d = Math.sqrt(d2);
+        // Cel = punkt daleko ZA wrogiem na osi od babci (wrog jedzie OD niej)
+        this.grannyFearPoint.x = enemy.x + (dx / d) * 600;
+        this.grannyFearPoint.y = enemy.y + (dy / d) * 600;
+        return this.grannyFearPoint;
+    }
+
+    private grannyUpdate(delta: number, player: Player, enemies: Enemy[], effects: EffectsManager): void {
+        // v3: faza FADE — babcia juz poszla, ale strach jeszcze dziala (gasnacy boost).
+        if (this.grannyFramesLeft <= 0) {
+            if (this.grannyFearFade > 0) {
+                this.grannyFearFade -= delta;
+                const fadeN = Math.max(0, this.grannyFearFade / GRANNY_CONFIG.fearFadeFrames);
+                this.grannyFearPush(enemies, fadeN, delta);
+            }
+            return;
+        }
+        this.grannyFramesLeft -= delta;
+        const sp = this.grannySprite;
+        if (this.grannyFramesLeft <= 0) {
+            if (sp) sp.visible = false;
+            this.grannyFearFade = GRANNY_CONFIG.fearFadeFrames; // v3: transition startuje
+            effects.spawnEnemyHitSparks(this.grannyX, this.grannyY, 0xe8a0bf); // pozegnalny puff
+            return;
+        }
+        // v2 (playtest Mariusza): uciekajacy dostaja EKSTRA odrzut ponad wlasny naped —
+        // musza byc SZYBSI od gracza (taran w plecy uciekiniera = niechciana strata HP).
+        this.grannyFearPush(enemies, 1, delta);
+        // Drepcze do boku gracza (sim 1:1) + energiczny bob (DRAMATYCZNIE, nie subtelnie)
+        this.grannyX += (player.x + GRANNY_CONFIG.sideOffset - this.grannyX) * GRANNY_CONFIG.followLerpPerFrame * delta;
+        this.grannyY += (player.y - this.grannyY) * GRANNY_CONFIG.followLerpPerFrame * delta;
+        if (sp) {
+            const bob = Math.sin(Date.now() / 130);
+            sp.x = this.grannyX;
+            sp.y = this.grannyY + bob * 3;
+            sp.rotation = bob * 0.06;
+            sp.zIndex = this.grannyY + 28;
+        }
+        // Zupa leczy: % maxHp/s skalowane delta (wzorzec Naprawy — FPS-independent)
+        player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * GRANNY_CONFIG.healPerSecPct / 60) * delta);
+        // "A SIO!" / "ZUPA! 🍲" + rozowe iskierki milosci
+        this.grannySayT -= delta;
+        if (this.grannySayT <= 0) {
+            this.grannySayT = GRANNY_CONFIG.sayEveryFrames;
+            this.grannySayAlt = !this.grannySayAlt;
+            effects.spawnFloatingText(
+                this.grannyX, this.grannyY - 64,
+                t(this.grannySayAlt ? 'hud.grannySay1' : 'hud.grannySay2'), 0xe8a0bf,
+            );
+            effects.spawnGrannyHearts(this.grannyX, this.grannyY - 20); // v2: DUZE serduszka
+        }
+    }
+
+    /** Odrzut strachu (wspolny dla fazy aktywnej i fade; strength 0..1 skaluje sile). */
+    private grannyFearPush(enemies: Enemy[], strength: number, delta: number): void {
+        const fr2 = GRANNY_CONFIG.fearRadius * GRANNY_CONFIG.fearRadius;
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const dx = e.x - this.grannyX, dy = e.y - this.grannyY;
+            const d2 = dx * dx + dy * dy;
+            if (d2 > fr2 || d2 < 1) continue;
+            const d = Math.sqrt(d2);
+            const boost = GRANNY_CONFIG.fearBoostPerFrame * (1 - d / GRANNY_CONFIG.fearRadius) * strength * delta;
+            e.x += (dx / d) * boost;
+            e.y += (dy / d) * boost;
+        }
+    }
+
+    // ── MEGA BEKA 📢 ─────────────────────────────────────────────────────────
+
+    /** Instant: 4 fale + odrzut wszystkich wrogow w 320px + stun 1s (freeze reuse). */
+    burpBlast(px: number, py: number, enemies: Enemy[]): void {
+        const now = Date.now();
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const dx = e.x - px, dy = e.y - py;
+            const d2 = dx * dx + dy * dy;
+            if (d2 > BURP_CONFIG.knockRadius * BURP_CONFIG.knockRadius || d2 < 1) continue;
+            const d = Math.sqrt(d2);
+            const f = (1 - d / BURP_CONFIG.knockRadius) * BURP_CONFIG.knockScale + BURP_CONFIG.knockBase;
+            this.burpPushes.push({ e, kx: (dx / d) * f, ky: (dy / d) * f });
+            e.freeze(now + BURP_CONFIG.stunMs); // stun (mechanicznie = krotki mroz)
+        }
+    }
+
+    /** Fale wizualne robi main.ts przy aktywacji? NIE — tu, przez effects w update 1. klatki:
+     *  prosciej: pchniecia tikuja z decayem az zgasna (sim: kx -= kx*5*dt). */
+    private burpUpdate(delta: number): void {
+        if (this.burpPushes.length === 0) return;
+        for (let i = this.burpPushes.length - 1; i >= 0; i--) {
+            const p = this.burpPushes[i];
+            if (!p.e.active) { this.burpPushes.splice(i, 1); continue; }
+            p.e.x += p.kx * delta;
+            p.e.y += p.ky * delta;
+            const decay = Math.pow(BURP_CONFIG.knockDecay, delta);
+            p.kx *= decay;
+            p.ky *= decay;
+            if (Math.abs(p.kx) < 0.15 && Math.abs(p.ky) < 0.15) this.burpPushes.splice(i, 1);
         }
     }
 

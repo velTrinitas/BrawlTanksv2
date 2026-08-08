@@ -119,6 +119,13 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'super_hole',   file: 'super_hole.wav',   volume: VOLUMES.superActivate },        // zasysajacy sweep + sub-bas
     { key: 'super_laser',  file: 'super_laser.wav',  volume: VOLUMES.superActivate * 0.9 },  // charge + hum wiazki
     { key: 'super_pong',   file: 'super_pong.wav',   volume: VOLUMES.superActivate * 0.8 },  // ping — aktywacja I kazde odbicie
+    // TIER 3 szalone (v0.112.0) — wszystkie generowane (gen_tier3_sfx.js)
+    { key: 'super_duck',   file: 'super_duck.wav',   volume: VOLUMES.superActivate },        // KWAK-KWAK (aktywacja + odbicia, throttle)
+    { key: 'super_locker', file: 'super_locker.wav', volume: VOLUMES.superActivate * 0.9 },  // dzwonek dostawy + serwo
+    { key: 'super_disco',  file: 'super_disco.wav',  volume: VOLUMES.superActivate },        // funky sting (stopa+hat+bas)
+    { key: 'disco_groove', file: 'disco_groove.wav', volume: VOLUMES.superActivate * 0.8 },  // v2: 6s groove 125BPM w TLE imprezy (syntezowany = zero praw autorskich)
+    { key: 'super_granny', file: 'super_granny.wav', volume: VOLUMES.superActivate * 0.9 },  // boing-boing + klap walka
+    { key: 'super_burp',   file: 'super_burp.wav',   volume: VOLUMES.superActivate * 1.1 },  // MEGA BEKA (gliss + chrypka)
     // F7b-3 Salwa Rakiet — oba generowane proceduralnie (scratchpad gen_rocket_sfx.js)
     { key: 'rocket_launch', file: 'SP_missile.mp3',    volume: VOLUMES.superActivate * 0.7 }, // asset Mariusza (zastapil generowany); grany 8x co ~80ms = rytm tuk-tuk
     { key: 'rocket_boom',   file: 'rocket_boom.wav',   volume: VOLUMES.explosion * 0.7 },     // mniejszy niz explosion.mp3 (8 boomow/salwa)
@@ -544,7 +551,7 @@ export class AudioSys {
         this.safePlay('yeti_roar');
     }
 
-    playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build' | 'strike' | 'hole' | 'laser' | 'pong'): void {
+    playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build' | 'strike' | 'hole' | 'laser' | 'pong' | 'duck' | 'locker' | 'disco' | 'granny' | 'burp'): void {
         const key = powerId === 'megaBomb' ? 'super_bomb' : `super_${powerId}`;
         this.safePlay(key);
     }
@@ -575,6 +582,20 @@ export class AudioSys {
     // Tier 2: Nalot — doppler przelotu eskadry (gra rownolegle z super_strike)
     playStrikeFlyby(): void {
         this.safePlay('strike_flyby');
+    }
+
+    // Tier 3: Disco — groove w tle imprezy (6s = czas trwania mocy)
+    playDiscoGroove(): void {
+        this.safePlay('disco_groove');
+    }
+
+    // Tier 3: Kaczka — KWAK przy odbiciu od granicy (throttle 150ms)
+    private quackTimer = 0;
+    playDuckQuack(): void {
+        const now = Date.now();
+        if (now - this.quackTimer < 150) return;
+        this.quackTimer = now;
+        this.safePlay('super_duck');
     }
 
     // Tier 2: Ping-Pong — ping przy KAZDYM odbiciu (throttle 60ms: salwa wroga = 1 ping)

@@ -23,7 +23,8 @@ import { t } from '../i18n/i18n';
 
 export type PowerId =
     | 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost' | 'mines' | 'build'
-    | 'strike' | 'hole' | 'laser' | 'pong'; // TIER 2 premium (v0.111.0)
+    | 'strike' | 'hole' | 'laser' | 'pong'                      // TIER 2 premium (v0.111.0)
+    | 'duck' | 'locker' | 'disco' | 'granny' | 'burp';          // TIER 3 szalone (v0.112.0)
 
 /** Loadout gracza: 2 sloty (GARAZ). null = pusty slot (nie powinno sie zdarzyc po normalizacji). */
 export type LoadoutPair = readonly [PowerId | null, PowerId | null];
@@ -47,7 +48,7 @@ export interface PowerActivationCtx {
      */
     audio: {
         /** Nowe id w unii TYLKO gdy plik super_*.wav ISTNIEJE (generowane/assety). */
-        playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build' | 'strike' | 'hole' | 'laser' | 'pong'): void;
+        playSuperActivate(powerId: 'aura' | 'megaBomb' | 'freeze' | 'tower' | 'ghost' | 'mines' | 'build' | 'strike' | 'hole' | 'laser' | 'pong' | 'duck' | 'locker' | 'disco' | 'granny' | 'burp'): void;
         playHeartPickup(): void;
         playShockwave(): void;
     };
@@ -221,6 +222,63 @@ export const PONG_CONFIG = {
     deflectRadius: 70,      // zasieg odbicia wokol gracza (sim 1:1)
     reflectDmg: 250,        // dmg odbitego pocisku (flat x100; sim: 50% HP wroga)
     reflectSpeedMult: 1.8,  // odbity pocisk przyspiesza (sim 1:1)
+};
+
+// ═══ TIER 3 SZALONE (v0.112.0, spec: sim v6 177-208/358-392/412-417) ═══
+// Docelowo pula slotu 🎲 (mechanika TBD z Mariuszem); progi PROWIZORYCZNE 6000+,
+// testy ?powersdev=1. Art: pieczone tekstury Canvas 2D z gradientami (Tier3Baker).
+
+export const DUCK_CONFIG = {
+    lifeFrames: 420,        // 7s (v2 Mariusz: +100% vs sim 3.5s)
+    speedX: 4.3,            // px/klatka (sim 260 px/s)
+    speedY: 3.3,            // px/klatka (sim 200 px/s)
+    edgeMargin: 60,         // odbicia od granic planszy (safety)
+    turnEveryFrames: 120,   // v3 (Mariusz): SKRET 90 stopni co 2s — kaczka zygzakuje po mapie
+    crushRadius: 55,        // kontakt = miazga (sim 1:1)
+    crushDmg: 9999,         // insta (sim killEnemy) — boss tez oberwie konkretnie? NIE: patrz mult
+    bossDmgMult: 0.1,       // boss dostaje 999/kontakt (nie insta — bossfight zostaje)
+    wobbleRate: 0.15,       // machanie (sim wob 9/s)
+    quackEveryFrames: 50,   // v2: KWACZE CALY CZAS (~co 0.83s), nie tylko przy odbiciach
+};
+
+export const LOCKER_CONFIG = {
+    spawnDist: 120,         // przed lufa (sim 1:1)
+    durationFrames: 600,    // v2 (Mariusz): 10s (+2s) dostaw
+    fireEveryFrames: 33,    // v2: co 0.55s (+25% paczek/s; sim 0.7s)
+    range: 460,             // zasieg mozdzierza (sim 1:1)
+    parcelFlightFrames: 43, // v2: lot 20% szybszy (sim 0.9s -> ~0.72s)
+    arcHeight: 120,         // wysokosc luku (px) — 2.5D: cien zostaje na ziemi
+    blastRadius: 70,        // AoE ladowania (sim 1:1)
+    blastDmg: 450,          // solidna paczka
+};
+
+export const DISCO_CONFIG = {
+    durationFrames: 360,    // v2 (Mariusz): 6s imprezy (+2s vs sim 4s)
+    spinPerFrame: 0.13,     // wirowanie wrogow (sim 8 rad/s)
+    noteEveryFrames: 20,    // ♪ nad losowym tancerzem (PIXI.Text drogi — throttle!)
+    danceDmgMult: 0.8,      // v2: kto tanczyl, bije 20% slabiej DO KONCA MECZU (zmeczony!)
+};
+
+export const GRANNY_CONFIG = {
+    durationFrames: 300,    // 5s opieki (sim 1:1)
+    followLerpPerFrame: 0.05, // babcia drepcze za graczem (sim 3/s)
+    sideOffset: 44,         // trzyma sie boku czolgu (sim 1:1)
+    healPerSecPct: 0.05,    // 5% maxHp/s (sim: 5hp/s przy 100hp)
+    fearRadius: 360,        // +20% (Mariusz; sim 300) — wrogowie w tym promieniu UCIEKAJA
+    fearBoostPerFrame: 3.2, // v2: dodatkowy odrzut uciekajacych (musza byc SZYBSI od gracza —
+                            //     inaczej taran w plecy = niechciana strata HP)
+    fearFadeFrames: 120,    // v3 (Mariusz): strach GASNIE 2s po odejsciu babci — bez tego
+                            //     wrogowie w te pedy zawracaja na gracza i karza go za moc
+    sayEveryFrames: 72,     // "A SIO!"/"ZUPA!" co 1.2s (sim 1:1)
+};
+
+export const BURP_CONFIG = {
+    knockRadius: 320,       // zasieg fali (sim 1:1)
+    knockBase: 3,           // px/klatka bazowego odrzutu (sim 180 px/s)...
+    knockScale: 8.7,        //   + skladnik rosnacy ku srodkowi (sim 520 px/s)
+    knockDecay: 0.92,       // tlumienie odrzutu per klatka (sim -5x/s)
+    stunMs: 1000,           // 1s ogluszenia (reuse enemy.freeze — mechanicznie identyczne)
+    ringRadii: [90, 160, 240, 320] as readonly number[], // 4 fale (sim 1:1)
 };
 
 // ── F7b-4: CZOLG WIDMO (spec: sim v6 140-142/389-392/456/551-554 + design §18.2 #8) ──
@@ -516,12 +574,99 @@ export const POWERS: Record<PowerId, PowerDef> = {
             return { activated: true, powerId: 'pong' };
         },
     },
+    // ═══ TIER 3 SZALONE (v0.112.0) — pula slotu 🎲, art z Tier3Baker (gradienty) ═══
+    duck: {
+        id: 'duck',
+        name: 'Kaczka',
+        labelKey: 'power.duck',
+        emoji: '🦆',
+        color: 0xffd93b,
+        cooldownMs: 30000,       // sim 18s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 6000,  // PROWIZORYCZNE — docelowo slot 🎲
+        onActivate: (ctx) => {
+            ctx.system.duckLaunch(ctx.player.x, ctx.player.y);
+            ctx.hud.addNotif(t('hud.duckStart'), '#ffd93b');
+            ctx.audio.playSuperActivate('duck');
+            return { activated: true, powerId: 'duck' };
+        },
+    },
+    locker: {
+        id: 'locker',
+        name: 'Paczkomat',
+        labelKey: 'power.locker',
+        emoji: '📦',
+        color: 0xf2b705,
+        cooldownMs: 30000,       // sim 18s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 6500,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.lockerSpawn(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
+            ctx.hud.addNotif(t('hud.lockerStart'), '#f2b705');
+            ctx.audio.playSuperActivate('locker');
+            return { activated: true, powerId: 'locker' };
+        },
+    },
+    disco: {
+        id: 'disco',
+        name: 'Disco',
+        labelKey: 'power.disco',
+        emoji: '🪩',
+        color: 0xff7ce0,
+        cooldownMs: 30000,       // sim 16s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 7000,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.discoActivate();
+            ctx.hud.addNotif(t('hud.discoStart'), '#ff7ce0');
+            ctx.audio.playSuperActivate('disco');
+            return { activated: true, powerId: 'disco' };
+        },
+    },
+    granny: {
+        id: 'granny',
+        name: 'Babcia',
+        labelKey: 'power.granny',
+        emoji: '👵',
+        color: 0xe8a0bf,
+        cooldownMs: 30000,       // sim 18s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 7500,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.grannySpawn(ctx.player);
+            ctx.hud.addNotif(t('hud.grannyStart'), '#e8a0bf');
+            ctx.audio.playSuperActivate('granny');
+            return { activated: true, powerId: 'granny' };
+        },
+    },
+    burp: {
+        id: 'burp',
+        name: 'Mega Beka',
+        labelKey: 'power.burp',
+        emoji: '📢',
+        color: 0x9ae66e,
+        cooldownMs: 30000,       // sim 14s = demo
+        durationFrames: 0,
+        unlockAtTrophies: 8000,  // PROWIZORYCZNE
+        onActivate: (ctx) => {
+            ctx.system.burpBlast(ctx.player.x, ctx.player.y, ctx.enemies);
+            // 4 rozchodzace sie fale (sim 1:1) — sensoryka MEGA beki
+            for (const r of BURP_CONFIG.ringRadii) {
+                ctx.effects.spawnShockwaveRing(ctx.player.x, ctx.player.y, r);
+            }
+            ctx.hud.addNotif(t('hud.burpStart'), '#9ae66e');
+            ctx.audio.playSuperActivate('burp');
+            ctx.effects.shake(12, 12);
+            return { activated: true, powerId: 'burp' };
+        },
+    },
 };
 
 /** Kolejnosc wyswietlania (GARAZ picker) + inicjalizacja cooldownow. */
 export const POWER_ORDER: readonly PowerId[] = [
     'aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower', 'ghost',
-    'strike', 'hole', 'laser', 'pong', // Tier 2 premium
+    'strike', 'hole', 'laser', 'pong',           // Tier 2 premium
+    'duck', 'locker', 'disco', 'granny', 'burp', // Tier 3 szalone (pula 🎲)
 ];
 
 export function getPowerDef(id: string): PowerDef | undefined {

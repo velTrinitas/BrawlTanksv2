@@ -57,10 +57,11 @@ export type ScreenId =
     | 'leaderboard';
 
 /**
- * HUB-0 feature flag (opt-in ?hub=1). Domyslnie OFF => produkcja uzywa starego 'hub'.
- * Wzorzec END_V2_ENABLED (main.ts). Nowy hub niegotowy do HUB-8, wiec default stary.
+ * HUB-0 feature flag — v0.109.0 FLIP NA DEFAULT (decyzja Mariusza 2026-08-08 po
+ * dojrzeniu hubu: 5 sekcji z trescia + GRAJ hero + FAB BITWA). Nowy hub = domyslny;
+ * awaryjny rollback bez rebuilda: ?hub=0 przywraca stary (wzorzec ?baker=0).
  */
-const HUB_V2_ENABLED: boolean = new URLSearchParams(location.search).has('hub');
+const HUB_V2_ENABLED: boolean = new URLSearchParams(location.search).get('hub') !== '0';
 
 export interface IScreen {
     mount(root: HTMLElement): void;

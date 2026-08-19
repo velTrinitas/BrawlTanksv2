@@ -138,6 +138,9 @@ Deno.serve(async (req: Request) => {
         supers_fired: stat(body, 'supers_fired'),
         powers_used: stat(body, 'powers_used'),
         mega_boss_defeated: body.mega_boss_defeated === true,
+        // v0.114.0 — run z uzyta kostka 🎲 (Szalone Moce). Stara kolejka offline /
+        // stary klient nie niosa pola => false (zgodne z DEFAULT kolumny).
+        fun_mode: body.fun_mode === true,
     };
 
     // ── Insert (created_at = server default) ───────────────────────────────────

@@ -30,9 +30,9 @@ import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kos
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
 import type { ProgressionCosmetics, ProgressionPowers } from './supabase/types'; // PROG-F2b/F7a sync
 import {
-    getPowerDef, POWER_ORDER, DEFAULT_LOADOUT,
-    type PowerId, type LoadoutPair,
-} from '../config/powers'; // PROG-F7a — loadout Super Mocy
+    getPowerDef, POWER_ORDER, DEFAULT_LOADOUT, TIER3_POWERS,
+    type PowerId, type LoadoutTriple,
+} from '../config/powers'; // PROG-F7a — loadout Super Mocy (v0.114.0: 3 sloty)
 import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedna sciezka upsertu)
 
 const STORAGE_KEY = 'bt2:progression';
@@ -84,6 +84,9 @@ interface ProgressionState {
     /** 2 sloty loadoutu. Merge: last-write-wins po loadoutAt (preferencja, nie zasob). */
     loadout: (string | null)[];
     loadoutAt: number;
+    /** v0.114.0: toggle "Szalone Moce" (slot 🎲). Merge: LWW po funModeAt (preferencja). */
+    funModeOn: boolean;
+    funModeAt: number;
 }
 
 /**
@@ -304,6 +307,8 @@ class ProgressionServiceImpl {
                     owned: st.ownedPowers,
                     loadout: st.loadout,
                     loadoutAt: st.loadoutAt,
+                    funModeOn: st.funModeOn,                // v0.114.0 — toggle 🎲
+                    funModeAt: st.funModeAt,
                 },
             })
             .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
@@ -439,27 +444,49 @@ class ProgressionServiceImpl {
 
     // === F7a: Super Moce (loadout z GARAZU) ===
 
-    /** Migawka mocy: dostepne moce (prog trofeow LUB jawny grant) + loadout 2 slotow. */
-    getPowerState(profileId: string): { owned: readonly PowerId[]; loadout: LoadoutPair; trophies: number } {
+    /** Migawka mocy: dostepne moce (prog trofeow LUB jawny grant) + loadout 3 slotow + toggle 🎲. */
+    getPowerState(profileId: string): { owned: readonly PowerId[]; loadout: LoadoutTriple; trophies: number; funModeOn: boolean } {
         this.ensureInitialized();
         const st = this.getOrCreate(profileId);
         return {
             owned: POWER_ORDER.filter(id => this.isPowerOwned(st, id)),
-            loadout: [asPowerId(st.loadout[0]), asPowerId(st.loadout[1])],
+            loadout: [asPowerId(st.loadout[0]), asPowerId(st.loadout[1]), asPowerId(st.loadout[2])],
             trophies: st.trophies,
+            funModeOn: st.funModeOn,
         };
+    }
+
+    /**
+     * v0.114.0: toggle "Szalone Moce" (GARAZ) — wlacza slot 🎲 w meczach. Dostepny dla
+     * wszystkich (slot jest mechanizmem dostepu do puli T3; runy flagowane fun_mode).
+     */
+    setFunMode(profileId: string, on: boolean): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        st.funModeOn = on;
+        st.funModeAt = Date.now(); // znacznik LWW — jak loadoutAt
+        st.updatedAt = st.funModeAt;
+        this.save();
+        this.syncPush(profileId);
     }
 
     /**
      * Ustaw moc w slocie loadoutu (GARAZ). Duplikat w drugim slocie => SWAP (klasyk
      * pickerow — gracz nie moze miec 2x tej samej mocy). No-op gdy moc nieznana/niedostepna.
      */
-    setLoadoutSlot(profileId: string, slot: 0 | 1, id: PowerId): void {
+    setLoadoutSlot(profileId: string, slot: 0 | 1 | 2, id: PowerId): void {
         this.ensureInitialized();
         const st = this.getOrCreate(profileId);
         if (!this.isPowerOwned(st, id)) return;
-        const other = slot === 0 ? 1 : 0;
-        if (st.loadout[other] === id) st.loadout[other] = st.loadout[slot] ?? null; // swap
+        // v0.114.0: Tier 3 tylko przez kostke 🎲 — nie wchodzi do loadoutu (UI tez
+        // nie oferuje, ale to jest bramka na zmajstrowane wywolania).
+        if (TIER3_POWERS.includes(id)) return;
+        // v0.114.0: 3 sloty — duplikat w KTORYMKOLWIEK innym slocie => swap wartosci.
+        for (const other of [0, 1, 2] as const) {
+            if (other !== slot && st.loadout[other] === id) {
+                st.loadout[other] = st.loadout[slot] ?? null;
+            }
+        }
         st.loadout[slot] = id;
         st.loadoutAt = Date.now(); // znacznik LWW — rozstrzyga merge miedzy urzadzeniami
         st.updatedAt = st.loadoutAt;
@@ -494,11 +521,24 @@ class ProgressionServiceImpl {
         const remoteAt = Number(remote.loadoutAt) || 0;
         const localNeverChosen = st.loadoutAt === 0;
         if (Array.isArray(remote.loadout) && (remoteAt > st.loadoutAt || localNeverChosen)) {
-            const next = remote.loadout.slice(0, 2).map(id => (getPowerDef(String(id)) ? String(id) : null));
+            // v0.114.0: T3 odrzucany jak nieznane id (kostka = jedyny dostep do szalonych).
+            const next = remote.loadout.slice(0, 3).map(id => {
+                const s = String(id);
+                return getPowerDef(s) && !TIER3_POWERS.includes(s as PowerId) ? s : null;
+            });
             if (next.some(id => id !== null)) {
-                st.loadout = [next[0] ?? null, next[1] ?? null];
+                st.loadout = [next[0] ?? null, next[1] ?? null, next[2] ?? null];
                 st.loadoutAt = Math.max(remoteAt, st.loadoutAt);
+                // Zdalny stan 2-slotowy (stary klient) => dopelnij dziury lokalnie.
+                fillLoadoutEmptySlots(st);
             }
+        }
+
+        // v0.114.0 — toggle 🎲: LWW po funModeAt (preferencja, wzorzec loadoutu).
+        const remoteFunAt = Number(remote.funModeAt) || 0;
+        if (typeof remote.funModeOn === 'boolean' && (remoteFunAt > st.funModeAt || st.funModeAt === 0)) {
+            st.funModeOn = remote.funModeOn;
+            st.funModeAt = Math.max(remoteFunAt, st.funModeAt);
         }
     }
 
@@ -554,6 +594,8 @@ class ProgressionServiceImpl {
                 ownedPowers: [],
                 loadout: [...DEFAULT_LOADOUT],
                 loadoutAt: 0,
+                funModeOn: false,
+                funModeAt: 0,
             };
             this.states[profileId] = st;
         } else {
@@ -576,6 +618,17 @@ class ProgressionServiceImpl {
             st.ownedPowers ??= [];
             st.loadout ??= [...DEFAULT_LOADOUT];
             st.loadoutAt ??= 0;
+            // v0.114.0 — stary stan 2-slotowy dostaje 3. slot; T3 wypada z loadoutu
+            // (kostka jest jedynym dostepem — stany dev/zmajstrowane czyscimy, inaczej
+            // resolve remapowalby z notifem CO MECZ). Bez bumpu loadoutAt.
+            for (let i = 0; i < 3; i++) {
+                const cur = st.loadout[i];
+                if (cur && TIER3_POWERS.includes(cur as PowerId)) st.loadout[i] = null;
+            }
+            fillLoadoutEmptySlots(st);
+            // v0.114.0 — toggle Szalonych Mocy (slot 🎲)
+            st.funModeOn ??= false;
+            st.funModeAt ??= 0;
             // F2b — kosmetyk zalozony jeszcze w F2a nie ma znacznika LWW (equippedAt=0),
             // wiec przegralby kazde porownanie i nie odtworzylby sie na innym urzadzeniu.
             // Nadaj mu czas ostatniego zapisu stanu (realny moment tamtej zmiany).
@@ -655,6 +708,20 @@ class ProgressionServiceImpl {
 /** Waliduj id mocy ze stanu (localStorage/chmura moga niesc smieci) — nieznane => null. */
 function asPowerId(id: string | null | undefined): PowerId | null {
     return id && getPowerDef(id) ? (id as PowerId) : null;
+}
+
+/**
+ * v0.114.0: dopelnij puste sloty loadoutu do 3 (stare stany/starzy klienci mieli 2;
+ * scrub T3 tez zostawia dziury). Kandydaci = trojka legacy (kazdy ma je od startu).
+ * NIE bumpuje loadoutAt — to dopelnienie techniczne, nie preferencja gracza.
+ */
+function fillLoadoutEmptySlots(st: ProgressionState): void {
+    while (st.loadout.length < 3) st.loadout.push(null);
+    const candidates: PowerId[] = ['freeze', 'aura', 'megaBomb'];
+    for (let i = 0; i < 3; i++) {
+        if (st.loadout[i]) continue;
+        st.loadout[i] = candidates.find(id => !st.loadout.includes(id)) ?? null;
+    }
 }
 
 // import lokalny bez cyklu — lista milestonow do prevThresholdBelow

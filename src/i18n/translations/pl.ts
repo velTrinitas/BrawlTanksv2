@@ -69,7 +69,7 @@ export const pl = {
     'howto.super': 'Super-strzał',
     'howto.superVal': 'Naładuj gemami',
     'howto.power': 'Super-moc',
-    'howto.powerVal': 'Klawisze 1/2 · scroll = wybierz · SPACJA/PPM = użyj',
+    'howto.powerVal': 'Klawisze 1/2/3 · scroll = wybierz · SPACJA/PPM = użyj',
     'howto.heart': '❤️ Serce — leczy czołg',
     'howto.magnet': '🧲 Magnes — przyciąga gemy',
     'howto.cube': '📦 Kostka — ⚔ mocniejszy strzał / 💙 więcej HP',
@@ -121,7 +121,7 @@ export const pl = {
     'tutorial.super.hintDesktop': 'Masz super-pocisk! Strzelaj i zmieć wroga',
     'tutorial.power.title': 'SUPER MOC!',
     'tutorial.power.hintTouch': 'Tapnij przycisk mocy!',
-    'tutorial.power.hintDesktop': 'Wciśnij 1 lub 2 (albo SPACJĘ), by użyć mocy!',
+    'tutorial.power.hintDesktop': 'Wciśnij 1, 2 lub 3 (albo SPACJĘ), by użyć mocy!',
     'tutorial.finish.title': 'GOTOWY!',
     'tutorial.finish.hint': 'Świetnie! Znasz już podstawy. Co teraz?',
     'tutorial.finish.play': 'GRAJ DALEJ',
@@ -278,6 +278,9 @@ export const pl = {
     'hud.grannyStart': '👵 BABCIA — A SIO!',
     'power.burp': 'Mega Beka',
     'hud.burpStart': '📢 BEEEEK!',
+    // v0.114.0 — slot 🎲 (Szalone Moce)
+    'power.dice': 'Kostka',
+    'hud.diceRolled': '🎲 {name}!',
     'hud.grannySay1': 'A SIO!',
     'hud.grannySay2': 'ZUPA! 🍲',
     'hud.loadoutRemapped': '⚠️ Moc niedostępna w tym trybie — podmieniono!',
@@ -287,6 +290,8 @@ export const pl = {
     'hub.garage.loadoutHint': 'Tapnij slot, potem moc — z tym wjedziesz do bitwy!',
     'hub.garage.slot': 'Slot {n}',
     'hub.garage.powerLocked': 'Od {n} 🏆',
+    'hub.garage.funMode': 'Szalone Moce',
+    'hub.garage.funModeHint': 'Trzeci przycisk 🎲 losuje szaloną moc przy każdym użyciu!',
 
     'hub.quests.daily': 'ROZKAZY DNIA',
     'hub.quests.weekly': 'ROZKAZY TYGODNIA',
@@ -350,6 +355,7 @@ export const pl = {
     'hud.questDone': '✅ {name}',
     'hud.questProgress': '📋 {name} — {cur}/{max}',
     'end.questsDone': 'Rozkazy: {n}',
+    'end.funMode': 'Szalone Moce',
 
     // ============================================================
     // Scenario Picker (Ekran 1)
@@ -612,7 +618,7 @@ export const pl = {
     // Pille i hinty
     'hud.superShot':           'SUPER SHOT',
     'hud.killProgressTaunt':   '💀 ZNISZCZ BOSSÓW!',
-    'hud.powerHint':           '1/2 = moc   ·   scroll = wybierz   ·   SPACJA/PPM = użyj',
+    'hud.powerHint':           '1/2/3 = moc   ·   scroll = wybierz   ·   SPACJA/PPM = użyj',
 
     // Active power status (bottom-center, gdy aura/mroz aktywne)
     'hud.auraActive':          '🛡️ TARCZA — {sec}s 🛡️',

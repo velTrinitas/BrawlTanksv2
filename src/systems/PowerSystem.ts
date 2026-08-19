@@ -6,7 +6,8 @@ import {
     POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, MINES_CONFIG,
     BUILDER_CONFIG, STRIKE_CONFIG, HOLE_CONFIG, LASER_CONFIG, PONG_CONFIG,
     DUCK_CONFIG, LOCKER_CONFIG, DISCO_CONFIG, GRANNY_CONFIG, BURP_CONFIG, getPowerDef,
-    type PowerId, type LoadoutPair, type PowerActivationCtx, type ActivationResult,
+    TIER3_POWERS, DICE_COOLDOWN_MS, DICE_ROLL_FRAMES, DICE_EMOJI,
+    type PowerId, type LoadoutTriple, type PowerActivationCtx, type ActivationResult,
 } from '../config/powers';
 import {
     bakeDuck, bakeLocker, bakeLockerLed, bakeParcel, bakeGranny, bakeDiscoBall, bakeSoftShadow,
@@ -43,11 +44,28 @@ const TOWER_SQUASH_FRAMES = 6;  // przysiad po ladowaniu (squash & stretch)
  * reset() nie istnieje — nie byl nigdzie wolany).
  */
 export class PowerSystem {
-    /** 2 sloty z GARAZU, rozwiazane pod scenariusz (resolveLoadoutForMatch w startGame). */
-    public readonly loadout: readonly [PowerId, PowerId];
+    /** 3 sloty z GARAZU, rozwiazane pod scenariusz (resolveLoadoutForMatch w startGame). */
+    public readonly loadout: readonly [PowerId, PowerId, PowerId];
 
     /** Date.now() timestamps gdy cooldown wygasa per moc (klucze z rejestru). */
     public powerCooldowns: Record<PowerId, number>;
+
+    /**
+     * v0.114.0: kostka 🎲 — toggle "Szalone Moce" w Garazu. Gdy ON, slot index 2
+     * jest w MECZU kostka (wybor gracza z Garazu wraca po OFF). Kostka NIE jest
+     * PowerId: aktywacja startuje ROLL (~1.3s animacji, ikony migaja), po ktorym
+     * losowa moc z TIER3_POWERS (bez powtorki 2x z rzedu) odpala sie SAMA.
+     * Wlasny cooldown (diceReadyAt), NIE wpis w powerCooldowns.
+     */
+    public readonly diceEnabled: boolean;
+    /** Date.now() timestamp gdy kostka znow gotowa (liczony od TAPU, nie od reveal). */
+    private diceReadyAt: number = 0;
+    /** Ostatnio wylosowana moc — HUD/touch pokazuja jej emoji podczas cooldownu kostki. */
+    public lastRolled: PowerId | null = null;
+    /** Klatki pozostale animacji rolla (0 = brak rolla). */
+    private diceRollFramesLeft: number = 0;
+    /** Kontekst aktywacji zapamietany na czas rolla (referencje zyja caly mecz). */
+    private diceCtx: Omit<PowerActivationCtx, 'system'> | null = null;
 
     /**
      * DESKTOP: slot wybrany scrollem — SPACJA/PPM odpala ten slot (feedback Mariusza:
@@ -55,7 +73,7 @@ export class PowerSystem {
      * ukrytym stanem — pasek HUD rysuje sie tylko na desktopie. Touch tego nie uzywa
      * (kazdy slot ma wlasny przycisk). Po kazdej aktywacji przeskakuje na uzyty slot.
      */
-    public selectedSlot: 0 | 1 = 0;
+    public selectedSlot: 0 | 1 | 2 = 0;
 
     /** Aktualnie aktywny efekt czasowy (lub null). */
     public activePowerId: PowerId | null = null;
@@ -245,12 +263,16 @@ export class PowerSystem {
 
     constructor(
         worldContainer: PIXI.Container,
-        loadout: readonly [PowerId, PowerId],
+        loadout: readonly [PowerId, PowerId, PowerId],
         towerBulletSpawner: (x: number, y: number, angle: number) => void,
         aoeExplode: (x: number, y: number, radius: number, dmg: number, quiet?: boolean) => void,
         wallSpawner: (x: number, y: number) => (() => void) | null,
+        // v0.114.0: slot 🎲 per mecz. WYMAGANY param (wzorzec towerBulletSpawner —
+        // wstrzykiwanie po fakcie = cichy skip przy ponownym new; pilnuje kompilator).
+        diceEnabled: boolean,
     ) {
         this.loadout = loadout;
+        this.diceEnabled = diceEnabled;
         this.worldContainer = worldContainer;
         this.towerBulletSpawner = towerBulletSpawner;
         this.aoeExplode = aoeExplode;
@@ -264,15 +286,25 @@ export class PowerSystem {
         worldContainer.addChild(this.auraGfx);
     }
 
-    /** Moc w danym slocie. */
-    getSlotPower(slot: 0 | 1): PowerId {
+    /** Moc w danym slocie (przy diceEnabled slot 2 gra jako kostka, nie ta moc). */
+    getSlotPower(slot: 0 | 1 | 2): PowerId {
         return this.loadout[slot];
     }
 
-    /** Scroll na desktopie: przesun wybor slotu (przy 2 slotach = toggle; skaluje sie na 3+). */
+    /** Liczba slotow w meczu — od v0.114.0 zawsze 3 (kostka podmienia slot 3, nie dodaje 4.). */
+    get slotCount(): 3 {
+        return 3;
+    }
+
+    /** Czy trwa animacja rolla kostki. */
+    get diceRolling(): boolean {
+        return this.diceRollFramesLeft > 0;
+    }
+
+    /** Scroll na desktopie: przesun wybor slotu (3 sloty). */
     cycleSlot(direction: number): void {
-        const n = this.loadout.length;
-        this.selectedSlot = (((this.selectedSlot + direction) % n) + n) % n as 0 | 1;
+        const n = this.slotCount;
+        this.selectedSlot = (((this.selectedSlot + direction) % n) + n) % n as 0 | 1 | 2;
     }
 
     /**
@@ -284,7 +316,12 @@ export class PowerSystem {
         return Date.now() >= (this.powerCooldowns[id] ?? 0);
     }
 
-    canActivateSlot(slot: 0 | 1): boolean {
+    canActivateSlot(slot: 0 | 1 | 2): boolean {
+        if (slot === 2 && this.diceEnabled) {
+            // Kostka: ta sama blokada "jedna moc naraz" co canActivate + wlasny cooldown
+            // (roll w toku = cooldown juz nabity, wiec nie trzeba osobnego warunku).
+            return this.activePowerId === null && Date.now() >= this.diceReadyAt;
+        }
         return this.canActivate(this.loadout[slot]);
     }
 
@@ -302,6 +339,42 @@ export class PowerSystem {
         return Math.max(0, remaining / 1000);
     }
 
+    /** Cooldown progress per SLOT (petla HUD/touch nie zna id — slot 2 bywa kostka). */
+    getSlotCooldownProgress(slot: 0 | 1 | 2): number {
+        if (slot === 2 && this.diceEnabled) {
+            if (this.diceRolling) return 0; // podczas rolla NIE pokazuj zegara — ikony migaja
+            const remaining = this.diceReadyAt - Date.now();
+            if (remaining <= 0) return 0;
+            return Math.min(1, remaining / DICE_COOLDOWN_MS);
+        }
+        return this.getCooldownProgress(this.loadout[slot]);
+    }
+
+    /** Pozostale sekundy cooldownu per SLOT (0 = gotowy). */
+    getSlotCooldownSecondsLeft(slot: 0 | 1 | 2): number {
+        if (slot === 2 && this.diceEnabled) {
+            if (this.diceRolling) return 0;
+            return Math.max(0, (this.diceReadyAt - Date.now()) / 1000);
+        }
+        return this.getCooldownSecondsLeft(this.loadout[slot]);
+    }
+
+    /**
+     * Ikona slotu kostki (HUD + touch, per-frame; wolajacy ma thrash-guard):
+     * roll => ikony puli migaja (jednoreki bandyta), cooldown => wylosowana moc,
+     * gotowa => 🎲.
+     */
+    getDiceIcon(): string {
+        if (this.diceRolling) {
+            const step = Math.floor((DICE_ROLL_FRAMES - this.diceRollFramesLeft) / 7);
+            return POWERS[TIER3_POWERS[step % TIER3_POWERS.length]].emoji;
+        }
+        if (this.lastRolled && Date.now() < this.diceReadyAt) {
+            return POWERS[this.lastRolled].emoji;
+        }
+        return DICE_EMOJI;
+    }
+
     /** Wyzeruj cooldowny + aktywny efekt (tutorial / handoff do meczu — zamiast literalow w main.ts). */
     clearCooldowns(): void {
         for (const id of Object.keys(this.powerCooldowns) as PowerId[]) {
@@ -309,6 +382,10 @@ export class PowerSystem {
         }
         this.activePowerId = null;
         this.framesLeft = 0;
+        this.diceReadyAt = 0;   // v0.114.0: handoff tutorial->mecz zeruje tez kostke
+        this.lastRolled = null;
+        this.diceRollFramesLeft = 0; // przerwany roll NIE odpala mocy
+        this.diceCtx = null;
         this.auraHide();
         this.towerDespawn();  // F7b-2: handoff tutorial->mecz nie moze zostawic zywej wiezy
         this.rocketsClear();  // F7b-3: ...ani rakiet w locie / w kolejce startowej
@@ -324,7 +401,23 @@ export class PowerSystem {
      * Efekty/notif/audio robi PowerDef.onActivate; wraca tylko to, co musi przejsc
      * przez petle gry (cele mega bomby).
      */
-    activate(slot: 0 | 1, ctx: Omit<PowerActivationCtx, 'system'>): ActivationResult {
+    activate(slot: 0 | 1 | 2, ctx: Omit<PowerActivationCtx, 'system'>): ActivationResult {
+        if (slot === 2 && this.diceEnabled) {
+            // ── Kostka 🎲 (v0.114.0): tap startuje ROLL (~1.3s, ikony migaja przez
+            // getDiceIcon), po ktorym wylosowana moc odpala sie SAMA (diceRollTick w
+            // update). Cooldown kostki liczy sie OD TAPU. Bramka = tylko cooldown kostki
+            // (fizzle wylosowanej mocy czytalby sie jak bug). Wylosowana moc dostanie
+            // przy reveal TEZ wlasny cooldown — anty-exploit double-fire, gdy ta sama
+            // moc siedzi w slocie 0/1 (odwrotnie NIE: equipped T3 nie dotyka kostki).
+            if (!this.canActivateSlot(2)) {
+                return { activated: false };
+            }
+            this.diceReadyAt = Date.now() + DICE_COOLDOWN_MS;
+            this.diceRollFramesLeft = DICE_ROLL_FRAMES;
+            this.diceCtx = ctx; // referencje (player/enemies/effects/audio/hud) zyja caly mecz
+            console.log(`[PowerSystem] Dice roll started (${DICE_ROLL_FRAMES} frames)`);
+            return { activated: true };
+        }
         const id = this.loadout[slot];
         if (!this.canActivate(id)) {
             return { activated: false };
@@ -333,6 +426,35 @@ export class PowerSystem {
         console.log(`[PowerSystem] Activating ${id} (slot ${slot + 1}), cooldown ${def.cooldownMs}ms`);
         this.powerCooldowns[id] = Date.now() + def.cooldownMs;
         return def.onActivate({ ...ctx, system: this });
+    }
+
+    /**
+     * v0.114.0: tick animacji rolla kostki. Po DICE_ROLL_FRAMES losuje moc z TIER3_POWERS
+     * (bez powtorki 2x z rzedu) i odpala ja SAMA z zapamietanego kontekstu (pozycja gracza
+     * = z chwili reveal, nie tapu). Notif "🎲 X!" tutaj — gracz widzi CO wypadlo (Czytelnosc).
+     * update() biegnie tylko podczas PLAYING, wiec smierc/koniec meczu wstrzymuje reveal,
+     * a clearCooldowns/teardown anuluja go calkowicie.
+     */
+    private diceRollTick(delta: number): void {
+        if (this.diceRollFramesLeft <= 0) return;
+        this.diceRollFramesLeft -= delta;
+        if (this.diceRollFramesLeft > 0) return;
+        this.diceRollFramesLeft = 0;
+        const ctx = this.diceCtx;
+        this.diceCtx = null;
+        if (!ctx) return;
+        const pool = TIER3_POWERS.filter(pid => pid !== this.lastRolled);
+        const id = pool[Math.floor(Math.random() * pool.length)];
+        this.lastRolled = id;
+        const def = POWERS[id];
+        console.log(`[PowerSystem] Dice rolled ${id}`);
+        this.powerCooldowns[id] = Date.now() + def.cooldownMs;
+        try {
+            ctx.hud.addNotif(t('hud.diceRolled', { name: t(def.labelKey) }), '#f1c40f');
+            def.onActivate({ ...ctx, system: this });
+        } catch (e) {
+            console.error(`[PowerSystem] Dice fire failed for ${id}:`, (e as Error).stack ?? e);
+        }
     }
 
     /**
@@ -370,6 +492,8 @@ export class PowerSystem {
         if (this.magnetActive && Date.now() >= this.magnetEndTime) {
             this.magnetActive = false;
         }
+
+        this.diceRollTick(delta); // v0.114.0: animacja rolla kostki -> auto-fire
 
         // F7b-2..6 + Tier 2: wszystkie moce fire-and-forget tykaja NIEZALEZNIE.
         this.towerUpdate(delta, enemies, effects);
@@ -2055,4 +2179,4 @@ export class PowerSystem {
     }
 }
 
-export type { LoadoutPair };
+export type { LoadoutTriple };

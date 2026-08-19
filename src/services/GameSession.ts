@@ -321,6 +321,11 @@ export class GameSession {
     public heartsHealed: number = 0;
     /** Ilosc uzytych supermocy (aura/bomba/freeze) — inkrement w main.ts. */
     public superPowersUsed: number = 0;
+    /**
+     * v0.114.0 — ile razy uzyto kostki 🎲 (slot Szalonych Mocy). >0 => run flagowany
+     * funMode w submit (inny sufit wyniku; dane pod decyzje o splicie leaderboardu).
+     */
+    public dicePowersUsed: number = 0;
 
     // v0.100.0 — staty meczu wysylane z wynikiem (kolumny scores.* byly puste od 9b).
     // Zasilaja kalibracje celow rozkazow i przyszla walidacje anti-cheat L2b

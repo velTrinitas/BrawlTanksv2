@@ -29,12 +29,12 @@ export class SuperButton {
     private lastCdPct: number = -1;
     private lastCdSecs: number = -1;
 
-    /** Slot loadoutu (0/1) — daje klase CSS pozycji + aria-label. */
-    private readonly slot: 0 | 1;
+    /** Slot loadoutu (0/1) lub kostka 🎲 (2) — daje klase CSS pozycji + aria-label. */
+    private readonly slot: 0 | 1 | 2;
 
     onRequest: (() => void) | null = null;
 
-    constructor(slot: 0 | 1) {
+    constructor(slot: 0 | 1 | 2) {
         this.slot = slot;
     }
 
@@ -52,10 +52,13 @@ export class SuperButton {
         // Default icon = ⚡, nadpisywana z loadoutu przez setPowerIcon() na starcie meczu.
         // cd-sweep (zegar conic-gradient) + cd-text (sekundy) domyslnie ukryte (display:none
         // w CSS, pokazywane przez .has-cd na przycisku) — patrz setCooldown().
+        // dice-badge: male 🎲 w rogu, widoczne TYLKO z klasa --dice (setDiceStyle) —
+        // zostaje gdy ikona pokazuje wylosowana moc, zeby slot byl jednoznaczny.
         this.rootEl.innerHTML = `
             <span class="bt-super-button-icon" aria-hidden="true">⚡</span>
             <div class="bt-super-button-cd" aria-hidden="true"></div>
             <span class="bt-super-button-cd-text" aria-hidden="true"></span>
+            <span class="bt-super-button-dice-badge" aria-hidden="true">🎲</span>
         `;
         this.iconEl = this.rootEl.querySelector<HTMLElement>('.bt-super-button-icon');
         this.cdSweepEl = this.rootEl.querySelector<HTMLElement>('.bt-super-button-cd');
@@ -101,6 +104,14 @@ export class SuperButton {
         if (!this.iconEl) return;
         if (this.iconEl.textContent === emoji) return;
         this.iconEl.textContent = emoji;
+    }
+
+    /**
+     * v0.114.0: wyroznienie slotu kostki (tylko przy Szalonych Mocach) — fioletowy
+     * shimmer-ring + badge 🎲 przez klase CSS. Wolane raz na mecz.
+     */
+    setDiceStyle(on: boolean): void {
+        this.rootEl?.classList.toggle('bt-super-button--dice', on);
     }
 
     /**

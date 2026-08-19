@@ -59,6 +59,8 @@ export interface RunStats {
     /** Super MOCE (Aura / MegaBomba / Freeze). */
     powersUsed?: number;
     megaBossDefeated?: boolean;
+    /** v0.114.0 — true gdy w runie uzyto kostki 🎲 (Szalone Moce; inny sufit wyniku). */
+    funMode?: boolean;
 }
 
 /**

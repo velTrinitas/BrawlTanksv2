@@ -3,7 +3,7 @@ import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
 import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
-import { POWERS } from '../config/powers';
+import { POWERS, DICE_EMOJI } from '../config/powers';
 import { t as tr } from '../i18n/i18n';
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
@@ -407,23 +407,30 @@ export class HUD {
 
         // PROG-F7a: 2 SLOTY LOADOUTU zamiast 3 mocy z cyklowaniem. Kazdy slot = wlasny
         // trigger (SPACE/PPM i Q) => "wybrana moc" nie istnieje; gotowy slot = zloty puls.
-        const loadout = powerSystem.loadout;
-        const totalW = ICON_SIZE * loadout.length + ICON_GAP * (loadout.length - 1);
+        // v0.114.0: petla po slotCount — slot 2 = kostka 🎲 (bez statycznego id).
+        const slotCount = powerSystem.slotCount;
+        const totalW = ICON_SIZE * slotCount + ICON_GAP * (slotCount - 1);
         const startX = cx - totalW / 2;
 
         // v0.73.7 PERF: for-loop (bez alokacji tablicy+domkniecia co klatke).
-        for (let i = 0; i < loadout.length; i++) {
-            const id = loadout[i];
-            const power = POWERS[id];
+        for (let i = 0; i < slotCount; i++) {
+            const slot = i as 0 | 1 | 2;
+            // Slot 2 gra jako kostka TYLKO przy Szalonych Mocach; inaczej zwykla 3. moc.
+            const isDice = slot === 2 && powerSystem.diceEnabled;
+            const id = isDice ? null : powerSystem.loadout[slot];
+            const cooldownProgress = powerSystem.getSlotCooldownProgress(slot);
+            const onCooldown = cooldownProgress > 0;
+            // Kostka: roll => migajace ikony, cooldown => wylosowana moc, gotowa => 🎲.
+            const emoji = id !== null ? POWERS[id].emoji : powerSystem.getDiceIcon();
+            const label = id !== null
+                ? tr(POWERS[id].labelKey).toUpperCase() : tr('power.dice').toUpperCase();
             const isSelected = powerSystem.selectedSlot === i;
             const ix = startX + i * (ICON_SIZE + ICON_GAP);
             // F7a fix czytelnosci (feedback Mariusza): WYBOR to inny kanal niz GOTOWOSC.
             // Gotowosc = zloty puls ramki; wybor = kafelek UNIESIONY o 8px + wskaznik nad nim
             // (pozycja+ruch zamiast koloru — czytelne mimo pulsu na obu gotowych slotach).
             const iy = iconsBaseY - (isSelected ? 8 : 0);
-            const isActive = powerSystem.activePowerId === id;
-            const cooldownProgress = powerSystem.getCooldownProgress(id);
-            const onCooldown = cooldownProgress > 0;
+            const isActive = id !== null && powerSystem.activePowerId === id;
             const isReady = !isActive && !onCooldown && powerSystem.activePowerId === null;
 
             if (isActive) {
@@ -458,16 +465,32 @@ export class HUD {
                 c.lineWidth = 1.5;
                 c.stroke();
             }
-            
+
+            // v0.114.0: wyroznienie kostki — fioletowy gradient-ring z shimmerem
+            // (sin-hue, spojny z CSS przycisku touch). Rysowany ZAWSZE na kaflu kostki,
+            // nad stanem gotowosci/cooldownu — slot musi byc jednoznacznie "szalony".
+            if (isDice) {
+                const hueShift = Math.sin(Date.now() / 300) * 18;
+                const grad = c.createLinearGradient(ix, iy, ix + ICON_SIZE, iy + ICON_SIZE);
+                grad.addColorStop(0, `hsl(${282 + hueShift}, 62%, 64%)`);
+                grad.addColorStop(0.5, `hsl(${268 + hueShift}, 55%, 42%)`);
+                grad.addColorStop(1, `hsl(${292 + hueShift}, 70%, 70%)`);
+                c.strokeStyle = grad;
+                c.lineWidth = 3.5;
+                c.beginPath();
+                c.roundRect(ix - 1, iy - 1, ICON_SIZE + 2, ICON_SIZE + 2, 13);
+                c.stroke();
+            }
+
             c.font = `42px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
             c.globalAlpha = onCooldown ? 0.4 : 1.0;
-            c.fillText(power.emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 6);
+            c.fillText(emoji, ix + ICON_SIZE / 2, iy + ICON_SIZE / 2 - 6);
             c.globalAlpha = 1.0;
-            
+
             if (onCooldown) {
-                const secsLeft = powerSystem.getCooldownSecondsLeft(id);
+                const secsLeft = powerSystem.getSlotCooldownSecondsLeft(slot);
                 
                 c.save();
                 c.beginPath();
@@ -495,8 +518,7 @@ export class HUD {
             }
             
             // v0.27.0 FAZA F-fix2: 11px za maly dla Titan One → 13px + dark stroke dla kontrastu
-            // F7a: etykieta z i18n (typowana zmienna labelKey), zamiast hardcoded power.name.
-            const label = tr(power.labelKey).toUpperCase();
+            // F7a: etykieta z i18n (typowana zmienna labelKey) — liczona na gorze petli.
             c.font = `13px "${FONT_FAMILY}",cursive`;
             c.strokeStyle = 'rgba(0,0,0,0.85)';
             c.lineWidth = 3;
@@ -504,7 +526,7 @@ export class HUD {
             c.fillStyle = onCooldown ? 'rgba(140,140,140,0.7)' : (isReady ? '#ffdd00' : '#ffffff');
             c.fillText(label, ix + ICON_SIZE / 2, iy + ICON_SIZE - 10);
 
-            // F7a: numer slotu (klawisz bezposredni) w rogu kafelka — mapowanie 1/2 → moc.
+            // F7a: numer slotu (klawisz bezposredni) w rogu kafelka — mapowanie 1/2/3 → moc.
             c.font = `12px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'left';
             c.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -513,6 +535,15 @@ export class HUD {
             c.fillStyle = 'rgba(255,255,255,0.75)';
             c.fillText(`${i + 1}`, ix + 6, iy + 12);
             c.textAlign = 'center';
+
+            // v0.114.0: badge 🎲 w prawym-gornym rogu kafla kostki — zostaje takze gdy
+            // ikona pokazuje wylosowana moc (Czytelnosc: ten slot to zawsze kostka).
+            if (isDice) {
+                c.font = `13px "${FONT_FAMILY}",cursive`;
+                c.textAlign = 'right';
+                c.fillText('🎲', ix + ICON_SIZE - 4, iy + 12);
+                c.textAlign = 'center';
+            }
 
             // Wskaznik WYBRANEGO slotu: duza strzalka POD kafelkiem celujaca W GORE,
             // podskakuje (sin), biala z czarnym konturem — inny kolor, inna pozycja

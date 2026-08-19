@@ -26,11 +26,15 @@ export type PowerId =
     | 'strike' | 'hole' | 'laser' | 'pong'                      // TIER 2 premium (v0.111.0)
     | 'duck' | 'locker' | 'disco' | 'granny' | 'burp';          // TIER 3 szalone (v0.112.0)
 
-/** Loadout gracza: 2 sloty (GARAZ). null = pusty slot (nie powinno sie zdarzyc po normalizacji). */
-export type LoadoutPair = readonly [PowerId | null, PowerId | null];
+/**
+ * Loadout gracza: 3 sloty (GARAZ, v0.114.0 — bylo 2). null = pusty slot (nie powinno
+ * sie zdarzyc po normalizacji). Przy wlaczonych Szalonych Mocach slot 3 jest w MECZU
+ * podmieniany na kostke 🎲 (wybor gracza w slocie 3 zostaje w stanie, wraca po OFF).
+ */
+export type LoadoutTriple = readonly [PowerId | null, PowerId | null, PowerId | null];
 
-/** Domyslny loadout (legacy default = aura pierwsza; bomba jako druga — instant, czytelna). */
-export const DEFAULT_LOADOUT: LoadoutPair = ['aura', 'megaBomb'];
+/** Domyslny loadout = trojka legacy (kazdy gracz ma je od startu, unlockAtTrophies=0). */
+export const DEFAULT_LOADOUT: LoadoutTriple = ['aura', 'megaBomb', 'freeze'];
 
 /**
  * Kontekst wstrzykiwany do onActivate/onEnd — waskie typy strukturalne, zeby config
@@ -662,11 +666,28 @@ export const POWERS: Record<PowerId, PowerDef> = {
     },
 };
 
+/**
+ * Tier 3 szalone — pula slotu 🎲 (v0.114.0). JEDNO zrodlo prawdy: POWER_ORDER
+ * bierze tail przez spread, a roll kostki losuje z tej listy (ignoruje progi
+ * trofeow T3 — slot 🎲 JEST mechanizmem dostepu; progi 6000+ to placeholdery).
+ * UWAGA: gdyby ALLOWED_POWERS kiedys zawezil scenariusz, pule kostki trzeba
+ * przeciac z macierza (dzis wszystko null = pelna pula).
+ */
+export const TIER3_POWERS: readonly PowerId[] = ['duck', 'locker', 'disco', 'granny', 'burp'];
+
+/** Cooldown slotu 🎲 — rowny cooldownowi kazdej mocy T3 (wszystkie 30000ms). */
+export const DICE_COOLDOWN_MS = 30000;
+
+/** Animacja rolla kostki (~1.3s @60fps): ikony mocy migaja, po niej moc odpala SAMA. */
+export const DICE_ROLL_FRAMES = 78;
+
+export const DICE_EMOJI = '🎲';
+
 /** Kolejnosc wyswietlania (GARAZ picker) + inicjalizacja cooldownow. */
 export const POWER_ORDER: readonly PowerId[] = [
     'aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower', 'ghost',
-    'strike', 'hole', 'laser', 'pong',           // Tier 2 premium
-    'duck', 'locker', 'disco', 'granny', 'burp', // Tier 3 szalone (pula 🎲)
+    'strike', 'hole', 'laser', 'pong', // Tier 2 premium
+    ...TIER3_POWERS,                   // Tier 3 szalone (pula 🎲)
 ];
 
 export function getPowerDef(id: string): PowerDef | undefined {
@@ -699,24 +720,39 @@ export const ALLOWED_POWERS: Record<ScenarioId, readonly PowerId[] | null> = {
  *                 (main.ts pokazuje notif — cicha podmiana wyglada jak bug dla 9-latka).
  */
 export function resolveLoadoutForMatch(
-    loadout: LoadoutPair,
+    loadout: LoadoutTriple,
     scenario: ScenarioId,
     owned: readonly PowerId[],
     remapped?: { value: boolean },
-): [PowerId, PowerId] {
+): [PowerId, PowerId, PowerId] {
     const allowed = ALLOWED_POWERS[scenario] ?? null;
-    const pool = (allowed ?? POWER_ORDER).filter(id => !!getPowerDef(id) && owned.includes(id));
+    // v0.114.0: Tier 3 (szalone) NIE wchodza do loadoutu — dostep do nich MA TYLKO
+    // kostka 🎲 (decyzja Mariusza: rownoczesnie w slocie i w puli = bez sensu).
+    const pool = (allowed ?? POWER_ORDER).filter(id =>
+        !!getPowerDef(id) && owned.includes(id) && !TIER3_POWERS.includes(id));
     // Awaryjnie (uszkodzony stan: owned puste) — trojka bazowa, zeby mecz ZAWSZE mial moce.
     const safePool: readonly PowerId[] = pool.length > 0 ? pool : ['aura', 'megaBomb', 'freeze'];
-    const ok = (id: PowerId | null): id is PowerId => !!id && safePool.includes(id);
-
-    let a = ok(loadout[0]) ? loadout[0] : null;
-    let b = ok(loadout[1]) ? loadout[1] : null;
-    if (a === b) b = null; // duplikat (zmajstrowany zapis) => drugi slot do uzupelnienia
-    if (a === null) a = safePool.find(id => id !== b) ?? safePool[0];
-    if (b === null) b = safePool.find(id => id !== a) ?? safePool[0];
-    if (remapped && (a !== loadout[0] || b !== loadout[1])) remapped.value = true;
-    return [a, b];
+    const taken = new Set<PowerId>();
+    const out: PowerId[] = [];
+    // Przebieg 1: zaakceptuj poprawne, niepowtarzajace sie wybory gracza.
+    for (let i = 0; i < 3; i++) {
+        const id = loadout[i];
+        out[i] = (!!id && safePool.includes(id) && !taken.has(id)) ? id : (null as unknown as PowerId);
+        if (out[i]) taken.add(out[i]);
+    }
+    // Przebieg 2: dopelnij dziury pierwsza wolna moca z puli (gracz NIGDY nie wchodzi
+    // w mecz z pustym przyciskiem). Pula moze byc mniejsza niz 3 => dopuszczamy powtorke
+    // dopiero gdy brak unikatow (skrajny uszkodzony stan).
+    for (let i = 0; i < 3; i++) {
+        if (out[i]) continue;
+        const fill = safePool.find(id => !taken.has(id)) ?? safePool[i % safePool.length];
+        out[i] = fill;
+        taken.add(fill);
+    }
+    if (remapped && (out[0] !== loadout[0] || out[1] !== loadout[1] || out[2] !== loadout[2])) {
+        remapped.value = true;
+    }
+    return [out[0], out[1], out[2]];
 }
 
 /**

@@ -3017,7 +3017,9 @@
 /* v0.108.0 pozycje radialne (baza): srodek drazka = (right 72, bottom 72),
    promien R=92 do srodka przycisku (54px => -27 na krawedz).
    slot1 @ ~10:00 (65° od pionu): center (72+0.906R, 72+0.423R) = (155, 111)
-   slot2 @ ~11:00 (25° od pionu): center (72+0.423R, 72+0.906R) = (111, 155) */
+   slot2 @ ~11:00 (25° od pionu): center (72+0.423R, 72+0.906R) = (111, 155)
+   slot3 (kostka 🎲, v0.114.0) @ ~12:00 (-15° od pionu, ten sam skok 40° co 1<->2):
+   center (72-0.259R, 72+0.966R) = (48, 161) */
 .bt-super-button--slot1 {
     right: calc(128px + env(safe-area-inset-right, 0px));
     bottom: calc(84px + env(safe-area-inset-bottom, 0px));
@@ -3027,7 +3029,47 @@
     right: calc(84px + env(safe-area-inset-right, 0px));
     bottom: calc(128px + env(safe-area-inset-bottom, 0px));
 }
+
+.bt-super-button--slot3 {
+    right: calc(21px + env(safe-area-inset-right, 0px));
+    bottom: calc(134px + env(safe-area-inset-bottom, 0px));
+}
 /* (v0.23.1 long-press cycle USUNIETY w F7a — kazdy slot ma wlasny przycisk) */
+
+/* === v0.114.0: wyroznienie slotu KOSTKI 🎲 (klasa nadawana tylko przy Szalonych
+   Mocach) — fioletowy gradient-ring z shimmerem (rotacja conic-gradient, CSS-only,
+   1 przycisk = koszt mobile ~0) + male badge 🎲 w rogu, ktore ZOSTAJE gdy ikona
+   pokazuje wylosowana moc (Czytelnosc: zawsze wiadomo, ktory slot jest szalony). === */
+.bt-super-button--dice::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    background: conic-gradient(#8e44ad, #d2a8f0, #6c3483, #b57be6, #4a235a, #8e44ad);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    animation: bt-dice-shimmer 2.4s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes bt-dice-shimmer {
+    to { transform: rotate(360deg); }
+}
+
+.bt-super-button-dice-badge {
+    position: absolute;
+    top: -7px;
+    right: -5px;
+    font-size: 0.85rem;
+    line-height: 1;
+    display: none;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+.bt-super-button--dice .bt-super-button-dice-badge {
+    display: block;
+}
 
 /* === v0.108.0: licznik cooldownu NA przycisku (mobile nie ma paska HUD) ===
    Sweep: conic-gradient "zegar" (tlo inline z SuperButton.setCooldown — kurczy sie
@@ -3106,7 +3148,8 @@
     }
 
     /* v0.108.0 radial: srodek drazka (64,64), R=78, przycisk 48 (-24 na krawedz):
-       slot1 @10:00 => (64+70.7, 64+33.0), slot2 @11:00 => lustrzanie */
+       slot1 @10:00 => (64+70.7, 64+33.0), slot2 @11:00 => lustrzanie,
+       slot3 (🎲) @ -15° => (64-20.2, 64+75.3) — gap do slot2 = 5.4px (jak 1<->2) */
     .bt-super-button--slot1 {
         right: calc(111px + env(safe-area-inset-right, 0px));
         bottom: calc(73px + env(safe-area-inset-bottom, 0px));
@@ -3115,6 +3158,11 @@
     .bt-super-button--slot2 {
         right: calc(73px + env(safe-area-inset-right, 0px));
         bottom: calc(111px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .bt-super-button--slot3 {
+        right: calc(20px + env(safe-area-inset-right, 0px));
+        bottom: calc(115px + env(safe-area-inset-bottom, 0px));
     }
 
     .bt-super-button-icon {
@@ -3163,7 +3211,8 @@
     }
 
     /* v0.108.0 radial: srodek drazka (80,80), R=106, przycisk 63 (-31.5 na krawedz):
-       slot1 @10:00 => (80+96.0, 80+44.8), slot2 @11:00 => lustrzanie.
+       slot1 @10:00 => (80+96.0, 80+44.8), slot2 @11:00 => lustrzanie,
+       slot3 (🎲) @ -15° => (80-27.4, 80+102.4).
        To jest galaz, ktora REALNIE gra na A54 landscape (851x393). */
     .bt-super-button--slot1 {
         right: calc(144px + env(safe-area-inset-right, 0px));
@@ -3173,6 +3222,11 @@
     .bt-super-button--slot2 {
         right: calc(93px + env(safe-area-inset-right, 0px));
         bottom: calc(144px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .bt-super-button--slot3 {
+        right: calc(21px + env(safe-area-inset-right, 0px));
+        bottom: calc(151px + env(safe-area-inset-bottom, 0px));
     }
 
     .bt-super-button-icon {
@@ -3187,6 +3241,10 @@
 @media (prefers-reduced-motion: reduce) {
     .bt-super-button.is-charged {
         animation: none !important;
+    }
+
+    .bt-super-button--dice::after {
+        animation: none !important; /* v0.114.0: shimmer kostki staje, ring zostaje */
     }
 
     .bt-joystick-base,

@@ -66,6 +66,7 @@ export interface ScoreRow {
     supers_fired: number;
     powers_used: number;
     mega_boss_defeated: boolean;
+    fun_mode: boolean;          // v0.114.0 — run z uzyta kostka 🎲 (inny sufit wyniku)
     created_at: string;
 }
 
@@ -87,6 +88,7 @@ export interface ScoreInsert {
     supers_fired?: number;
     powers_used?: number;
     mega_boss_defeated?: boolean;
+    fun_mode?: boolean;         // v0.114.0 — DEFAULT false (stara kolejka offline bez pola)
     // id / created_at — NIE wysylamy (server-side)
 }
 
@@ -166,6 +168,9 @@ export interface ProgressionPowers {
     owned?: string[];
     loadout?: (string | null)[];
     loadoutAt?: number;
+    /** v0.114.0: toggle "Szalone Moce" (slot 🎲) — merge: LWW po funModeAt. */
+    funModeOn?: boolean;
+    funModeAt?: number;
 }
 
 export interface ProgressionRow {

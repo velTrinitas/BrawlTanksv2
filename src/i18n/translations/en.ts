@@ -60,7 +60,7 @@ export const en: typeof pl = {
     'howto.super': 'Super shot',
     'howto.superVal': 'Charge it with gems',
     'howto.power': 'Super power',
-    'howto.powerVal': 'Keys 1/2 · scroll = select · SPACE/RMB = use',
+    'howto.powerVal': 'Keys 1/2/3 · scroll = select · SPACE/RMB = use',
     'howto.heart': '❤️ Heart — heals your tank',
     'howto.magnet': '🧲 Magnet — pulls gems in',
     'howto.cube': '📦 Cube — ⚔ stronger shot / 💙 more HP',
@@ -112,7 +112,7 @@ export const en: typeof pl = {
     'tutorial.super.hintDesktop': "You've got a super shot! Fire and wipe the enemy",
     'tutorial.power.title': 'SUPER POWER!',
     'tutorial.power.hintTouch': 'Tap a power button!',
-    'tutorial.power.hintDesktop': 'Press 1 or 2 (or SPACE) to use a power!',
+    'tutorial.power.hintDesktop': 'Press 1, 2 or 3 (or SPACE) to use a power!',
     'tutorial.finish.title': 'READY!',
     'tutorial.finish.hint': 'Great! You know the basics. What now?',
     'tutorial.finish.play': 'KEEP PLAYING',
@@ -267,6 +267,9 @@ export const en: typeof pl = {
     'hud.grannyStart': '👵 GRANNY — SHOO!',
     'power.burp': 'Mega Burp',
     'hud.burpStart': '📢 BUUURP!',
+    // v0.114.0 — dice slot (Crazy Powers)
+    'power.dice': 'Dice',
+    'hud.diceRolled': '🎲 {name}!',
     'hud.grannySay1': 'SHOO!',
     'hud.grannySay2': 'SOUP! 🍲',
     'hud.loadoutRemapped': '⚠️ Power not available in this mode — swapped!',
@@ -276,6 +279,8 @@ export const en: typeof pl = {
     'hub.garage.loadoutHint': 'Tap a slot, then a power — this is what you bring to battle!',
     'hub.garage.slot': 'Slot {n}',
     'hub.garage.powerLocked': 'From {n} 🏆',
+    'hub.garage.funMode': 'Crazy Powers',
+    'hub.garage.funModeHint': 'A third 🎲 button rolls a random crazy power every time!',
 
     'hub.quests.daily': 'DAILY ORDERS',
     'hub.quests.weekly': 'WEEKLY ORDERS',
@@ -339,6 +344,7 @@ export const en: typeof pl = {
     'hud.questDone': '✅ {name}',
     'hud.questProgress': '📋 {name} — {cur}/{max}',
     'end.questsDone': 'Orders: {n}',
+    'end.funMode': 'Crazy Powers',
 
     // ============================================================
     // Scenario Picker
@@ -595,7 +601,7 @@ export const en: typeof pl = {
     // Pills and hints
     'hud.superShot':           'SUPER SHOT',
     'hud.killProgressTaunt':   '💀 DESTROY BOSSES!',
-    'hud.powerHint':           '1/2 = power   ·   scroll = select   ·   SPACE/RMB = use',
+    'hud.powerHint':           '1/2/3 = power   ·   scroll = select   ·   SPACE/RMB = use',
 
     // Active power status (bottom-center, when aura/freeze active)
     'hud.auraActive':          '🛡️ SHIELD — {sec}s 🛡️',

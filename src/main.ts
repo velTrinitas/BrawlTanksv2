@@ -130,7 +130,7 @@ import { HUD, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
-import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, PONG_CONFIG, DISCO_CONFIG, resolveLoadoutForMatch } from './config/powers'; // F7a registry + F7b + Tier 2/3
+import { PICKUP_CONFIG, MEGA_BOMB_CONFIG, POWERS, TOWER_CONFIG, BUILDER_CONFIG, PONG_CONFIG, DISCO_CONFIG, resolveLoadoutForMatch, DICE_EMOJI } from './config/powers'; // F7a registry + F7b + Tier 2/3 + v0.114.0 kostka
 import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
@@ -923,11 +923,12 @@ document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuF
 document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
 
 /**
- * PROG-F7a: aktywacja mocy ZE SLOTU (0 = przycisk 1/Space/PPM, 1 = przycisk 2/Q).
+ * PROG-F7a: aktywacja mocy ZE SLOTU (0 = przycisk 1/Space/PPM, 1 = przycisk 2/Q,
+ * 2 = kostka 🎲 v0.114.0 — losuje moc Tier 3 przy kazdej aktywacji).
  * Zachowanie mocy zyje w PowerDef.onActivate (registry) — tutaj zostaje TYLKO to,
  * co nalezy do petli gry: kill-path mega bomby (registerKill/score/drop/victory).
  */
-function tryActivateSuper(slot: 0 | 1 = 0): void {
+function tryActivateSuper(slot: 0 | 1 | 2 = 0): void {
     if (gameState !== 'PLAYING' || !powerSystem || !player || !effects || !currentSession) return;
 
     const result = powerSystem.activate(slot, { player, enemies, effects, audio, hud });
@@ -938,6 +939,12 @@ function tryActivateSuper(slot: 0 | 1 = 0): void {
 
     currentSession.superPowersUsed++;
     QuestService.track('super_power'); // PROG-F3
+
+    if (slot === 2 && powerSystem.diceEnabled) {
+        // Kostka: tap startuje ROLL (~1.3s) — reveal + notif "🎲 X!" robi PowerSystem
+        // (diceRollTick). funMode = usage-based: run flagowany od realnego rolla.
+        currentSession.dicePowersUsed++;
+    }
 
     if (result.megaBombTargets) {
         // v0.50.0 Scoring v2.1: track ile zabilo + sum base values dla multi-kill bonus.
@@ -989,6 +996,10 @@ window.addEventListener('keydown', e => {
     }
     if (k === '2' || k === 'q') {
         tryActivateSuper(1);
+    }
+    if (k === '3') {
+        // v0.114.0: kostka 🎲 (slot 2) — activate() sam guarduje gdy kostka wylaczona.
+        tryActivateSuper(2);
     }
     if (k === 'm') {
         const nowMuted = audio.toggleMute();
@@ -1807,6 +1818,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     const powerState = ProgressionService.getPowerState(config.profileId);
     const remapped = { value: false };
     const matchLoadout = resolveLoadoutForMatch(powerState.loadout, config.scenario, powerState.owned, remapped);
+    // v0.114.0: slot 🎲 z toggle "Szalone Moce" (Garaz). Tutorial trzyma 2 przyciski —
+    // jego skrypt i ringSelector celuja w sloty stale.
+    const diceEnabled = powerState.funModeOn && !tutorialMode;
     // F7b-2: spawner pociskow Wiezy — WYMAGANY parametr (nie wstrzykniecie po fakcie:
     // przy ponownym `new PowerSystem` cichy null-callback bylby klasycznym `?.()`-skipem).
     // Wieza strzela realnymi pociskami z puli gracza => kolizje/dmg-numbery/drop/quest-kille
@@ -1888,8 +1902,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 if (idx >= 0) arr.splice(idx, 1);
             }
         };
-    });
-    touchManager.setSlotPowers([POWERS[matchLoadout[0]].emoji, POWERS[matchLoadout[1]].emoji]);
+    }, diceEnabled);
+    // v0.114.0: 3 sloty; przy Szalonych Mocach slot 3 gra jako kostka (ikona + fioletowy ring).
+    touchManager.setSlotPowers([
+        POWERS[matchLoadout[0]].emoji,
+        POWERS[matchLoadout[1]].emoji,
+        diceEnabled ? DICE_EMOJI : POWERS[matchLoadout[2]].emoji,
+    ]);
+    touchManager.setDiceEnabled(diceEnabled);
     // Podmiana slotu (moc niedozwolona w trybie / nieposiadana) MUSI byc zakomunikowana —
     // cicha podmiana wyglada jak bug dla 9-latka (przeglad F7b).
     if (remapped.value && !tutorialMode) {
@@ -2067,6 +2087,9 @@ function collectRunStats(): RunStats {
         supersFired: currentSession?.superShotsFired ?? 0,
         powersUsed: currentSession?.superPowersUsed ?? 0,
         megaBossDefeated: spawnSystem?.megaBossKilled ?? false,
+        // v0.114.0 funMode: usage-based — run flagowany TYLKO gdy kostka 🎲 realnie
+        // uzyta (sam toggle ON bez rolla nie zmienia sufitu wyniku).
+        funMode: (currentSession?.dicePowersUsed ?? 0) > 0,
     };
 }
 
@@ -2153,6 +2176,8 @@ interface EndScreenData {
     milestoneBolts?: number;
     /** PROG-F3 — ile rozkazow domknieto w tym meczu (chip w trophyRow, bez nowego kafelka). */
     questsDone?: number;
+    /** v0.114.0 — ile razy uzyto kostki 🎲 (chip "Szalone Moce"; run poza glowna formula). */
+    diceUsed?: number;
 }
 
 /**
@@ -2284,6 +2309,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.boltsGained ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#5b6672;padding:5px 14px;border-radius:12px;border:2px solid #3a434d;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🔩 +${d.boltsGained} ${t('end.bolts')}</span>` : ''}
             ${d.milestoneBolts && d.milestoneBolts > 0 ? `<span style="font-family:${TITAN};font-size:0.82rem;color:#fff;background:#27ae60;padding:5px 14px;border-radius:12px;border:2px solid #1e8449;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎖️ ${t('end.milestone')}!</span>` : ''}
             ${d.questsDone && d.questsDone > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#c0721c;padding:5px 14px;border-radius:12px;border:2px solid #8a4f12;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📋 ${t('end.questsDone', { n: d.questsDone })}</span>` : ''}
+            ${d.diceUsed && d.diceUsed > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #6c3483;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎲 ${t('end.funMode')}</span>` : ''}
         </div>` : '';
 
     // v0.100.0 FIX REGRESJI — wariant KOMPAKTOWY wiersza progresji dla layoutu v2 (landscape @375px).
@@ -2301,6 +2327,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.boltsGained ? chipC('#5b6672', '#3a434d', '#fff', `🔩 +${d.boltsGained}`) : ''}
             ${d.milestoneBolts && d.milestoneBolts > 0 ? chipC('#27ae60', '#1e8449', '#fff', `🎖️ +${d.milestoneBolts}`) : ''}
             ${d.questsDone && d.questsDone > 0 ? chipC('#c0721c', '#8a4f12', '#fff', `📋 ${d.questsDone}`) : ''}
+            ${d.diceUsed && d.diceUsed > 0 ? chipC('#8e44ad', '#6c3483', '#fff', '🎲') : ''}
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
@@ -2561,6 +2588,7 @@ async function triggerGameOver(): Promise<void> {
         boltsGained: runProg?.boltsGained,
         milestoneBolts: runProg ? runProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
         questsDone: questsDoneRun,                        // PROG-F3
+        diceUsed: currentSession?.dicePowersUsed ?? 0,    // v0.114.0 kostka 🎲
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -2636,6 +2664,7 @@ async function triggerVictory(): Promise<void> {
         boltsGained: victoryRunProg?.boltsGained,
         milestoneBolts: victoryRunProg ? victoryRunProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
         questsDone: questsDoneVictory,                    // PROG-F3
+        diceUsed: currentSession?.dicePowersUsed ?? 0,    // v0.114.0 kostka 🎲
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -2767,17 +2796,22 @@ app.ticker.add((rawDelta) => {
         // PROG-F7a: charged glow per slot. Aktywacja idzie WYLACZNIE callbackiem
         // onSuperRequested (legacy polling consumeSuperRequest usuniety — dubla sciezka
         // dawalaby 2 moce z jednego tapu przy 2 slotach).
-        touchManager.updateSuperChargedVisual(0, powerSystem.canActivateSlot(0));
-        touchManager.updateSuperChargedVisual(1, powerSystem.canActivateSlot(1));
         // v0.108.0 — licznik cooldownu NA przyciskach (feedback A54: po uzyciu mocy
         // nie widac ile zostalo; pasek HUD z tym wskaznikiem jest desktop-only).
-        for (const slot of [0, 1] as const) {
-            const pid = powerSystem.loadout[slot];
+        // v0.114.0 — petla generyczna po slotCount (slot 2 = kostka 🎲, akcesory slotowe).
+        for (let i = 0; i < powerSystem.slotCount; i++) {
+            const slot = i as 0 | 1 | 2;
+            touchManager.updateSuperChargedVisual(slot, powerSystem.canActivateSlot(slot));
             touchManager.updateSuperCooldown(
                 slot,
-                powerSystem.getCooldownProgress(pid),
-                powerSystem.getCooldownSecondsLeft(pid),
+                powerSystem.getSlotCooldownProgress(slot),
+                powerSystem.getSlotCooldownSecondsLeft(slot),
             );
+        }
+        if (powerSystem.diceEnabled) {
+            // Ikona kostki: roll => migajace ikony puli, cooldown => wylosowana moc,
+            // gotowa => 🎲 (Czytelnosc — dziecko widzi co wypadlo). Thrash-guard w srodku.
+            touchManager.setDiceIcon(powerSystem.getDiceIcon());
         }
 
         touchMoveVector = touchManager.moveVector;

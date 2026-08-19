@@ -30,14 +30,17 @@ export class TouchInputManager {
     private rootEl: HTMLElement | null = null;
     private moveJoystick: VirtualJoystick;
     private aimJoystick: VirtualJoystick;
-    /** PROG-F7a: dwa przyciski = dwa sloty loadoutu (index 0/1). */
-    private superButtons: [SuperButton, SuperButton];
+    /** PROG-F7a: przyciski slotow (0/1) + v0.114.0 kostka 🎲 (index 2, per-mecz). */
+    private superButtons: [SuperButton, SuperButton, SuperButton];
+
+    /** v0.114.0: czy slot 🎲 aktywny w biezacym meczu (toggle "Szalone Moce" w Garazu). */
+    private diceEnabled: boolean = false;
 
     /** Whether touch UI is active (detected as touch device OR forced). */
     readonly isActive: boolean;
 
     /** F7a: tap przycisku slotu → aktywacja mocy z tego slotu (JEDYNA sciezka aktywacji). */
-    onSuperRequested: ((slot: 0 | 1) => void) | null = null;
+    onSuperRequested: ((slot: 0 | 1 | 2) => void) | null = null;
 
     constructor() {
         this.isActive = this.detectTouchDevice();
@@ -45,7 +48,7 @@ export class TouchInputManager {
         this.moveJoystick = new VirtualJoystick('left', 'floating');
         // v0.23.1: right joystick = FIXED (aim precision)
         this.aimJoystick = new VirtualJoystick('right', 'fixed');
-        this.superButtons = [new SuperButton(0), new SuperButton(1)];
+        this.superButtons = [new SuperButton(0), new SuperButton(1), new SuperButton(2)];
     }
 
     init(): void {
@@ -63,14 +66,15 @@ export class TouchInputManager {
         this.moveJoystick.mount(this.rootEl);
         this.aimJoystick.mount(this.rootEl);
         // Slot 1 montowany PIERWSZY (tutorial ringSelector '.bt-super-button--slot1').
+        // Kostka (index 2) montowana ZAWSZE, pokazywana per mecz (setDiceEnabled).
         for (const [i, btn] of this.superButtons.entries()) {
             btn.mount(this.rootEl);
-            btn.onRequest = () => this.onSuperRequested?.(i as 0 | 1);
+            btn.onRequest = () => this.onSuperRequested?.(i as 0 | 1 | 2);
         }
 
         this.hide();
 
-        console.log('[TouchInput] initialized — left=floating, right=fixed, 2 super slots');
+        console.log('[TouchInput] initialized — left=floating, right=fixed, 2 super slots + dice');
     }
 
     show(): void {
@@ -111,7 +115,7 @@ export class TouchInputManager {
     }
 
     /** F7a: charged glow per slot (wolane per-frame z main.ts; no-op wewnatrz przy braku zmiany). */
-    updateSuperChargedVisual(slot: 0 | 1, charged: boolean): void {
+    updateSuperChargedVisual(slot: 0 | 1 | 2, charged: boolean): void {
         if (!this.isActive) return;
         this.superButtons[slot].setCharged(charged);
     }
@@ -120,16 +124,37 @@ export class TouchInputManager {
      * v0.108.0: licznik cooldownu NA przycisku (mobile nie ma paska HUD) — wolane
      * per-frame z main.ts; SuperButton wewnetrznie thrash-guarduje DOM.
      */
-    updateSuperCooldown(slot: 0 | 1, progress: number, secsLeft: number): void {
+    updateSuperCooldown(slot: 0 | 1 | 2, progress: number, secsLeft: number): void {
         if (!this.isActive) return;
         this.superButtons[slot].setCooldown(progress, secsLeft);
     }
 
-    /** F7a: ikony mocy z loadoutu — RAZ na mecz (startGame), nie per-frame. */
-    setSlotPowers(emojis: [string, string]): void {
+    /** F7a: ikony mocy z loadoutu (v0.114.0: 3 sloty) — RAZ na mecz (startGame), nie per-frame. */
+    setSlotPowers(emojis: [string, string, string]): void {
         if (!this.isActive) return;
         this.superButtons[0].setPowerIcon(emojis[0]);
         this.superButtons[1].setPowerIcon(emojis[1]);
+        this.superButtons[2].setPowerIcon(emojis[2]);
+    }
+
+    /**
+     * v0.114.0: kostka 🎲 per mecz (toggle "Szalone Moce" w Garazu). Przycisk 3 jest
+     * ZAWSZE widoczny (3 sloty) — flaga przelacza tylko wyroznienie kostki (fioletowy
+     * shimmer-ring + badge 🎲, klasa CSS na przycisku).
+     */
+    setDiceEnabled(on: boolean): void {
+        if (!this.isActive) return;
+        this.diceEnabled = on;
+        this.superButtons[2].setDiceStyle(on);
+    }
+
+    /**
+     * v0.114.0: ikona kostki per-frame — emoji wylosowanej mocy podczas cooldownu,
+     * 🎲 gdy gotowa (Czytelnosc: dziecko widzi co wypadlo). setPowerIcon ma thrash-guard.
+     */
+    setDiceIcon(emoji: string): void {
+        if (!this.isActive) return;
+        this.superButtons[2].setPowerIcon(emoji);
     }
 
     // === Internal ===

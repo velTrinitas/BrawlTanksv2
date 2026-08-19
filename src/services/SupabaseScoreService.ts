@@ -60,6 +60,10 @@ interface MyRankRow { rank: number | null; my_score: number | null; total: numbe
  * Historia bumpow:
  *  - v1 (do v0.48.0): plaska suma `score += gem.value | enemy.scoreValue`,
  *    bez mnoznikow, bez bonusow.
+ *  - v4 (od v0.114.0): loadout 2 -> 3 sloty (kazdy gracz gra 3 mocami zamiast 2) —
+ *    sufit wynikow zwyklych runow rosnie. Formula scoringu BEZ zmian; bump =
+ *    separacja rankingu (precedens v3). Edge Function przyjmuje 1-1000 => bez
+ *    redeployu z tego tytulu. Runy z kostka 🎲 dodatkowo flagowane `fun_mode`.
  *  - v3 (od v0.102.0 / PROG-F7b): pierwsza NOWA moc (Naprawa) — sustain wydluza runy,
  *    sufit wynikow rosnie wzgledem puli 3 mocy legacy. Formula scoringu BEZ zmian;
  *    bump = separacja rankingu (fair porownanie). Wpisy v2 z kolejki offline weszly
@@ -76,7 +80,7 @@ interface MyRankRow { rank: number | null; my_score: number | null; total: numbe
  * NASTEPNY BUMP: po anti-cheat fazie (Layer 1+2) zeby wymusic nowe walidacje
  * server-side, ALBO przy kolejnym duzym balance refactor.
  */
-export const CURRENT_SCORE_VERSION = 3;
+export const CURRENT_SCORE_VERSION = 4;
 
 const QUEUE_KEY = 'brawltanks.scores.queue.v1';
 
@@ -207,6 +211,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
                 supers_fired: nonNegInt(stats.supersFired),
                 powers_used: nonNegInt(stats.powersUsed),
                 mega_boss_defeated: !!stats.megaBossDefeated,
+                fun_mode: !!stats.funMode, // v0.114.0 — kostka 🎲 uzyta w runie
             } : {}),
         };
 

@@ -30,13 +30,16 @@ const BASE_URL = import.meta.env.BASE_URL;
 
 /**
  * Slides w kolejnosci rotacji. Pierwszy = startujacy.
- * Kolejnosc: Desert (najjasniejszy, friendly) → Cyberpunk → Tropic → Arctic.
+ * v0.113.0 REBRAND (SIGMA TANKS): nowy key-art z logo graffiti — pierwszy slajd
+ * niesie brand. Stare 4 jpg Brawl_Tanks_* zostaja na dysku (rollback = przywrocic
+ * wpisy). Pelny rebrand (tytuly/manifest/domena sigmatanks.eu) = osobna faza R1-R3
+ * (plan w Notion "SIGMA TANKS — plan zmiany nazwy").
  */
 const SLIDES = [
-    { id: 'desert',    file: 'Brawl_Tanks_Desert.jpg' },
-    { id: 'cyberpunk', file: 'Brawl_Tanks_Cyberpunk.jpg' },
-    { id: 'tropic',    file: 'Brawl_Tanks_Tropic.jpg' },
-    { id: 'arctic',    file: 'Brawl_Tanks_Arctic.jpg' },
+    { id: 'sigma1', file: 'SigmaTanks_1.jpg' },
+    { id: 'sigma2', file: 'SigmaTanks2.jpg' },
+    { id: 'sigma3', file: 'SigmaTanks_3.jpg' },
+    { id: 'sigma4', file: 'SigmaTanks_4.jpg' },
 ];
 
 // ============================================================

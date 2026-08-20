@@ -316,6 +316,28 @@ export class AudioSys {
     }
 
     /**
+     * v0.114.1 anti-fatigue: jak safePlay, ale kazde odtworzenie dostaje losowy
+     * jitter pitch/glosnosci — likwiduje "machine-gun effect" (ucho meczy
+     * IDENTYCZNY sampel w petli; +-8% rate nie czyta sie jako zmiana wysokosci,
+     * a lamie powtarzalnosc). Tylko dla GESTYCH SFX (strzal/hit) — rzadkie
+     * jednorazowe dzwieki zostaja na safePlay 1:1.
+     * Koszt mobile: zero (natywny playbackRate Web Audio, zero nowych assetow).
+     */
+    private safePlayVaried(key: string, pitchJitter = 0.08, volJitter = 0.15): void {
+        const sound = this.sounds.get(key);
+        if (!sound) return;
+        try {
+            const id = sound.play();
+            // rate/volume PER-ID (drugi argument) — rownolegle instancje tego samego
+            // sampla nie nadpisuja sobie nawzajem parametrow.
+            sound.rate(1 + (Math.random() * 2 - 1) * pitchJitter, id);
+            sound.volume(sound.volume() * (1 - Math.random() * volJitter), id);
+        } catch (e) {
+            console.warn(`[AudioSys] Play failed for ${key}`, e);
+        }
+    }
+
+    /**
      * v0.42.0: Attempt to play music howl. Jeśli browser blokuje (autoplay policy),
      * zapisuje do pendingPlay i instaluje one-shot gesture listener.
      * Pierwsze pointerdown/keydown na document re-tryguje play.
@@ -459,11 +481,11 @@ export class AudioSys {
 
     playShoot(brawlerId: string): void {
         const type = SHOOT_TYPE_MAP[brawlerId] ?? 'standard';
-        this.safePlay(`shoot_${type}`);
+        this.safePlayVaried(`shoot_${type}`); // anti-fatigue jitter (v0.114.1)
     }
 
     playHit(type: 'enemy' | 'wall' | 'player'): void {
-        this.safePlay(`hit_${type}`);
+        this.safePlayVaried(`hit_${type}`); // anti-fatigue jitter (v0.114.1)
     }
 
     playExplosion(): void {

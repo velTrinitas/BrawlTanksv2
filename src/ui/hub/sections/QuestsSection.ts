@@ -103,7 +103,8 @@ export class QuestsSection implements HubSection {
         const cur = questDisplayValue(q.def.metric, q.current);
         const max = questDisplayValue(q.def.metric, q.target);
         const pct = Math.min(100, Math.round((q.current / q.target) * 100));
-        const reward = `🔩 ${q.def.bolts}${q.def.crates ? ' · 📦' : ''}`;
+        // v0.115.0: waluta = Sigma (moneta; wewnetrznie pole dalej 'bolts' — display-only).
+        const reward = `<img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${q.def.bolts}${q.def.crates ? ' · 📦' : ''}`;
 
         const action = q.claimed
             ? `<span class="bt-hub0-q-claimed">${t('hub.quests.claimed')}</span>`

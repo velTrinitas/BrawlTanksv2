@@ -3,7 +3,7 @@ import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
 import {
-    COSMETICS, cosmeticsByType, RARITY_COLOR,
+    COSMETICS, cosmeticsByType, RARITY_COLOR, nickColorStyle, frameStyle,
     type CosmeticDef, type CosmeticType,
 } from '../../../config/cosmetics';
 import { PITY_RARE_AT } from '../../../config/progression';
@@ -39,14 +39,19 @@ export class GarageSection implements HubSection {
         const cos = ProgressionService.getCosmeticState(pid);
         const pityLeft = PITY_RARE_AT - (cos.pityCounter % PITY_RARE_AT);
 
+        // v0.115.0 juice: gotowa skrzynka CELEBRUJE (zloty glow + lewitacja) — skrzynki
+        // to glowny hak petli, maja krzyczec "otworz mnie" (Sensoryka). is-ready tylko
+        // tutaj (Rozkazy reuzywaja .bt-hub0-cratebox, ale nigdy nie dostaja tej klasy).
+        const hasCrates = cos.crateCount > 0;
         const crateBox = `
-            <div class="bt-hub0-cratebox">
+            <div class="bt-hub0-cratebox${hasCrates ? ' is-ready' : ''}">
+                ${hasCrates ? '<div class="bt-hub0-crate-glow" aria-hidden="true"></div>' : ''}
                 <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
                 <div class="bt-hub0-crate-info">
                     <b>${t('hub.garage.crates', { n: cos.crateCount })}</b>
                     <small>${t('hub.garage.pity', { n: pityLeft })}</small>
                 </div>
-                <button class="bt-hub0-play" data-action="open-crate" type="button" ${cos.crateCount > 0 ? '' : 'disabled'}>
+                <button class="bt-hub0-play" data-action="open-crate" type="button" ${hasCrates ? '' : 'disabled'}>
                     ${t('hub.garage.open')}
                 </button>
             </div>`;
@@ -124,9 +129,11 @@ export class GarageSection implements HubSection {
         // losowania kostki. T3 nie wchodzi do loadoutu, wiec chipy sa pokazowe
         // (bez lockow i progow — dostep daje sama kostka).
         const funOn = ps.funModeOn;
+        // v0.115.0: pula kostki w tej samej "gramatyce" co kafle mocy (spojnosc);
+        // span nie button — pokazowe, dostep daje kostka, nie tap.
         const diceChips = TIER3_POWERS.map(id => {
             const def = POWERS[id];
-            return `<span class="bt-hub0-dicechip"><span class="pi" aria-hidden="true">${def.emoji}</span>${t(def.labelKey)}</span>`;
+            return `<span class="bt-hub0-dicechip"><span class="pi" aria-hidden="true">${def.emoji}</span><span class="pn">${t(def.labelKey)}</span></span>`;
         }).join('');
         const crazySection = `
             <div class="bt-hub0-crazy">
@@ -144,6 +151,21 @@ export class GarageSection implements HubSection {
                 <div class="bt-hub0-dicepool">${diceChips}</div>
             </div>`;
 
+        // v0.115.0: teaser Rang Zalog — 2 badge placeholder (public/ranks, 160px; docelowo
+        // programmatic renderer wg docs/crew-ranks-v1.md). Statyczny, zero animacji.
+        const ranksTeaser = `
+            <div class="bt-hub0-ranks-teaser">
+                <div class="rt-head">
+                    <span class="rt-title">🎖️ ${t('hub.garage.ranksTitle')}</span>
+                    <span class="rt-soon">${t('hub.garage.ranksSoonChip')}</span>
+                </div>
+                <div class="rt-badges" aria-hidden="true">
+                    <img src="${import.meta.env.BASE_URL}ranks/L1_rekrut.png" alt="">
+                    <img src="${import.meta.env.BASE_URL}ranks/L2_gunner.png" alt="">
+                </div>
+                <small class="rt-hint">${t('hub.garage.ranksSoon')}</small>
+            </div>`;
+
         return `
             <div class="bt-hub0-loadout">
                 <div class="bt-hub0-cos-grouptitle">⚡ ${t('hub.garage.loadout')}</div>
@@ -151,18 +173,34 @@ export class GarageSection implements HubSection {
                 <div class="bt-hub0-pow-grid">${grid}</div>
                 <small class="bt-hub0-lhint">${t('hub.garage.loadoutHint')}</small>
             </div>
-            ${crazySection}`;
+            ${crazySection}
+            ${ranksTeaser}`;
     }
 
     private cosmeticChip(def: CosmeticDef, cos: { owned: readonly string[]; equipped: Partial<Record<CosmeticType, string>> }): string {
         const owned = cos.owned.includes(def.id);
         const equipped = cos.equipped[def.type] === def.id;
         const label = def.type === 'title' ? t(def.labelKey as 'cosmetic.ti_recruit') : t(def.labelKey as 'cosmetic.nc_silver');
+        // v0.115.0 WYSIWYG (fix Czytelnosci: "Karmazynowy" pokazywal kolor RZADKOSCI):
+        // karta = prawdziwy podglad kosmetyku. nickColor: nazwa w SWOIM kolorze/gradiencie
+        // (nickColorStyle 1:1 z readoutem huba) + tlo karty z koloru (solidne; gradientowe
+        // pokazuja sie na nazwie). frame: kropka = mini-ring z border/glow defa.
+        // Rzadkosc ZOSTAJE na kropce (nickColor/title) — dwa kanaly, zero konfliktu.
+        const hexColor = RARITY_COLOR[def.rarity];
+        const isNick = def.type === 'nickColor';
+        const isFrame = def.type === 'frame';
+        const cardColor = isNick && def.color && !def.gradient ? `${def.color}66` : `${hexColor}80`;
+        const nmStyle = isNick && owned ? nickColorStyle(def) : '';
+        const nmShimmer = isNick && owned && def.animated ? ' bt-cos-shimmer' : '';
+        const dot = isFrame
+            ? `<span class="dot dot--frame" style="${frameStyle(def)}" aria-hidden="true"></span>`
+            : `<span class="dot" style="background:${hexColor};" aria-hidden="true"></span>`;
         return `
             <button class="bt-hub0-cos${owned ? '' : ' is-locked'}${equipped ? ' is-equipped' : ''}"
+                    style="--rarity-color:${cardColor};"
                     data-cos="${owned ? def.id : ''}" type="button" ${owned ? '' : 'aria-disabled="true"'}>
-                <span class="dot" style="background:${RARITY_COLOR[def.rarity]};" aria-hidden="true"></span>
-                <span class="nm">${owned ? label : '🔒'}</span>
+                ${dot}
+                <span class="nm${nmShimmer}" style="${nmStyle}">${owned ? label : '🔒'}</span>
                 ${equipped ? '<span class="eq" aria-hidden="true">✓</span>' : ''}
             </button>`;
     }

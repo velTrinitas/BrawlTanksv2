@@ -43,7 +43,7 @@ export class StatsOverlay {
                 <h3 class="bt-hub0-modal-title">📊 ${t('hub.stats.title')}</h3>
                 <div class="bt-hub0-stats">
                     ${tile('🏆', trophies, t('hub.nav.trophies'))}
-                    ${tile('🔩', bolts, t('hub.stats.bolts'))}
+                    ${tile(`<img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">`, bolts, t('hub.stats.bolts'))}
                     ${tile('🎯', milestones, t('hub.stats.milestones'))}
                     ${tile('🎮', games, t('hub.stats.games'))}
                     ${tile('📅', since, t('hub.stats.since'))}

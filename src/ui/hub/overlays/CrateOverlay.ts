@@ -124,7 +124,7 @@ export class CrateOverlay {
                     <div class="bt-hub0-reveal-rays" aria-hidden="true"></div>
                     <div class="bt-hub0-reveal-rarity" style="color:${color};">${t(RARITY_LABEL_KEY[r.rarity])}</div>
                     ${rewardLine}
-                    <div class="bt-hub0-reveal-bolts">🔩 +${r.bolts} ${t('crate.bolts')}</div>
+                    <div class="bt-hub0-reveal-bolts"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> +${r.bolts} ${t('crate.bolts')}</div>
                     <button class="bt-hub0-play" data-action="done" type="button">${t('common.close')}</button>
                 </div>
             </div>`;

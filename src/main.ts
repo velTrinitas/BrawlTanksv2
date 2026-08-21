@@ -2306,7 +2306,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     const trophyRow = (d.trophiesGained && d.trophiesGained > 0) ? `
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
             <span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#3a2b0f;background:linear-gradient(135deg,#ffe066,#f1c40f);padding:5px 14px;border-radius:12px;border:2px solid #b8860b;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🏆 +${d.trophiesGained} ${t('end.trophies')}</span>
-            ${d.boltsGained ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#5b6672;padding:5px 14px;border-radius:12px;border:2px solid #3a434d;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🔩 +${d.boltsGained} ${t('end.bolts')}</span>` : ''}
+            ${d.boltsGained ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#5b6672;padding:5px 14px;border-radius:12px;border:2px solid #3a434d;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);"><img src="${import.meta.env.BASE_URL}assets/sigma.png" alt="" style="width:14px;height:14px;vertical-align:-2px;"> +${d.boltsGained} ${t('end.bolts')}</span>` : ''}
             ${d.milestoneBolts && d.milestoneBolts > 0 ? `<span style="font-family:${TITAN};font-size:0.82rem;color:#fff;background:#27ae60;padding:5px 14px;border-radius:12px;border:2px solid #1e8449;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎖️ ${t('end.milestone')}!</span>` : ''}
             ${d.questsDone && d.questsDone > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#c0721c;padding:5px 14px;border-radius:12px;border:2px solid #8a4f12;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📋 ${t('end.questsDone', { n: d.questsDone })}</span>` : ''}
             ${d.diceUsed && d.diceUsed > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #6c3483;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎲 ${t('end.funMode')}</span>` : ''}
@@ -2324,7 +2324,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     const trophyRowV2 = (d.trophiesGained && d.trophiesGained > 0) ? `
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:nowrap;margin-top:2px;">
             ${chipC('linear-gradient(135deg,#ffe066,#f1c40f)', '#b8860b', '#3a2b0f', `🏆 +${d.trophiesGained}`)}
-            ${d.boltsGained ? chipC('#5b6672', '#3a434d', '#fff', `🔩 +${d.boltsGained}`) : ''}
+            ${d.boltsGained ? chipC('#5b6672', '#3a434d', '#fff', `<img src="${import.meta.env.BASE_URL}assets/sigma.png" alt="" style="width:12px;height:12px;vertical-align:-1px;"> +${d.boltsGained}`) : ''}
             ${d.milestoneBolts && d.milestoneBolts > 0 ? chipC('#27ae60', '#1e8449', '#fff', `🎖️ +${d.milestoneBolts}`) : ''}
             ${d.questsDone && d.questsDone > 0 ? chipC('#c0721c', '#8a4f12', '#fff', `📋 ${d.questsDone}`) : ''}
             ${d.diceUsed && d.diceUsed > 0 ? chipC('#8e44ad', '#6c3483', '#fff', '🎲') : ''}

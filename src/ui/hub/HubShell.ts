@@ -154,7 +154,7 @@ export class HubShell implements IScreen {
             <span class="bt-hub0-spacer"></span>
             <span class="bt-hub0-wallet">
                 <span class="bt-hub0-coin"><span class="ic" aria-hidden="true">🏆</span>${trophies}</span>
-                <span class="bt-hub0-coin"><span class="ic" aria-hidden="true">🔩</span>${bolts}</span>
+                <span class="bt-hub0-coin"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</span>
             </span>
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>

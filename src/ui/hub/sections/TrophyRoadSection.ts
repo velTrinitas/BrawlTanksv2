@@ -35,7 +35,7 @@ export class TrophyRoadSection implements HubSection {
                     <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
                     <div class="info">
                         <b>${m.threshold} 🏆</b>
-                        <span class="reward">🔩 ${m.bolts}${m.labelKey ? ` · ${t(m.labelKey)}` : ''}</span>
+                        <span class="reward"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${m.bolts}${m.labelKey ? ` · ${t(m.labelKey)}` : ''}</span>
                     </div>
                     ${isNext ? `<span class="tag">${t('hub.road.next')}</span>` : ''}
                 </div>`;

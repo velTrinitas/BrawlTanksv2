@@ -175,7 +175,7 @@ export const pl = {
     'hub.rank.error': 'Nie udało się wczytać rankingu',
     // HUB-5 — Statystyki
     'hub.stats.title': 'Statystyki',
-    'hub.stats.bolts': 'Śrubki',
+    'hub.stats.bolts': 'Sigmy',
     'hub.stats.milestones': 'Kamienie milowe',
     'hub.stats.games': 'Rozegrane gry',
     'hub.stats.since': 'Gra od',
@@ -198,8 +198,8 @@ export const pl = {
     'crate.pools': 'Co może wypaść?',
     'crate.close': 'Zamknij',
     'crate.newCosmetic': 'Nowy kosmetyk!',
-    'crate.dup': 'Duplikat → śrubki',
-    'crate.bolts': 'śrubek',
+    'crate.dup': 'Duplikat → sigmy',
+    'crate.bolts': 'sigm',
     'cosmetic.nc_silver': 'Srebrny nick',
     'cosmetic.nc_gold': 'Złoty nick',
     'cosmetic.nc_lime': 'Limonkowy nick',
@@ -292,6 +292,9 @@ export const pl = {
     'hub.garage.powerLocked': 'Od {n} 🏆',
     'hub.garage.funMode': 'Szalone Moce',
     'hub.garage.funModeHint': 'Trzeci przycisk 🎲 losuje szaloną moc przy każdym użyciu!',
+    'hub.garage.ranksTitle': 'Rangi Załóg',
+    'hub.garage.ranksSoonChip': 'WKRÓTCE',
+    'hub.garage.ranksSoon': 'Zdobywaj rangi za zwycięstwa każdym czołgiem!',
 
     'hub.quests.daily': 'ROZKAZY DNIA',
     'hub.quests.weekly': 'ROZKAZY TYGODNIA',
@@ -299,7 +302,7 @@ export const pl = {
     'hub.quests.claimed': 'ODEBRANE',
     'hub.quests.setTitle': 'Komplet dnia',
     'hub.quests.setDesc': 'Wykonaj wszystkie 3 rozkazy dnia',
-    'hub.quests.setReward': '+{bolts} 🔩 i skrzynka',
+    'hub.quests.setReward': '+{bolts} sigm i skrzynka',
     'hub.quests.locked': 'Rozkazy od {n} 🏆',
     'hub.quests.lockedHint': 'Zdobywaj trofea w meczach — zostało {n} 🏆',
     'hub.quests.resetDaily': 'Nowe rozkazy jutro',
@@ -348,7 +351,7 @@ export const pl = {
     'quest.general.7': 'Kto dziś zrobi wszystkie trzy, ten je ze mną obiad.',
     'quest.general.8': 'Pancerz masz. Odwagę? Zaraz sprawdzimy.',
     'quest.general.9': 'Trzy rozkazy. Jeden dzień. Zero wymówek.',
-    'quest.general.10': 'Śrubki nie rosną na drzewach, rekrucie.',
+    'quest.general.10': 'Sigmy nie rosną na drzewach, rekrucie.',
     'quest.general.11': 'Uśmiech na twarz i marsz do czołgu!',
     'quest.general.12': 'Generał Pancerz melduje: masz robotę.',
 
@@ -547,7 +550,7 @@ export const pl = {
     'end.backToMenu': 'POWRÓT DO MENU',
     // PROG-F1 — progresja na endcardzie
     'end.trophies': 'TROFEA',
-    'end.bolts': 'ŚRUBKI',
+    'end.bolts': 'SIGMY',
     'end.milestone': 'KAMIEŃ MILOWY',
 
     // ============================================================

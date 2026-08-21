@@ -166,7 +166,7 @@ export const en: typeof pl = {
     'hub.rank.error': 'Failed to load ranking',
     // HUB-5 — Stats
     'hub.stats.title': 'Stats',
-    'hub.stats.bolts': 'Bolts',
+    'hub.stats.bolts': 'Sigma',
     'hub.stats.milestones': 'Milestones',
     'hub.stats.games': 'Games played',
     'hub.stats.since': 'Playing since',
@@ -189,8 +189,8 @@ export const en: typeof pl = {
     'crate.pools': 'What can drop?',
     'crate.close': 'Close',
     'crate.newCosmetic': 'New cosmetic!',
-    'crate.dup': 'Duplicate → bolts',
-    'crate.bolts': 'bolts',
+    'crate.dup': 'Duplicate → sigma',
+    'crate.bolts': 'sigma',
     'cosmetic.nc_silver': 'Silver nick',
     'cosmetic.nc_gold': 'Gold nick',
     'cosmetic.nc_lime': 'Lime nick',
@@ -281,6 +281,9 @@ export const en: typeof pl = {
     'hub.garage.powerLocked': 'From {n} 🏆',
     'hub.garage.funMode': 'Crazy Powers',
     'hub.garage.funModeHint': 'A third 🎲 button rolls a random crazy power every time!',
+    'hub.garage.ranksTitle': 'Crew Ranks',
+    'hub.garage.ranksSoonChip': 'COMING SOON',
+    'hub.garage.ranksSoon': 'Earn ranks for wins with every tank!',
 
     'hub.quests.daily': 'DAILY ORDERS',
     'hub.quests.weekly': 'WEEKLY ORDERS',
@@ -288,7 +291,7 @@ export const en: typeof pl = {
     'hub.quests.claimed': 'CLAIMED',
     'hub.quests.setTitle': 'Daily set',
     'hub.quests.setDesc': 'Complete all 3 daily orders',
-    'hub.quests.setReward': '+{bolts} 🔩 and a crate',
+    'hub.quests.setReward': '+{bolts} sigma and a crate',
     'hub.quests.locked': 'Orders from {n} 🏆',
     'hub.quests.lockedHint': 'Earn trophies in battles — {n} 🏆 to go',
     'hub.quests.resetDaily': 'New orders tomorrow',
@@ -337,7 +340,7 @@ export const en: typeof pl = {
     'quest.general.7': 'Whoever clears all three today eats lunch with me.',
     'quest.general.8': 'You have the armour. Courage? We will see.',
     'quest.general.9': 'Three orders. One day. Zero excuses.',
-    'quest.general.10': 'Bolts do not grow on trees, recruit.',
+    'quest.general.10': 'Sigma does not grow on trees, recruit.',
     'quest.general.11': 'Chin up and into the tank!',
     'quest.general.12': 'General Armour reporting: you have work to do.',
 
@@ -535,7 +538,7 @@ export const en: typeof pl = {
     'end.backToMenu': 'BACK TO MENU',
     // PROG-F1 — progression on endcard
     'end.trophies': 'TROPHIES',
-    'end.bolts': 'BOLTS',
+    'end.bolts': 'SIGMA',
     'end.milestone': 'MILESTONE',
 
     // ============================================================

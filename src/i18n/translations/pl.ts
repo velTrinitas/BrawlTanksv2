@@ -292,6 +292,8 @@ export const pl = {
     'hub.garage.powerLocked': 'Od {n} 🏆',
     'hub.garage.funMode': 'Szalone Moce',
     'hub.garage.funModeHint': 'Trzeci przycisk 🎲 losuje szaloną moc przy każdym użyciu!',
+    'hub.battle.difficulty': 'Poziom trudności',
+    'hub.battle.pickTank': 'Wybierz czołg',
     'hub.garage.ranksTitle': 'Rangi Załóg',
     'hub.garage.ranksSoonChip': 'WKRÓTCE',
     'hub.garage.ranksSoon': 'Zdobywaj rangi za zwycięstwa każdym czołgiem!',

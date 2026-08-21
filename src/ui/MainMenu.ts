@@ -377,16 +377,29 @@ export class MainMenu {
         return screen;
     }
 
-    /** HUB-0/HUB-1 — nowy Menu Hub. Nav przez this.show(); GRAJ (BITWA) ustawia wybor
-     *  scenariusza+mapy i routuje do istniejacego brawlerPicker (reuse drugiej polowy flow). */
+    /** HUB-0/HUB-1 — nowy Menu Hub. Nav przez this.show().
+     *  HUB-1.5 (v0.116.0): BITWA niesie PELNY wybor (czolg-hero + trudnosc-pigulki w hubie,
+     *  wzorzec Brawl Stars) — GameConfig budowany TUTAJ i mecz startuje NATYCHMIAST, bez
+     *  ekranu brawlerPicker (ten zostaje dla ?hub=0 + tutoriala). */
     private createHub0Screen(): IScreen {
         const screen = new HubShell();
         screen.onOpenSettings = () => this.show('settings');
         screen.onOpenLeaderboard = () => this.show('leaderboard');
-        screen.onPlay = (scenario, map) => {
+        screen.onPlay = (scenario, map, brawlerId, difficulty) => {
             this.lastScenarioSelection = scenario;
             this.lastMapSelection = map;
-            this.show('brawlerPicker');
+            this.lastBrawlerSelection = brawlerId;
+            this.lastDifficultySelection = difficulty;
+            const activeProfileId = ProfileService.getActiveProfile()?.id ?? 'default';
+            const config = new GameConfigBuilder()
+                .setScenario(scenario)
+                .setMap(map)
+                .setBrawlerId(brawlerId)
+                .setDifficulty(difficulty)
+                .setProfileId(activeProfileId)
+                .build();
+            console.log('[MainMenu] GameConfig built (hub direct):', config);
+            this.onGameRequested?.(config);
         };
         return screen;
     }

@@ -13,6 +13,7 @@ import { RankSection } from './sections/RankSection';
 import { StatsOverlay } from './overlays/StatsOverlay';
 import { CrateOverlay } from './overlays/CrateOverlay';
 import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
+import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
 
@@ -49,10 +50,14 @@ export class HubShell implements IScreen {
     // callbacki wpinane przez MainMenu.createHub0Screen()
     public onOpenSettings: (() => void) | null = null;
     public onOpenLeaderboard: (() => void) | null = null;
-    public onPlay: ((scenario: ScenarioId, map: MapId) => void) | null = null;
+    /** HUB-1.5: pelny wybor z BITWY — MainMenu buduje GameConfig i startuje mecz od razu. */
+    public onPlay: ((scenario: ScenarioId, map: MapId, brawlerId: string, difficulty: DifficultyId) => void) | null = null;
 
     constructor() {
-        this.battle.onPlay = (scenario, map) => this.onPlay?.(scenario, map);
+        // HUB-1.5b: wybor czolgu zyje INLINE w BattleSection (grid 8 kart) —
+        // hub tylko przekazuje pelny wybor do MainMenu (bezposredni start meczu).
+        this.battle.onPlay = (scenario, map, brawlerId, difficulty) =>
+            this.onPlay?.(scenario, map, brawlerId, difficulty);
         this.rank.onOpenLeaderboard = () => this.onOpenLeaderboard?.();
         // F2a — GARAŻ: OTWÓRZ skrzynkę => CrateOverlay; po zamknięciu re-render GARAŻU
         this.garage.onOpenCrate = () => {

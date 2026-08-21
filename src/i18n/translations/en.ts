@@ -281,6 +281,8 @@ export const en: typeof pl = {
     'hub.garage.powerLocked': 'From {n} 🏆',
     'hub.garage.funMode': 'Crazy Powers',
     'hub.garage.funModeHint': 'A third 🎲 button rolls a random crazy power every time!',
+    'hub.battle.difficulty': 'Difficulty',
+    'hub.battle.pickTank': 'Pick your tank',
     'hub.garage.ranksTitle': 'Crew Ranks',
     'hub.garage.ranksSoonChip': 'COMING SOON',
     'hub.garage.ranksSoon': 'Earn ranks for wins with every tank!',

@@ -9,6 +9,10 @@ import { LEADERBOARD_BOARDS, type LeaderboardEntry, type MyRank } from '../../..
  * (leaderboardService RPC — ten sam co LeaderboardScreen): top-5 boardu KTB (all-time,
  * agregat map) + przypiety wiersz „TY”. Deep-link „Pelny ranking” → MainMenu.show('leaderboard').
  * Async z token-guard (przelaczenie sekcji w trakcie fetchu nie nadpisze cudzej tresci).
+ *
+ * v0.119.0 (decyzja Mariusza): nav RANKING otwiera OD RAZU pelny LeaderboardScreen
+ * (przechwycenie w HubShell.wire) — render() mini-boardu NIEOSIAGALNY z nav.
+ * Klasa zostaje w sections[] (daje ikone/label nav) i na wypadek powrotu widgetu.
  */
 export class RankSection implements HubSection {
     public readonly id = 'rank';

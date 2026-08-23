@@ -237,6 +237,13 @@ export class HubShell implements IScreen {
             const target = e.target as HTMLElement;
             const navBtn = target.closest<HTMLElement>('[data-section]');
             if (navBtn?.dataset.section) {
+                // v0.119.0 (decyzja Mariusza): nav RANKING otwiera OD RAZU pelny
+                // LeaderboardScreen — mini-board z przyciskiem "Pelny ranking" byl
+                // zbednym krokiem. Hub zostaje na biezacej sekcji (BACK wraca tu).
+                if (navBtn.dataset.section === 'rank') {
+                    this.onOpenLeaderboard?.();
+                    return;
+                }
                 this.setActive(navBtn.dataset.section as SectionId);
                 return;
             }

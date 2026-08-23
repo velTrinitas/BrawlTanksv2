@@ -136,7 +136,7 @@ export class BattleSection implements HubSection {
             </span>`;
         const tanks = `
             <div class="bt-hub0-subhead">🚜 ${t('hub.battle.pickTank')}</div>
-            <div class="bt-hub0-cards">${tankCards}${enigma}</div>`;
+            <div class="bt-hub0-cards bt-hub0-cards--tanks">${tankCards}${enigma}</div>`;
 
         // ── SCENARIUSZE 3x1 (ktb/ctf/castle; save_king wyciety) ─────────────
         const scenCards = SCENARIO_ORDER.map(id => {
@@ -190,20 +190,10 @@ export class BattleSection implements HubSection {
             maps = `
             <div class="bt-hub0-subhead">🗺️ ${t('picker.mapTitle')}</div>
             <div class="bt-hub0-cards">${mapCards}${soonMap}${soonMap}</div>`;
-        } else if (this.selectedScenario === 'ctf') {
-            // Jedyna mapa CTF — zawsze zaznaczona (podglad SVG dojdzie z rozwojem mapy).
-            maps = `
-            <div class="bt-hub0-subhead">🗺️ ${t('picker.mapTitle')}</div>
-            <div class="bt-hub0-cards">
-                <span class="bt-hub0-card is-selected is-fixed">
-                    <span class="cd-media"><span class="cd-emoji" aria-hidden="true">🏛️</span></span>
-                    <span class="cd-body">
-                        <span class="cd-top"><b class="cd-name">🏛️ FORTIFIED RUINS</b></span>
-                        <span class="cd-sub">${t('scenario.ctf.desc')}</span>
-                    </span>
-                </span>
-            </div>`;
         }
+        // Iteracja 7 (pkt 5, decyzja Mariusza): CTF BEZ osobnego boxa mapy —
+        // mapa jest wbudowana (fortified_ruins), wybor scenariusza = gotowy do GRAJ
+        // (PLAY summary dalej pokazuje FORTIFIED RUINS).
 
         // ── TRUDNOSC (pigulki — bez zmian) ──────────────────────────────────
         const diffs = `

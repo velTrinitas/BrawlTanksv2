@@ -23,8 +23,8 @@ import { t } from '../i18n/i18n';
 
 export type PowerId =
     | 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost' | 'mines' | 'build'
-    | 'strike' | 'hole' | 'laser' | 'pong'                      // TIER 2 premium (v0.111.0)
-    | 'duck' | 'locker' | 'disco' | 'granny' | 'burp';          // TIER 3 szalone (v0.112.0)
+    | 'strike' | 'hole' | 'laser'                               // TIER 2 premium (v0.111.0)
+    | 'pong' | 'duck' | 'locker' | 'disco' | 'granny' | 'burp'; // TIER 3 / FUN (v0.112.0; pong od v0.119.0)
 
 /**
  * Loadout gracza: 3 sloty (GARAZ, v0.114.0 — bylo 2). null = pusty slot (nie powinno
@@ -562,6 +562,9 @@ export const POWERS: Record<PowerId, PowerDef> = {
             return { activated: true, powerId: 'laser' };
         },
     },
+    // ═══ TIER 3 / FUN (v0.112.0) — pula slotu 🎲, art z Tier3Baker (gradienty) ═══
+    // v0.119.0 (decyzja Mariusza): PONG przeniesiony z Tier 2 do puli FUN —
+    // dostep WYLACZNIE przez kostke; unlockAtTrophies bez znaczenia dla kostki.
     pong: {
         id: 'pong',
         name: 'Ping-Pong',
@@ -570,7 +573,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
         color: 0xffe066,
         cooldownMs: 30000,       // sim 14s = demo
         durationFrames: 0,
-        unlockAtTrophies: 4000,  // PROWIZORYCZNE
+        unlockAtTrophies: 8500,  // PROWIZORYCZNE — docelowo slot 🎲
         onActivate: (ctx) => {
             ctx.system.pongActivate();
             ctx.hud.addNotif(t('hud.pongStart'), '#ffe066');
@@ -578,7 +581,6 @@ export const POWERS: Record<PowerId, PowerDef> = {
             return { activated: true, powerId: 'pong' };
         },
     },
-    // ═══ TIER 3 SZALONE (v0.112.0) — pula slotu 🎲, art z Tier3Baker (gradienty) ═══
     duck: {
         id: 'duck',
         name: 'Kaczka',
@@ -673,7 +675,8 @@ export const POWERS: Record<PowerId, PowerDef> = {
  * UWAGA: gdyby ALLOWED_POWERS kiedys zawezil scenariusz, pule kostki trzeba
  * przeciac z macierza (dzis wszystko null = pelna pula).
  */
-export const TIER3_POWERS: readonly PowerId[] = ['duck', 'locker', 'disco', 'granny', 'burp'];
+// v0.119.0: +pong (z Tier 2) => 6 fun mocy; pong "najmniej szalony" otwiera pule.
+export const TIER3_POWERS: readonly PowerId[] = ['pong', 'duck', 'locker', 'disco', 'granny', 'burp'];
 
 /** Cooldown slotu 🎲 — rowny cooldownowi kazdej mocy T3 (wszystkie 30000ms). */
 export const DICE_COOLDOWN_MS = 30000;
@@ -686,8 +689,8 @@ export const DICE_EMOJI = '🎲';
 /** Kolejnosc wyswietlania (GARAZ picker) + inicjalizacja cooldownow. */
 export const POWER_ORDER: readonly PowerId[] = [
     'aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower', 'ghost',
-    'strike', 'hole', 'laser', 'pong', // Tier 2 premium
-    ...TIER3_POWERS,                   // Tier 3 szalone (pula 🎲)
+    'strike', 'hole', 'laser',         // Tier 2 premium (pong -> FUN w v0.119.0)
+    ...TIER3_POWERS,                   // Tier 3 / FUN (pula 🎲, w tym pong)
 ];
 
 export function getPowerDef(id: string): PowerDef | undefined {

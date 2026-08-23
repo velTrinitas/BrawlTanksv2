@@ -125,7 +125,7 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'super_disco',  file: 'super_disco.wav',  volume: VOLUMES.superActivate },        // funky sting (stopa+hat+bas)
     { key: 'disco_groove', file: 'disco_groove.wav', volume: VOLUMES.superActivate * 0.8 },  // v2: 6s groove 125BPM w TLE imprezy (syntezowany = zero praw autorskich)
     { key: 'super_granny', file: 'super_granny.wav', volume: VOLUMES.superActivate * 0.9 },  // boing-boing + klap walka
-    { key: 'super_burp',   file: 'super_burp.wav',   volume: VOLUMES.superActivate * 1.1 },  // MEGA BEKA (gliss + chrypka)
+    { key: 'super_burp',   file: 'SP_burp.mp3',      volume: VOLUMES.superActivate * 1.1 },  // MEGA BEK — asset Mariusza (v0.119.0, zastapil generowany)
     // F7b-3 Salwa Rakiet — oba generowane proceduralnie (scratchpad gen_rocket_sfx.js)
     { key: 'rocket_launch', file: 'SP_missile.mp3',    volume: VOLUMES.superActivate * 0.7 }, // asset Mariusza (zastapil generowany); grany 8x co ~80ms = rytm tuk-tuk
     { key: 'rocket_boom',   file: 'rocket_boom.wav',   volume: VOLUMES.explosion * 0.7 },     // mniejszy niz explosion.mp3 (8 boomow/salwa)

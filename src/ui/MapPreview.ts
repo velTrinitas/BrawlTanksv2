@@ -52,13 +52,16 @@ export function renderMapPreview(type: PreviewType): string {
 // - Sand particles (subtle drift right via CSS .mpd-particle)
 // =============================================================
 function renderDesert(): string {
+    // v0.119.0 (iteracja 7): preserveAspectRatio SLICE = pelne wypelnienie
+    // kwadratowego boxa karty (kadr = centrum sceny, strefa bezpieczna x~50-190);
+    // slonce przesuniete do kadru, +chmurka dryfujaca (juice).
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-desert" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-desert" aria-hidden="true">
   <defs>
     <linearGradient id="bt-d-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#ffd89b"/>
-      <stop offset="55%"  stop-color="#ffb976"/>
-      <stop offset="100%" stop-color="#f4a55a"/>
+      <stop offset="0%"   stop-color="#ffdf9e"/>
+      <stop offset="55%"  stop-color="#ffb163"/>
+      <stop offset="100%" stop-color="#f79b45"/>
     </linearGradient>
     <linearGradient id="bt-d-sand-back" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#d49c5e"/>
@@ -82,7 +85,16 @@ function renderDesert(): string {
   <!-- Sky -->
   <rect x="0" y="0" width="240" height="105" fill="url(#bt-d-sky)"/>
 
-  <!-- Sun + rays -->
+  <!-- Chmurka dryfujaca (juice, iteracja 7) -->
+  <g class="mp7-cloud" opacity="0.8">
+    <ellipse cx="0" cy="20" rx="14" ry="5" fill="#fff" opacity="0.85"/>
+    <ellipse cx="10" cy="17" rx="9" ry="4.5" fill="#fff" opacity="0.75"/>
+    <ellipse cx="-9" cy="18" rx="8" ry="4" fill="#fff" opacity="0.7"/>
+  </g>
+
+  <!-- Sun + rays (wrapper-translate do strefy kadru slice; animacja na wewnetrznej
+       grupie .mpd-sun — transform animacji nie nadpisuje przesuniecia) -->
+  <g transform="translate(-33,4)">
   <g class="mpd-sun">
     <circle cx="195" cy="28" r="13" fill="url(#bt-d-sun)"/>
     <g opacity="0.45" stroke="#fff200" stroke-width="2" stroke-linecap="round">
@@ -95,6 +107,7 @@ function renderDesert(): string {
       <line x1="181" y1="42" x2="178" y2="45"/>
       <line x1="209" y1="42" x2="212" y2="45"/>
     </g>
+  </g>
   </g>
 
   <!-- Back dunes -->
@@ -138,8 +151,10 @@ function renderDesert(): string {
 // - Drone flying across (left → right, looped)
 // =============================================================
 function renderCyberpunk(): string {
+    // v0.119.0 (iteracja 7): slice = pelne wypelnienie boxa (hero building juz
+    // centralny); +drugi mrugajacy neon-szyld na hero (juice).
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-cyberpunk" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-cyberpunk" aria-hidden="true">
   <defs>
     <!-- Runda 1.26: synthwave sunset gradient zamiast dark purple
          (per feedback Mariusza: "mocno zachodzace slonce, bylo za ciemne") -->
@@ -246,6 +261,8 @@ function renderCyberpunk(): string {
     <!-- Top antenna -->
     <line x1="100" y1="30" x2="100" y2="18" stroke="#00ffff" stroke-width="1.2" filter="url(#bt-c-glow)" opacity="0.9"/>
     <circle class="mpc-antenna-light" cx="100" cy="16" r="2.2" fill="#ff0066" filter="url(#bt-c-glow)"/>
+    <!-- Pionowy neon-szyld na hero (mruga — juice, iteracja 7) -->
+    <rect class="mp7-neon" x="120" y="36" width="2.5" height="18" fill="#00ffe1" filter="url(#bt-c-glow)"/>
   </g>
 
   <!-- Building 3 (right) -->
@@ -299,13 +316,15 @@ function renderCyberpunk(): string {
 // - Sun (warm, soft)
 // =============================================================
 function renderTropics(): string {
+    // v0.119.0 (iteracja 7): slice = pelne wypelnienie boxa; wodospad i palmy
+    // przesuniete do strefy kadru (x~50-190); +ptak przelatujacy petla (juice).
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-tropics" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-tropics" aria-hidden="true">
   <defs>
     <linearGradient id="bt-t-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#7be3a6"/>
-      <stop offset="60%"  stop-color="#3da876"/>
-      <stop offset="100%" stop-color="#1a6e4a"/>
+      <stop offset="0%"   stop-color="#84f0ae"/>
+      <stop offset="60%"  stop-color="#37b478"/>
+      <stop offset="100%" stop-color="#137a4c"/>
     </linearGradient>
   </defs>
 
@@ -319,14 +338,19 @@ function renderTropics(): string {
   <!-- Distant mountains -->
   <path d="M0,80 Q40,58 80,72 Q120,52 160,68 Q200,48 240,66 L240,100 L0,100 Z" fill="#2e8556" opacity="0.85"/>
 
-  <!-- Waterfall (animated) -->
-  <g>
+  <!-- Waterfall (animated; wrapper-translate do strefy kadru slice) -->
+  <g transform="translate(-28,0)">
     <rect x="168" y="60" width="22" height="56" fill="#a7e9c8" opacity="0.5"/>
     <line class="mpt-fall mpt-fl1" x1="172" y1="60" x2="172" y2="116" stroke="#fff" stroke-width="0.9" opacity="0.55"/>
     <line class="mpt-fall mpt-fl2" x1="178" y1="60" x2="178" y2="116" stroke="#fff" stroke-width="0.9" opacity="0.7"/>
     <line class="mpt-fall mpt-fl3" x1="184" y1="60" x2="184" y2="116" stroke="#fff" stroke-width="0.9" opacity="0.6"/>
     <!-- Waterfall splash -->
     <ellipse cx="179" cy="116" rx="14" ry="2" fill="#fff" opacity="0.5"/>
+  </g>
+
+  <!-- Ptak przelatujacy petla (juice, iteracja 7) -->
+  <g class="mp7-bird" stroke="#1a4d33" stroke-width="1.4" stroke-linecap="round" fill="none">
+    <path d="M-4,0 Q-1,-3 0,0 Q1,-3 4,0"/>
   </g>
 
   <!-- Foreground river -->
@@ -336,7 +360,8 @@ function renderTropics(): string {
   <line x1="100" y1="125" x2="140" y2="125" stroke="#a7e9c8" stroke-width="0.8" opacity="0.5"/>
   <line x1="170" y1="122" x2="210" y2="122" stroke="#a7e9c8" stroke-width="0.8" opacity="0.5"/>
 
-  <!-- Palm tree 1 (left) -->
+  <!-- Palm tree 1 (left; wrapper-translate do strefy kadru slice) -->
+  <g transform="translate(27,0)">
   <g class="mpt-palm mpt-palm-1" transform="translate(25,0)">
     <line x1="20" y1="118" x2="16" y2="62" stroke="#5d3a1a" stroke-width="2.8" stroke-linecap="round"/>
     <!-- Leaves -->
@@ -348,14 +373,17 @@ function renderTropics(): string {
     <circle cx="13" cy="66" r="1.5" fill="#3d2510"/>
     <circle cx="18" cy="66" r="1.5" fill="#3d2510"/>
   </g>
+  </g>
 
-  <!-- Palm tree 2 (right, smaller) -->
+  <!-- Palm tree 2 (right, smaller; wrapper-translate do strefy kadru slice) -->
+  <g transform="translate(-38,0)">
   <g class="mpt-palm mpt-palm-2" transform="translate(195,12) scale(0.78)">
     <line x1="20" y1="118" x2="18" y2="62" stroke="#5d3a1a" stroke-width="2.8" stroke-linecap="round"/>
     <path d="M18,62 Q-2,57 -12,67 Q1,58 18,64 Z" fill="#1e6e3a"/>
     <path d="M18,62 Q7,47 -3,52 Q11,50 18,64 Z" fill="#28854a"/>
     <path d="M18,62 Q29,47 39,52 Q25,50 18,64 Z" fill="#1e6e3a"/>
     <circle cx="15" cy="66" r="1.4" fill="#3d2510"/>
+  </g>
   </g>
 </svg>`.trim();
 }
@@ -371,13 +399,21 @@ function renderTropics(): string {
 // - 8 snowflakes (animated falling, staggered)
 // =============================================================
 function renderArctic(): string {
+    // v0.119.0 (iteracja 7): slice = pelne wypelnienie boxa; prawy szczyt i platki
+    // w strefie kadru (x~50-190); +pas zorzy delikatnie pulsujacy (juice).
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-arctic" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-arctic" aria-hidden="true">
   <defs>
     <linearGradient id="bt-a-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#bce0f5"/>
-      <stop offset="60%"  stop-color="#5dade2"/>
-      <stop offset="100%" stop-color="#2c5f8a"/>
+      <stop offset="0%"   stop-color="#c6e7fb"/>
+      <stop offset="60%"  stop-color="#54aae5"/>
+      <stop offset="100%" stop-color="#245a8c"/>
+    </linearGradient>
+    <linearGradient id="bt-a-aurora" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#7ef0a8" stop-opacity="0"/>
+      <stop offset="35%"  stop-color="#7ef0c8" stop-opacity="0.8"/>
+      <stop offset="65%"  stop-color="#b07ef7" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#b07ef7" stop-opacity="0"/>
     </linearGradient>
     <linearGradient id="bt-a-ice-light" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#ffffff"/>
@@ -391,6 +427,10 @@ function renderArctic(): string {
 
   <!-- Sky -->
   <rect x="0" y="0" width="240" height="140" fill="url(#bt-a-sky)"/>
+
+  <!-- Pas zorzy (juice, iteracja 7 — pulsuje opacity) -->
+  <path class="mp7-aurora" d="M50,20 Q95,6 140,16 T230,10 L230,24 Q160,30 110,26 T50,32 Z"
+        fill="url(#bt-a-aurora)" opacity="0.55"/>
 
   <!-- Distant mountain range -->
   <path d="M0,80 L25,58 L55,72 L95,42 L140,65 L180,48 L215,60 L240,55 L240,95 L0,95 Z" fill="url(#bt-a-ice-dark)"/>
@@ -409,8 +449,8 @@ function renderArctic(): string {
     <line x1="92" y1="38" x2="92" y2="92" stroke="#fff" stroke-width="0.4" opacity="0.6"/>
   </g>
 
-  <!-- Smaller ice peak (right) -->
-  <g>
+  <!-- Smaller ice peak (right; w strefie kadru slice) -->
+  <g transform="translate(-16,0)">
     <path d="M148,90 L175,52 L203,90 Z" fill="url(#bt-a-ice-light)"/>
     <path d="M175,52 L203,90 L188,90 Z" fill="#a6cbe5" opacity="0.7"/>
     <path d="M172,58 L175,52 L178,58 Z" fill="#fff"/>
@@ -428,16 +468,16 @@ function renderArctic(): string {
   <!-- Reflection (subtle) -->
   <ellipse cx="92" cy="103" rx="35" ry="2" fill="#fff" opacity="0.35"/>
 
-  <!-- Snowflakes (8) -->
+  <!-- Snowflakes (8; rozlozone w strefie kadru slice x~55-185) -->
   <g fill="#fff">
-    <circle class="mpa-snow mpa-s1" cx="20"  cy="20"  r="1"/>
-    <circle class="mpa-snow mpa-s2" cx="60"  cy="35"  r="1.2"/>
+    <circle class="mpa-snow mpa-s1" cx="58"  cy="20"  r="1"/>
+    <circle class="mpa-snow mpa-s2" cx="76"  cy="35"  r="1.2"/>
     <circle class="mpa-snow mpa-s3" cx="110" cy="15"  r="0.9"/>
-    <circle class="mpa-snow mpa-s4" cx="160" cy="28"  r="1.1"/>
-    <circle class="mpa-snow mpa-s5" cx="200" cy="42"  r="1"/>
-    <circle class="mpa-snow mpa-s6" cx="80"  cy="10"  r="0.8"/>
-    <circle class="mpa-snow mpa-s7" cx="220" cy="22"  r="1"/>
-    <circle class="mpa-snow mpa-s8" cx="40"  cy="50"  r="1.1"/>
+    <circle class="mpa-snow mpa-s4" cx="146" cy="28"  r="1.1"/>
+    <circle class="mpa-snow mpa-s5" cx="168" cy="42"  r="1"/>
+    <circle class="mpa-snow mpa-s6" cx="92"  cy="10"  r="0.8"/>
+    <circle class="mpa-snow mpa-s7" cx="182" cy="22"  r="1"/>
+    <circle class="mpa-snow mpa-s8" cx="66"  cy="50"  r="1.1"/>
   </g>
 </svg>`.trim();
 }

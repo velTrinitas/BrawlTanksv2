@@ -4154,3 +4154,9 @@
     .bt-lb-avatar { width: 26px; height: 26px; }
     .bt-lb-row { padding: 5px 12px; }
 }
+/* v0.119.0 (iteracja 7, pkt 1): ODDECH takze na pelnym rankingu — content
+   ograniczony i wycentrowany na desktopie (spojnie z .bt-hub0-main ~1200px). */
+body.bt-desktop .bt-lb-screen {
+    padding-left: max(28px, calc((100% - 1100px) / 2));
+    padding-right: max(28px, calc((100% - 1100px) / 2));
+}

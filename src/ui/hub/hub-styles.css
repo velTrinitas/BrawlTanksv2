@@ -31,7 +31,9 @@
     grid-template-rows: 52px 1fr 58px;
     grid-template-areas: "top" "main" "nav";
     color: var(--hub-ink);
-    font-family: var(--font-body, 'Inter', system-ui, sans-serif);
+    /* Iteracja 7 (audyt typografii): martwy fallback 'Inter' usuniety — jeden
+       wzorzec var(--font-body, system-ui, sans-serif) w calym hubie. */
+    font-family: var(--font-body, system-ui, sans-serif);
     overflow: hidden;
     background-image:
         linear-gradient(180deg, rgba(13, 20, 27, 0.82) 0%, rgba(13, 20, 27, 0.9) 100%),
@@ -144,7 +146,7 @@ body.bt-desktop .bt-hub0-nav {
 }
 body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
 .bt-hub0-navbtn .gi { font-size: 19px; line-height: 1; }
-.bt-hub0-navbtn small { font-size: 9px; font-weight: 700; letter-spacing: 0.3px; }
+.bt-hub0-navbtn small { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
 .bt-hub0-navbtn:hover { color: var(--hub-ink); background: rgba(255, 255, 255, 0.04); }
 .bt-hub0-navbtn.is-active {
     color: var(--hub-accent); background: rgba(241, 196, 15, 0.12);
@@ -187,6 +189,14 @@ body:not(.bt-desktop) .bt-hub0-navbtn--battle.is-active {
     overflow-y: auto;
     padding: 14px;
     z-index: 1;
+}
+/* Iteracja 7 (pkt 1): ODDECH LAYOUTU — content kazdej sekcji ograniczony do
+   ~1200px i wycentrowany (marginesy boczne "czyszcza scene"), scrollbar zostaje
+   przy krawedzi ekranu. Mobile nietkniete (padding 14px). Jeden mechanizm dla
+   WSZYSTKICH podstron (battle/garage/orders/trophies/profil). */
+body.bt-desktop .bt-hub0-main {
+    padding-left: max(28px, calc((100% - 1200px) / 2));
+    padding-right: max(28px, calc((100% - 1200px) / 2));
 }
 .bt-hub0-sectitle {
     font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; letter-spacing: 0.5px;
@@ -311,7 +321,7 @@ body.bt-desktop .bt-hub0-road-list {
 }
 .bt-hub0-node .info .reward { font-size: 11px; font-weight: 700; color: var(--hub-ink-dim); }
 .bt-hub0-node .tag {
-    margin-left: auto; flex: 0 0 auto; font-size: 9px; font-weight: 800; letter-spacing: 0.4px;
+    margin-left: auto; flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
     text-transform: uppercase; color: #1a2530; background: var(--hub-accent);
     padding: 3px 8px; border-radius: 100px;
 }
@@ -399,7 +409,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     color: var(--hub-accent); font-variant-numeric: tabular-nums;
 }
 .bt-hub0-stat small {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-faint);
 }
 
@@ -456,12 +466,12 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 }
 
 .bt-hub0-cos-head {
-    font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-faint); margin: 4px 2px 10px;
 }
 .bt-hub0-cos-group { margin-bottom: 12px; }
 .bt-hub0-cos-grouptitle {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-dim); margin: 0 2px 6px;
 }
 /* v0.115.0 juice: pillsy -> KARTY z gradientem koloru rzadkosci (--rarity-color z TS,
@@ -659,7 +669,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 }
 .bt-hub0-lslot .num {
     position: absolute; top: 4px; left: 7px;
-    font-size: 9px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-faint);
 }
 .bt-hub0-lslot .pi {
@@ -774,7 +784,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
    badge typu + 3 rzedy statow (emoji + label + pasek + liczba). Grid 4x2. */
 .bt-hub0-subhead {
     font-family: var(--font-body, system-ui, sans-serif);
-    font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-dim); margin: 14px 2px 8px;
     display: flex; align-items: center; gap: 6px;
 }
@@ -918,6 +928,13 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     .bt-hub0-cards { grid-template-columns: 1fr; }
 }
 
+/* Iteracja 7 (pkt 2, decyzja Mariusza: "bardzo ladnie zaprezentowac czolgi"):
+   karty CZOLGOW ~+22% wyzsze — wiekszy panel portretu (92->112px). Scenariusze
+   i mapy zostaja przy bazowych 92px. Mobile: te same wartosci (grid 2/1 kol
+   daje kartom pelna szerokosc — portret 112px siedzi dobrze). */
+.bt-hub0-cards--tanks .bt-hub0-card { min-height: 128px; }
+.bt-hub0-cards--tanks .cd-media { width: 112px; height: 112px; }
+
 .bt-hub0-diff-pills { display: flex; gap: 6px; margin: 10px 0 0; flex-wrap: wrap; }
 .bt-hub0-diff-pill {
     flex: 1 1 0; min-height: 36px; padding: 6px 8px; white-space: nowrap;
@@ -950,11 +967,11 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-ranks-teaser .rt-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .bt-hub0-ranks-teaser .rt-title {
     flex: 1 1 auto; font-family: var(--font-body, system-ui, sans-serif);
-    font-size: 12px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink);
 }
 .bt-hub0-ranks-teaser .rt-soon {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.6px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
     color: #1a2530; background: var(--hub-accent);
     padding: 3px 8px; border-radius: 999px;
 }
@@ -992,7 +1009,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 
 .bt-hub0-q-head {
     display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-    font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-faint); margin: 14px 2px 8px;
 }
 .bt-hub0-q-head small { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; }
@@ -1031,7 +1048,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     color: var(--hub-ink-dim); white-space: nowrap;
 }
 .bt-hub0-q-claimed {
-    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: #2ecc71; white-space: nowrap;
 }
 .bt-hub0-q .bt-hub0-q-claim { margin: 0; font-size: 13px; padding: 8px 14px; min-height: 40px; }
@@ -1053,6 +1070,17 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     .bt-hub0-crate-box.is-dropping { animation-duration: 0.01s; }
     .bt-hub0-crate-box.is-bursting { animation-duration: 0.01s; }
 }
+
+/* ==========================================================================
+   KANON TYPOGRAFII HUBA (audyt iteracja 7, v0.119.0):
+   - Display (Titan One) WYLACZNIE: GRAJ hero, pill S2, tytuly celebracji/sezonu,
+     numeraly hex-badge, inicjal awatara. CALA reszta = var(--font-body).
+   - Skala: sectitle 16/800 -> naglowek bloku 15/800 -> nazwa karty 14-15/800 ->
+     body/opis 11-12/600-700 (line-height >=1.3) -> micro-label 10-11/800
+     UPPERCASE, letter-spacing 0.5px -> chip 10/800.
+   - MINIMUM 10px (gracz 9-12 lat). Liczby zawsze font-variant-numeric: tabular-nums.
+   - Duze display-teksty moga miec ls 1-2px; micro-labele ZAWSZE 0.5px.
+   ========================================================================== */
 
 /* ==========================================================================
    PROFILE-1 (v0.118.0) — strona PROFILU GRACZA (chip w readoucie -> sekcja)
@@ -1120,7 +1148,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-phero .ph-rank-badge .rb-hex { width: 56px; }
 .bt-hub0-phero .ph-rank-info { display: flex; flex-direction: column; gap: 4px; min-width: 130px; }
 .bt-hub0-phero .ph-rank-label {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-faint);
 }
 .bt-hub0-phero .ph-rank-info b {
@@ -1176,7 +1204,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 }
 body.bt-desktop .bt-hub0-pranks .pr-slot { max-width: 140px; }
 .bt-hub0-pranks .pr-slot small {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 body.bt-desktop .bt-hub0-pranks .pr-slot small { font-size: 11px; }
@@ -1240,9 +1268,8 @@ body.bt-desktop .bt-hub0-pranks .pr-slot small { font-size: 11px; }
 @media (max-width: 700px) {
     .bt-hub0-pedit-cols { grid-template-columns: 1fr; }
 }
-/* Desktop (iteracja 3): STALE, mniejsze kafle (strona bez scrolla; marginesy po
-   bokach sa OK — decyzja Mariusza). Mobile zostaje plynne (grid 1fr). */
-body.bt-desktop .bt-hub0-pedit { max-width: 960px; margin: 0 auto; }
+/* Desktop (iteracja 3): STALE, mniejsze kafle (strona bez scrolla). Iteracja 7:
+   max-width edycji zdjety — wspolna szyne ~1200px daje teraz .bt-hub0-main. */
 body.bt-desktop .bt-hub0-pedit-cols {
     grid-template-columns: auto auto; justify-content: center; gap: 40px;
 }
@@ -1372,8 +1399,10 @@ body.bt-desktop .bt-hub0-flag-grid { grid-template-columns: repeat(3, 94px); }
 
 /* Iteracja 5 (pkt 2): WIEKSZA belka na desktopie — czytelnosc czcionek */
 body.bt-desktop .bt-hub0-screen { grid-template-rows: 64px 1fr; }
+/* Iteracja 7 (pkt 6): box awatara LICUJE z kolumna raila — 48px jak przyciski
+   nav, padding-left 14px = (76 - 48) / 2 => idealnie nad BATTLE. */
 body.bt-desktop .bt-hub0-top { padding: 0 14px; gap: 10px; }
-body.bt-desktop .bt-hub0-avatar { width: 42px; height: 42px; border-radius: 12px; }
+body.bt-desktop .bt-hub0-avatar { width: 48px; height: 48px; border-radius: 12px; }
 body.bt-desktop .bt-hub0-pname { font-size: 15px; max-width: 180px; }
 body.bt-desktop .bt-hub0-coin { font-size: 14px; padding: 7px 13px 7px 10px; }
 body.bt-desktop .bt-hub0-coin .ic { font-size: 15px; }
@@ -1408,13 +1437,13 @@ body.bt-desktop .bt-hub0-s2 small { font-size: 12px; }
 }
 .so-time {
     margin: 12px 16px 0; text-align: center;
-    font-size: 12px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-gold); font-variant-numeric: tabular-nums;
 }
 .so-time.is-ended { color: var(--hub-ink-faint); }
 .so-whatsnew {
     margin: 12px 16px 6px; font-size: 11px; font-weight: 800;
-    letter-spacing: 0.6px; text-transform: uppercase; color: var(--hub-ink-dim);
+    letter-spacing: 0.5px; text-transform: uppercase; color: var(--hub-ink-dim);
 }
 .so-bullets {
     margin: 0 16px 14px; padding: 0 0 0 20px;
@@ -1427,7 +1456,7 @@ body.bt-desktop .bt-hub0-s2 small { font-size: 12px; }
 /* Season Track: naglowek z chipem czasu + stan "sezon zakonczony" */
 .st-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .st-days {
-    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--hub-gold); background: rgba(241, 196, 15, 0.12);
     border: 1px solid rgba(241, 196, 15, 0.35);
     padding: 3px 8px; border-radius: 999px; white-space: nowrap;
@@ -1519,9 +1548,106 @@ body.bt-desktop .bt-hub0-s2 small { font-size: 12px; }
     100% { transform: translate(var(--dx, 0), 108vh) rotate(var(--rot, 360deg)); opacity: 0.9; }
 }
 
+/* ==========================================================================
+   v0.119.0 — BOGATE KARTY MOCY w Garazu (odwzorowanie boxow z sigmatanks.eu):
+   box ikony w kolorze mocy + kolorowa nazwa + opis + chipy Cooldown/Od.
+   Grid: desktop 3 kolumny (12 mocy = 3x4, FUN 6 = 3x2 jak strona);
+   <=700px -> 2, <=460px -> 1 (opis nie zmiesci sie w 3 kol. @375px).
+   ========================================================================== */
+.bt-hub0-powhead { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 10px; flex-wrap: wrap; }
+.bt-hub0-powhead b { font-size: 15px; font-weight: 800; }
+.bt-hub0-powhead small { font-size: 11px; font-weight: 600; color: var(--hub-ink-dim); }
+.bt-hub0-powcards {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+@media (max-width: 700px) { .bt-hub0-powcards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 460px) { .bt-hub0-powcards { grid-template-columns: 1fr; } }
+.bt-hub0-powcard {
+    position: relative; display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px; text-align: left; cursor: pointer;
+    border-radius: var(--radius-md, 14px); border: 2px solid var(--hub-line);
+    background: linear-gradient(170deg, var(--hub-steel-850), var(--hub-steel-900) 80%);
+    color: var(--hub-ink); font-family: var(--font-body, system-ui, sans-serif);
+    box-shadow: 0 4px 0 var(--hub-steel-950);
+    transition: transform 0.1s, box-shadow 0.1s, border-color 0.15s;
+}
+.bt-hub0-powcard:active:not([aria-disabled='true']) { transform: translateY(4px); box-shadow: 0 0 0 var(--hub-steel-950); }
+.bt-hub0-powcard .pc-icon {
+    position: relative; width: 46px; height: 46px; flex: 0 0 auto;
+    display: grid; place-items: center; font-size: 24px; border-radius: 12px;
+    background: radial-gradient(65% 65% at 35% 30%, color-mix(in srgb, var(--pow, #f1c40f) 55%, #fff 10%), color-mix(in srgb, var(--pow, #f1c40f) 35%, var(--hub-steel-950)));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.bt-hub0-powcard .pc-lock {
+    position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px;
+    background: rgba(13, 20, 27, 0.55); border-radius: 12px;
+}
+.bt-hub0-powcard .pc-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bt-hub0-powcard .pc-nm { font-size: 14px; font-weight: 800; line-height: 1.1; }
+.bt-hub0-powcard .pc-desc { font-size: 11px; font-weight: 600; color: var(--hub-ink-dim); line-height: 1.35; }
+.bt-hub0-powcard .pc-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.bt-hub0-powcard .pc-chip {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+    padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    border: 1px solid var(--hub-line); background: var(--hub-steel-800);
+    color: var(--hub-ink-dim); font-variant-numeric: tabular-nums;
+}
+.bt-hub0-powcard.is-locked {
+    cursor: default; opacity: 0.65; box-shadow: none; transform: translateY(2px);
+}
+.bt-hub0-powcard.is-locked .pc-icon { filter: grayscale(0.7); }
+.bt-hub0-powcard.is-locked .pc-nm { filter: grayscale(0.5); }
+.bt-hub0-powcard.is-equipped {
+    border-color: var(--hub-accent);
+    box-shadow: 0 4px 0 rgba(241, 196, 15, 0.55);
+}
+.bt-hub0-powcard .eq {
+    position: absolute; top: -7px; right: -7px;
+    display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--hub-accent); color: #1a2530; font-size: 12px; font-weight: 800;
+    border: 2px solid var(--hub-steel-950);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+/* FUN: pokazowe (bez tapu), fioletowy jezyk kostki */
+.bt-hub0-powcards--fun { margin-top: 10px; position: relative; z-index: 1; }
+.bt-hub0-powcard--fun {
+    cursor: default; border-color: rgba(178, 102, 219, 0.5);
+    background: linear-gradient(170deg, rgba(142, 68, 173, 0.20), var(--hub-steel-900) 85%);
+    box-shadow: 0 4px 0 rgba(60, 20, 80, 0.8);
+}
+.bt-hub0-powcard--fun .pc-chip { border-color: rgba(178, 102, 219, 0.5); color: #c9a6e8; }
+
+/* Iteracja 7 (pkt 3): nowe akcenty juice na podgladach map (mp7-*).
+   Male SVG w DOM — zero wplywu na petle gry/fill-rate. */
+.mp7-cloud { animation: mp7-drift 16s linear infinite; }
+@keyframes mp7-drift {
+    from { transform: translateX(40px); }
+    to   { transform: translateX(210px); }
+}
+.mp7-neon { animation: mp7-blink 1.7s steps(1) infinite; }
+@keyframes mp7-blink {
+    0%, 55%, 70%, 100% { opacity: 0.95; }
+    60%, 75% { opacity: 0.2; }
+}
+.mp7-bird { animation: mp7-fly 11s ease-in-out infinite; }
+@keyframes mp7-fly {
+    0%   { transform: translate(190px, 46px) scale(1); opacity: 0; }
+    10%  { opacity: 1; }
+    50%  { transform: translate(110px, 24px) scale(0.8); }
+    90%  { opacity: 1; }
+    100% { transform: translate(46px, 42px) scale(1); opacity: 0; }
+}
+.mp7-aurora { animation: mp7-glow 5.5s ease-in-out infinite; }
+@keyframes mp7-glow {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.75; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .bt-hub0-pback, .bt-hub0-pbtn, .bt-hub0-ptab, .bt-hub0-input,
-    .bt-hub0-av-tile, .bt-hub0-flag-tile, .bt-hub0-s2 { transition: none; }
+    .bt-hub0-av-tile, .bt-hub0-flag-tile, .bt-hub0-s2, .bt-hub0-powcard { transition: none; }
+    .mp7-cloud, .mp7-neon, .mp7-bird, .mp7-aurora { animation: none; }
+    .mp7-bird { opacity: 0; } /* ptak bez animacji wisialby w miejscu spawn */
     .bt-rankup, .bt-rankup-rays, .bt-rankup-glow, .bt-rankup-badge,
     .bt-rankup-smoke b, .bt-rankup-confetti i { animation: none; }
     .bt-rankup-confetti { display: none; }

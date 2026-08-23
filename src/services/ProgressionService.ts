@@ -22,18 +22,26 @@ import {
     getMilestonesCrossed,
     getNextMilestone,
     BOLTS_PER_TROPHY,
+    ACCURACY_MIN_SHOTS,
     openCrate as configOpenCrate,
     type TrophyMilestone,
     type CrateOpenResult,
 } from '../config/progression';
 import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kosmetyki
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
-import type { ProgressionCosmetics, ProgressionPowers } from './supabase/types'; // PROG-F2b/F7a sync
+import type { ProgressionCosmetics, ProgressionPowers, ProgressionStats } from './supabase/types'; // PROG-F2b/F7a/PROFILE-1 sync
 import {
     getPowerDef, POWER_ORDER, DEFAULT_LOADOUT, TIER3_POWERS,
     type PowerId, type LoadoutTriple,
 } from '../config/powers'; // PROG-F7a — loadout Super Mocy (v0.114.0: 3 sloty)
 import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedna sciezka upsertu)
+import {
+    getCurrentSeason, SEASON_MILESTONES, isSeasonActive, seasonDaysLeft,
+    type SeasonMilestone,
+} from '../config/season'; // SEASON-1/2 — trofea sezonowe + Season Track (auto-rollover)
+import {
+    RANKS, RANK_MIN_SECONDS, getRankForWins, getNextRank, type RankDef,
+} from '../config/ranks'; // RANKS-1 — RANGA CZOLGISTY (per gracz)
 
 const STORAGE_KEY = 'bt2:progression';
 
@@ -87,7 +95,51 @@ interface ProgressionState {
     /** v0.114.0: toggle "Szalone Moce" (slot 🎲). Merge: LWW po funModeAt (preferencja). */
     funModeOn: boolean;
     funModeAt: number;
+
+    // ── PROFILE-1: staty lifetime + rekordy per-run ──
+    /**
+     * Sumy lifetime (MONOTONICZNE — merge: MAX per pole). SWIADOMY KOMPROMIS: gra na
+     * dwoch urzadzeniach naraz daje undercount (MAX, nie suma delt) — ta sama
+     * akceptowana semantyka co bolts (patrz uwaga przy syncPull); ledger delt kiedys.
+     */
+    lifetime: { kills: number; gems: number; seconds: number; shotsFired: number; shotsHit: number };
+    /** Rekordy per-run (merge: MAX). bestAccuracy = cale procenty 0..100 (clamp). */
+    records: { maxKills: number; maxGems: number; maxSeconds: number; bestAccuracy: number; maxCombo: number };
+    /** ms zakonczonego jednorazowego backfillu z scores (0 = pending). Merge: MAX. */
+    statsBackfilledAt: number;
+
+    // ── SEASON-1: trofea sezonowe + nagrody Season Tracku ──
+    /**
+     * Postep biezacego sezonu. `id` != CURRENT_SEASON.id => auto-reset przy
+     * najblizszym dostepie (ensureSeason — wzorzec dayKey rozkazow). Merge:
+     * TYLKO przy zgodnym id sezonu (trophies MAX, claimed UNION); stare sezony
+     * z chmury ignorowane. `claimed` = progi z wyplacona nagroda (idempotencja).
+     */
+    season: { id: string; trophies: number; claimed: number[] };
+
+    // ── RANKS-1: RANGA CZOLGISTY (per gracz) ──
+    /** Zwyciestwa gracza (dowolny czolg, mecz >= RANK_MIN_SECONDS). Merge: MAX. */
+    wins: number;
+    /** Poziomy rang z wyplacona nagroda (idempotencja). Merge: UNION. */
+    rankClaimed: number[];
+    /** Najwyzszy CELEBROWANY poziom (RankUpOverlay pokazany). Merge: MAX. */
+    rankShown: number;
+    /** ms zakonczonego backfillu wins z scores (0 = pending). Merge: MAX. */
+    ranksBackfilledAt: number;
 }
+
+/** PROFILE-1: staty jednego meczu do recordRun (zrodla: Spawn + GameSession w main.ts). */
+export interface RunStatsInput {
+    kills: number;
+    gems: number;
+    seconds: number;
+    shotsFired: number;
+    shotsHit: number;
+    maxCombo: number;
+}
+
+const ZERO_LIFETIME = { kills: 0, gems: 0, seconds: 0, shotsFired: 0, shotsHit: 0 } as const;
+const ZERO_RECORDS = { maxKills: 0, maxGems: 0, maxSeconds: 0, bestAccuracy: 0, maxCombo: 0 } as const;
 
 /**
  * Liczba NIEOTWARTYCH skrzynek — zawsze WYLICZANA z dwoch licznikow monotonicznych.
@@ -157,7 +209,7 @@ class ProgressionServiceImpl {
         profileId: string,
         score: number,
         map: MapId,
-        opts: { perfectRun?: boolean } = {},
+        opts: { perfectRun?: boolean; stats?: RunStatsInput; victory?: boolean } = {},
     ): RunProgressionResult {
         this.ensureInitialized();
         const st = this.getOrCreate(profileId);
@@ -189,6 +241,20 @@ class ProgressionServiceImpl {
         if (newPersonalBest) st.perMapBest[map] = score;
         st.lastRunDayKey = dayKey;
         st.totalRuns += 1;
+        // PROFILE-1: sumy lifetime + rekordy per-run (zasilaja strone profilu w hubie)
+        if (opts.stats) this.commitRunStats(st, opts.stats);
+        // SEASON-1: trofea sezonowe + auto-wyplata progow Season Tracku
+        this.ensureSeason(st);
+        if (isSeasonActive()) {
+            st.season.trophies += breakdown.total;
+            this.creditSeasonMilestones(st);
+        }
+        // RANKS-1: zwyciestwo (dowolny czolg/scenariusz) => wins++ + auto-nagrody rang.
+        // Guard anty-farm: mecz >= RANK_MIN_SECONDS (sub-60s liczy sie do score, nie rangi).
+        if (opts.victory && (opts.stats?.seconds ?? 0) >= RANK_MIN_SECONDS) {
+            st.wins += 1;
+            this.creditRankRewards(st);
+        }
         for (const m of crossed) st.claimedMilestones.push(m.threshold);
         this.creditMilestoneCrates(st); // F2a — skrzynka za milestony przekroczone tym runem
         st.updatedAt = Date.now();
@@ -208,6 +274,179 @@ class ProgressionServiceImpl {
             boltsGained,
             boltsTotal: st.bolts,
             nextMilestone: getNextMilestone(after),
+        };
+    }
+
+    /**
+     * PROFILE-1: zaksieguj staty meczu (sumy + rekordy). Celnosc liczona TYLKO gdy
+     * shotsFired >= ACCURACY_MIN_SHOTS i CLAMP do 100 — fragi/breakup pociskow potrafia
+     * dac shotsHit > shotsFired (znany bug celnosci, fix przy anti-cheat L2b).
+     */
+    private commitRunStats(st: ProgressionState, run: RunStatsInput): void {
+        const n = (v: number) => Math.max(0, Math.round(Number(v) || 0));
+        st.lifetime.kills += n(run.kills);
+        st.lifetime.gems += n(run.gems);
+        st.lifetime.seconds += n(run.seconds);
+        st.lifetime.shotsFired += n(run.shotsFired);
+        st.lifetime.shotsHit += n(run.shotsHit);
+        st.records.maxKills = Math.max(st.records.maxKills, n(run.kills));
+        st.records.maxGems = Math.max(st.records.maxGems, n(run.gems));
+        st.records.maxSeconds = Math.max(st.records.maxSeconds, n(run.seconds));
+        st.records.maxCombo = Math.max(st.records.maxCombo, n(run.maxCombo));
+        if (n(run.shotsFired) >= ACCURACY_MIN_SHOTS) {
+            const acc = Math.min(100, Math.round((n(run.shotsHit) / n(run.shotsFired)) * 100));
+            st.records.bestAccuracy = Math.max(st.records.bestAccuracy, acc);
+        }
+    }
+
+    // ── SEASON-1: trofea sezonowe + Season Track ────────────────────────────
+
+    /** Rollover sezonu: nieznany/stary id => licznik i nagrody startuja od zera. */
+    private ensureSeason(st: ProgressionState): void {
+        const cur = getCurrentSeason();
+        if (st.season.id !== cur.id) {
+            st.season = { id: cur.id, trophies: 0, claimed: [] };
+        }
+    }
+
+    /**
+     * Wyplac progi Season Tracku przekroczone a jeszcze nie-claimed (idempotentne —
+     * wzorzec creditMilestoneCrates). Nagrody przez ISTNIEJACE mechanizmy:
+     * bolts (sigmy) + cratesEarned (skrzynki) — oba monotoniczne, sync-safe.
+     * WAZNE: wolane TYLKO z recordRun; przy syncPull merge claimed (UNION) idzie
+     * PRZED kolejnym recordRun, wiec urzadzenie B nie wyplaci dubli.
+     */
+    private creditSeasonMilestones(st: ProgressionState): void {
+        for (const m of SEASON_MILESTONES) {
+            if (st.season.trophies >= m.threshold && !st.season.claimed.includes(m.threshold)) {
+                st.bolts += m.bolts;
+                st.cratesEarned += m.crates ?? 0;
+                st.season.claimed.push(m.threshold);
+            }
+        }
+    }
+
+    // ── RANKS-1: RANGA CZOLGISTY ────────────────────────────────────────────
+
+    /**
+     * Wyplac nagrody rang osiagnietych a nie-claimed (idempotentne, wzorzec
+     * milestonow). Nagrody przez ISTNIEJACE mechanizmy: bolts + cratesEarned.
+     * Wolane z recordRun i po backfillu; merge rankClaimed (UNION) w syncPull
+     * idzie PRZED kolejnym wywolaniem => zero dubli miedzy urzadzeniami.
+     */
+    private creditRankRewards(st: ProgressionState): void {
+        for (const r of RANKS) {
+            if (st.wins >= r.wins && !st.rankClaimed.includes(r.level)) {
+                st.bolts += r.bolts;
+                st.cratesEarned += r.crates ?? 0;
+                st.rankClaimed.push(r.level);
+            }
+        }
+    }
+
+    /** Migawka rangi dla UI (hero profilu + pas rang + celebracja). */
+    getRankState(profileId: string): {
+        wins: number;
+        current: RankDef | null;
+        next: RankDef | null;
+        /** Ranga czeka na celebracje (RankUpOverlay) — poziom > rankShown. */
+        pendingCelebration: RankDef | null;
+    } {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        const current = getRankForWins(st.wins);
+        return {
+            wins: st.wins,
+            current,
+            next: getNextRank(st.wins),
+            pendingCelebration: current && current.level > st.rankShown ? current : null,
+        };
+    }
+
+    /** Celebracja pokazana — nie odpalaj ponownie (takze na innych urzadzeniach). */
+    markRankShown(profileId: string, level: number): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        if (level <= st.rankShown) return;
+        st.rankShown = level;
+        st.updatedAt = Date.now();
+        this.save();
+        this.syncPush(profileId);
+    }
+
+    /**
+     * RANKS-1: jednorazowy backfill zwyciestw z historii scores (KTB:
+     * mega_boss_defeated + >= RANK_MIN_SECONDS; CTF nie submituje — liczy sie
+     * tylko lokalnie od teraz). BEZ SQL-a: zwykle count-query na otwartym
+     * SELECT. rankShown = poziom po backfillu (BEZ celebracji za historie),
+     * nagrody za historyczne rangi wyplacone od razu (creditRankRewards).
+     */
+    private async backfillWins(profileId: string, st: ProgressionState): Promise<void> {
+        try {
+            const count = await supabaseProgressionService.fetchWinsCount(profileId);
+            if (count !== null) {
+                st.wins = Math.max(st.wins, count);
+                this.creditRankRewards(st);
+                const rank = getRankForWins(st.wins);
+                st.rankShown = Math.max(st.rankShown, rank?.level ?? 0);
+            }
+            st.ranksBackfilledAt = Date.now();
+            st.updatedAt = st.ranksBackfilledAt;
+            this.save();
+            this.notifySynced(profileId);
+        } catch (e) {
+            console.warn('[Progression] wins backfill failed (offline?):', (e as Error).message);
+        }
+    }
+
+    /** Migawka sezonu dla UI (Season Track w TROFEA + badge S2). */
+    getSeasonState(profileId: string): {
+        trophies: number;
+        claimed: readonly number[];
+        milestones: readonly SeasonMilestone[];
+        daysLeft: number;
+        active: boolean;
+        nextMilestone: SeasonMilestone | null;
+        /** Postep 0..1 od poprzedniego progu do nastepnego (1 gdy wszystko zdobyte). */
+        progressToNext: number;
+    } {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        const next = SEASON_MILESTONES.find(m => st.season.trophies < m.threshold) ?? null;
+        let progressToNext = 1;
+        if (next) {
+            const prev = SEASON_MILESTONES.filter(m => m.threshold < next.threshold)
+                .reduce((max, m) => Math.max(max, m.threshold), 0);
+            const span = next.threshold - prev;
+            progressToNext = span > 0
+                ? Math.min(1, Math.max(0, (st.season.trophies - prev) / span)) : 0;
+        }
+        return {
+            trophies: st.season.trophies,
+            claimed: st.season.claimed,
+            milestones: SEASON_MILESTONES,
+            daysLeft: seasonDaysLeft(),
+            active: isSeasonActive(),
+            nextMilestone: next,
+            progressToNext,
+        };
+    }
+
+    /** PROFILE-1: migawka statow dla strony profilu (hub). */
+    getStatsState(profileId: string): {
+        lifetime: Readonly<ProgressionState['lifetime']>;
+        records: Readonly<ProgressionState['records']>;
+        totalRuns: number;
+        perMapBest: Readonly<Record<string, number>>;
+    } {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        return {
+            lifetime: st.lifetime,
+            records: st.records,
+            totalRuns: st.totalRuns,
+            perMapBest: st.perMapBest,
         };
     }
 
@@ -264,12 +503,26 @@ class ProgressionServiceImpl {
                 // gracz juz otworzyl (dziura w ekonomii przy czystym localStorage).
                 this.mergeCosmetics(st, remote.cosmetics);
                 this.mergePowers(st, remote.powers); // F7a — po merdze trofeow (progi licza z trofeow)
+                this.mergeStats(st, remote.stats);   // PROFILE-1 — sumy/rekordy: MAX per pole
                 this.creditMilestoneCrates(st);
                 // PROG-F3 — rozkazy scalane PO trofeach (skalowanie celow czyta trofea konta).
                 QuestService.mergeRemote(profileId, remote.quests, st.trophies);
                 st.updatedAt = Date.now();
                 this.save();
                 this.notifySynced(profileId);
+            }
+            // PROFILE-1 — jednorazowy backfill statow z wlasnych wierszy `scores` (konta
+            // sprzed tej fazy maja historie w chmurze, lokalnie zera). Idempotentny
+            // (MAX-merge tych samych wierszy); offline/blad => stempel zostaje 0, retry
+            // na kolejnym boocie. UWAGA: maxCombo NIE istnieje w scores — rekord combo
+            // liczy sie od tej fazy w przod.
+            const stLocal = this.getOrCreate(profileId);
+            if (stLocal.statsBackfilledAt === 0) {
+                await this.backfillStats(profileId, stLocal);
+            }
+            // RANKS-1 — jednorazowy backfill zwyciestw (wzorzec j.w.)
+            if (stLocal.ranksBackfilledAt === 0) {
+                await this.backfillWins(profileId, stLocal);
             }
         } catch (e) {
             console.warn('[Progression] syncPull failed (offline / brak tabeli?):', (e as Error).message);
@@ -309,6 +562,18 @@ class ProgressionServiceImpl {
                     loadoutAt: st.loadoutAt,
                     funModeOn: st.funModeOn,                // v0.114.0 — toggle 🎲
                     funModeAt: st.funModeAt,
+                },
+                stats: {                                    // PROFILE-1 — sumy/rekordy
+                    v: 1,
+                    ...st.lifetime,
+                    ...st.records,
+                    // stemple backfilli CELOWO nie syncowane (lokalne per urzadzenie)
+                    seasonId: st.season.id,                 // SEASON-1 — postep sezonu
+                    seasonTrophies: st.season.trophies,
+                    seasonClaimed: st.season.claimed,
+                    wins: st.wins,                          // RANKS-1 — ranga czolgisty
+                    rankClaimed: st.rankClaimed,
+                    rankShown: st.rankShown,
                 },
             })
             .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
@@ -542,6 +807,84 @@ class ProgressionServiceImpl {
         }
     }
 
+    /**
+     * PROFILE-1: merge pod-dokumentu statow — MAX na KAZDYM polu (wszystkie monotoniczne).
+     * Brak pola / pusty '{}' (wiersz sprzed migracji) => stan lokalny nietkniety.
+     */
+    private mergeStats(st: ProgressionState, remote: ProgressionStats | null | undefined): void {
+        if (!remote || typeof remote !== 'object') return;
+        const mx = (local: number, r: unknown) => Math.max(local, Number(r) || 0);
+        st.lifetime.kills = mx(st.lifetime.kills, remote.kills);
+        st.lifetime.gems = mx(st.lifetime.gems, remote.gems);
+        st.lifetime.seconds = mx(st.lifetime.seconds, remote.seconds);
+        st.lifetime.shotsFired = mx(st.lifetime.shotsFired, remote.shotsFired);
+        st.lifetime.shotsHit = mx(st.lifetime.shotsHit, remote.shotsHit);
+        st.records.maxKills = mx(st.records.maxKills, remote.maxKills);
+        st.records.maxGems = mx(st.records.maxGems, remote.maxGems);
+        st.records.maxSeconds = mx(st.records.maxSeconds, remote.maxSeconds);
+        st.records.bestAccuracy = Math.min(100, mx(st.records.bestAccuracy, remote.bestAccuracy));
+        st.records.maxCombo = mx(st.records.maxCombo, remote.maxCombo);
+        // UWAGA: stemple backfilli (statsBackfilledAt/ranksBackfilledAt) sa CELOWO
+        // LOKALNE per urzadzenie (nie merge'owane) — backfill jest idempotentny
+        // (MAX-merge tych samych zrodel), a stamp z chmury blokowalby wykonanie
+        // na swiezym urzadzeniu/po poprawce zapytania backfillu.
+        // SEASON-1 — merge postepu sezonu TYLKO przy zgodnym id (stary sezon
+        // w chmurze = smiec, wzorzec quests dayKey). claimed UNION scala sie tu,
+        // PRZED nastepnym recordRun => brak podwojnej wyplaty nagrod na 2. urzadzeniu.
+        this.ensureSeason(st);
+        if (remote.seasonId === getCurrentSeason().id) {
+            st.season.trophies = mx(st.season.trophies, remote.seasonTrophies);
+            if (Array.isArray(remote.seasonClaimed)) {
+                const union = new Set<number>([
+                    ...st.season.claimed,
+                    ...remote.seasonClaimed.map(Number).filter(n => Number.isFinite(n)),
+                ]);
+                st.season.claimed = [...union].sort((a, b) => a - b);
+            }
+        }
+        // RANKS-1 — wins/rankShown MAX, rankClaimed UNION (idempotencja nagrod).
+        st.wins = mx(st.wins, remote.wins);
+        st.rankShown = mx(st.rankShown, remote.rankShown);
+        if (Array.isArray(remote.rankClaimed)) {
+            const union = new Set<number>([
+                ...st.rankClaimed,
+                ...remote.rankClaimed.map(Number).filter(n => Number.isFinite(n)),
+            ]);
+            st.rankClaimed = [...union].sort((a, b) => a - b);
+        }
+    }
+
+    /**
+     * PROFILE-1: jednorazowy backfill z wlasnych wierszy `scores` (RPC agregujace).
+     * Sukces => MAX-merge wyniku + stempel czasu (nie powtarza sie). Blad => warn + retry
+     * na kolejnym syncPull. UWAGA: CTF nie submituje do scores, wiec lokalne sumy moga
+     * byc WIEKSZE niz agregat — MAX zachowuje lokalne (poprawne).
+     */
+    private async backfillStats(profileId: string, st: ProgressionState): Promise<void> {
+        try {
+            const agg = await supabaseProgressionService.fetchLifetimeStats(profileId);
+            if (agg) {
+                const mx = (local: number, r: unknown) => Math.max(local, Number(r) || 0);
+                st.lifetime.kills = mx(st.lifetime.kills, agg.sum_kills);
+                st.lifetime.gems = mx(st.lifetime.gems, agg.sum_gems);
+                st.lifetime.seconds = mx(st.lifetime.seconds, agg.sum_seconds);
+                st.lifetime.shotsFired = mx(st.lifetime.shotsFired, agg.sum_shots_fired);
+                st.lifetime.shotsHit = mx(st.lifetime.shotsHit, agg.sum_shots_hit);
+                st.records.maxKills = mx(st.records.maxKills, agg.max_kills);
+                st.records.maxGems = mx(st.records.maxGems, agg.max_gems);
+                st.records.maxSeconds = mx(st.records.maxSeconds, agg.max_seconds);
+                st.records.bestAccuracy = Math.min(100, mx(st.records.bestAccuracy, agg.max_accuracy));
+            }
+            // Stempel takze przy braku wierszy (konto bez historii) — nie ma czego dosypywac.
+            st.statsBackfilledAt = Date.now();
+            st.updatedAt = st.statsBackfilledAt;
+            this.save();
+            this.notifySynced(profileId);
+        } catch (e) {
+            console.warn('[Progression] stats backfill failed (offline / brak RPC?):', (e as Error).message);
+        }
+    }
+
     // === F3: nagrody za rozkazy ===
 
     /**
@@ -596,6 +939,14 @@ class ProgressionServiceImpl {
                 loadoutAt: 0,
                 funModeOn: false,
                 funModeAt: 0,
+                lifetime: { ...ZERO_LIFETIME },
+                records: { ...ZERO_RECORDS },
+                statsBackfilledAt: 0,
+                season: { id: getCurrentSeason().id, trophies: 0, claimed: [] },
+                wins: 0,
+                rankClaimed: [],
+                rankShown: 0,
+                ranksBackfilledAt: 0,
             };
             this.states[profileId] = st;
         } else {
@@ -629,6 +980,17 @@ class ProgressionServiceImpl {
             // v0.114.0 — toggle Szalonych Mocy (slot 🎲)
             st.funModeOn ??= false;
             st.funModeAt ??= 0;
+            // PROFILE-1 — staty lifetime + rekordy (stare stany sprzed fazy profilu)
+            st.lifetime ??= { ...ZERO_LIFETIME };
+            st.records ??= { ...ZERO_RECORDS };
+            st.statsBackfilledAt ??= 0;
+            // SEASON-1 — postep sezonu (rollover robi ensureSeason przy dostepie)
+            st.season ??= { id: getCurrentSeason().id, trophies: 0, claimed: [] };
+            // RANKS-1 — zwyciestwa + rangi (stare stany sprzed fazy rang)
+            st.wins ??= 0;
+            st.rankClaimed ??= [];
+            st.rankShown ??= 0;
+            st.ranksBackfilledAt ??= 0;
             // F2b — kosmetyk zalozony jeszcze w F2a nie ma znacznika LWW (equippedAt=0),
             // wiec przegralby kazde porownanie i nie odtworzylby sie na innym urzadzeniu.
             // Nadaj mu czas ostatniego zapisu stanu (realny moment tamtej zmiany).

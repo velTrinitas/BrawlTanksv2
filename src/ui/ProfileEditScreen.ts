@@ -42,13 +42,10 @@ import { AVATARS } from '../config/avatars';
 import { FLAGS, type FlagConfig } from '../config/flags';
 import { showToast } from './toast';
 
-/**
- * Hardcoded ID arrays — TS union types nie generują tablic automatycznie.
- * Kolejność = display order w grid (mobile 2x2, tablet 4x1).
- * Jeśli dodajesz nowy avatar/flag — DODAJ tutaj + do AVATARS/FLAGS configów + do Profile.ts types.
- */
-const AVATAR_IDS: readonly AvatarId[] = ['komandor', 'pilotka', 'smyk', 'inzynier'] as const;
-const FLAG_IDS: readonly FlagId[] = ['pl', 'fr', 'it', 'de'] as const;
+// PROFILE-1 (v0.118.0): konsolidacja — listy id ida z configow (roster v2:
+// 9 czolgistow + 18 flag), koniec z lokalnymi duplikatami tablic.
+import { AVATAR_IDS, DEFAULT_AVATAR_ID } from '../config/avatars';
+import { FLAG_IDS, DEFAULT_FLAG_ID } from '../config/flags';
 
 export class ProfileEditScreen implements IScreen {
     private rootEl: HTMLElement | null = null;
@@ -74,8 +71,8 @@ export class ProfileEditScreen implements IScreen {
             this.originalNickname = profile.nickname;
         } else {
             // Defensive fallback — przy normalnym flow niemożliwe
-            this.selectedAvatarId = 'komandor';
-            this.selectedFlagId = 'pl';
+            this.selectedAvatarId = DEFAULT_AVATAR_ID;
+            this.selectedFlagId = DEFAULT_FLAG_ID;
             this.currentNickname = '';
             this.originalNickname = '';
         }

@@ -173,6 +173,52 @@ export interface ProgressionPowers {
     funModeAt?: number;
 }
 
+/**
+ * Pod-dokument statystyk lifetime + rekordow (PROFILE-1, kolumna progression.stats JSONB).
+ * Wszystkie pola MONOTONICZNE => merge = MAX per pole. Sumy sa lower-boundem miedzy
+ * urzadzeniami (gra na 2 naraz = undercount) — ta sama akceptowana semantyka co bolts.
+ */
+export interface ProgressionStats {
+    v?: number;
+    /** Sumy lifetime. */
+    kills?: number;
+    gems?: number;
+    seconds?: number;
+    shotsFired?: number;
+    shotsHit?: number;
+    /** Rekordy per-run. */
+    maxKills?: number;
+    maxGems?: number;
+    maxSeconds?: number;
+    /** Cale procenty 0..100 (clamp — fragi/breakup potrafia dac hits > fired). */
+    bestAccuracy?: number;
+    maxCombo?: number;
+    /** SEASON-1 — postep sezonu. Merge TYLKO gdy seasonId == CURRENT_SEASON.id
+     *  (trophies MAX, claimed UNION); inny/stary sezon = ignorowany. */
+    seasonId?: string;
+    seasonTrophies?: number;
+    seasonClaimed?: number[];
+    /** RANKS-1 — ranga czolgisty: wins/rankShown MAX, rankClaimed UNION.
+     *  Stemple backfilli (stats/ranks) CELOWO lokalne — nie syncowane. */
+    wins?: number;
+    rankClaimed?: number[];
+    rankShown?: number;
+}
+
+/** Wynik RPC profile_lifetime_stats — agregat z wlasnych wierszy `scores`. */
+export interface LifetimeStatsRow {
+    sum_kills: number;
+    sum_gems: number;
+    sum_seconds: number;
+    sum_shots_fired: number;
+    sum_shots_hit: number;
+    run_count: number;
+    max_kills: number;
+    max_gems: number;
+    max_seconds: number;
+    max_accuracy: number | null;    // null gdy zaden run nie przekroczyl progu strzalow
+}
+
 export interface ProgressionRow {
     profile_id: string;
     trophies: number;
@@ -184,6 +230,7 @@ export interface ProgressionRow {
     cosmetics: ProgressionCosmetics;         // JSONB (F2b; stare wiersze = {})
     quests: ProgressionQuests;               // JSONB (F3; stare wiersze = {})
     powers: ProgressionPowers;               // JSONB (F7a; stare wiersze = {})
+    stats: ProgressionStats;                 // JSONB (PROFILE-1; stare wiersze = {})
     created_at: string;
     updated_at: string;
 }
@@ -199,6 +246,7 @@ export interface ProgressionInsert {
     cosmetics?: ProgressionCosmetics;
     quests?: ProgressionQuests;
     powers?: ProgressionPowers;
+    stats?: ProgressionStats;   // PROFILE-1 (wymaga kolumny z progression_stats.sql)
     // created_at / updated_at — NIE wysylamy (server-side)
 }
 

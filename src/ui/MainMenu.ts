@@ -347,19 +347,14 @@ export class MainMenu {
     }
 
     /**
-     * v0.43.0 FAZA 8b ARCHITECTURAL FIX: Settings → ProfileEdit direct navigation.
-     * Eliminacja external callback chain — onProfileEditRequested był silent skip
-     * gdy main.ts wire failed, co maskowalo cale 8b debug.
+     * PROFILE-1 (v0.118.0): sekcja Profil w Settings USUNIETA — edycja profilu zyje
+     * na stronie profilu w hubie (chip gracza). ProfileEditScreen zostaje osiagalny
+     * tylko w legacy ?hub=0 (MainHub chip).
      */
     private createSettingsScreen(): IScreen {
         const screen = new SettingsScreen();
         screen.onBack = () => {
             this.show(this.hubId());
-        };
-        // Direct navigation — eliminuje external callback chain.
-        screen.onEditProfileClick = () => {
-            this.onProfileEditRequested?.(); // optional hook (no-op gdy null)
-            this.show('profileEdit');         // direct — gwarantowany efekt
         };
         return screen;
     }
@@ -411,6 +406,14 @@ export class MainMenu {
 
     /** Publiczne wejscie do hubu (respektuje flage). Uzywane przez main.ts (powrot z meczu). */
     showHub(): void {
+        // RANKS-1: gdy hub JUZ jest biezacym ekranem (show() ma guard i nie
+        // remountuje), zawolaj hook re-show — odswieza readout po meczu i odpala
+        // czekajaca celebracje awansu rangi (bug: "badge po prostu pojawil sie
+        // w profilu, bez celebracji").
+        if (this.currentScreenId === this.hubId() && this.currentScreen instanceof HubShell) {
+            this.currentScreen.onReshown();
+            return;
+        }
         void this.show(this.hubId());
     }
 

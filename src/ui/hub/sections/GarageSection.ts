@@ -2,17 +2,14 @@ import { t } from '../../../i18n/i18n';
 import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
-import {
-    COSMETICS, cosmeticsByType, RARITY_COLOR, nickColorStyle, frameStyle,
-    type CosmeticDef, type CosmeticType,
-} from '../../../config/cosmetics';
 import { PITY_RARE_AT } from '../../../config/progression';
 import { POWERS, POWER_ORDER, TIER3_POWERS, type PowerId } from '../../../config/powers'; // F7a loadout + v0.114.0 kostka
 
 /**
- * GarageSection (GARAŻ) — HUB-2/F2a/F7a. Loadout Super Mocy + Zrzuty (skrzynki) + kosmetyki.
+ * GarageSection (GARAŻ) — HUB-2/F2a/F7a. Loadout Super Mocy + Zrzuty (skrzynki).
  * Skrzynki = srubki + KOSMETYKA (nigdy moc/staty). Otwarcie -> CrateOverlay (przez onOpenCrate).
- * Kosmetyki: grid wszystkich (owned interaktywne / locked wyszarzone), tap owned = equip (toggle).
+ * PROFILE-1: kolekcja kosmetykow + teaser Rang PRZENIESIONE na strone profilu
+ * (Garaz zostaje czysto "czolgowy": loadout, Szalone Moce, skrzynki).
  *
  * LOADOUT (F7a): 2 sloty + siatka mocy z rejestru. UX dla 9-12: tap slot = uzbroj go (zloty
  * ring), tap moc = wsadz do uzbrojonego slotu (duplikat w drugim slocie => swap w serwisie),
@@ -25,8 +22,6 @@ export class GarageSection implements HubSection {
 
     /** HubShell otwiera CrateOverlay. */
     public onOpenCrate: (() => void) | null = null;
-    /** Equipped zmienione -> HubShell odswieza readout. */
-    public onCosmeticChanged: (() => void) | null = null;
 
     /** F7a — ktory slot loadoutu jest "uzbrojony" na przypisanie mocy (v0.114.0: 3 sloty). */
     private activeSlot: 0 | 1 | 2 = 0;
@@ -56,25 +51,13 @@ export class GarageSection implements HubSection {
                 </button>
             </div>`;
 
-        const TYPE_LABEL_KEY = {
-            nickColor: 'hub.garage.type.nickColor',
-            frame: 'hub.garage.type.frame',
-            title: 'hub.garage.type.title',
-        } as const;
-        const groups = (['nickColor', 'frame', 'title'] as CosmeticType[]).map(type => {
-            const items = cosmeticsByType(type).map(def => this.cosmeticChip(def, cos)).join('');
-            return `<div class="bt-hub0-cos-group">
-                <div class="bt-hub0-cos-grouptitle">${t(TYPE_LABEL_KEY[type])}</div>
-                <div class="bt-hub0-cos-grid">${items}</div>
-            </div>`;
-        }).join('');
-
+        // PROFILE-1: kolekcja przeniesiona do profilu — jednoliniowy drogowskaz
+        // pod skrzynka (gracz otwiera zrzut tutaj, zaklada zdobycz w profilu).
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.garage')}</h2>
             ${this.loadoutHtml(pid)}
             ${crateBox}
-            <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: cos.owned.length, total: COSMETICS.length })}</div>
-            ${groups}
+            <small class="bt-hub0-lhint">🪖 ${t('hub.garage.cosmeticsMoved')}</small>
         `;
         this.wire();
     }
@@ -151,21 +134,7 @@ export class GarageSection implements HubSection {
                 <div class="bt-hub0-dicepool">${diceChips}</div>
             </div>`;
 
-        // v0.115.0: teaser Rang Zalog — 2 badge placeholder (public/ranks, 160px; docelowo
-        // programmatic renderer wg docs/crew-ranks-v1.md). Statyczny, zero animacji.
-        const ranksTeaser = `
-            <div class="bt-hub0-ranks-teaser">
-                <div class="rt-head">
-                    <span class="rt-title">🎖️ ${t('hub.garage.ranksTitle')}</span>
-                    <span class="rt-soon">${t('hub.garage.ranksSoonChip')}</span>
-                </div>
-                <div class="rt-badges" aria-hidden="true">
-                    <img src="${import.meta.env.BASE_URL}ranks/L1_rekrut.png" alt="">
-                    <img src="${import.meta.env.BASE_URL}ranks/L2_gunner.png" alt="">
-                </div>
-                <small class="rt-hint">${t('hub.garage.ranksSoon')}</small>
-            </div>`;
-
+        // PROFILE-1: teaser Rang Zalog przeniesiony na strone profilu (ProfileSection).
         return `
             <div class="bt-hub0-loadout">
                 <div class="bt-hub0-cos-grouptitle">⚡ ${t('hub.garage.loadout')}</div>
@@ -173,36 +142,7 @@ export class GarageSection implements HubSection {
                 <div class="bt-hub0-pow-grid">${grid}</div>
                 <small class="bt-hub0-lhint">${t('hub.garage.loadoutHint')}</small>
             </div>
-            ${crazySection}
-            ${ranksTeaser}`;
-    }
-
-    private cosmeticChip(def: CosmeticDef, cos: { owned: readonly string[]; equipped: Partial<Record<CosmeticType, string>> }): string {
-        const owned = cos.owned.includes(def.id);
-        const equipped = cos.equipped[def.type] === def.id;
-        const label = def.type === 'title' ? t(def.labelKey as 'cosmetic.ti_recruit') : t(def.labelKey as 'cosmetic.nc_silver');
-        // v0.115.0 WYSIWYG (fix Czytelnosci: "Karmazynowy" pokazywal kolor RZADKOSCI):
-        // karta = prawdziwy podglad kosmetyku. nickColor: nazwa w SWOIM kolorze/gradiencie
-        // (nickColorStyle 1:1 z readoutem huba) + tlo karty z koloru (solidne; gradientowe
-        // pokazuja sie na nazwie). frame: kropka = mini-ring z border/glow defa.
-        // Rzadkosc ZOSTAJE na kropce (nickColor/title) — dwa kanaly, zero konfliktu.
-        const hexColor = RARITY_COLOR[def.rarity];
-        const isNick = def.type === 'nickColor';
-        const isFrame = def.type === 'frame';
-        const cardColor = isNick && def.color && !def.gradient ? `${def.color}66` : `${hexColor}80`;
-        const nmStyle = isNick && owned ? nickColorStyle(def) : '';
-        const nmShimmer = isNick && owned && def.animated ? ' bt-cos-shimmer' : '';
-        const dot = isFrame
-            ? `<span class="dot dot--frame" style="${frameStyle(def)}" aria-hidden="true"></span>`
-            : `<span class="dot" style="background:${hexColor};" aria-hidden="true"></span>`;
-        return `
-            <button class="bt-hub0-cos${owned ? '' : ' is-locked'}${equipped ? ' is-equipped' : ''}"
-                    style="--rarity-color:${cardColor};"
-                    data-cos="${owned ? def.id : ''}" type="button" ${owned ? '' : 'aria-disabled="true"'}>
-                ${dot}
-                <span class="nm${nmShimmer}" style="${nmStyle}">${owned ? label : '🔒'}</span>
-                ${equipped ? '<span class="eq" aria-hidden="true">✓</span>' : ''}
-            </button>`;
+            ${crazySection}`;
     }
 
     private wire(): void {
@@ -239,16 +179,6 @@ export class GarageSection implements HubSection {
                 ProgressionService.setLoadoutSlot(pid, this.activeSlot, id);
                 this.activeSlot = (this.activeSlot >= maxSlot ? 0 : this.activeSlot + 1) as 0 | 1 | 2;
                 this.render(el);
-            });
-        });
-        el.querySelectorAll<HTMLElement>('[data-cos]').forEach(btn => {
-            const id = btn.dataset.cos;
-            if (!id) return; // locked
-            btn.addEventListener('click', () => {
-                const pid = ProfileService.getActiveProfile()?.id ?? 'default';
-                ProgressionService.equipCosmetic(pid, id);
-                this.render(el);            // odswiez grid (equipped highlight)
-                this.onCosmeticChanged?.();  // odswiez readout hubu
             });
         });
     }

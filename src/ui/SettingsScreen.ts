@@ -1,14 +1,13 @@
 /**
- * SettingsScreen.ts — FAZA 8a (v0.24.0, finalized v0.42.0, extended v0.43.0).
+ * SettingsScreen.ts — FAZA 8a (v0.24.0, finalized v0.42.0).
  *
- * 3 sekcje (v0.43.0 FAZA 8b: dorzucona sekcja Profil):
- *  - Profil (NEW): button "✏️ Edytuj profil" → MainMenu direct navigation to ProfileEditScreen
+ * 2 sekcje:
  *  - Audio: Music + SFX sliders
  *  - Język: PL / EN toggle buttons
  *
- * v0.43.0 FAZA 8b ARCHITECTURAL FIX (clean version, debug logs removed):
- * - onEditProfileClick wstrzykiwany przez MainMenu, MainMenu nawiguje DIRECT
- *   przez `this.show('profileEdit')`. NIE zaleznosc od main.ts wire.
+ * PROFILE-1 (v0.118.0): sekcja Profil USUNIETA (decyzja Mariusza) — byla zdublowana
+ * sciezka do starego ProfileEditScreen; jedyna edycja profilu = strona profilu
+ * w hubie (chip gracza -> EDYTUJ).
  */
 
 import type { IScreen } from './MainMenu';
@@ -37,7 +36,6 @@ export class SettingsScreen implements IScreen {
     private langUnsub: (() => void) | null = null;
 
     onBack: (() => void) | null = null;
-    onEditProfileClick: (() => void) | null = null;
 
     mount(root: HTMLElement): void {
         this.rootEl = document.createElement('div');
@@ -71,9 +69,6 @@ export class SettingsScreen implements IScreen {
         const sfxVolPct = Math.round(audio.getSfxVolume() * 100);
         const currentLang = i18n.getLanguage();
 
-        const profile = ProfileService.getActiveProfile();
-        const profileNickname = profile?.nickname ?? '';
-
         this.rootEl.innerHTML = `
             <header class="bt-settings-header">
                 <button class="bt-settings-back" type="button" aria-label="${t('common.back')}">
@@ -84,25 +79,6 @@ export class SettingsScreen implements IScreen {
             </header>
 
             <div class="bt-settings-content">
-
-                ${profile ? `
-                <section class="bt-settings-section">
-                    <h3 class="bt-settings-section-title">
-                        <span class="bt-settings-icon" aria-hidden="true">👤</span>
-                        ${t('settings.profile')}
-                    </h3>
-
-                    <div class="bt-settings-profile-row">
-                        <span class="bt-settings-profile-current">
-                            ${this.escapeHtml(profileNickname)}
-                        </span>
-                        <button class="bt-settings-profile-btn" type="button" data-action="editProfile">
-                            <span aria-hidden="true">✏️</span>
-                            <span>${t('settings.editProfile')}</span>
-                        </button>
-                    </div>
-                </section>
-                ` : ''}
 
                 <section class="bt-settings-section">
                     <h3 class="bt-settings-section-title">
@@ -180,12 +156,6 @@ export class SettingsScreen implements IScreen {
             this.onBack?.();
         });
 
-        const editProfileBtn = this.rootEl.querySelector<HTMLButtonElement>('[data-action="editProfile"]');
-        editProfileBtn?.addEventListener('click', () => {
-            AudioSys.getInstance().playMenuClick();
-            this.onEditProfileClick?.();
-        });
-
         const musicSlider = this.rootEl.querySelector<HTMLInputElement>('#bt-music-vol');
         const musicValueEl = this.rootEl.querySelector<HTMLElement>('[data-for="bt-music-vol"]');
         musicSlider?.addEventListener('input', (e) => {
@@ -227,12 +197,4 @@ export class SettingsScreen implements IScreen {
         });
     }
 
-    private escapeHtml(str: string): string {
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-    }
 }

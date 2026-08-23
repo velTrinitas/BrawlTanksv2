@@ -42,6 +42,12 @@ export const TROPHY_BONUS = {
 /** Rubki (soft currency) z runa: trofeaGained * ten wspolczynnik. Tunable. */
 export const BOLTS_PER_TROPHY = 1;
 
+/**
+ * PROFILE-1: minimalna liczba strzalow w meczu, zeby celnosc liczyla sie do rekordu
+ * "najlepsza celnosc". Ponizej progu jeden szczesliwy strzal dawalby 100%. Tunable.
+ */
+export const ACCURACY_MIN_SHOTS = 20;
+
 // ── Wzor trofeow ────────────────────────────────────────────────────────────
 export interface TrophyBonusFlags {
     perfectRun?: boolean;

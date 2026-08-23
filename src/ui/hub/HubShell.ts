@@ -10,9 +10,13 @@ import { GarageSection } from './sections/GarageSection';
 import { QuestsSection } from './sections/QuestsSection';
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
-import { StatsOverlay } from './overlays/StatsOverlay';
+import { ProfileSection } from './sections/ProfileSection'; // PROFILE-1 (zastapil StatsOverlay)
 import { CrateOverlay } from './overlays/CrateOverlay';
 import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
+import { AVATARS } from '../../config/avatars'; // PROFILE-1 — miniatura w chipie
+import { seasonDaysLeft, seasonShortLabel } from '../../config/season'; // SEASON-1/2 — pill sezonu
+import { SeasonOverlay } from './overlays/SeasonOverlay'; // SEASON-2 — popup sezonu
+import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebracja awansu
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
@@ -31,7 +35,7 @@ import './hub-styles.css';
  * (HUB-0 nie buduje wlasnego GRAJ-flow — to HUB-1).
  */
 
-type SectionId = 'battle' | 'garage' | 'quests' | 'trophies' | 'rank';
+type SectionId = 'battle' | 'garage' | 'quests' | 'trophies' | 'rank' | 'profile';
 
 export class HubShell implements IScreen {
     private rootEl: HTMLElement | null = null;
@@ -43,9 +47,16 @@ export class HubShell implements IScreen {
     private readonly garage = new GarageSection();
     private readonly quests = new QuestsSection();
     private readonly rank = new RankSection();
-    private readonly stats = new StatsOverlay();
+    /** PROFILE-1 — strona profilu (ukryta sekcja poza nav, wejscie przez chip). */
+    private readonly profile = new ProfileSection();
     private readonly crate = new CrateOverlay();
+    /** SEASON-2 — popup sezonu (pill na belce). */
+    private readonly season = new SeasonOverlay();
+    /** RANKS-1 — spektakularna celebracja awansu rangi. */
+    private readonly rankUp = new RankUpOverlay();
     private readonly sections: HubSection[];
+    /** Sekcja, z ktorej otwarto profil — ← wraca dokladnie tam. */
+    private prevSection: SectionId = 'battle';
 
     // callbacki wpinane przez MainMenu.createHub0Screen()
     public onOpenSettings: (() => void) | null = null;
@@ -63,7 +74,12 @@ export class HubShell implements IScreen {
         this.garage.onOpenCrate = () => {
             if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => this.renderMain());
         };
-        this.garage.onCosmeticChanged = () => this.refreshReadout();
+        // PROFILE-1 — powrot ze strony profilu + refresh readoutu po zmianach
+        // (awatar/nick/kosmetyk zmieniaja chip na zywo).
+        this.profile.onBack = () => this.setActive(this.prevSection);
+        this.profile.onProfileChanged = () => this.refreshReadout();
+        // SEASON-2 — CTA popupu prowadzi do Season Tracku w TROFEA.
+        this.season.onViewTrack = () => this.openSeasonTrack();
         // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
         this.quests.onRewardClaimed = () => this.refreshReadout();
         this.sections = [
@@ -94,6 +110,7 @@ export class HubShell implements IScreen {
             if (!this.rootEl) return;
             this.refreshReadout();
             this.renderMain();
+            this.maybeCelebrateRank(); // RANKS-1 — awans domergowany z chmury
         });
 
         this.rootEl = document.createElement('div');
@@ -102,13 +119,45 @@ export class HubShell implements IScreen {
         root.appendChild(this.rootEl);
         this.wire();
         this.renderMain();
+        this.maybeCelebrateRank(); // RANKS-1 — awans z ostatniego meczu (powrot do huba)
+    }
+
+    /**
+     * RANKS-1 fix: powrot z meczu NIE remountuje huba (MainMenu.show ma guard
+     * "juz na hubie" — hub zyje schowany przez caly mecz), wiec mount-trigger
+     * celebracji nie odpalal. MainMenu.showHub wola ten hook przy re-show:
+     * odswieza readout (trofea/sigmy z meczu) + sekcje + sprawdza awans.
+     */
+    onReshown(): void {
+        if (!this.rootEl) return;
+        this.refreshReadout();
+        this.renderMain();
+        this.maybeCelebrateRank();
+    }
+
+    /**
+     * RANKS-1: odpal celebracje awansu, gdy ranga czeka na pokazanie
+     * (rankShown < poziom). Po zamknieciu stemplujemy rankShown (takze sync),
+     * a readout/sekcja odswieza sie z nowa ranga i naliczonymi nagrodami.
+     */
+    private maybeCelebrateRank(): void {
+        if (!this.rootEl || this.rankUp.isOpen) return;
+        const pid = this.pid();
+        const pending = ProgressionService.getRankState(pid).pendingCelebration;
+        if (!pending) return;
+        this.rankUp.open(this.rootEl, pending, () => {
+            ProgressionService.markRankShown(pid, pending.level);
+            this.refreshReadout();
+            this.renderMain();
+        });
     }
 
     unmount(): void {
         this.unsubscribeSync?.();
         this.unsubscribeSync = null;
-        this.stats.close();
         this.crate.close();
+        this.season.close();
+        this.rankUp.close();
         this.rootEl?.remove();
         this.rootEl = null;
     }
@@ -134,36 +183,37 @@ export class HubShell implements IScreen {
     private renderReadout(): string {
         const profile = ProfileService.getActiveProfile();
         const name = profile?.nickname ?? 'Brawler';
-        const initial = name.charAt(0).toUpperCase();
         const pid = profile?.id ?? 'default';
         const trophies = ProgressionService.getTrophies(pid);
         const bolts = ProgressionService.getBolts(pid);
 
-        // F2a — equipped kosmetyki (kolor nicku / ramka avatara / tytul)
+        // F2a — equipped kosmetyki (kolor nicku / ramka avatara). PROFILE-1: tytul
+        // WYCIETY z chipa (kolidowal z planowanymi Rangami Zalog), chip pokazuje
+        // MINIATURE awatara (PNG) zamiast litery — tap otwiera strone profilu.
         const cos = ProgressionService.getCosmeticState(pid);
         const nickDef = cos.equipped.nickColor ? getCosmetic(cos.equipped.nickColor) : undefined;
         const frameDef = cos.equipped.frame ? getCosmetic(cos.equipped.frame) : undefined;
-        const titleDef = cos.equipped.title ? getCosmetic(cos.equipped.title) : undefined;
         const nickStyle = nickColorStyle(nickDef);
         const shimmer = nickDef?.animated ? ' bt-cos-shimmer' : '';
-        const titleHtml = titleDef ? `<span class="bt-hub0-ptitle">${t(titleDef.labelKey)}</span>` : '';
+        const avatarInner = profile
+            ? `<img src="${import.meta.env.BASE_URL}${AVATARS[profile.avatarId].assetPath}" alt="" draggable="false">`
+            : name.charAt(0).toUpperCase();
 
         return `
             <button class="bt-hub0-profile" data-action="profile" type="button">
-                <span class="bt-hub0-avatar" aria-hidden="true" style="${frameStyle(frameDef)}">${initial}</span>
-                <span class="bt-hub0-pnamewrap">
-                    <span class="bt-hub0-pname${shimmer}" style="${nickStyle}">${name}</span>
-                    ${titleHtml}
-                </span>
+                <span class="bt-hub0-avatar" aria-hidden="true" style="${frameStyle(frameDef)}">${avatarInner}</span>
+                <span class="bt-hub0-pname${shimmer}" style="${nickStyle}">${name}</span>
             </button>
             <span class="bt-hub0-spacer"></span>
             <span class="bt-hub0-wallet">
-                <span class="bt-hub0-coin"><span class="ic" aria-hidden="true">🏆</span>${trophies}</span>
+                <button class="bt-hub0-coin bt-hub0-coin--btn" data-action="trophies" type="button"
+                        aria-label="${t('hub.nav.trophies')}"><span class="ic" aria-hidden="true">🏆</span>${trophies}</button>
                 <span class="bt-hub0-coin"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</span>
             </span>
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>
-            <span class="bt-hub0-s2" aria-hidden="true"><span>S2</span></span>
+            <button class="bt-hub0-s2" data-action="season" type="button"
+                    aria-label="${t('hub.season.eyebrow')}"><span>${seasonShortLabel()}</span>${seasonDaysLeft() > 0 ? `<small>⏳${seasonDaysLeft()}d</small>` : ''}</button>
         `;
     }
 
@@ -171,6 +221,11 @@ export class HubShell implements IScreen {
         const main = this.rootEl?.querySelector('.bt-hub0-main') as HTMLElement | null;
         if (!main) return;
         main.innerHTML = '';
+        // PROFILE-1 — profil to ukryta sekcja poza nav (wejscie przez chip w readoucie).
+        if (this.activeSection === 'profile') {
+            this.profile.render(main);
+            return;
+        }
         this.sections.find(s => s.id === this.activeSection)?.render(main);
     }
 
@@ -187,9 +242,34 @@ export class HubShell implements IScreen {
             }
             const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
             if (action === 'settings') this.onOpenSettings?.();
-            else if (action === 'profile' && this.rootEl) this.stats.open(this.rootEl); // HUB-5 stats overlay
+            else if (action === 'profile') this.openProfile(); // PROFILE-1 — strona profilu
+            else if (action === 'trophies') this.setActive('trophies'); // PROFILE-1 — pill 🏆
+            // SEASON-2 — pill sezonu otwiera POPUP (CTA popupu prowadzi do tracku)
+            else if (action === 'season' && this.rootEl) this.season.open(this.rootEl);
             // 'play' obslugiwane wewnatrz BattleSection (wlasny listener)
         });
+    }
+
+    /**
+     * SEASON-1 — badge S2: sekcja TROFEA + scroll do Season Tracku (wszystko
+     * o sezonie zyje w TROFEA — badge przestaje byc dekoracja-zagadka).
+     */
+    private openSeasonTrack(): void {
+        this.setActive('trophies');
+        const main = this.rootEl?.querySelector('.bt-hub0-main');
+        main?.querySelector('[data-season-track]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /** PROFILE-1 — otworz strone profilu (chip); ← wraca do zapamietanej sekcji. */
+    private openProfile(): void {
+        if (this.activeSection === 'profile') return;
+        this.prevSection = this.activeSection;
+        this.activeSection = 'profile';
+        // Zdejmij podswietlenie nav (profil nie jest przypisany do zadnego przycisku).
+        this.rootEl?.querySelectorAll<HTMLElement>('.bt-hub0-navbtn').forEach(btn => {
+            btn.classList.remove('is-active');
+        });
+        this.renderMain();
     }
 
     private setActive(id: SectionId): void {

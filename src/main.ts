@@ -144,7 +144,7 @@ import {
     POWERCUBE_HP_BONUS_PER_PICKUP,
 } from './services/GameSession';
 import { scoreService, type RunStats } from './services/ScoreService';
-import { ProgressionService, type RunProgressionResult } from './services/ProgressionService'; // PROG-F1
+import { ProgressionService, type RunProgressionResult, type RunStatsInput } from './services/ProgressionService'; // PROG-F1
 import { QuestService, type QuestView } from './services/QuestService'; // PROG-F3 — ROZKAZY
 import { MAP_LABEL_KEY, questDisplayValue } from './config/quests';
 import { sessionService, type LastSession } from './services/SessionService';
@@ -886,6 +886,7 @@ if (import.meta.env.DEV) {
         ProfileSpriteCache,
         AudioSys,
         i18n,
+        ProgressionService, // RANKS-1: smoke-testy rang/sezonu (dev-only)
     };
     console.log('[FAZA 7a/8a/8b] window.BT_DEV attached — use for smoke testing');
 }
@@ -2093,6 +2094,22 @@ function collectRunStats(): RunStats {
     };
 }
 
+/**
+ * PROFILE-1 — staty meczu do ProgressionService.recordRun (sumy lifetime + rekordy
+ * w profilu). Te same liczniki co collectRunStats, ale dziala dla WSZYSTKICH
+ * scenariuszy (CTF nie submituje do scores, a do profilu liczy sie normalnie).
+ */
+function collectProgressionStats(): RunStatsInput {
+    return {
+        kills: spawnSystem?.totalKills ?? 0,
+        gems: spawnSystem?.gemsCollected ?? 0,
+        seconds: currentSession?.getElapsedSeconds() ?? 0,
+        shotsFired: currentSession?.shotsFired ?? 0,
+        shotsHit: currentSession?.shotsHit ?? 0,
+        maxCombo: currentSession?.maxCombo ?? 0,
+    };
+}
+
 /** Etykieta rozkazu z podstawionym celem i (opcjonalnie) nazwa mapy dnia. */
 function questLabel(q: QuestView): string {
     const mapKey = q.param ? MAP_LABEL_KEY[q.param] : undefined;
@@ -2558,7 +2575,7 @@ async function triggerGameOver(): Promise<void> {
                 currentSession.config.profileId,
                 currentSession.score,
                 currentSession.config.map,
-                { perfectRun: false },
+                { perfectRun: false, stats: collectProgressionStats() }, // PROFILE-1
             );
         } catch (e) {
             console.warn('[Progression] recordRun failed (GameOver):', (e as Error).stack ?? e);
@@ -2634,7 +2651,8 @@ async function triggerVictory(): Promise<void> {
                 currentSession.config.profileId,
                 currentSession.score,
                 currentSession.config.map,
-                { perfectRun: perfectRun.applied },
+                // PROFILE-1 stats; RANKS-1: victory=true TYLKO tutaj (triggerVictory)
+                { perfectRun: perfectRun.applied, stats: collectProgressionStats(), victory: true },
             );
         } catch (e) {
             console.warn('[Progression] recordRun failed (Victory):', (e as Error).stack ?? e);

@@ -133,6 +133,9 @@ const SOUND_LIST: SoundDef[] = [
 
     { key: 'victory',  file: 'victory.mp3',  volume: VOLUMES.endgame },
     { key: 'gameover', file: 'gameover.mp3', volume: VOLUMES.endgame },
+    // RANKS-1 (v0.118.0): fanfara awansu rangi (RankUpOverlay) — generowana
+    // proceduralnie (scratchpad gen_rank_fanfare.js), triumfalna trabka + iskierki.
+    { key: 'rank_fanfare', file: 'rank_fanfare.wav', volume: VOLUMES.endgame },
 
     // UI feedback (FAZA 6d)
     { key: 'menu_click', file: 'menu_click.mp3', volume: 0.35 },
@@ -641,6 +644,11 @@ export class AudioSys {
     playGameOver(): void {
         this.stopMusic();
         this.safePlay('gameover');
+    }
+
+    /** RANKS-1: fanfara awansu rangi (RankUpOverlay w hubie — muzyka menu gra dalej). */
+    playRankFanfare(): void {
+        this.safePlay('rank_fanfare');
     }
 
     /**

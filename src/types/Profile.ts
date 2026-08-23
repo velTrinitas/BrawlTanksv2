@@ -7,8 +7,19 @@
  *   exhaust at 16 permutations; nickname disambiguates beyond that)
  */
 
-export type AvatarId = 'komandor' | 'pilotka' | 'smyk' | 'inzynier';
-export type FlagId = 'pl' | 'fr' | 'it' | 'de';
+/**
+ * PROFILE-1 (v0.118.0): ROSTER WYMIENIONY — 9 nowych czolgistow (art Mariusza
+ * <Name>_200.png), stare 4 (komandor/pilotka/smyk/inzynier) USUNIETE.
+ * Stare id w localStorage/chmurze sa migrowane do DEFAULT_AVATAR_ID przy load
+ * (ProfileService.normalizeIdentity) — nie wywalaja profilu.
+ */
+export type AvatarId =
+    | 'ash' | 'chris' | 'dane' | 'jack' | 'johny'
+    | 'matti' | 'pablo' | 'steve' | 'tommy';
+/** PROFILE-1: 18 flag (bylo 4 — pl/fr/it/de zostaly, wiec stare wybory sa wazne). */
+export type FlagId =
+    | 'ar' | 'br' | 'ca' | 'de' | 'es' | 'fr' | 'gb' | 'il' | 'it'
+    | 'jp' | 'kr' | 'nl' | 'pl' | 'pt' | 'se' | 'tr' | 'ua' | 'us';
 export type LanguageId = 'pl' | 'en';
 
 /**

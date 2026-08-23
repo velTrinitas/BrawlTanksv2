@@ -17,6 +17,8 @@
 
     import type { AvatarId, FlagId, LanguageId, Profile } from '../types/Profile';
     import { DEFAULT_LANGUAGE, isValidNickname } from '../types/Profile';
+    import { DEFAULT_AVATAR_ID, isValidAvatarId } from '../config/avatars';
+    import { DEFAULT_FLAG_ID, isValidFlagId } from '../config/flags';
 
     const PROFILES_KEY = 'bt2:profiles';
     const ACTIVE_PROFILE_KEY = 'bt2:activeProfileId';
@@ -180,14 +182,31 @@
                 }
 
                 const validProfiles: Profile[] = [];
+                let migrated = false;
                 for (const entry of parsed) {
                     if (this.isValidProfileEntry(entry)) {
+                        // PROFILE-1: migracja rosterow — stare id awatara (komandor/
+                        // pilotka/smyk/inzynier) i ewentualne nieznane flagi dostaja
+                        // defaulty zamiast wywalac profil (gracz traci TYLKO portret,
+                        // nick/postep zostaja; nowy wyglad wybierze w edycji profilu).
+                        const p = entry as { avatarId: string; flagId: string };
+                        if (!isValidAvatarId(p.avatarId)) {
+                            console.warn(`[ProfileService] Migrating legacy avatarId '${p.avatarId}' -> '${DEFAULT_AVATAR_ID}'`);
+                            p.avatarId = DEFAULT_AVATAR_ID;
+                            migrated = true;
+                        }
+                        if (!isValidFlagId(p.flagId)) {
+                            console.warn(`[ProfileService] Migrating unknown flagId '${p.flagId}' -> '${DEFAULT_FLAG_ID}'`);
+                            p.flagId = DEFAULT_FLAG_ID;
+                            migrated = true;
+                        }
                         validProfiles.push(entry as Profile);
                     } else {
                         console.warn('[ProfileService] Dropping invalid profile entry:', entry);
                     }
                 }
                 this.profiles = validProfiles;
+                if (migrated) this.saveProfiles(); // utrwal migracje od razu
             } catch (e) {
                 console.error('[ProfileService] Failed to parse profiles, resetting:', e);
                 this.profiles = [];

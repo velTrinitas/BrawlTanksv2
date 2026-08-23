@@ -94,9 +94,17 @@ export function cosmeticsByType(type: CosmeticType): CosmeticDef[] {
     return COSMETICS.filter(c => c.type === type);
 }
 
-/** Ids kosmetykow danej rzadkosci (do losowania w skrzynce). */
+/**
+ * Ids kosmetykow danej rzadkosci (do losowania w skrzynce).
+ * PROFILE-1 (v0.118.0): TYTULY WYCIETE z puli losowania (kolidowaly z planowanymi
+ * Rangami Zalog — docs/crew-ranks-v1.md). Defy ti_* ZOSTAJA w rejestrze (mergeCosmetics
+ * waliduje id po rejestrze — juz posiadane tytuly przezywaja sync bez szkody).
+ * ODWRACALNE: usun filtr type !== 'title', tytuly wracaja do dropu.
+ * Pule po filtrze: c=7 / r=6 / e=5 / l=4 — zadna pusta; wyczerpana pula i tak
+ * konwertuje na srubki (CRATE_DUP_BOLTS), pity 10/30 dziala bez zmian.
+ */
 export function cosmeticIdsOfRarity(rarity: Rarity): string[] {
-    return COSMETICS.filter(c => c.rarity === rarity).map(c => c.id);
+    return COSMETICS.filter(c => c.rarity === rarity && c.type !== 'title').map(c => c.id);
 }
 
 /** Inline-style dla nicku wg equipped nickColor (helper dla readout + preview). */

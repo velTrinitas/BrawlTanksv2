@@ -3,13 +3,18 @@ import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { ACT_I_MILESTONES, ACT_II_MILESTONES, type TrophyMilestone } from '../../../config/progression';
+import { getCurrentSeason, type SeasonMilestone } from '../../../config/season';
 
 /**
  * TrophyRoadSection (TROFEA) — HUB-4. Pelnoekranowy Szlak Trofeow zasilony shipped
  * PROG-F1. READ-ONLY: nagrody sa auto-przyznawane po meczu (recordRun), wiec sekcja
- * WIZUALIZUJE postep — zdobyte (✓) / nastepny / przyszle milestony. Season track =
- * statyczny placeholder (Season config w pozniejszej fazie). Akty II/III = teaser
- * (w PROG-F1 zdefiniowany tylko Akt I 0..750).
+ * WIZUALIZUJE postep — zdobyte (✓) / nastepny / przyszle milestony. Akty II/III =
+ * teaser (w PROG-F1 zdefiniowany tylko Akt I 0..750).
+ *
+ * SEASON-1 (v0.118.0): Season Track NA ZYWO (byl placeholder z v0.94) — trofea
+ * SEZONOWE (licznik od 0, reset przy nowym sezonie) + 5 progow nagrod
+ * (auto-wyplata w recordRun) + countdown dni. Kotwica data-season-track —
+ * badge S2 w readoucie scrolluje tutaj.
  */
 export class TrophyRoadSection implements HubSection {
     public readonly id = 'trophies';
@@ -65,11 +70,52 @@ export class TrophyRoadSection implements HubSection {
                 <div class="info"><b>${t('common.soon')}</b><span class="reward">1500+ 🏆</span></div>
             </div>
 
-            <div class="bt-hub0-road-act">${t('hub.road.seasonTitle')}</div>
-            <div class="bt-hub0-season-track">
-                <div class="bt-hub0-trophybar-track"><div class="fill" style="width:0%;"></div></div>
-                <span class="next">${t('common.soon')}</span>
+            ${this.seasonTrackHtml(pid)}
+        `;
+    }
+
+    /** SEASON-1: pasek trofeow sezonowych + progi nagrod + countdown. */
+    private seasonTrackHtml(pid: string): string {
+        const season = ProgressionService.getSeasonState(pid);
+        const pct = Math.round(season.progressToNext * 100);
+        const timeChip = season.active
+            ? `<span class="st-days">⏳ ${t('hub.season.daysLeft', { n: season.daysLeft })}</span>`
+            : `<span class="st-days st-days--ended">${t('hub.season.ended')}</span>`;
+        const nextTxt = season.active
+            ? (season.nextMilestone
+                ? t('hub.trophyNext', { n: season.nextMilestone.threshold - season.trophies })
+                : t('hub.trophyMax'))
+            : t('hub.season.ended');
+
+        // Progi jako nody Szlaku (reuse gramatyki ✓/next/future — spojnosc).
+        const node = (m: SeasonMilestone): string => {
+            const achieved = season.claimed.includes(m.threshold);
+            const isNext = !achieved && season.nextMilestone?.threshold === m.threshold;
+            const cls = achieved ? 'is-done' : isNext ? 'is-next' : 'is-future';
+            return `
+                <div class="bt-hub0-node ${cls}">
+                    <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
+                    <div class="info">
+                        <b>${m.threshold} 🏆</b>
+                        <span class="reward"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${m.bolts}${m.crates ? ` · 📦${m.crates > 1 ? ` x${m.crates}` : ''}` : ''}</span>
+                    </div>
+                    ${isNext ? `<span class="tag">${t('hub.road.next')}</span>` : ''}
+                </div>`;
+        };
+
+        return `
+            <div class="bt-hub0-road-act st-head" data-season-track>
+                <span>${t('hub.road.seasonTitle')} — ${t(getCurrentSeason().nameKey)}</span>
+                ${timeChip}
             </div>
+            <div class="bt-hub0-road-head${season.active ? '' : ' st-ended'}">
+                <div class="bt-hub0-road-count">🏆 <b>${season.trophies}</b></div>
+                <div class="bt-hub0-road-progress">
+                    <div class="bt-hub0-trophybar-track"><div class="fill" style="width:${pct}%;"></div></div>
+                    <span class="next">${nextTxt}</span>
+                </div>
+            </div>
+            <div class="bt-hub0-road-list">${season.milestones.map(node).join('')}</div>
         `;
     }
 }

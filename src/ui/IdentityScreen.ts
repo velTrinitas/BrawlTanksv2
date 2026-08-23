@@ -55,25 +55,50 @@ import {
 // i18n key tables — `as const` preserves literal types for t()
 // ============================================================
 
+// PROFILE-1 (v0.118.0): roster v2 — 9 czolgistow + 18 flag.
 const AVATAR_NAME_KEYS = {
-    komandor: 'profile.avatar.komandor.name',
-    pilotka:  'profile.avatar.pilotka.name',
-    smyk:     'profile.avatar.smyk.name',
-    inzynier: 'profile.avatar.inzynier.name',
+    ash:   'profile.avatar.ash.name',
+    chris: 'profile.avatar.chris.name',
+    dane:  'profile.avatar.dane.name',
+    jack:  'profile.avatar.jack.name',
+    johny: 'profile.avatar.johny.name',
+    matti: 'profile.avatar.matti.name',
+    pablo: 'profile.avatar.pablo.name',
+    steve: 'profile.avatar.steve.name',
+    tommy: 'profile.avatar.tommy.name',
 } as const;
 
 const AVATAR_DESC_KEYS = {
-    komandor: 'profile.avatar.komandor.desc',
-    pilotka:  'profile.avatar.pilotka.desc',
-    smyk:     'profile.avatar.smyk.desc',
-    inzynier: 'profile.avatar.inzynier.desc',
+    ash:   'profile.avatar.ash.desc',
+    chris: 'profile.avatar.chris.desc',
+    dane:  'profile.avatar.dane.desc',
+    jack:  'profile.avatar.jack.desc',
+    johny: 'profile.avatar.johny.desc',
+    matti: 'profile.avatar.matti.desc',
+    pablo: 'profile.avatar.pablo.desc',
+    steve: 'profile.avatar.steve.desc',
+    tommy: 'profile.avatar.tommy.desc',
 } as const;
 
 const FLAG_NAME_KEYS = {
-    pl: 'profile.flag.pl',
-    fr: 'profile.flag.fr',
-    it: 'profile.flag.it',
+    ar: 'profile.flag.ar',
+    br: 'profile.flag.br',
+    ca: 'profile.flag.ca',
     de: 'profile.flag.de',
+    es: 'profile.flag.es',
+    fr: 'profile.flag.fr',
+    gb: 'profile.flag.gb',
+    il: 'profile.flag.il',
+    it: 'profile.flag.it',
+    jp: 'profile.flag.jp',
+    kr: 'profile.flag.kr',
+    nl: 'profile.flag.nl',
+    pl: 'profile.flag.pl',
+    pt: 'profile.flag.pt',
+    se: 'profile.flag.se',
+    tr: 'profile.flag.tr',
+    ua: 'profile.flag.ua',
+    us: 'profile.flag.us',
 } as const;
 
 // ============================================================

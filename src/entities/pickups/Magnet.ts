@@ -4,65 +4,40 @@ import type { EffectsManager } from '../../rendering/Effects';
 /**
  * Magnet pickup — rare. Aktywuje 5s podczas których wszystkie gems lecą do gracza.
  * v0.4d: dodany błękitnawy glow aura (był praktycznie niewidoczny bez glow).
+ * v0.118.0: podkowa PROGRAMMATIC zastąpiona assetem Mariusza
+ * (public/assets/items/magnet_120.png, 120px) — glow ZOSTAJE jako osobny sprite
+ * pod spodem (lekcja v0.4d: bez poświaty magnes ginie na mapach).
  */
+
+/** Bazowa skala assetu 120px -> ~44px w świecie (stary rozmiar podkowy). */
+const MAGNET_ASSET_SIZE = 120;
+const MAGNET_DISPLAY_SIZE = 44;
+const MAGNET_BASE_SCALE = MAGNET_DISPLAY_SIZE / MAGNET_ASSET_SIZE;
 
 let _magnetTexture: PIXI.Texture | null = null;
 function getMagnetTexture(): PIXI.Texture {
     if (_magnetTexture) return _magnetTexture;
+    // PIXI v7: Texture.from(url) ładuje async — sprite pojawia się po wczytaniu
+    // (pickup jest rzadki i żyje 20s, opóźnienie pierwszego wczytania niezauważalne).
+    const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+    _magnetTexture = PIXI.Texture.from(`${base}assets/items/magnet_120.png`);
+    return _magnetTexture;
+}
+
+let _magnetGlowTexture: PIXI.Texture | null = null;
+function getMagnetGlowTexture(): PIXI.Texture {
+    if (_magnetGlowTexture) return _magnetGlowTexture;
     const cv = document.createElement('canvas');
-    cv.width = 56; cv.height = 56;
+    cv.width = 72; cv.height = 72;
     const ctx = cv.getContext('2d')!;
-    
-    const cx = 28, cy = 28;
-    
-    // === Błękitny glow aura (zewnętrzny soft glow) — v0.4d ===
-    const glowGrad = ctx.createRadialGradient(cx, cy, 8, cx, cy, 28);
+    const glowGrad = ctx.createRadialGradient(36, 36, 10, 36, 36, 36);
     glowGrad.addColorStop(0, 'rgba(102,204,255,0.7)');
     glowGrad.addColorStop(0.5, 'rgba(102,204,255,0.35)');
     glowGrad.addColorStop(1, 'rgba(102,204,255,0)');
     ctx.fillStyle = glowGrad;
-    ctx.fillRect(0, 0, 56, 56);
-    
-    // === Magnes — podkowa ===
-    // Czerwona część (N)
-    ctx.fillStyle = '#e74c3c';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(cx - 12, cy - 12, 10, 20, 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Szara część (S)
-    ctx.fillStyle = '#95a5a6';
-    ctx.beginPath();
-    ctx.roundRect(cx + 2, cy - 12, 10, 20, 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Łącznik środkowy (zaokrąglony szczyt)
-    ctx.fillStyle = '#7f8c8d';
-    ctx.beginPath();
-    ctx.roundRect(cx - 12, cy + 2, 24, 6, 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Litery N i S
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('N', cx - 7, cy - 4);
-    ctx.fillText('S', cx + 7, cy - 4);
-    
-    // Highlight na podkowie
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath();
-    ctx.arc(cx - 9, cy - 8, 2, 0, Math.PI * 2);
-    ctx.fill();
-    
-    _magnetTexture = PIXI.Texture.from(cv);
-    return _magnetTexture;
+    ctx.fillRect(0, 0, 72, 72);
+    _magnetGlowTexture = PIXI.Texture.from(cv);
+    return _magnetGlowTexture;
 }
 
 export class Magnet {
@@ -70,42 +45,55 @@ export class Magnet {
     public y: number;
     public active: boolean;
     public sprite: PIXI.Sprite;
+    private glowSprite: PIXI.Sprite;
     public radius: number = 22;
     private bornAt: number;
     private static readonly LIFETIME_MS = 20000;
-    
+
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
         this.x = x; this.y = y;
         this.active = true;
         this.bornAt = Date.now();
-        
+
+        // glow POD magnesem (osobny sprite — asset nie ma własnej poświaty)
+        this.glowSprite = new PIXI.Sprite(getMagnetGlowTexture());
+        this.glowSprite.anchor.set(0.5);
+        this.glowSprite.x = x;
+        this.glowSprite.y = y;
+        this.glowSprite.zIndex = y + 3;
+        worldContainer.addChild(this.glowSprite);
+
         this.sprite = new PIXI.Sprite(getMagnetTexture());
         this.sprite.anchor.set(0.5);
+        this.sprite.scale.set(MAGNET_BASE_SCALE);
         this.sprite.x = x;
         this.sprite.y = y;
         this.sprite.zIndex = y + 4;
         worldContainer.addChild(this.sprite);
     }
-    
+
     update(_delta: number): void {
         if (!this.active) return;
-        
-        // Pulsing scale + lekki obrót
+
+        // Pulsing scale + lekki obrót (skala bazowa wpieczona — asset 120px)
         const t = Date.now() / 300;
-        this.sprite.scale.set(1 + Math.sin(t) * 0.12);
+        const pulse = 1 + Math.sin(t) * 0.12;
+        this.sprite.scale.set(MAGNET_BASE_SCALE * pulse);
         this.sprite.rotation += 0.015;
-        
+        this.glowSprite.scale.set(pulse);
+
         const age = Date.now() - this.bornAt;
         if (age > Magnet.LIFETIME_MS - 3000) {
             const blink = Math.sin(Date.now() / 80) > 0 ? 1 : 0.4;
             this.sprite.alpha = blink;
+            this.glowSprite.alpha = blink;
         }
-        
+
         if (age > Magnet.LIFETIME_MS) {
             this.destroy();
         }
     }
-    
+
     pickup(effects: EffectsManager): boolean {
         if (!this.active) return false;
         // Błękitne iskry (matching glow)
@@ -113,9 +101,13 @@ export class Magnet {
         this.destroy();
         return true;
     }
-    
+
     destroy(): void {
         this.active = false;
+        if (this.glowSprite.parent) {
+            this.glowSprite.parent.removeChild(this.glowSprite);
+        }
+        this.glowSprite.destroy();
         if (this.sprite.parent) {
             this.sprite.parent.removeChild(this.sprite);
         }

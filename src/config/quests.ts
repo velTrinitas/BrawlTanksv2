@@ -101,7 +101,7 @@ export function getQuestScale(trophies: number): number {
 }
 
 /** Mapy KTB dopuszczone jako "mapa dnia" (fortified_ruins to CTF — ma wlasny rozkaz flagowy). */
-export const QUEST_MAP_POOL: readonly MapId[] = ['city', 'desert', 'tropics', 'arctic'];
+export const QUEST_MAP_POOL: readonly MapId[] = ['city', 'desert', 'tropics', 'arctic', 'mars'];
 
 /** Etykiety map — literalne klucze (dynamiczne t(var) nie kompiluje sie w tym projekcie). */
 export const MAP_LABEL_KEY: Record<string, TranslationKey> = {
@@ -109,6 +109,7 @@ export const MAP_LABEL_KEY: Record<string, TranslationKey> = {
     desert: 'leaderboard.map.desert',
     tropics: 'leaderboard.map.tropics',
     arctic: 'leaderboard.map.arctic',
+    mars: 'leaderboard.map.mars',
 };
 
 // ── PULA ŁATWA (domyka sie sama przy normalnej grze) ────────────────────────

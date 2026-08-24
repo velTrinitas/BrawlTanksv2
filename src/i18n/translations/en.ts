@@ -79,6 +79,7 @@ export const en: typeof pl = {
     'leaderboard.map.desert': 'Desert',
     'leaderboard.map.tropics': 'Tropics',
     'leaderboard.map.arctic': 'Arctic',
+    'leaderboard.map.mars': 'Mars',
     'leaderboard.you': 'YOU',
     'leaderboard.noRank': 'Play a match to get ranked!',
     'leaderboard.empty': 'No scores yet — be the first!',
@@ -487,6 +488,9 @@ export const en: typeof pl = {
     'map.arctic.name': 'ARCTIC',
     'map.arctic.tagline': 'Frozen wasteland',
 
+    'map.mars.name': 'MARS',
+    'map.mars.tagline': 'Abandoned base and UFO',
+
     // ============================================================
     // Difficulty
     // ============================================================
@@ -679,6 +683,7 @@ export const en: typeof pl = {
     'hud.stealthOasis':     '🌴 INVISIBLE (10s)!',
     'hud.stealthNeon': 'CRYO-CLOAK! Fog hides your tank',
     'hud.stealthBush':      '🌿 HIDDEN IN THE BUSHES (10s)!',
+    'hud.stealthHydro':     '🌱 HIDDEN IN THE HYDROPONICS (10s)!',
 
     // CTF (FAZA CTF F2)
     'ctf.flagPickup':     '🚩 FLAG {name} TAKEN! RETURN TO BASE!',
@@ -694,14 +699,25 @@ export const en: typeof pl = {
     'hud.caravanGem':     '🐪 Caravan dropped 💎',
     'hud.caravanHeart':   '🐪 Caravan dropped ❤️',
     'hud.caravanMagnet':  '🐪 Caravan dropped 🧲',
+    'hud.roverGem':       '🛰️ Rover dropped 💎',
+    'hud.roverHeart':     '🛰️ Rover dropped ❤️',
+    'hud.roverMagnet':    '🛰️ Rover dropped 🧲',
     // ARC-R2 — penguins (Ice Arena)
     'hud.penguinGem':     '🐧 Penguin dropped 💎',
     'hud.penguinHeart':   '🐧 Penguin dropped ❤️',
     'hud.penguinMagnet':  '🐧 Penguin dropped 🧲',
     'hud.yetiRoar':       '🦍 YETI IS FURIOUS! Run!',
     'hud.blizzard':       '❄️ Blizzard!',
+    'hud.dustStorm':      '🌪️ Dust storm!',
+    'hud.ufoAbduct':      '🛸 UFO abducted an enemy!',
+    'hud.ufoWarn':        '🛸 UFO WARNING! ({lvl}/{max})',
+    'hud.ufoAngry':       '🛸 UFO IS FIRING BACK! Run!',
+    'hud.ufoDown':        '🛸 YOU SHOT DOWN THE UFO! 💎💎💎',
 
     // Pickups (heal/turbo/super charge/magnet)
+    // Pads — on-pad label (FAZA MARS M4)
+    'pad.repairing':      'REPAIRING',
+
     'hud.mediPadHeal':    '🔧 +{hp} HP',
     'hud.heartHeal':      '❤️ +{hp} HP',
     'hud.turboBoost':     '⚡ TURBO ×2 — {sec}s!',

@@ -23,7 +23,7 @@ import type { TranslationKey } from '../i18n/i18n';
 // PLAYABLE maps — uzywane przez game logic (main.ts, AudioSys, Spawn, etc.)
 // FAZA CTF F1: 'fortified_ruins' — mapa scenariusza CTF (bez karty w MENU_MAP_CARDS,
 // wybierana wylacznie przez scenario.fixedMapId).
-export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins';
+export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars';
 
 export interface MapConfig {
     id: MapId;
@@ -39,6 +39,7 @@ export const MAP_CONFIGS: Record<MapId, MapConfig> = {
     tropics: { id: 'tropics', name: 'TROPIKI',   bg: '#6dba4a', musicTrack: 'tropiki.mp3',   badge: '#1a7a40' },
     arctic:  { id: 'arctic',  name: 'ARKTYKA',   bg: '#bcdfec', musicTrack: 'arktyka1.ogg',  badge: '#1a6ea8' },
     fortified_ruins: { id: 'fortified_ruins', name: 'FORTIFIED RUINS', bg: '#a08a64', musicTrack: 'ctf.ogg', badge: '#b8956a' },
+    mars:    { id: 'mars',    name: 'MARS',      bg: '#c97b62', musicTrack: 'mars1.ogg',     badge: '#a34a3a' },
 };
 
 /**
@@ -53,6 +54,7 @@ export function getMapIdFromUrl(): MapId {
     if (m === 'tropics') return 'tropics';
     if (m === 'arctic') return 'arctic';
     if (m === 'fortified_ruins') return 'fortified_ruins';
+    if (m === 'mars') return 'mars';
     return 'city';
 }
 
@@ -103,7 +105,7 @@ export interface MenuMapCard {
     /** Translation key dla badge gdy locked (np. 'common.soon'). */
     comingSoonKey?: TranslationKey;
     /** Typ MapPreview component (FAZA 6b). */
-    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic';
+    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars';
 }
 
 /**
@@ -155,6 +157,17 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
         available: true,                  // FAZA A: unlocked
         previewType: 'arctic',
     },
+    {
+        id: 'mars',
+        nameKey: 'map.mars.name',
+        taglineKey: 'map.mars.tagline',
+        emoji: '🛸',
+        accentColor: '#e0997f',
+        accentDarker: '#a34a3a',
+        bgGradient: 'linear-gradient(160deg, #e0997f 0%, #c97b62 50%, #8a4a5a 100%)',
+        available: true,                  // FAZA MARS M2: unlocked
+        previewType: 'mars',
+    },
 ];
 
 /**
@@ -164,7 +177,7 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
  */
 export function isPlayableMapId(id: MenuMapCardId): id is MapId {
     return id === 'city' || id === 'desert' || id === 'tropics' || id === 'arctic'
-        || id === 'fortified_ruins';
+        || id === 'fortified_ruins' || id === 'mars';
 }
 
 /**

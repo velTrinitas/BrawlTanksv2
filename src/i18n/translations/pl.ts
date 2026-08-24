@@ -88,6 +88,7 @@ export const pl = {
     'leaderboard.map.desert': 'Pustynia',
     'leaderboard.map.tropics': 'Tropiki',
     'leaderboard.map.arctic': 'Arktyka',
+    'leaderboard.map.mars': 'Mars',
     'leaderboard.you': 'TY',
     'leaderboard.noRank': 'Zagraj mecz, żeby trafić do rankingu!',
     'leaderboard.empty': 'Brak wyników — bądź pierwszy!',
@@ -499,6 +500,9 @@ export const pl = {
     'map.arctic.name': 'ARKTYKA',
     'map.arctic.tagline': 'Lodowa pustynia',
 
+    'map.mars.name': 'MARS',
+    'map.mars.tagline': 'Opuszczona baza i UFO',
+
     // ============================================================
     // Difficulty levels
     // ============================================================
@@ -696,6 +700,7 @@ export const pl = {
     'hud.stealthOasis':     '🌴 NIEWIDZIALNY (10s)!',
     'hud.stealthNeon': 'KRIO-KAMUFLAŻ! Mgła ukryła Twój czołg',
     'hud.stealthBush':      '🌿 UKRYTY W ZAROŚLACH (10s)!',
+    'hud.stealthHydro':     '🌱 UKRYTY W HYDROPONICE (10s)!',
 
     // CTF (FAZA CTF F2)
     'ctf.flagPickup':     '🚩 FLAGA {name} POBRANA! WRACAJ DO BAZY!',
@@ -711,12 +716,23 @@ export const pl = {
     'hud.caravanGem':     '🐪 Karawana dropiła 💎',
     'hud.caravanHeart':   '🐪 Karawana dropiła ❤️',
     'hud.caravanMagnet':  '🐪 Karawana dropiła 🧲',
+    'hud.roverGem':       '🛰️ Łazik zgubił 💎',
+    'hud.roverHeart':     '🛰️ Łazik zgubił ❤️',
+    'hud.roverMagnet':    '🛰️ Łazik zgubił 🧲',
     // ARC-R2 — pingwiny (Lodowa Arena)
     'hud.penguinGem':     '🐧 Pingwin zgubił 💎',
     'hud.penguinHeart':   '🐧 Pingwin zgubił ❤️',
     'hud.penguinMagnet':  '🐧 Pingwin zgubił 🧲',
     'hud.yetiRoar':       '🦍 YETI JEST WŚCIEKŁY! Uciekaj!',
     'hud.blizzard':       '❄️ Śnieżyca!',
+    'hud.dustStorm':      '🌪️ Burza pyłowa!',
+    'hud.ufoAbduct':      '🛸 UFO porwało wroga!',
+    'hud.ufoWarn':        '🛸 UFO OSTRZEGA! ({lvl}/{max})',
+    'hud.ufoAngry':       '🛸 UFO ODDAJE OGIEŃ! Uciekaj!',
+    'hud.ufoDown':        '🛸 ZESTRZELIŁEŚ UFO! 💎💎💎',
+
+    // Pady — etykieta na padzie (FAZA MARS M4; starsze pady maja hardcoded PL)
+    'pad.repairing':      'NAPRAWA',
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

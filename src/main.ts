@@ -47,6 +47,24 @@ import {
     ARCTIC_PENGUIN_PATH_2,
 } from './maps/ArcticMap'; // FAZA A + ARC-R1/R2 "Lodowa Arena"
 import { ArcticBorder } from './maps/arctic/ArcticBorder'; // ARC-R1 (waska granatowa granica)
+import {
+    buildMarsTexture, MARS_ROCK_PALETTE,
+    MARS_LARGE_ROCKS_LAYOUT, MARS_SMALL_ROCKS_LAYOUT, MARS_CRATES_LAYOUT,
+    MARS_SLOW_FIELDS_LAYOUT, MARS_STEALTH_ZONES_LAYOUT,
+    MARS_MEDI_PAD_POSITIONS, MARS_POWER_PAD_POSITIONS,
+} from './maps/MarsMap'; // FAZA MARS M2/M3/M4
+import { DuststormBorder } from './maps/mars/DuststormBorder'; // FAZA MARS M2
+import { MarsBase } from './maps/mars/MarsBase'; // FAZA MARS M3 (landmark)
+import { MarsCargo } from './maps/mars/MarsCargo'; // FAZA MARS M3 (niszczalne)
+import { RegolithField } from './maps/mars/RegolithField'; // FAZA MARS M4 (slow)
+import { SolarFarm } from './maps/mars/SolarFarm'; // FAZA MARS M4b (zasila baze)
+import { MarsRover } from './maps/mars/MarsRover'; // FAZA MARS M4b (patrol + drop)
+import { DustStorm } from './maps/mars/DustStorm'; // FAZA MARS M5 (pogoda, gated)
+import { UfoAbductor } from './maps/mars/UfoAbductor'; // FAZA MARS M5 (mechanika-gwiazda)
+import { FuelStation } from './maps/mars/FuelStation'; // FAZA MARS M5c (ladowisko UFO)
+import { HydroGarden } from './maps/mars/HydroGarden'; // FAZA MARS M4 (stealth)
+import { MarsMediPad } from './maps/mars/MarsMediPad'; // FAZA MARS M4
+import { MarsPowerPad } from './maps/mars/MarsPowerPad'; // FAZA MARS M4
 import { IceCube } from './entities/IceCube'; // ARC-R1 (niszczalne kostki lodu)
 import { Igloo } from './maps/arctic/Igloo'; // ARC-R1 (male igloo 2.5D)
 import { IceHole } from './maps/arctic/IceHole'; // ARC-R2 (przereble: woda + ryba + foki)
@@ -279,8 +297,8 @@ let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
 let powerCubes: PowerCube[] = []; // v0.44.0 FAZA 8.6
-let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad> = [];
-let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad> = [];
+let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad | MarsMediPad> = [];
+let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad | MarsPowerPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
@@ -289,6 +307,15 @@ let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
 let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
 let arcticBorder: ArcticBorder | null = null; // ARC-R1 (Arctic)
+let marsBorder: DuststormBorder | null = null; // FAZA MARS M2
+let marsCargo: MarsCargo[] = []; // FAZA MARS M3 (niszczalne kontenery — wlasna petla)
+let regolithFields: RegolithField[] = []; // FAZA MARS M4 (slow 0.5x)
+let solarFarm: SolarFarm | null = null; // FAZA MARS M4b
+let marsRover: MarsRover | null = null; // FAZA MARS M4b (ambient patrol z dropem)
+let dustStorm: DustStorm | null = null; // FAZA MARS M5 (burza pylowa — klimat, nie kara)
+let ufo: UfoAbductor | null = null; // FAZA MARS M5 (porywa wrogow i cargo, NIE gracza)
+let fuelStation: FuelStation | null = null; // FAZA MARS M5c
+let hydroGardens: HydroGarden[] = []; // FAZA MARS M4 (stealth)
 let iceCubes: IceCube[] = []; // ARC-R1 (niszczalne kostki lodu)
 let iceHoles: IceHole[] = []; // ARC-R2 (przereble — spawnBlocked + kolizja ruchu)
 let penguinColonies: PenguinColony[] = []; // ARC-R2 (2 ekipy — ambient + dropy gemow)
@@ -352,6 +379,7 @@ let wasInOasisLastFrame: boolean = false;
 let wasInCornLastFrame: boolean = false;
 let wasInNeonLastFrame: boolean = false; // v0.60.0 — stealth NEON-OASIS
 let wasInRuinsBushLastFrame: boolean = false; // FAZA CTF F1 — stealth zarosla
+let wasInHydroGardenLastFrame: boolean = false; // FAZA MARS M4 — stealth hydroponika
 let neonDidShootLastFrame = false; // v0.60.0 TIER 3 — strzal z poprzedniej klatki (panika drona)
 let wasStealthActiveLastFrame: boolean = false;
 // PROG-F3 — mirror stanu stealth dostepny poza petla (rozkaz "zniszcz wrogow ze strefy ukrycia").
@@ -1266,6 +1294,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     tropicalBorder = null;
     cyberpunkBorder = null; // v0.52.0 fix #21
     arcticBorder = null; // ARC-R1 (Arctic)
+    marsBorder = null; // FAZA MARS M2
+    marsCargo = []; // FAZA MARS M3
+    regolithFields = []; // FAZA MARS M4
+    solarFarm = null; // FAZA MARS M4b
+    marsRover = null; // FAZA MARS M4b
+    dustStorm = null; // FAZA MARS M5
+    ufo = null; // FAZA MARS M5
+    fuelStation = null; // FAZA MARS M5c
+    hydroGardens = []; // FAZA MARS M4
     iceCubes = []; // ARC-R1
     iceHoles = []; // ARC-R2
     penguinColonies = []; // ARC-R2
@@ -1804,6 +1841,94 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // (main.ts pad-loop) sa scenario-agnostyczne, wiec dzialaja bez zmian.
         mediPads = FORTIFIED_MEDI_PAD_POSITIONS.map(p => new RuinsMediPad(p.x, p.y, worldContainer));
         powerPads = FORTIFIED_POWER_PAD_POSITIONS.map(p => new RuinsPowerPad(p.x, p.y, worldContainer));
+    } else if (config.map === 'mars') {
+        // ── FAZA MARS M2 "RDZAWY SWIT" — pierwsza mapa Map Factory ──
+        // Layout FROZEN + AABB-verified: tools/mars_m1_layout.mjs (PASS, 0 bledow).
+        // M2 = grunt + border (grywalna pusta mapa). M3+: baza/skaly/strefy/pady/UFO.
+        const marsTex = buildMarsTexture();
+        const marsSprite = new PIXI.Sprite(marsTex);
+        marsSprite.zIndex = -100;
+        worldContainer.addChild(marsSprite);
+
+        // Waska granica (wzorzec SandstormBorder): outer 30 + wizual 55, playable [40, 2960].
+        marsBorder = new DuststormBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...marsBorder.getCollisionRects());
+        solidBuildings.push(...marsBorder.getCollisionRects());
+
+        // M3 LANDMARK: baza z 2 kopulami + tunel (parallaksa layer-shift).
+        // Sama jest ICollidable (kopula A), tunel + kopula B ida przez extras —
+        // wszystkie trzy AABB pochodza wprost ze zweryfikowanego layoutu M1.
+        const marsBase = new MarsBase(worldContainer);
+        buildings.push(marsBase);
+        solidBuildings.push(marsBase);
+        for (const extra of marsBase.getExtraCollidables()) {
+            buildings.push(extra);
+            solidBuildings.push(extra);
+        }
+
+        // M3 SOLIDY: skaly marsjanskie (reuse silnika Rock w palecie Marsa).
+        // Layout trzyma TOP-LEFT AABB 120x120, Rock chce SRODEK + rozmiar wizualu
+        // (hitbox = size + 60) => centrum = x+60, size = 60 (patrz nota w layoucie).
+        for (const r of MARS_LARGE_ROCKS_LAYOUT) {
+            const seed = ((r.x * 31 + r.y * 17) % 997) + 1;
+            const rock = new Rock(r.x + 60, r.y + 60, 60, 'large', seed, worldContainer, MARS_ROCK_PALETTE);
+            buildings.push(rock);
+            solidBuildings.push(rock);
+        }
+        // Dekoracyjne kamienie (tier 'small' = ZERO kolizji, staly zIndex 4).
+        for (const [sx, sy] of MARS_SMALL_ROCKS_LAYOUT) {
+            const seed = ((sx * 13 + sy * 7) % 997) + 1;
+            smallRocks.push(new Rock(sx + 32, sy + 32, 34, 'small', seed, worldContainer, MARS_ROCK_PALETTE));
+        }
+
+        // M4b: FARMA SOLARNA — zasila baze (solid rzedy + kanal energii do kopul).
+        // Playtest: mapa potrzebowala drugiej DUZEJ struktury po przeciwnej stronie,
+        // zeby obrzeza przestaly byc puste (szczeliny usuniete — nic nie wnosily).
+        // M5b: panele to WIATY — gracz przejezdza pod nimi, wiec ZERO kolizji
+        // (getCollisionRects zwraca pusta liste; push zostawiony swiadomie, zeby
+        // bylo widac decyzje, a nie jej brak).
+        solarFarm = new SolarFarm(worldContainer);
+        buildings.push(...solarFarm.getCollisionRects());
+        solidBuildings.push(...solarFarm.getCollisionRects());
+
+        // Pola sypkiego regolitu (slow 0.5x, passable — wzorzec Quicksand, rect K3)
+        for (const rf of MARS_SLOW_FIELDS_LAYOUT) {
+            const seed = ((rf.x * 29 + rf.y * 11) % 997) + 1;
+            regolithFields.push(new RegolithField(rf.x, rf.y, rf.w, rf.h, seed, worldContainer));
+        }
+        // Ogrody hydroponiczne (stealth — jedyna zielen na mapie = czytelny sygnal)
+        for (const hg of MARS_STEALTH_ZONES_LAYOUT) {
+            hydroGardens.push(new HydroGarden(hg.x, hg.y, hg.w, hg.h, worldContainer));
+        }
+
+        // M4b: LAZIK-PATHFINDER — bezkolizyjny patrol badajacy skaly, gubi gemy
+        // (wzorzec PenguinColony: petla waypointow + timer dropu z delty).
+        marsRover = new MarsRover(worldContainer);
+
+        // M5: cykliczna burza pylowa (particles-only, bramkowana — klimat, nie kara).
+        // Bierze WOLNY sub-slot pasma overlay (1e6-4), bo 1e6 dziela juz nalot i laser.
+        dustStorm = new DustStorm(worldContainer, () => {
+            hud.addNotif(t('hud.dustStorm'), '#e0997f');
+        });
+        // debug: recznie wyzwol burze z konsoli F12 -> burza()
+        (window as any).burza = () => dustStorm?.forceStart();
+
+        // M5c: stacja tankowania — plyta ladowania PASSABLE, kolizyjny tylko zbiornik
+        fuelStation = new FuelStation(worldContainer);
+        buildings.push(...fuelStation.getCollisionRects());
+        solidBuildings.push(...fuelStation.getCollisionRects());
+
+        // M5 MECHANIKA-GWIAZDA: UFO-Porywacz (wrogowie + cargo; gracza NIE tyka).
+        // M5c: cel dla pociskow gracza — trafialny TYLKO gdy stoi na ladowisku
+        // (gettery zwracaja w/h=0 w locie, wzorzec MarsCargo).
+        ufo = new UfoAbductor(worldContainer);
+        solidBuildings.push(ufo.getBulletTarget());
+
+        // M4 PADY tematyczne (aktywacja AABB+8 = kontrakt DOCELOWY kitu, K9).
+        // M4b: 3 medi + 2 power jak na kazdej innej mapie — po jednym padzie na
+        // 3000x3000 gracz ich po prostu nie spotykal.
+        mediPads = MARS_MEDI_PAD_POSITIONS.map(p => new MarsMediPad(p.x, p.y, worldContainer));
+        powerPads = MARS_POWER_PAD_POSITIONS.map(p => new MarsPowerPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);
@@ -1923,6 +2048,21 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             crates.push(crate);
             solidBuildings.push(crate);
             for (const extra of crate.getExtraCollidables()) {
+                buildings.push(extra);
+            }
+        }
+    }
+
+    // FAZA MARS M3: niszczalne kontenery cargo (wzorzec crates — PO effects/audio, I3).
+    // Metalowy odpowiednik skrzyni: ten sam kontrakt kolizji (sam kontener w
+    // solidBuildings dla pociskow, padded proxy w buildings dla gracza).
+    if (config.map === 'mars') {
+        for (const [cx, cy] of MARS_CRATES_LAYOUT) {
+            const seed = ((cx * 73 + cy * 19) % 997) + 1;
+            const box = new MarsCargo(cx, cy, seed, worldContainer, effects, audio);
+            marsCargo.push(box);
+            solidBuildings.push(box);
+            for (const extra of box.getExtraCollidables()) {
                 buildings.push(extra);
             }
         }
@@ -2864,6 +3004,18 @@ app.ticker.add((rawDelta) => {
             playerInSludge = true;
         }
     }
+    // FAZA MARS M4 — pola sypkiego regolitu: slow 0.5x (wzorzec quicksand/sludge)
+    let playerInRegolith = false;
+    for (const rf of regolithFields) {
+        rf.update();
+        if (rf.isPointInside(player.x, player.y)) {
+            playerInRegolith = true;
+        }
+    }
+    // FAZA MARS M4b — farma solarna: sledzenie slonca + impulsy w kanale do bazy
+    if (solarFarm) solarFarm.update();
+    if (fuelStation) fuelStation.update(); // MARS M5c — swiatla ladowiska
+
     for (const pk of parkings) pk.update(player.x, player.y); // v0.60.0 — puls diod + alarm na najechanie
     // FAZA CTF F1 — fosa: slow 0.5x jak quicksand/sludge (passable)
     let playerInFosa = false;
@@ -2876,7 +3028,7 @@ app.ticker.add((rawDelta) => {
     // FAZA CTF F2 — carry penalty (x0.90/0.85/0.80 wg eskalacji) MULTIPLIKATYWNIE
     // ze slow-zone (fosa z flaga = 0.5 * carry) — legacy 1536 1:1.
     const ctfCarryMult = ctfSystem ? ctfSystem.getCarrySpeedMult() : 1.0;
-    player.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa) ? 0.5 : 1.0) * ctfCarryMult;
+    player.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa || playerInRegolith) ? 0.5 : 1.0) * ctfCarryMult;
     
     groundClutter?.update(); // v0.60.0 — para z 1-2 studzienek
     
@@ -2892,6 +3044,11 @@ app.ticker.add((rawDelta) => {
         }
         if (!enemyInSlow && ruinsFosa && ruinsFosa.isPointInside(enemy.x, enemy.y)) {
             enemyInSlow = true; // FAZA CTF F1 — fosa spowalnia tez wrogow (fair play)
+        }
+        if (!enemyInSlow) {
+            for (const rf of regolithFields) {   // MARS M4 — regolit spowalnia obie strony
+                if (rf.isPointInside(enemy.x, enemy.y)) { enemyInSlow = true; break; }
+            }
         }
         enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
     }
@@ -2923,6 +3080,15 @@ app.ticker.add((rawDelta) => {
         }
     }
 
+    // FAZA MARS M4 — ogrody hydroponiczne (stealth; jedyna zielen na Marsie)
+    let playerInHydroGarden = false;
+    for (const hg of hydroGardens) {
+        hg.update();
+        if (hg.isPointInside(player.x, player.y)) {
+            playerInHydroGarden = true;
+        }
+    }
+
     let playerInCornField = false;
     let playerInSugarcaneField = false;
     for (const ff of farmFields) {
@@ -2936,8 +3102,8 @@ app.ticker.add((rawDelta) => {
     const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
 
     const nowMs = Date.now();
-    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush;
-    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame;
+    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden;
+    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame || wasInHydroGardenLastFrame;
 
     if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
@@ -2955,6 +3121,8 @@ app.ticker.add((rawDelta) => {
             hud.addNotif(t('hud.stealthNeon'), '#6ad8ff');
         } else if (playerInRuinsBush) {
             hud.addNotif(t('hud.stealthBush'), '#76ab63'); // FAZA CTF F1
+        } else if (playerInHydroGarden) {
+            hud.addNotif(t('hud.stealthHydro'), '#5fd489'); // FAZA MARS M4
         } else {
             hud.addNotif(t('hud.stealthOasis'), '#a8c878');
         }
@@ -2976,6 +3144,7 @@ app.ticker.add((rawDelta) => {
     wasInCornLastFrame = playerInFarmStealth;
     wasInNeonLastFrame = playerInNeonStation; // v0.60.0
     wasInRuinsBushLastFrame = playerInRuinsBush; // FAZA CTF F1
+    wasInHydroGardenLastFrame = playerInHydroGarden; // FAZA MARS M4
     wasStealthActiveLastFrame = isStealthActive;
     // v0.50.1: catch-all reset flag stealthBrokenByShot gdy stealth nieaktywne.
     // Pokrywa edge case: gracz strzelil ze strefy ale wyszedl ZARAZ -> flag bez reset
@@ -2998,6 +3167,7 @@ app.ticker.add((rawDelta) => {
     if (tropicalBorder) tropicalBorder.update();
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     if (arcticBorder) arcticBorder.update(); // ARC-R1 (drobiny + smugi lodowe)
+    if (marsBorder) marsBorder.update(); // FAZA MARS M2 (drobiny + smugi pylu)
     if (ruinsBorder) ruinsBorder.update();     // FAZA CTF F1 (no-op, spojnosc interfejsu)
     // FAZA CTF F3 — beacon dostawy: dramatyczny tryb gdy gracz niesie flage
     if (ruinsHangar) ruinsHangar.update(ctfSystem ? ctfSystem.getCarriedFlag() !== null : false);
@@ -3075,6 +3245,81 @@ app.ticker.add((rawDelta) => {
         }
     }
 
+    // FAZA MARS M5: UFO-Porywacz. Zwraca zdarzenie DOPIERO gdy ofiara uderza
+    // w grunt — kill-path (punkty/dropy/licznik fali) nalezy do main.ts, bo tylko
+    // tu jest sesja i spawnSystem. Wzorzec taranu (main.ts kill-by-collision).
+    if (ufo && effects && spawnSystem && currentSession) {
+        const tick = ufo.update(delta, enemies, marsCargo, player.x, player.y);
+
+        // 1) ofiara pozarta => kill-path (punkty/dropy/licznik fali)
+        const abduct = tick?.abducted;
+        if (abduct && abduct.enemy.active) {
+            const e = abduct.enemy;
+            effects.spawnExplosionAndWreck(e.x, e.y, e.tintHex);
+            effects.shake(6, 10);
+            audio.playExplosion();
+            handleEnemyDrop(e);
+            e.active = false;
+            spawnSystem.registerKill(e);
+            currentSession.addKillScore(e.scoreValue);
+            currentSession.addCollisionKillBonus(e.scoreValue); // kill bez strzalu = flex
+            hud.addNotif(t('hud.ufoAbduct'), '#39d98a');
+            if (e.container.parent) e.container.parent.removeChild(e.container);
+            e.container.destroy({ children: true });
+        }
+
+        // 2) M5c: UFO/ufoludek odpowiadaja ogniem — zwykla sciezka pociskow wroga
+        if (tick?.shots) {
+            for (const shot of tick.shots) spawnEnemyShot(shot);
+        }
+
+        // 3) ESKALACJA OSTRZEZENIA (5 trafien): kazde trafienie podbija poziom
+        //    zagrozenia i MUSI byc czuc — wstrzas i dzwiek rosna z poziomem,
+        //    zeby "niebezpieczenstwo narasta" bylo odczuwalne, nie tylko widoczne.
+        const threat = ufo.consumeThreatBump();
+        if (threat > 0 && threat < 5) {
+            const col = ['#ffd54a', '#ffb03a', '#ff8a3a', '#ff5e6a'][threat - 1];
+            effects.spawnEnemyHitSparks(player.x, player.y, 0x39d98a);
+            effects.shake(1 + threat, 4 + threat * 2);
+            audio.playHit('wall');
+            hud.addNotif(t('hud.ufoWarn', { lvl: threat, max: 5 }), col);
+        }
+        // 4) poziom 5 => otwiera ogien (osobny, mocny sygnal)
+        if (ufo.consumeAlert()) {
+            hud.addNotif(t('hud.ufoAngry'), '#ff2d3f');
+            effects.shake(9, 16);
+            audio.playShockwave();
+        }
+
+        // 4) zestrzelone => solidny drop gemow (respawn obsluguje samo UFO)
+        const payout = ufo.takeDeathPayout();
+        if (payout) {
+            effects.spawnExplosionAndWreck(payout.x, payout.y, 0x39d98a);
+            effects.shake(14, 20);
+            audio.playExplosion();
+            for (let i = 0; i < payout.gems; i++) spawnGem(payout.x, payout.y);
+            hud.addNotif(t('hud.ufoDown'), '#39d98a');
+        }
+    }
+
+    // FAZA MARS M4b: lazik-pathfinder — gubi probki po drodze (wzorzec karawany)
+    if (marsRover) {
+        const drop = marsRover.update(delta);
+        if (drop) {
+            if (drop.type === 'gem') {
+                spawnGem(drop.x, drop.y);
+                hud.addNotif(t('hud.roverGem'), '#e0997f');
+            } else if (drop.type === 'heart') {
+                hearts.push(new Heart(drop.x, drop.y, worldContainer));
+                hud.addNotif(t('hud.roverHeart'), '#e0997f');
+            } else if (drop.type === 'magnet') {
+                magnets.push(new Magnet(drop.x, drop.y, worldContainer));
+                hud.addNotif(t('hud.roverMagnet'), '#e0997f');
+            }
+            audio.playGemPickup();
+        }
+    }
+
     // ARC-R2: przereble (fale + ryba/foka + lwy morskie) + pingwiny + Yeti
     for (const ih of iceHoles) ih.update();
     if (iglooYeti && player) iglooYeti.update(delta, player.x, player.y);
@@ -3096,6 +3341,7 @@ app.ticker.add((rawDelta) => {
     }
 
     if (blizzard) blizzard.update(camera.x, camera.y, viewW, viewH, delta); // ARC-R3 (poza zadymka ~0 kosztu)
+    if (dustStorm) dustStorm.update(camera.x, camera.y, viewW, viewH, delta); // MARS M5 (idle = early-return)
 
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
@@ -3390,6 +3636,11 @@ app.ticker.add((rawDelta) => {
         crate.update(0, 0, 0, 0);
     }
 
+    // FAZA MARS M3: kontenery cargo — tick respawnu (jak crates/kostki lodu)
+    for (const box of marsCargo) {
+        box.update(0, 0, 0, 0);
+    }
+
     // F3 — wrogowie (roamerzy + straznicy) koliduja z bariera strefy domowej;
     // gracz uzywa czystego `buildings`, wiec wjezdza do bazy z flaga swobodnie.
     // F3 perf: tablica PRECOMPUTED w startGame (zero alokacji per-klatka).
@@ -3404,7 +3655,10 @@ app.ticker.add((rawDelta) => {
         // TIER 3 DISCO: wrogowie TANCZA — wiruja w miejscu, zero update (ruch/strzal/AI).
         // Pozostaja wrazliwi na pociski/moce (dalsza czesc petli dziala normalnie).
         let shotInfo: ReturnType<typeof enemy.update> = null;
-        if (powerSystem.discoActive) {
+        if (ufo && ufo.isAbducted(enemy)) {
+            // MARS M5: wrog wisi w promieniu UFO — jego container nalezy do UFO
+            // (pozycja/skala/rotacja). ZERO enemy.update, jak przy disco.
+        } else if (powerSystem.discoActive) {
             enemy.container.rotation += 0.13 * delta;
         } else {
             if (enemy.container.rotation !== 0) enemy.container.rotation = 0; // koniec imprezy

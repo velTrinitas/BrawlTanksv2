@@ -18,7 +18,7 @@
  * - prefers-reduced-motion respected (w menu-styles.css)
  */
 
-export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic';
+export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars';
 
 /**
  * Map z generators per type.
@@ -29,6 +29,7 @@ export const MapPreviews: Record<PreviewType, () => string> = {
     cyberpunk: renderCyberpunk,
     tropics:   renderTropics,
     arctic:    renderArctic,
+    mars:      renderMars,
 };
 
 /**
@@ -478,6 +479,109 @@ function renderArctic(): string {
     <circle class="mpa-snow mpa-s6" cx="92"  cy="10"  r="0.8"/>
     <circle class="mpa-snow mpa-s7" cx="182" cy="22"  r="1"/>
     <circle class="mpa-snow mpa-s8" cx="66"  cy="50"  r="1.1"/>
+  </g>
+</svg>`.trim();
+}
+
+// =============================================================
+// MARS — Rdzawy Swit (opuszczona baza + UFO)
+// =============================================================
+// Skladniki (FAZA MARS M2):
+// - Rusty-pink dawn sky gradient (paleta MARS_PALETTE — NIE czerwien Wulkanow)
+// - Pale sun + drugi maly ksiezyc (Fobos)
+// - Distant ridge + kratery na regolicie
+// - Baza: 2 biale kopuly + tunel, cyjan TYLKO w oknach (detal — regula F1)
+// - UFO przelatujace (reuse keyframes .mpc-drone) z zielona poswiata Obcych
+// - Drobiny pylu (reuse .mpd-particle) — zero nowych keyframes w CSS
+// =============================================================
+function renderMars(): string {
+    return `
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-mars" aria-hidden="true">
+  <defs>
+    <linearGradient id="bt-m-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#f2b49a"/>
+      <stop offset="55%"  stop-color="#d98a6e"/>
+      <stop offset="100%" stop-color="#8a4a5a"/>
+    </linearGradient>
+    <linearGradient id="bt-m-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#c97b62"/>
+      <stop offset="100%" stop-color="#a35844"/>
+    </linearGradient>
+    <linearGradient id="bt-m-dome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#c9d4dc"/>
+    </linearGradient>
+    <radialGradient id="bt-m-ufo-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#39d98a" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#39d98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Sky (rdzawy swit) -->
+  <rect x="0" y="0" width="240" height="140" fill="url(#bt-m-sky)"/>
+
+  <!-- Blade slonce + Fobos -->
+  <circle cx="70" cy="26" r="8" fill="#ffe8cc" opacity="0.85"/>
+  <circle cx="70" cy="26" r="12" fill="#ffe8cc" opacity="0.25"/>
+  <circle cx="168" cy="16" r="2.4" fill="#e8c4b0" opacity="0.8"/>
+
+  <!-- Distant ridge -->
+  <path d="M0,86 L35,70 L70,80 L110,62 L150,76 L190,64 L222,74 L240,68 L240,100 L0,100 Z"
+        fill="#b0604a" opacity="0.9"/>
+
+  <!-- Baza: kopula A (hero) + tunel + kopula B; cyjan TYLKO okna (F1) -->
+  <g transform="translate(-4,0)">
+    <!-- cien SE pod baza -->
+    <ellipse cx="128" cy="99" rx="52" ry="3.5" fill="#5c2f33" opacity="0.30"/>
+    <!-- kopula A -->
+    <path d="M86,99 A30,26 0 0 1 146,99 Z" fill="url(#bt-m-dome)"/>
+    <path d="M116,73 A30,26 0 0 1 146,99 L131,99 A16,22 0 0 0 116,73 Z" fill="#9fb2bf" opacity="0.55"/>
+    <!-- tunel -->
+    <rect x="144" y="88" width="16" height="11" rx="3" fill="#d7dfe5"/>
+    <!-- kopula B (mniejsza) -->
+    <path d="M158,99 A21,18 0 0 1 200,99 Z" fill="url(#bt-m-dome)"/>
+    <path d="M179,81 A21,18 0 0 1 200,99 L189,99 A11,15 0 0 0 179,81 Z" fill="#9fb2bf" opacity="0.5"/>
+    <!-- okna (cyjan detal, mrugaja — reuse .mpc-window) -->
+    <rect class="mpc-window mpc-w1" x="102" y="88" width="4" height="3.2" rx="0.8" fill="#37d0e6"/>
+    <rect class="mpc-window mpc-w3" x="112" y="84" width="4" height="3.2" rx="0.8" fill="#37d0e6"/>
+    <rect class="mpc-window"        x="122" y="88" width="4" height="3.2" rx="0.8" fill="#37d0e6"/>
+    <rect class="mpc-window mpc-w5" x="174" y="90" width="3.4" height="2.8" rx="0.7" fill="#37d0e6"/>
+    <!-- maszt anteny -->
+    <line x1="116" y1="73" x2="116" y2="63" stroke="#d7dfe5" stroke-width="1.2"/>
+    <circle class="mpc-antenna-light" cx="116" cy="61.5" r="1.7" fill="#ff5e6a"/>
+  </g>
+
+  <!-- Grunt (regolit) -->
+  <path d="M0,98 Q60,94 120,98 T240,96 L240,140 L0,140 Z" fill="url(#bt-m-ground)"/>
+
+  <!-- Kratery (pasywny dekor — niski kontrast) -->
+  <g>
+    <ellipse cx="52" cy="116" rx="14" ry="4.5" fill="#8a4a3c" opacity="0.5"/>
+    <path d="M38,115 A14,4.5 0 0 1 66,115" fill="none" stroke="#e0997f" stroke-width="1" opacity="0.6"/>
+    <ellipse cx="196" cy="124" rx="17" ry="5.5" fill="#8a4a3c" opacity="0.5"/>
+    <path d="M179,123 A17,5.5 0 0 1 213,123" fill="none" stroke="#e0997f" stroke-width="1" opacity="0.6"/>
+    <ellipse cx="126" cy="130" rx="9" ry="3" fill="#8a4a3c" opacity="0.4"/>
+  </g>
+
+  <!-- Slady lazika -->
+  <path d="M10,134 Q60,128 110,132" fill="none" stroke="#93503f" stroke-width="1.1" opacity="0.55"/>
+  <path d="M10,138 Q60,132 110,136" fill="none" stroke="#93503f" stroke-width="1.1" opacity="0.55"/>
+
+  <!-- UFO (reuse keyframes .mpc-drone — przelatuje petla) -->
+  <g class="mpc-drone">
+    <circle cx="0" cy="2" r="9" fill="url(#bt-m-ufo-glow)"/>
+    <ellipse cx="0" cy="0" rx="7" ry="2.4" fill="#4a5560" stroke="#39d98a" stroke-width="0.5"/>
+    <path d="M-3.4,-1.6 A3.6,2.6 0 0 1 3.4,-1.6 Z" fill="#8b5cf6" opacity="0.85"/>
+    <circle cx="-4" cy="1" r="0.7" fill="#39d98a"/>
+    <circle cx="0"  cy="1.6" r="0.7" fill="#39d98a"/>
+    <circle cx="4"  cy="1" r="0.7" fill="#39d98a"/>
+  </g>
+
+  <!-- Drobiny pylu (reuse .mpd-particle — dryf) -->
+  <g fill="#f0b898" opacity="0.8">
+    <circle class="mpd-particle mpd-p1" cx="45"  cy="122" r="0.9"/>
+    <circle class="mpd-particle mpd-p2" cx="125" cy="118" r="0.8"/>
+    <circle class="mpd-particle mpd-p3" cx="205" cy="120" r="1"/>
   </g>
 </svg>`.trim();
 }

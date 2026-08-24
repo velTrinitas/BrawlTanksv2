@@ -44,7 +44,7 @@ export const LEADERBOARD_BOARDS: readonly BoardDefinition[] = [
         id: 'ktb',
         scenario: 'ktb',
         icon: '🎯',
-        mapChips: ['city', 'desert', 'tropics', 'arctic'],
+        mapChips: ['city', 'desert', 'tropics', 'arctic', 'mars'],
         metric: 'score',
         sortDir: 'desc',
         enabled: true,

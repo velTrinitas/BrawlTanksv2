@@ -35,7 +35,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SCORE_CAP = 100_000_000;            // TUNABLE (spojne z sanity-clamp w leaderboard_rpc.sql)
 const RATE_LIMIT_PER_HOUR = 20;           // max submitow / godzine / profil
 const SCENARIOS = new Set(['ktb', 'ctf', 'castle', 'save_king']);
-const MAPS = new Set(['city', 'desert', 'tropics', 'arctic', 'fortified_ruins']);
+const MAPS = new Set(['city', 'desert', 'tropics', 'arctic', 'fortified_ruins', 'mars']);
 const DIFFICULTIES = new Set(['easy', 'normal', 'hard', 'nightmare']);
 
 const CORS = {

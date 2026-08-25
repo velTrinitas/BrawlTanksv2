@@ -140,6 +140,22 @@ const ROVER_ROUTE = [
     { x: 700,  y: 1760 },
 ];
 
+// SECOND rover (playtest: "lazik +20% i drugi w prawym dolnym rogu"). A tighter
+// loop confined to the SE corner, so the two never read as one convoy: the big
+// loop above sweeps the whole world, this one works its own quadrant.
+const ROVER_ROUTE_SE = [
+    { x: 1700, y: 1900 },
+    { x: 2480, y: 1880 },
+    { x: 2780, y: 2480 },
+    { x: 2080, y: 2820 },
+    { x: 1600, y: 2520 },
+];
+
+const ROVER_ROUTES = [
+    { id: 'rover-main', pts: ROVER_ROUTE },
+    { id: 'rover-SE',   pts: ROVER_ROUTE_SE },
+];
+
 // ── AABB helpers ──
 const overlaps = (a, b) =>
     a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -212,6 +228,89 @@ function generate(count, w, h, seed, obstacles, minGapToObstacles, allowTouchIds
     return { placed, attempts };
 }
 
+/**
+ * CLUSTERED placement (playtest: "skrzynie maja byc w klastrach — gdzieniegdzie
+ * pojedyncze, rzadko — a nie rownomiernie rozsypane").
+ *
+ * Uniform rejection sampling over 3000x3000 can technically drop two crates side
+ * by side (crate-vs-crate only forbids overlap), but the odds are so low it never
+ * happens: the result reads as an even sprinkle. So we sample CLUSTER ANCHORS the
+ * same way, then hang 2-4 crates off each anchor on a jittered local grid, and
+ * finish with a handful of deliberate singles.
+ *
+ * Every member is validated individually against the same rules a lone crate
+ * faces, so a cluster that would clip a rock simply comes out smaller (3 boxes
+ * instead of 4) instead of pushing a box somewhere illegal.
+ *
+ * routeSegments: crates must also keep clear of the rover loops. The rovers have
+ * no collision, so a crate on the line would make them drive THROUGH a container.
+ * Loose crates almost never landed on a leg by chance; clusters are 4x wider and
+ * would.
+ */
+function generateClustered(target, singles, w, h, seed, obstacles, minGapToObstacles, routeSegments, routePad) {
+    const rng = mulberry32(seed);
+    const placed = [];
+    let attempts = 0;
+
+    const fits = (r) => {
+        if (!inPlayable(r)) return false;
+        if (inSpawnZone(r)) return false;
+        for (const o of obstacles) {
+            const pad = minGapToObstacles;
+            const infl = { x: o.x - pad, y: o.y - pad, w: o.w + 2 * pad, h: o.h + 2 * pad };
+            if (overlaps(r, infl)) return false;
+        }
+        for (const p of placed) if (overlaps(r, p)) return false;
+        const rInfl = { x: r.x - routePad, y: r.y - routePad, w: r.w + 2 * routePad, h: r.h + 2 * routePad };
+        for (const [p0, p1] of routeSegments) if (segHitsRect(p0, p1, rInfl)) return false;
+        return true;
+    };
+
+    // local offsets for a cluster member: tight grid, gap 6-14 px between boxes
+    const STEP = w + 10;
+    const OFFSETS = [[0, 0], [STEP, 0], [0, STEP], [STEP, STEP], [STEP * 2, 0], [0, STEP * 2]];
+
+    const clusterTarget = target - singles;
+    while (placed.length < clusterTarget && attempts < 200000) {
+        attempts++;
+        const ax = Math.round(PLAY_MIN + 60 + rng() * (PLAY_MAX - PLAY_MIN - 120 - w));
+        const ay = Math.round(PLAY_MIN + 60 + rng() * (PLAY_MAX - PLAY_MIN - 120 - h));
+        const size = 2 + Math.floor(rng() * 3);           // 2..4 boxes per cluster
+        // shuffle-lite: rotate the offset table so clusters are not all L-shaped
+        const rot = Math.floor(rng() * OFFSETS.length);
+        const members = [];
+        for (let k = 0; k < OFFSETS.length && members.length < size; k++) {
+            const [ox, oy] = OFFSETS[(k + rot) % OFFSETS.length];
+            const jx = Math.round((rng() - 0.5) * 10);
+            const jy = Math.round((rng() - 0.5) * 10);
+            const r = { id: `cl${placed.length}_${members.length}`, x: ax + ox + jx, y: ay + oy + jy, w, h };
+            if (fits(r)) { placed.push(r); members.push(r); }
+        }
+        // a 1-box "cluster" is just a single — acceptable, it feeds the sparse look
+    }
+
+    // deliberate singles, spread by the normal corridor rule so they read as lone
+    let singleAttempts = 0;
+    while (placed.length < target && singleAttempts < 60000) {
+        singleAttempts++;
+        const r = {
+            id: `sg${placed.length}`,
+            x: Math.round(PLAY_MIN + 60 + rng() * (PLAY_MAX - PLAY_MIN - 120 - w)),
+            y: Math.round(PLAY_MIN + 60 + rng() * (PLAY_MAX - PLAY_MIN - 120 - h)),
+            w, h,
+        };
+        if (!fits(r)) continue;
+        let lonely = true;
+        for (const p of placed) {
+            const infl = { x: p.x - 220, y: p.y - 220, w: p.w + 440, h: p.h + 440 };
+            if (overlaps(r, infl)) { lonely = false; break; }
+        }
+        if (lonely) placed.push(r);
+    }
+
+    return { placed, attempts: attempts + singleAttempts };
+}
+
 // ── Run verification ──
 const errors = [];
 // SOLAR is passable (carports) — it is NOT a solid, but it still occupies space,
@@ -253,19 +352,49 @@ for (const r of fixedAll) if (inSpawnZone(r)) errors.push(`V4 ${r.id} w strefie 
 // V5 generated
 const rocks = generate(26, 64, 64, SEED_ROCKS, [...fixedAll], 90, false);
 const crateObstacles = [...fixedAll, ...rocks.placed];
-const crates = generate(64, 48, 48, SEED_CRATES, crateObstacles, 90, true);
+// Rover legs as segments — crates keep ROUTE_PAD clear of them (see generateClustered).
+const ROUTE_PAD = 46;
+const routeSegments = [];
+for (const route of ROVER_ROUTES) {
+    const pts = route.pts;
+    for (let i = 0; i < pts.length; i++) routeSegments.push([pts[i], pts[(i + 1) % pts.length]]);
+}
+const crates = generateClustered(64, 8, 48, 48, SEED_CRATES, crateObstacles, 90, routeSegments, ROUTE_PAD);
 if (rocks.placed.length < 26) errors.push(`V5 male skaly: ${rocks.placed.length}/26`);
 if (crates.placed.length < 64) errors.push(`V5 skrzynie: ${crates.placed.length}/64`);
 
-// V6 rover route
-for (let i = 0; i < ROVER_ROUTE.length; i++) {
-    const wp = ROVER_ROUTE[i];
-    const box = { x: wp.x - 26, y: wp.y - 26, w: 52, h: 52 };
-    if (!inPlayable(box)) errors.push(`V6 waypoint ${i}: poza playable`);
-    for (const s of fixedSolids) if (overlaps(box, s)) errors.push(`V6 waypoint ${i} w solidzie ${s.id}`);
-    const next = ROVER_ROUTE[(i + 1) % ROVER_ROUTE.length];
-    for (const s of fixedSolids) {
-        if (segHitsRect(wp, next, s)) errors.push(`V6 odcinek ${i}->${(i + 1) % ROVER_ROUTE.length} przecina ${s.id}`);
+// V5b clustering gate — the whole point of the rewrite. Each crate counts its
+// neighbours within 120 px; a sprinkle scores ~0, real clusters score 1-3.
+{
+    let clustered = 0, lone = 0;
+    for (const a of crates.placed) {
+        let n = 0;
+        for (const b of crates.placed) {
+            if (a === b) continue;
+            if (Math.hypot((a.x - b.x), (a.y - b.y)) < 120) n++;
+        }
+        if (n >= 1) clustered++; else lone++;
+    }
+    console.log(`\nV5b klastrowanie: ${clustered} skrzyn ma sasiada <120px, ${lone} stoi samotnie`);
+    if (clustered < crates.placed.length * 0.6) errors.push(`V5b za malo klastrow: ${clustered}/${crates.placed.length}`);
+    if (lone < 4) errors.push(`V5b brak pojedynczych skrzyn (${lone}) — mial byc mix`);
+}
+
+// V6 rover routes (both loops — waypoint box grew to 62 for the +20% rover)
+// 62 = ceil(52 * 1.2): the sprite is 20% larger, so its clearance must grow too.
+const ROVER_BOX = 62;
+for (const route of ROVER_ROUTES) {
+    const pts = route.pts;
+    for (let i = 0; i < pts.length; i++) {
+        const wp = pts[i];
+        const half = ROVER_BOX / 2;
+        const box = { x: wp.x - half, y: wp.y - half, w: ROVER_BOX, h: ROVER_BOX };
+        if (!inPlayable(box)) errors.push(`V6 ${route.id} waypoint ${i}: poza playable`);
+        for (const s of fixedSolids) if (overlaps(box, s)) errors.push(`V6 ${route.id} waypoint ${i} w solidzie ${s.id}`);
+        const next = pts[(i + 1) % pts.length];
+        for (const s of fixedSolids) {
+            if (segHitsRect(wp, next, s)) errors.push(`V6 ${route.id} odcinek ${i}->${(i + 1) % pts.length} przecina ${s.id}`);
+        }
     }
 }
 

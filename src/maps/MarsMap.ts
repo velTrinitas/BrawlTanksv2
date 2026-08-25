@@ -577,6 +577,18 @@ export const MARS_ROVER_ROUTE: ReadonlyArray<{ x: number; y: number }> = [
 ];
 
 /**
+ * Second rover, SE quadrant (playtest: "lazik +20% i drugi w prawym dolnym rogu").
+ * A tighter loop kept inside its own corner so the two never read as one convoy:
+ * the route above sweeps the whole world, this one works the SE alone.
+ * Verified by the same V6 gate, with the waypoint clearance box widened 52 -> 62
+ * to match the +20% sprite.
+ */
+export const MARS_ROVER_ROUTE_SE: ReadonlyArray<{ x: number; y: number }> = [
+    { x: 1700, y: 1900 }, { x: 2480, y: 1880 }, { x: 2780, y: 2480 },
+    { x: 2080, y: 2820 }, { x: 1600, y: 2520 },
+];
+
+/**
  * Large rocks (reused `Rock` engine, 'large' tier), 120x120 AABB each.
  * CONVERSION (Rock takes a CENTRE and a visual size, and derives hitbox = size+60):
  *   centre = (x + 60, y + 60), size = 60  ->  hitbox 120x120 = exactly this AABB.
@@ -622,10 +634,16 @@ export const MARS_POWER_PAD_POSITIONS: ReadonlyArray<{ x: number; y: number }> =
  * Small rocks 64x64 — GENERATED (seed 0x4d5231), pasted from script output.
  * 'small' tier has NO collision (decor, fixed zIndex 4). Same centre conversion
  * as above: centre = (x + 32, y + 32), visual size 34.
+ *
+ * RE-PASTED (faza Mars polish): the array had DRIFTED from the generator by
+ * exactly one rock. (252,605) was frozen back in M1, before M5c added the fuel
+ * station; re-running the script showed it breaks the 90 px clearance to BOTH the
+ * fuel pad and the tank, so a 64 px boulder was crowding the UFO landing apron.
+ * The generator relocates it to (252,715). The other 25 are byte-identical.
  */
 export const MARS_SMALL_ROCKS_LAYOUT: ReadonlyArray<[number, number]> = [
-    [252,605],[1030,1115],[1923,1398],[2534,2216],[1013,729],[2088,2211],[909,2221],[2734,562],
-    [343,1488],[2115,2663],[2481,2413],[1153,1324],[2805,2475],[1622,541],[1701,1926],[900,2832],
+    [1030,1115],[1923,1398],[2534,2216],[1013,729],[2088,2211],[909,2221],[2734,562],[343,1488],
+    [2115,2663],[252,715],[2481,2413],[1153,1324],[2805,2475],[1622,541],[1701,1926],[900,2832],
     [701,999],[957,242],[129,1013],[999,1565],[1327,2116],[2250,2004],[2520,1963],[643,215],
     [2210,1130],[1238,824],
 ];
@@ -636,14 +654,23 @@ export const MARS_SMALL_ROCKS_LAYOUT: ReadonlyArray<[number, number]> = [
  * NOTE: the verifier reserved 48x48 per box while MarsCargo draws 36x36 — the
  * verification stays valid because the real boxes are SMALLER than reserved,
  * so every clearance it proved only grows. Do not enlarge past 48 without re-running.
+ *
+ * CLUSTERED (playtest: "maja byc klastry — gdzieniegdzie pojedyncze, rzadko — a
+ * nie rownomiernie rozsypane"). Same count (64) so the mobile budget is unchanged;
+ * what changed is the DISTRIBUTION: `generateClustered` in the script samples
+ * cluster anchors, hangs 2-4 boxes off each on a jittered local grid, then adds 8
+ * deliberate singles. Gate V5b measures the result (47 boxes have a neighbour
+ * within 120 px, 17 stand alone). Crates now also keep 46 px clear of BOTH rover
+ * loops — a lone box rarely landed on a leg by chance, a 4-box cluster would, and
+ * the rovers have no collision so they would drive straight through it.
  */
 export const MARS_CRATES_LAYOUT: ReadonlyArray<[number, number]> = [
-    [1490,1127],[1298,999],[2245,1826],[480,410],[876,1789],[465,140],[1249,216],[2843,2239],
-    [1856,2753],[564,1528],[1786,2279],[2200,1428],[1738,2193],[2216,1737],[391,1241],[2295,2640],
-    [2085,1317],[2183,2846],[1157,1480],[2690,2166],[1686,1711],[2354,185],[715,740],[1263,1864],
-    [1958,2745],[121,2457],[2401,1069],[117,1646],[742,2661],[1406,469],[1212,1631],[1164,1744],
-    [1105,1881],[488,975],[301,1798],[2312,1561],[996,1411],[476,1787],[1569,2781],[2813,2112],
-    [796,738],[2811,2652],[1777,769],[190,2411],[990,468],[1686,2292],[108,2802],[1890,2263],
-    [1653,1259],[2483,1147],[1983,1243],[2792,1160],[1251,506],[1524,2181],[2851,840],[2410,2696],
-    [689,1190],[2782,1960],[563,1664],[2048,163],[2154,118],[1501,927],[1559,2848],[166,1988],
+    [1489,1125],[1493,1182],[1246,332],[1246,212],[1248,272],[1071,896],[1403,470],[1467,472],
+    [1408,530],[1818,2782],[1814,2843],[2866,1966],[2808,2027],[2868,1906],[2862,1779],[2856,1837],
+    [1778,772],[2116,1432],[1521,2180],[886,2663],[943,2661],[1817,2144],[1876,2029],[1818,2087],
+    [895,1418],[898,1301],[951,1297],[1422,605],[1472,550],[979,1889],[2417,989],[153,2061],
+    [154,1936],[151,1999],[115,1709],[118,1594],[147,2507],[145,2561],[141,2448],[2471,2894],
+    [1238,1086],[1407,2578],[1088,1887],[173,2653],[107,2717],[108,2653],[2766,736],[1671,280],
+    [1665,343],[1725,286],[487,1227],[424,1282],[2426,184],[2488,183],[2432,243],[2487,242],
+    [325,918],[2519,1309],[970,406],[1417,1773],[558,1814],[453,196],[2036,1084],[1999,226],
 ];

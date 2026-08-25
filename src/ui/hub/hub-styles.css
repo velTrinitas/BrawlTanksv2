@@ -7,8 +7,12 @@
    body.bt-desktop = rail (konwencja repo, jak endcard scale 1.5).
    ============================================================ */
 
-.bt-hub0-screen {
-    /* lokalne tokeny command-deck (nie globalne — izolacja) */
+/* Tokeny command-deck — WSPOLNE dla huba i onboardingu, ale nadal SCOPED
+   (nie leja sie na reszte menu). IdentityScreen renderuje kafle .bt-hub0-*,
+   wiec musi widziec te same zmienne; bez tego ekran wychodzi bezbarwny.
+   Layout gridowy zostaje wylacznie przy .bt-hub0-screen ponizej. */
+.bt-hub0-screen,
+.bt-identity-screen {
     --hub-steel-950: #0d141b;
     --hub-steel-900: #1a252f;
     --hub-steel-850: #1f2c39;
@@ -22,7 +26,9 @@
     --hub-ink-dim: #8ba3b6;
     --hub-ink-faint: #5d7284;
     --hub-line: rgba(255, 255, 255, 0.07);
+}
 
+.bt-hub0-screen {
     position: absolute;
     inset: 0;
     display: grid;

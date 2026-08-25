@@ -52,6 +52,7 @@ import {
     MARS_LARGE_ROCKS_LAYOUT, MARS_SMALL_ROCKS_LAYOUT, MARS_CRATES_LAYOUT,
     MARS_SLOW_FIELDS_LAYOUT, MARS_STEALTH_ZONES_LAYOUT,
     MARS_MEDI_PAD_POSITIONS, MARS_POWER_PAD_POSITIONS,
+    MARS_ROVER_ROUTE, MARS_ROVER_ROUTE_SE,
 } from './maps/MarsMap'; // FAZA MARS M2/M3/M4
 import { DuststormBorder } from './maps/mars/DuststormBorder'; // FAZA MARS M2
 import { MarsBase } from './maps/mars/MarsBase'; // FAZA MARS M3 (landmark)
@@ -311,7 +312,7 @@ let marsBorder: DuststormBorder | null = null; // FAZA MARS M2
 let marsCargo: MarsCargo[] = []; // FAZA MARS M3 (niszczalne kontenery — wlasna petla)
 let regolithFields: RegolithField[] = []; // FAZA MARS M4 (slow 0.5x)
 let solarFarm: SolarFarm | null = null; // FAZA MARS M4b
-let marsRover: MarsRover | null = null; // FAZA MARS M4b (ambient patrol z dropem)
+let marsRovers: MarsRover[] = []; // FAZA MARS M4b (ambient patrol z dropem; 2 trasy)
 let dustStorm: DustStorm | null = null; // FAZA MARS M5 (burza pylowa — klimat, nie kara)
 let ufo: UfoAbductor | null = null; // FAZA MARS M5 (porywa wrogow i cargo, NIE gracza)
 let fuelStation: FuelStation | null = null; // FAZA MARS M5c
@@ -1298,7 +1299,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     marsCargo = []; // FAZA MARS M3
     regolithFields = []; // FAZA MARS M4
     solarFarm = null; // FAZA MARS M4b
-    marsRover = null; // FAZA MARS M4b
+    marsRovers = []; // FAZA MARS M4b
     dustStorm = null; // FAZA MARS M5
     ufo = null; // FAZA MARS M5
     fuelStation = null; // FAZA MARS M5c
@@ -1903,7 +1904,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
         // M4b: LAZIK-PATHFINDER — bezkolizyjny patrol badajacy skaly, gubi gemy
         // (wzorzec PenguinColony: petla waypointow + timer dropu z delty).
-        marsRover = new MarsRover(worldContainer);
+        // Playtest: +20% rozmiaru (w klasie) i DRUGI lazik w rogu SE. Faza 0.5
+        // rozjezdza timery dropow, inaczej oba gubia probke w tej samej sekundzie.
+        marsRovers = [
+            new MarsRover(worldContainer, MARS_ROVER_ROUTE, 0),
+            new MarsRover(worldContainer, MARS_ROVER_ROUTE_SE, 0.5),
+        ];
 
         // M5: cykliczna burza pylowa (particles-only, bramkowana — klimat, nie kara).
         // Bierze WOLNY sub-slot pasma overlay (1e6-4), bo 1e6 dziela juz nalot i laser.
@@ -3302,9 +3308,9 @@ app.ticker.add((rawDelta) => {
         }
     }
 
-    // FAZA MARS M4b: lazik-pathfinder — gubi probki po drodze (wzorzec karawany)
-    if (marsRover) {
-        const drop = marsRover.update(delta);
+    // FAZA MARS M4b: laziki-pathfindery — gubia probki po drodze (wzorzec karawany)
+    for (const rover of marsRovers) {
+        const drop = rover.update(delta);
         if (drop) {
             if (drop.type === 'gem') {
                 spawnGem(drop.x, drop.y);

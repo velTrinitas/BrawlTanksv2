@@ -29,6 +29,14 @@ const SPEED = 0.42;              // px per delta unit (60 fps baseline)
 const DROP_INTERVAL_MS = 15000;  // same cadence as caravan / penguins
 const SCAN_PERIOD_MS = 3400;     // sensor mast sweep
 const BAKE_RES = 3;              // supersample: small animated art (C1)
+/**
+ * +20% (playtest: the rover read as a toy next to the tank). Applied to the
+ * CONTAINER, not the sprite: the sweep cone and the wheel dust are drawn in the
+ * container's local space, so scaling the sprite alone would leave them behind at
+ * the old size. The sprite's scale.x still carries the facing flip, untouched.
+ * Route clearance was re-verified against this size (V6 box 52 -> 62).
+ */
+const ROVER_SCALE = 1.2;
 
 let _roverTex: PIXI.Texture | null = null;
 /** Body drawn facing RIGHT (+X); flip via scale.x, like every side-view NPC. */
@@ -104,7 +112,16 @@ export class MarsRover {
     private dropTimerMs = 0;
     private dustPhase = 0;
 
-    constructor(worldContainer: PIXI.Container, route: ReadonlyArray<{ x: number; y: number }> = MARS_ROVER_ROUTE) {
+    /**
+     * @param startPhase 0..1 offset along the loop AND into the drop timer. Two
+     *   rovers built in the same frame would otherwise start at progress 0 with
+     *   identical timers and drop their samples in lockstep every 15 s.
+     */
+    constructor(
+        worldContainer: PIXI.Container,
+        route: ReadonlyArray<{ x: number; y: number }> = MARS_ROVER_ROUTE,
+        startPhase: number = 0,
+    ) {
         // ALL display objects up front (E1)
         this.container = new PIXI.Container();
         this.sprite = new PIXI.Sprite(getRoverTexture());
@@ -113,6 +130,7 @@ export class MarsRover {
 
         this.sprite.anchor.set(BOX.ox / BOX.w, BOX.oy / BOX.h);
         this.sprite.scale.set(1 / BAKE_RES);
+        this.container.scale.set(ROVER_SCALE);
 
         this.container.addChild(this.gfxDust);
         this.container.addChild(this.gfxScan);
@@ -127,6 +145,10 @@ export class MarsRover {
             this.segs.push({ x0: a.x, y0: a.y, x1: b.x, y1: b.y, len, cum: this.total });
             this.total += len;
         }
+
+        const phase = ((startPhase % 1) + 1) % 1;
+        this.progress = this.total * phase;
+        this.dropTimerMs = DROP_INTERVAL_MS * phase;
     }
 
     /** Position + heading at the current path progress. */

@@ -36,8 +36,11 @@
 
 import type { IScreen } from './MainMenu';
 import { t } from '../i18n/i18n';
-import { AVATAR_IDS, AVATARS } from '../config/avatars';
-import { FLAG_IDS, FLAGS, type FlagConfig } from '../config/flags';
+import { AVATAR_SLOTS, AVATARS } from '../config/avatars';
+import { flagImgHtml, sortedFlagIds, FLAG_NAME_KEY } from './flagArt';
+// Onboarding renderuje kafle .bt-hub0-* — arkusz huba musi byc zaladowany nawet
+// gdy HubShell jeszcze nie powstal (fresh boot pokazuje ten ekran PRZED hubem).
+import './hub/hub-styles.css';
 import { ProfileService } from '../services/ProfileService';
 import { supabaseProfileService } from '../services/SupabaseProfileService';
 import { pushProfileToCloud } from '../services/profileSync';
@@ -78,27 +81,6 @@ const AVATAR_DESC_KEYS = {
     pablo: 'profile.avatar.pablo.desc',
     steve: 'profile.avatar.steve.desc',
     tommy: 'profile.avatar.tommy.desc',
-} as const;
-
-const FLAG_NAME_KEYS = {
-    ar: 'profile.flag.ar',
-    br: 'profile.flag.br',
-    ca: 'profile.flag.ca',
-    de: 'profile.flag.de',
-    es: 'profile.flag.es',
-    fr: 'profile.flag.fr',
-    gb: 'profile.flag.gb',
-    il: 'profile.flag.il',
-    it: 'profile.flag.it',
-    jp: 'profile.flag.jp',
-    kr: 'profile.flag.kr',
-    nl: 'profile.flag.nl',
-    pl: 'profile.flag.pl',
-    pt: 'profile.flag.pt',
-    se: 'profile.flag.se',
-    tr: 'profile.flag.tr',
-    ua: 'profile.flag.ua',
-    us: 'profile.flag.us',
 } as const;
 
 // ============================================================
@@ -149,6 +131,10 @@ export class IdentityScreen implements IScreen {
         const root = document.createElement('div');
         root.className = 'bt-picker-screen bt-identity-screen';
 
+        // Uklad 1:1 z ProfileEditView (hub, tryb edit): PSEUDONIM pelna szerokosc
+        // na gorze, nizej dwie kolumny — CZOLGISCI 3x3 po lewej, FLAGI po prawej.
+        // Onboarding dokłada tylko powitanie i CTA; reszta MUSI wygladac tak samo,
+        // bo to ten sam wybor tych samych rzeczy (playtest: "fresh boot != edycja").
         root.innerHTML = `
             <div class="bt-hub-bg" aria-hidden="true"></div>
             <div class="bt-hub-overlay" aria-hidden="true"></div>
@@ -159,40 +145,35 @@ export class IdentityScreen implements IScreen {
                     <p class="bt-identity-subtitle">${t('profile.onboarding.welcomeSubtitle')}</p>
                 </div>
 
-                <section class="bt-identity-section">
-                    <h3 class="bt-identity-section-title">${t('profile.onboarding.pickAvatarLabel')}</h3>
-                    <div class="bt-identity-avatar-grid">
-                        ${this.renderAvatarCards()}
-                    </div>
-                </section>
+                <div class="bt-hub0-pedit">
+                    <div class="bt-hub0-subhead">✏️ ${t('profile.onboarding.nicknameLabel')}</div>
+                    <input
+                        type="text"
+                        class="bt-hub0-input"
+                        data-action="nickname"
+                        placeholder="${t('profile.onboarding.nicknamePlaceholder')}"
+                        maxlength="${NICKNAME_MAX_LENGTH}"
+                        autocomplete="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        inputmode="text"
+                        aria-label="${t('profile.onboarding.nicknameLabel')}"
+                    />
+                    <small class="bt-hub0-input-hint" data-role="nickname-hint">
+                        ${t('profile.onboarding.nicknameHint')}
+                    </small>
 
-                <section class="bt-identity-section bt-identity-section--nickname">
-                    <h3 class="bt-identity-section-title">${t('profile.onboarding.nicknameLabel')}</h3>
-                    <div class="bt-identity-nickname-wrap">
-                        <input
-                            type="text"
-                            class="bt-identity-nickname-input"
-                            data-action="nickname"
-                            placeholder="${t('profile.onboarding.nicknamePlaceholder')}"
-                            maxlength="${NICKNAME_MAX_LENGTH}"
-                            autocomplete="off"
-                            autocapitalize="off"
-                            spellcheck="false"
-                            inputmode="text"
-                            aria-label="${t('profile.onboarding.nicknameLabel')}"
-                        />
-                        <div class="bt-identity-nickname-hint" data-role="nickname-hint">
-                            ${t('profile.onboarding.nicknameHint')}
+                    <div class="bt-hub0-pedit-cols">
+                        <div class="bt-hub0-pedit-col">
+                            <div class="bt-hub0-subhead">🪖 ${t('profile.onboarding.pickAvatarLabel')}</div>
+                            <div class="bt-hub0-av-grid">${this.renderAvatarCards()}</div>
+                        </div>
+                        <div class="bt-hub0-pedit-col bt-hub0-pedit-col--flags">
+                            <div class="bt-hub0-subhead">🚩 ${t('profile.onboarding.pickFlagLabel')}</div>
+                            <div class="bt-hub0-flag-grid">${this.renderFlagCards()}</div>
                         </div>
                     </div>
-                </section>
-
-                <section class="bt-identity-section">
-                    <h3 class="bt-identity-section-title">${t('profile.onboarding.pickFlagLabel')}</h3>
-                    <div class="bt-identity-flag-grid">
-                        ${this.renderFlagCards()}
-                    </div>
-                </section>
+                </div>
 
                 <div class="bt-picker-footer bt-identity-footer">
                     <button class="bt-cta-button" type="button" data-action="start" disabled>
@@ -205,66 +186,52 @@ export class IdentityScreen implements IScreen {
         return root;
     }
 
+    /** Kafle czolgistow 3x3 — AVATAR_SLOTS (nie AVATAR_IDS), zeby ewentualny
+     *  zablokowany slot pojawil sie tu i w edycji profilu jednoczesnie. */
     private renderAvatarCards(): string {
         const baseUrl = this.getBaseUrl();
 
-        return AVATAR_IDS.map(id => {
-            const config = AVATARS[id];
+        return AVATAR_SLOTS.map(slotId => {
+            if (slotId === null) {
+                return `
+                <span class="bt-hub0-av-tile is-soon">
+                    <span class="av-q" aria-hidden="true">?</span>
+                    <span class="av-name">${t('common.soon')}</span>
+                </span>`;
+            }
+            const config = AVATARS[slotId];
             const imgUrl = `${baseUrl}${config.assetPath}`;
-            const name = t(AVATAR_NAME_KEYS[id]);
-            const desc = t(AVATAR_DESC_KEYS[id]);
+            const name = t(AVATAR_NAME_KEYS[slotId]);
+            const desc = t(AVATAR_DESC_KEYS[slotId]);
 
             return `
-                <button class="bt-identity-card bt-identity-card--avatar" type="button"
-                        data-avatar-id="${id}"
+                <button class="bt-hub0-av-tile" type="button"
+                        data-avatar-id="${slotId}"
                         aria-label="${name}: ${desc}">
-                    <div class="bt-identity-card-visual">
-                        <img class="bt-identity-card-img" src="${imgUrl}"
-                             alt="${name}" loading="eager" draggable="false">
-                    </div>
-                    <div class="bt-identity-card-name">${name}</div>
-                </button>
-            `;
-        }).join('');
-    }
-
-    private renderFlagCards(): string {
-        return FLAG_IDS.map(id => {
-            const config = FLAGS[id];
-            const bgStyle = this.computeFlagGradient(config);
-            const name = t(FLAG_NAME_KEYS[id]);
-
-            return `
-                <button class="bt-identity-card bt-identity-card--flag" type="button"
-                        data-flag-id="${id}"
-                        aria-label="${name}">
-                    <div class="bt-identity-flag-swatch" style="background: ${bgStyle};"
-                         aria-hidden="true"></div>
-                    <div class="bt-identity-card-name bt-identity-card-name--small">${name}</div>
-                </button>
-            `;
+                    <img src="${imgUrl}" alt="${name}" loading="eager" draggable="false">
+                    <span class="av-name">${name}</span>
+                </button>`;
         }).join('');
     }
 
     /**
-     * Generates CSS linear-gradient matching PIXI FlagRenderer colors + patterns.
-     * Math verification: hard color stops (0% to N% same color, then jump to next)
-     * = sharp stripe boundary, no anti-aliasing between bands.
+     * Flagi z `flagArt.ts` — ten sam DOKLADNY art co w hubie, alfabetycznie wg
+     * nazwy kraju w biezacym jezyku. Poprzednio onboarding rysowal wlasne
+     * `linear-gradient` z `config/flags.ts`, czyli pasiaste aproksymacje dla
+     * FlagRenderera na czolgu: Brazylia wychodzila zielona z zoltym pasem BEZ
+     * rombu, Kanada paskami BEZ liscia klonu. Dziecko wybieralo flage, ktorej
+     * potem nie poznawalo w profilu — a to jest pierwszy ekran w grze.
      */
-    private computeFlagGradient(config: FlagConfig): string {
-        const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
-        const p = hex(config.colors.primary);
-        const s = hex(config.colors.secondary);
-        const tert = hex(config.colors.tertiary ?? config.colors.primary);
-
-        switch (config.pattern) {
-            case 'horizontal_2':
-                return `linear-gradient(to bottom, ${p} 0%, ${p} 50%, ${s} 50%, ${s} 100%)`;
-            case 'horizontal_3':
-                return `linear-gradient(to bottom, ${p} 0%, ${p} 33.33%, ${s} 33.33%, ${s} 66.67%, ${tert} 66.67%, ${tert} 100%)`;
-            case 'vertical_3':
-                return `linear-gradient(to right, ${p} 0%, ${p} 33.33%, ${s} 33.33%, ${s} 66.67%, ${tert} 66.67%, ${tert} 100%)`;
-        }
+    private renderFlagCards(): string {
+        return sortedFlagIds().map(id => {
+            const name = t(FLAG_NAME_KEY[id]);
+            return `
+                <button class="bt-hub0-flag-tile" type="button"
+                        data-flag-id="${id}"
+                        aria-label="${name}" title="${name}">
+                    ${flagImgHtml(id, 'fl-img')}
+                </button>`;
+        }).join('');
     }
 
     private getBaseUrl(): string {

@@ -101,9 +101,14 @@ const DESCEND_PX = 46;            // how far it dips while feeding
 export class UfoAbductor {
     private container: PIXI.Container;
     private gfxBody: PIXI.Graphics;
-    private gfxLights: PIXI.Graphics;
     private gfxBeam: PIXI.Graphics;
     private gfxRing: PIXI.Graphics;     // ground telegraph — lives in world space
+
+    // ── BAKED components (art-dir pass). Each of these used to be a per-frame
+    // `clear()` + full redraw; now the geometry is built ONCE and every frame
+    // only touches transform/tint/alpha/visible. See the class doc.
+    private lightsContainer: PIXI.Container;
+    private lightSprites: PIXI.Graphics[] = [];
 
     private x: number;
     private y: number;
@@ -124,8 +129,20 @@ export class UfoAbductor {
     private altitude = 1;                // 1 = cruising high, 0 = dipped to feed
 
     // ── refuelling + combat state ──
-    private gfxAlien: PIXI.Graphics;     // the little pilot, on the ground
-    private gfxShield: PIXI.Graphics;    // alarm flare while alerted
+    // Pilot: two BAKED poses swapped by `visible`, plus the two things that
+    // genuinely move (the hose bezier and the rising bubbles).
+    private alienContainer: PIXI.Container;
+    private alienRefuelPose: PIXI.Graphics;
+    private alienCombatPose: PIXI.Graphics;
+    private alienMuzzleFlash: PIXI.Graphics;
+    private fuelBubbles: PIXI.Graphics[] = [];
+    private gfxAlienHose: PIXI.Graphics;
+    // Escalation readout: baked segments + glow + lamps + the ARMED rim.
+    private shieldContainer: PIXI.Container;
+    private shieldSegments: PIXI.Graphics[] = [];
+    private shieldGlow: PIXI.Graphics;
+    private shieldLamps: PIXI.Graphics[] = [];
+    private shieldArmedRim: PIXI.Graphics;
     private hp = UFO_HP;
     private alertedAt = 0;               // 0 = calm; else Date.now() of first hit
     private lastShotAt = 0;
@@ -141,16 +158,28 @@ export class UfoAbductor {
     private catches = 0;                 // meals since the last refuel
 
     constructor(worldContainer: PIXI.Container) {
-        // ALL Graphics up front (E1)
+        // ALL Graphics up front (E1) — INCLUDING the pooled ones. The art-dir
+        // draft allocated the fuel bubbles inside its bake method, i.e. after the
+        // first block; that is the same E1 letter this file has been bitten by.
         this.container = new PIXI.Container();
         this.gfxBody = new PIXI.Graphics();
-        this.gfxLights = new PIXI.Graphics();
         this.gfxBeam = new PIXI.Graphics();
         this.gfxRing = new PIXI.Graphics();
         this.cargoGhost = new PIXI.Graphics();
         this.gfxShadow = new PIXI.Graphics();
-        this.gfxAlien = new PIXI.Graphics();
-        this.gfxShield = new PIXI.Graphics();
+        this.lightsContainer = new PIXI.Container();
+        this.alienContainer = new PIXI.Container();
+        this.alienRefuelPose = new PIXI.Graphics();
+        this.alienCombatPose = new PIXI.Graphics();
+        this.alienMuzzleFlash = new PIXI.Graphics();
+        this.gfxAlienHose = new PIXI.Graphics();
+        this.shieldContainer = new PIXI.Container();
+        this.shieldGlow = new PIXI.Graphics();
+        this.shieldArmedRim = new PIXI.Graphics();
+        for (let i = 0; i < 7; i++) this.lightSprites.push(new PIXI.Graphics());
+        for (let i = 0; i < PROVOKE_HITS; i++) this.shieldSegments.push(new PIXI.Graphics());
+        for (let i = 0; i < 2; i++) this.shieldLamps.push(new PIXI.Graphics());
+        for (let i = 0; i < 3; i++) this.fuelBubbles.push(new PIXI.Graphics());
 
         this.x = WORLD_W * 0.5;
         this.y = WORLD_H * 0.35;
@@ -169,22 +198,42 @@ export class UfoAbductor {
 
         // the pilot walks on the GROUND, so it Y-sorts with the world, not with
         // the saucer's air band
-        this.gfxAlien.zIndex = FuelStation.LANDING.y + 30;
-        worldContainer.addChild(this.gfxAlien);
+        this.alienContainer.zIndex = FuelStation.LANDING.y + 30;
+        this.alienContainer.addChild(this.alienRefuelPose);
+        this.alienContainer.addChild(this.alienCombatPose);
+        this.alienContainer.addChild(this.alienMuzzleFlash);
+        for (const b of this.fuelBubbles) this.alienContainer.addChild(b);
+        worldContainer.addChild(this.alienContainer);
+
+        // The hose spans pilot -> saucer, so both endpoints are WORLD coords and
+        // it cannot live inside the pilot's local container. It therefore needs
+        // its OWN zIndex: left at the default 0 it sorts below the ground decal
+        // band (shadow 8, ring 9) and the hose disappears under the dirt.
+        this.gfxAlienHose.zIndex = FuelStation.LANDING.y + 31;
+        worldContainer.addChild(this.gfxAlienHose);
 
         // beam under the hull, hull on top; the saucer flies ABOVE the world but
         // below the weather overlay band
         this.container.addChild(this.gfxBeam);
         this.container.addChild(this.cargoGhost);
         this.container.addChild(this.gfxBody);
-        this.container.addChild(this.gfxLights);
-        this.container.addChild(this.gfxShield);
+        for (const l of this.lightSprites) this.lightsContainer.addChild(l);
+        this.container.addChild(this.lightsContainer);
+        this.shieldContainer.addChild(this.shieldGlow);
+        for (const s of this.shieldSegments) this.shieldContainer.addChild(s);
+        this.shieldContainer.addChild(this.shieldArmedRim);
+        for (const l of this.shieldLamps) this.shieldContainer.addChild(l);
+        this.container.addChild(this.shieldContainer);
         // Air band, OUT of the Y-sort: a flying craft that sorts against buildings
         // slides behind them and instantly loses its altitude read (SkyTraffic).
         this.container.zIndex = Z_UFO_AIR;
         worldContainer.addChild(this.container);
 
         this.drawBody();
+        this.bakeShadow();
+        this.bakeLights();
+        this.bakeShield();
+        this.bakeAlien();
     }
 
     /**
@@ -215,12 +264,26 @@ export class UfoAbductor {
         return this.victimEnemy === e;
     }
 
-    /** Static saucer art: hull, dome, rim. Lights/beam are per-frame. */
+    /**
+     * Static saucer art: hull, panelling, dome, rim. Baked once — only the rim
+     * lights, beam and escalation readout change per frame.
+     *
+     * Art-dir pass added: hull panel lines, rim rivets, a dark cockpit interior
+     * with the pilot's silhouette visible inside, and specular highlights on the
+     * glass. All of it is free — it lands in the same one-time bake.
+     *
+     * DELIBERATELY NOT TAKEN from the draft: an exhaust glow under the belly. It
+     * sits exactly where the tractor beam originates, so during a grab the player
+     * would see two overlapping light sources and lose track of where the beam
+     * starts. Czytelnosc beats the extra shine.
+     */
     private drawBody(): void {
         const g = this.gfxBody;
         // Dark underbelly — NOT a contact shadow. At alpha 0.9 this read as the
         // saucer resting on the dirt; it is now a faint hull underside, and the
-        // real shadow lives on the ground in its own object (see drawShadow).
+        // real shadow lives on the ground in its own object (see bakeShadow).
+        // The draft pushed this back to alpha 1.0, which resurrects exactly that
+        // bug — the saucer looks parked on the ground while flying (A9).
         g.beginFill(0x2a2438, 0.35);
         g.drawEllipse(0, 4, 46, 14);
         g.endFill();
@@ -231,16 +294,53 @@ export class UfoAbductor {
         g.beginFill(0xb4bccd, 1);
         g.drawEllipse(-4, -4, 42, 12);
         g.endFill();
+
+        // hull panel lines — cheap high-detail, reads as engineered plating
+        g.lineStyle(1, 0x6d7488, 0.5);
+        g.drawEllipse(0, -2, 38, 10);
+        g.moveTo(-28, 0); g.lineTo(-20, 8);
+        g.moveTo(28, 0); g.lineTo(20, 8);
+        g.moveTo(0, 6); g.lineTo(0, 15);
+        g.lineStyle(0);
+
+        // rivets around the rim — only the front-facing half is visible from here
+        g.beginFill(0x5a6175, 0.8);
+        for (let i = 0; i < 14; i++) {
+            const a = (i / 14) * Math.PI * 2;
+            if (Math.sin(a) > 0) g.drawCircle(Math.cos(a) * 44, Math.sin(a) * 14 + 1, 1.2);
+        }
+        g.endFill();
+
         // rim ridge
         g.lineStyle(2, 0x6d7488, 0.9);
         g.drawEllipse(0, 0, 48, 17);
         g.lineStyle(0);
+
+        // cockpit interior — a dark well behind the glass gives the dome depth
+        g.beginFill(0x161a23, 0.9);
+        g.drawEllipse(0, -12, 20, 13);
+        g.endFill();
+        // ...with the pilot sitting in it. Ties the saucer to the little alien
+        // that later climbs out at the fuel station: same creature, one story.
+        g.beginFill(0x224a35, 1);
+        g.drawEllipse(0, -11, 7, 8);
+        g.drawEllipse(0, -16, 9, 7);
+        g.endFill();
+        g.beginFill(MARS_HEX.alienGreen, 0.6);
+        g.drawCircle(-3, -16, 1.5);
+        g.drawCircle(3, -16, 1.5);
+        g.endFill();
+
         // dome — alien green, the map's "this is interactive/alien" colour
-        g.beginFill(MARS_HEX.alienGreen, 0.35);
+        g.beginFill(MARS_HEX.alienGreen, 0.25);
         g.drawEllipse(0, -12, 22, 15);
         g.endFill();
-        g.beginFill(0xd9f7e6, 0.55);
-        g.drawEllipse(-6, -16, 9, 6);
+        // specular highlights: two offset glints = curved glass, not a flat disc
+        g.beginFill(0xffffff, 0.4);
+        g.drawEllipse(-8, -16, 6, 3);
+        g.endFill();
+        g.beginFill(0xffffff, 0.2);
+        g.drawEllipse(-13, -13, 3, 5);
         g.endFill();
         g.lineStyle(1.6, MARS_HEX.alienViolet, 0.7);
         g.drawEllipse(0, -12, 22, 15);
@@ -304,11 +404,14 @@ export class UfoAbductor {
         // +50% overall (playtest) — the saucer was too small to read as a threat
         this.container.scale.set((1.06 + 0.12 * this.altitude) * 1.5);
 
-        this.drawShadow(lift);
-        this.drawLights(now);
+        // Transform-only updates on the baked parts; the beam is the one thing
+        // left that genuinely has to re-tessellate every frame (its geometry
+        // links a moving hull to a fixed ground point).
+        this.updateShadow(lift);
+        this.updateLights(now);
+        this.updateShield(now);
+        this.updateAlien(now);
         this.drawBeam(now, lift);
-        this.drawAlien(now);
-        this.drawShield(now);
         return (tick.abducted || tick.shots || tick.destroyed || tick.alerted) ? tick : null;
     }
 
@@ -400,9 +503,11 @@ export class UfoAbductor {
         this.dead = true;
         this.respawnAt = Date.now() + RESPAWN_MS;
         this.container.visible = false;
-        this.gfxShadow.clear();
+        // baked art is reused by the respawned saucer — hide it, never clear it
+        this.gfxShadow.visible = false;
         this.gfxRing.clear();
-        this.gfxAlien.clear();
+        this.gfxAlienHose.clear();
+        this.alienContainer.visible = false;
         this.alienOut = false;
     }
 
@@ -425,6 +530,13 @@ export class UfoAbductor {
         this.y = WORLD_H * 0.25;
         this.cooldownUntil = now + 4000;
         this.container.visible = true;
+        this.gfxShadow.visible = true;   // paired with markDead's hide
+        // NOTE(nie ruszam w tym refaktorze): `threat` NIE jest tu zerowany, wiec
+        // nowy spodek przylatuje z zapalonym lontem po poprzedniku. Sam zgasnie
+        // (ESCALATION_DECAY_MS), ale do tego czasu `takeDamage` nie podbije
+        // poziomu (threat < PROVOKE_HITS jest falszem), wiec swiezy spodek przez
+        // ~22 s obrywa bez ostrzezenia i nie odpowiada ogniem. Do decyzji Mariusza
+        // — to zmiana MECHANIKI, a ten pass mial nie ruszac mechaniki.
     }
 
     /**
@@ -469,127 +581,187 @@ export class UfoAbductor {
      * sci-fi blaster (Mariusz's call — drawn deliberately toy-like, never a
      * realistic firearm; see the map contract).
      */
-    private drawAlien(now: number): void {
-        const g = this.gfxAlien;
-        g.clear();
+    private bakeAlien(): void {
+        // +50% (playtest) and a meaner silhouette: hunched, sharp-jawed, glowing
+        // slit eyes instead of soft ovals — it should look like it means it.
+        const S = 1.5;
+
+        // ── POSE 1: REFUELLING (calm, head down over the nozzle) ────────────
+        const r = this.alienRefuelPose;
+        r.beginFill(0x000000, 0.30);                   // contact shadow
+        r.drawEllipse(4, 19 * S, 15 * S, 5 * S);
+        r.endFill();
+        r.lineStyle(3.4 * S, 0x27684a, 1);             // legs, planted
+        r.moveTo(-4 * S, 8 * S); r.lineTo(-6 * S, 17 * S);
+        r.moveTo(4 * S, 8 * S); r.lineTo(6 * S, 17 * S);
+        r.lineStyle(0);
+        r.beginFill(0x2f8557, 1);                      // hunched body
+        r.drawEllipse(0, 4 * S, 9.5 * S, 10 * S);
+        r.endFill();
+        r.beginFill(0x1f6642, 0.8);                    // darker underside
+        r.drawEllipse(1.5 * S, 8 * S, 8 * S, 5 * S);
+        r.endFill();
+        r.beginFill(0x46a874, 1);                      // cranium, tipped forward
+        r.drawEllipse(2 * S, -10 * S, 12 * S, 9.5 * S);
+        r.endFill();
+        r.beginFill(0x0b0f14, 0.95);                   // soft eyes (not angry yet)
+        r.drawEllipse(-4 * S, -10 * S, 3 * S, 2 * S);
+        r.drawEllipse(8 * S, -10 * S, 3 * S, 2 * S);
+        r.endFill();
+        r.lineStyle(2.8 * S, 0x2f8557, 1);             // arm down to the nozzle
+        r.moveTo(-2 * S, 4 * S); r.lineTo(4 * S, 12 * S);
+        r.lineStyle(0);
+        r.beginFill(0x6a5c52, 1);
+        // nozzle scaled by S like everything else — the draft left this one in
+        // raw px, so the grip shrank to a chip next to the +50% pilot.
+        r.drawRoundedRect(5 * S, -2 * S, 9 * S, 6 * S, 2);
+        r.endFill();
+
+        // ── POSE 2: COMBAT (braced, blaster out) ────────────────────────────
+        const c = this.alienCombatPose;
+        c.beginFill(0x000000, 0.30);                   // wider stance = wider shadow
+        c.drawEllipse(4, 19 * S, 18 * S, 6 * S);
+        c.endFill();
+        c.lineStyle(3.4 * S, 0x27684a, 1);             // legs braced apart
+        c.moveTo(-4 * S, 8 * S); c.lineTo(-10 * S, 18 * S);
+        c.moveTo(4 * S, 8 * S); c.lineTo(12 * S, 17 * S);
+        c.lineStyle(0);
+        c.beginFill(0x2f8557, 1);                      // upright, aggressive
+        c.drawEllipse(0, 3 * S, 10 * S, 11 * S);
+        c.endFill();
+        c.beginFill(0x1f6642, 0.8);
+        c.drawEllipse(1.5 * S, 7 * S, 8 * S, 5 * S);
+        c.endFill();
+        c.lineStyle(2.8 * S, 0x2f8557, 1);             // long arm hanging forward
+        c.moveTo(-7 * S, 1 * S); c.lineTo(-11 * S, 9 * S);
+        c.lineStyle(0);
+        c.beginFill(0x46a874, 1);
+        c.drawEllipse(0, -13 * S, 12 * S, 9.5 * S);
+        c.endFill();
+        c.beginFill(0x59c088, 0.7);                    // sunlit NW dome
+        c.drawEllipse(-3 * S, -16 * S, 6.5 * S, 4 * S);
+        c.endFill();
+        c.beginFill(0x0b0f14, 0.95);                   // ANGRY SLIT EYES
+        c.drawPolygon([-10 * S, -16 * S, -2 * S, -13 * S, -2.5 * S, -10 * S, -10 * S, -12 * S]);
+        c.drawPolygon([10 * S, -16 * S, 2 * S, -13 * S, 2.5 * S, -10 * S, 10 * S, -12 * S]);
+        c.endFill();
+        c.beginFill(0xff4d5e, 0.85);                   // red combat glow
+        c.drawEllipse(-6 * S, -13 * S, 2.2 * S, 1.2 * S);
+        c.drawEllipse(6 * S, -13 * S, 2.2 * S, 1.2 * S);
+        c.endFill();
+        // stubby sci-fi blaster: fat barrel, coil rings, bulb tip, antenna
+        const dir = 1;
+        c.lineStyle(5 * S, 0x8f9aa6, 1);
+        c.moveTo(7 * dir * S, 1 * S); c.lineTo(22 * dir * S, -2 * S);
+        c.lineStyle(2 * S, 0x6d7684, 1);
+        for (let i = 0; i < 3; i++) {
+            const cxp = (11 + i * 4) * dir * S;
+            c.moveTo(cxp, -5 * S); c.lineTo(cxp, 3 * S);
+        }
+        c.lineStyle(0);
+        c.beginFill(MARS_HEX.alienViolet, 0.95);
+        c.drawCircle(25 * dir * S, -2 * S, 4.6 * S);
+        c.endFill();
+        c.beginFill(0xe6d4ff, 0.85);                   // hot core
+        c.drawCircle(25 * dir * S, -2 * S, 2.2 * S);
+        c.endFill();
+        c.lineStyle(1.6 * S, 0x9aa6b2, 0.9);           // antenna
+        c.moveTo(18 * dir * S, -5 * S); c.lineTo(20 * dir * S, -13 * S);
+        c.lineStyle(0);
+
+        // ── MUZZLE FLASH: baked once, popped by alpha + scale ───────────────
+        // Drawn AROUND THE ORIGIN and moved to the barrel tip by x/y — same trap
+        // as the alarm lamps: baking it at x = 40 and then scaling would slide the
+        // flash ~16 px off the muzzle on every shot.
+        const f = this.alienMuzzleFlash;
+        f.beginFill(0xffffff, 1);
+        f.drawCircle(0, 0, 5 * S + 2);
+        f.endFill();
+        f.beginFill(MARS_HEX.alienViolet, 0.6);
+        f.drawCircle(0, 0, 14 * S);
+        f.endFill();
+        f.lineStyle(3, 0xe6d4ff, 0.9);                 // 4-point star
+        for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2 + 0.4;
+            f.moveTo(0, 0);
+            f.lineTo(Math.cos(a) * 22 * S, Math.sin(a) * 22 * S);
+        }
+        f.lineStyle(0);
+        f.beginFill(0xd9c8e6, 0.4);                    // recoil smoke puff
+        f.drawEllipse(10, -4, 11, 7);
+        f.endFill();
+        f.x = 27 * dir * S;
+        f.y = -2 * S;
+
+        // fuel bubbles — white unit circles, coloured and scaled per frame
+        for (const b of this.fuelBubbles) {
+            b.beginFill(MARS_HEX.alienGreen, 1);
+            b.drawCircle(0, 0, 1);
+            b.endFill();
+        }
+
+        this.alienMuzzleFlash.visible = false;
+        this.alienContainer.visible = false;
+    }
+
+    private updateAlien(now: number): void {
+        this.gfxAlienHose.clear();
+        this.alienContainer.visible = this.alienOut;
         if (!this.alienOut) return;
 
         const ax = this.x - 62;
         const ay = this.y + 18;
         const fighting = this.alertedAt > 0 && now - this.alertedAt >= ALERT_MS;
-        const step = Math.sin(now / 190) * (fighting ? 0 : 2.2);
-        // +50% (playtest) and a meaner silhouette: hunched, sharp-jawed, glowing
-        // slit eyes instead of soft ovals — it should look like it means it.
-        const S = 1.5;
 
-        // contact shadow
-        g.beginFill(0x000000, 0.30);
-        g.drawEllipse(ax + 4, ay + 19 * S, 15 * S, 5 * S);
-        g.endFill();
-        // legs
-        g.lineStyle(3.4 * S, 0x27684a, 1);
-        g.moveTo(ax - 4 * S, ay + 8 * S); g.lineTo(ax - 6 * S + step, ay + 17 * S);
-        g.moveTo(ax + 4 * S, ay + 8 * S); g.lineTo(ax + 6 * S - step, ay + 17 * S);
-        g.lineStyle(0);
-        // hunched body + darker underside (menace comes from the crouch)
-        g.beginFill(0x2f8557, 1);
-        g.drawEllipse(ax, ay + 3 * S, 9.5 * S, 10 * S);
-        g.endFill();
-        g.beginFill(0x1f6642, 0.8);
-        g.drawEllipse(ax + 1.5 * S, ay + 7 * S, 8 * S, 5 * S);
-        g.endFill();
-        // long arms hanging forward
-        g.lineStyle(2.8 * S, 0x2f8557, 1);
-        g.moveTo(ax - 7 * S, ay + 1 * S); g.lineTo(ax - 11 * S, ay + 9 * S);
-        g.lineStyle(0);
-        // big cranium, wider at the top
-        g.beginFill(0x46a874, 1);
-        g.drawEllipse(ax, ay - 13 * S, 12 * S, 9.5 * S);
-        g.endFill();
-        g.beginFill(0x59c088, 0.7);                    // sunlit NW dome
-        g.drawEllipse(ax - 3 * S, ay - 16 * S, 6.5 * S, 4 * S);
-        g.endFill();
-        // ANGRY SLIT EYES — angled inward, faint inner glow
-        g.beginFill(0x0b0f14, 0.95);
-        g.drawPolygon([
-            ax - 10 * S, ay - 16 * S, ax - 2 * S, ay - 13 * S,
-            ax - 2.5 * S, ay - 10 * S, ax - 10 * S, ay - 12 * S,
-        ]);
-        g.drawPolygon([
-            ax + 10 * S, ay - 16 * S, ax + 2 * S, ay - 13 * S,
-            ax + 2.5 * S, ay - 10 * S, ax + 10 * S, ay - 12 * S,
-        ]);
-        g.endFill();
-        g.beginFill(fighting ? 0xff4d5e : MARS_HEX.alienGreen, fighting ? 0.85 : 0.45);
-        g.drawEllipse(ax - 6 * S, ay - 13 * S, 2.2 * S, 1.2 * S);
-        g.drawEllipse(ax + 6 * S, ay - 13 * S, 2.2 * S, 1.2 * S);
-        g.endFill();
+        this.alienCombatPose.visible = fighting;
+        this.alienRefuelPose.visible = !fighting;
+        for (const b of this.fuelBubbles) b.visible = !fighting;
+
+        this.alienContainer.x = ax;
+        this.alienContainer.y = ay;
 
         if (fighting) {
-            // stubby sci-fi blaster: fat barrel, bulb tip, antenna, coil rings
-            const dir = 1;
-            g.lineStyle(5 * S, 0x8f9aa6, 1);
-            g.moveTo(ax + 7 * dir * S, ay + 1 * S);
-            g.lineTo(ax + 22 * dir * S, ay - 2 * S);
-            g.lineStyle(2 * S, 0x6d7684, 1);           // coil rings
-            for (let i = 0; i < 3; i++) {
-                const cxp = ax + (11 + i * 4) * dir * S;
-                g.moveTo(cxp, ay - 5 * S); g.lineTo(cxp, ay + 3 * S);
-            }
-            g.lineStyle(0);
-            const charge = 0.4 + 0.6 * Math.abs(Math.sin(now / 130));
-            g.beginFill(MARS_HEX.alienViolet, 0.95);
-            g.drawCircle(ax + 25 * dir * S, ay - 2 * S, 4.6 * S);
-            g.endFill();
-            g.beginFill(0xe6d4ff, 0.85 * charge);      // hot core
-            g.drawCircle(ax + 25 * dir * S, ay - 2 * S, 2.2 * S);
-            g.endFill();
-            g.beginFill(MARS_HEX.alienViolet, 0.30 * charge);
-            g.drawCircle(ax + 25 * dir * S, ay - 2 * S, 11 * S);
-            g.endFill();
-            g.lineStyle(1.6 * S, 0x9aa6b2, 0.9);       // antenna
-            g.moveTo(ax + 18 * dir * S, ay - 5 * S);
-            g.lineTo(ax + 20 * dir * S, ay - 13 * S);
-            g.lineStyle(0);
+            // planted: braced to shoot, no sway
+            this.alienRefuelPose.rotation = 0;
+            this.alienRefuelPose.y = 0;
+            this.alienMuzzleFlash.visible = false;
 
-            // MUZZLE FLASH: bright star right after each shot (juicy feedback)
             const sinceShot = now - this.lastAlienShotAt;
             if (sinceShot < 130) {
-                const f = 1 - sinceShot / 130;
-                const mx = ax + 27 * dir * S, my = ay - 2 * S;
-                g.beginFill(0xffffff, 0.9 * f);
-                g.drawCircle(mx, my, 5 * S * f + 2);
-                g.endFill();
-                g.beginFill(MARS_HEX.alienViolet, 0.55 * f);
-                g.drawCircle(mx, my, 14 * S * f);
-                g.endFill();
-                g.lineStyle(3 * f, 0xe6d4ff, 0.8 * f);   // 4-point star
-                for (let i = 0; i < 4; i++) {
-                    const a = (i / 4) * Math.PI * 2 + 0.4;
-                    g.moveTo(mx, my);
-                    g.lineTo(mx + Math.cos(a) * 22 * S * f, my + Math.sin(a) * 22 * S * f);
-                }
-                g.lineStyle(0);
-                // recoil smoke puff
-                g.beginFill(0xd9c8e6, 0.35 * f);
-                g.drawEllipse(mx + 10 * f, my - 4 * f, 8 * f + 3, 5 * f + 2);
-                g.endFill();
+                const t = 1 - sinceShot / 130;
+                this.alienMuzzleFlash.visible = true;
+                this.alienMuzzleFlash.alpha = t;
+                this.alienMuzzleFlash.scale.set(0.6 + 0.4 * t);   // explosive pop
             }
         } else {
-            // refuelling: holds the nozzle, hose line back to the saucer
-            g.lineStyle(2.4, 0x3f3a36, 0.9);
-            g.moveTo(ax + 7, ay + 2);
-            g.quadraticCurveTo(ax + 26, ay + 12, this.x - 8, this.y + 20);
-            g.lineStyle(0);
-            g.beginFill(0x6a5c52, 1);
-            g.drawRoundedRect(ax + 5, ay - 2, 9, 6, 2);
-            g.endFill();
+            this.alienMuzzleFlash.visible = false;
+
+            // WADDLE — kept. The old per-frame pose swung the pilot's legs; a
+            // baked pose cannot do that, so the sway becomes a transform, which
+            // is free. The draft replaced this with `rotation = 0` under a
+            // comment describing an animation that was not there, turning the
+            // pilot into a statue for the whole 10 s refuel.
+            //
+            // Applied to the POSE, not the container: the fuel bubbles are
+            // siblings positioned at the SAUCER's fill port ~60 px away, and
+            // swaying the container would swing them along with the pilot.
+            this.alienRefuelPose.rotation = Math.sin(now / 190) * 0.06;
+            this.alienRefuelPose.y = Math.sin(now / 190) * 2.4;
+
+            // hose bezier — genuinely dynamic (pilot end local, saucer end world)
+            this.gfxAlienHose.lineStyle(2.4, 0x3f3a36, 0.9);
+            this.gfxAlienHose.moveTo(ax + 7, ay + 2);
+            this.gfxAlienHose.quadraticCurveTo(ax + 26, ay + 12, this.x - 8, this.y + 20);
+            this.gfxAlienHose.lineStyle(0);
+
             // fuel bubbles rising = "it is actually working"
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < this.fuelBubbles.length; i++) {
+                const b = this.fuelBubbles[i];
                 const t = ((now / 900 + i * 0.33) % 1);
-                g.beginFill(MARS_HEX.alienGreen, 0.4 * (1 - t));
-                g.drawCircle(this.x - 10, this.y + 18 - t * 22, 2 + t * 2);
-                g.endFill();
+                b.x = (this.x - ax) - 10;
+                b.y = (this.y - ay) + 18 - t * 22;
+                b.scale.set(2 + t * 2);
+                b.alpha = 0.4 * (1 - t);
             }
         }
     }
@@ -599,9 +771,50 @@ export class UfoAbductor {
      * hit, walking yellow -> red and pulsing faster as it climbs. This is the
      * whole "danger is building" signal — the player watches the fuse burn.
      */
-    private drawShield(now: number): void {
-        const g = this.gfxShield;
-        g.clear();
+    private bakeShield(): void {
+        const rx = 78, ry = 34;
+        const gap = 0.16;
+
+        // hull glow — white, tinted per level in updateShield
+        this.shieldGlow.beginFill(0xffffff, 1);
+        this.shieldGlow.drawEllipse(0, -2, rx * 0.9, ry);
+        this.shieldGlow.endFill();
+
+        // one arc per hit = a fuse the player can count
+        for (let i = 0; i < PROVOKE_HITS; i++) {
+            const a0 = -Math.PI / 2 + (i / PROVOKE_HITS) * Math.PI * 2 + gap / 2;
+            const a1 = -Math.PI / 2 + ((i + 1) / PROVOKE_HITS) * Math.PI * 2 - gap / 2;
+            const g = this.shieldSegments[i];
+            g.lineStyle(5, 0xffffff, 1);
+            g.arc(0, -2, rx, a0, a1);
+            g.lineStyle(0);
+        }
+
+        // ARMED rim — KEPT (the draft dropped it). This is the loudest signal the
+        // saucer gives before it opens fire; without it the last beat before
+        // combat is just two small lamps. Drawn at the LOCAL origin so the pulse
+        // can be a `scale` animation instead of a per-frame redraw; the container
+        // carries the -2 offset the old ellipse had baked into its centre.
+        this.shieldArmedRim.lineStyle(5, 0xffffff, 1);
+        this.shieldArmedRim.drawEllipse(0, 0, rx, ry);
+        this.shieldArmedRim.lineStyle(0);
+        this.shieldArmedRim.y = -2;
+
+        // alarm lamps — drawn AT THE ORIGIN, placed by x/y. The draft drew them
+        // at x = +/-62 and then animated `scale`, which multiplies the offset too:
+        // the lamps slid ~25 px outward on every pulse instead of throbbing.
+        for (let i = 0; i < 2; i++) {
+            const g = this.shieldLamps[i];
+            g.beginFill(0xffffff, 1);
+            g.drawCircle(0, 0, 5);
+            g.endFill();
+            g.x = (i === 0 ? -1 : 1) * 62;
+            g.y = -6;
+        }
+    }
+
+    private updateShield(now: number): void {
+        this.shieldContainer.visible = this.threat > 0;
         if (this.threat === 0) return;
 
         const lvl = this.threat;                       // 1..5
@@ -609,38 +822,31 @@ export class UfoAbductor {
         const armed = this.alertedAt > 0;
         const speed = 340 - lvl * 52;                  // faster pulse each step
         const pulse = 0.5 + 0.5 * Math.sin(now / speed);
-        const rx = 78, ry = 34;
 
-        // segmented ring: one lit arc per hit taken = a fuse you can count
-        const SEG = PROVOKE_HITS;
-        const gap = 0.16;
-        for (let i = 0; i < SEG; i++) {
+        for (let i = 0; i < PROVOKE_HITS; i++) {
             const lit = i < lvl;
-            const a0 = -Math.PI / 2 + (i / SEG) * Math.PI * 2 + gap / 2;
-            const a1 = -Math.PI / 2 + ((i + 1) / SEG) * Math.PI * 2 - gap / 2;
-            g.lineStyle(lit ? 5 : 2, lit ? col : 0x6b5f66, lit ? 0.55 + 0.4 * pulse : 0.35);
-            g.arc(0, -2, rx, a0, a1);
-            // ellipse-ish squash: redraw the same arc scaled on Y
-            g.lineStyle(0);
+            const seg = this.shieldSegments[i];
+            seg.tint = lit ? col : 0x6b5f66;
+            seg.alpha = lit ? 0.55 + 0.4 * pulse : 0.35;
         }
-        g.lineStyle(0);
 
-        // hull glow rising with the level
-        g.beginFill(col, (0.05 + 0.035 * lvl) * pulse);
-        g.drawEllipse(0, -2, rx * 0.9, ry);
-        g.endFill();
+        this.shieldGlow.tint = col;
+        this.shieldGlow.alpha = (0.05 + 0.035 * lvl) * pulse;
 
-        // ARMED: the last beat before it opens fire — thick flashing rim
+        const fast = 0.5 + 0.5 * Math.sin(now / 70);
+        this.shieldArmedRim.visible = armed;
         if (armed) {
-            const fast = 0.5 + 0.5 * Math.sin(now / 70);
-            g.lineStyle(5, 0xff2d3f, 0.6 + 0.4 * fast);
-            g.drawEllipse(0, -2, rx + 8 * fast, ry + 5 * fast);
-            g.lineStyle(0);
-            // alarm lamps left/right of the hull
-            for (const sx of [-1, 1]) {
-                g.beginFill(0xff2d3f, 0.9 * fast);
-                g.drawCircle(sx * 62, -6, 5);
-                g.endFill();
+            this.shieldArmedRim.tint = 0xff2d3f;
+            this.shieldArmedRim.alpha = 0.6 + 0.4 * fast;
+            // same swell the old redraw had: rx +8, ry +5 at full pulse
+            this.shieldArmedRim.scale.set(1 + (8 / 78) * fast, 1 + (5 / 34) * fast);
+        }
+        for (const lamp of this.shieldLamps) {
+            lamp.visible = armed;
+            if (armed) {
+                lamp.tint = 0xff2d3f;
+                lamp.alpha = 0.9 * fast;
+                lamp.scale.set(1 + 0.4 * fast);
             }
         }
     }
@@ -650,25 +856,39 @@ export class UfoAbductor {
      * and pushed further SE (sun sits NW). This is the reference that turns "a
      * saucer sliding across the dirt" into "a saucer flying above it".
      */
-    private drawShadow(lift: number): void {
+    private bakeShadow(): void {
         const g = this.gfxShadow;
-        g.clear();
+        // 3 concentric ellipses = a graded penumbra with zero filter cost. Drawn
+        // around the LOCAL origin so `scale` in updateShadow is a pure resize and
+        // does not drag the shape sideways.
+        g.beginFill(0x000000, 0.15);
+        g.drawEllipse(0, 0, 48, 18);
+        g.endFill();
+        g.beginFill(0x000000, 0.25);
+        g.drawEllipse(0, 0, 34, 13);
+        g.endFill();
+        g.beginFill(0x000000, 0.35);
+        g.drawEllipse(0, 0, 20, 8);
+        g.endFill();
+    }
+
+    /**
+     * Higher = smaller, fainter, pushed further SE (sun sits NW). This is the
+     * reference that turns "a saucer sliding across the dirt" into "a saucer
+     * flying above it" — hence transform-only, never a redraw.
+     */
+    private updateShadow(lift: number): void {
         const a = this.altitude;
         const off = SHADOW_OFF * a;
-        const rx = 34 * (1 - a * 0.34);
-        const ry = 13 * (1 - a * 0.34);
-        const alpha = 0.30 * (1 - a * 0.5);
-        // A9 fix: when parked (altitude 0) `lift` goes NEGATIVE — the hull is
-        // drawn ~46 px south of its ground point while the shadow stayed put, so
-        // a landed saucer appeared to hover beside its own shadow. Track the hull
-        // downward whenever lift dips below zero.
-        const sy = this.y + Math.max(0, -lift) + off * 0.7;
-        g.beginFill(0x000000, alpha);
-        g.drawEllipse(this.x + off, sy, rx, ry);
-        g.endFill();
-        g.beginFill(0x000000, alpha * 0.5);   // soft penumbra
-        g.drawEllipse(this.x + off, sy, rx * 1.4, ry * 1.4);
-        g.endFill();
+        // A9 fix — KEEP. When parked (altitude 0) `lift` goes NEGATIVE: the hull
+        // is drawn ~46 px south of its ground point, and a shadow that ignores
+        // that stays behind, so a landed saucer hovers beside its own shadow. The
+        // art-dir draft dropped this term from its updateShadow.
+        this.gfxShadow.x = this.x + off;
+        this.gfxShadow.y = this.y + Math.max(0, -lift) + off * 0.7;
+        const s = 1 - a * 0.34;
+        this.gfxShadow.scale.set(s, s);
+        this.gfxShadow.alpha = 1 - a * 0.5;
     }
 
     /** Wander the sky; divert when something grabbable comes into range. */
@@ -800,20 +1020,27 @@ export class UfoAbductor {
         return null;
     }
 
+    /** Lamps drawn WHITE at their own origin — colour comes from `tint`. */
+    private bakeLights(): void {
+        for (const l of this.lightSprites) {
+            l.beginFill(0xffffff, 1);
+            l.drawCircle(0, 0, 3);
+            l.endFill();
+        }
+    }
+
     /** Rim lights chase around the hull; colour shifts while a beam is active. */
-    private drawLights(now: number): void {
-        const g = this.gfxLights;
-        g.clear();
+    private updateLights(now: number): void {
         const active = this.phase !== 'cruise';
-        const n = 7;
+        const col = active ? MARS_HEX.alienViolet : MARS_HEX.alienGreen;
+        const n = this.lightSprites.length;
         for (let i = 0; i < n; i++) {
             const a = (i / n) * Math.PI * 2 + now / (active ? 220 : 520);
-            const lx = Math.cos(a) * 40;
-            const ly = Math.sin(a) * 13 + 3;
-            const bright = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(now / 160 + i));
-            g.beginFill(active ? MARS_HEX.alienViolet : MARS_HEX.alienGreen, 0.85 * bright);
-            g.drawCircle(lx, ly, 3);
-            g.endFill();
+            const l = this.lightSprites[i];
+            l.x = Math.cos(a) * 40;
+            l.y = Math.sin(a) * 13 + 3;
+            l.tint = col;
+            l.alpha = 0.85 * (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(now / 160 + i)));
         }
     }
 
@@ -849,25 +1076,48 @@ export class UfoAbductor {
         ring.y = this.targetY;
         ring.lineStyle(3, MARS_HEX.alienGreen, 0.55 + 0.35 * Math.sin(now / 120));
         ring.drawEllipse(0, 0, 40, 15);
-        ring.lineStyle(2, MARS_HEX.alienViolet, 0.6);
+        // rotating targeting crosshair — reads as "something is aiming at THIS
+        // spot", which is the whole job of the telegraph (F8)
+        const ca = now / 300;
+        ring.lineStyle(1.5, MARS_HEX.alienViolet, 0.4 * lockT);
+        ring.moveTo(Math.cos(ca) * 38, Math.sin(ca) * 14);
+        ring.lineTo(-Math.cos(ca) * 38, -Math.sin(ca) * 14);
+        ring.moveTo(Math.cos(ca + 1.57) * 38, Math.sin(ca + 1.57) * 14);
+        ring.lineTo(-Math.cos(ca + 1.57) * 38, -Math.sin(ca + 1.57) * 14);
+        // the fuse itself, thicker (2 -> 3) so the countdown is the loudest line
+        ring.lineStyle(3, MARS_HEX.alienViolet, 0.8);
         ring.arc(0, 0, 34, -Math.PI / 2, -Math.PI / 2 + lockT * Math.PI * 2);
         ring.lineStyle(0);
+        // fill alpha stays at 0.10 (draft raised it to 0.15) — see the note on
+        // beam alphas below: this is the map's largest lit surface.
         ring.beginFill(MARS_HEX.alienGreen, 0.10 * lockT);
         ring.drawEllipse(0, 0, 38, 14);
         ring.endFill();
 
         // Cone: narrow at the hull, wide on the ground. It brightens as the lock
         // completes and again while feeding — the beam visibly "bites".
-        const bite = this.phase === 'devour' ? 1 + 0.5 * Math.sin(devourT * Math.PI) : 1;
+        // `bite` softened 0.5 -> 0.3: at 0.5 the cone flared half again as wide
+        // mid-swallow, which briefly made the beam wider than the ring that
+        // promised its footprint.
+        const bite = this.phase === 'devour' ? 1 + 0.3 * Math.sin(devourT * Math.PI) : 1;
         const w = (BEAM_HALF_W / s) * (this.phase === 'lock' ? 0.45 + 0.55 * lockT : 1) * bite;
+        // Alphas held at 0.13 / 0.24 (the draft wanted 0.15 / 0.28). The cone is
+        // the single largest translucent surface on the map and fill-rate is what
+        // kills mobile — +15-30% overdraw here buys almost no visible punch.
         const a = (this.phase === 'devour' ? 0.24 : 0.13) * lockT;
         beam.beginFill(MARS_HEX.alienGreen, a);
         beam.drawPolygon([-11, 8, 11, 8, w, drop, -w, drop]);
         beam.endFill();
+        // core narrowed 0.42 -> 0.35: a tighter hot centre separates the two cone
+        // layers instead of washing them into one slab
         beam.beginFill(0xd9f7e6, a * 0.8);
-        beam.drawPolygon([-6, 8, 6, 8, w * 0.42, drop, -w * 0.42, drop]);
+        beam.drawPolygon([-5, 8, 5, 8, w * 0.35, drop, -w * 0.35, drop]);
         beam.endFill();
-        // rungs climbing the beam = "something is being pulled up"
+        // HYBRID (the draft replaced all rungs with 8 vertical streaks): rungs
+        // stay, because a ladder climbing the cone is what says "it is pulling
+        // something UP" — and at antialias-off a 1px vertical line shimmers. The
+        // streaks join in only while feeding, as extra energy on top of the
+        // ladder rather than instead of it.
         beam.lineStyle(1.6, 0xd9f7e6, (this.phase === 'devour' ? 0.5 : 0.32) * lockT);
         const rungs = this.phase === 'devour' ? 6 : 4;
         for (let i = 0; i < rungs; i++) {
@@ -877,6 +1127,16 @@ export class UfoAbductor {
             const ww = w * (0.3 + 0.7 * (1 - t));
             beam.moveTo(-ww, yy);
             beam.lineTo(ww, yy);
+        }
+        if (this.phase === 'devour') {
+            beam.lineStyle(2, 0xd9f7e6, 0.45);
+            for (let i = 0; i < 3; i++) {
+                const t = ((now / 150 + i / 3) % 1);
+                const yy = 8 + (drop - 8) * (1 - t);
+                const xOff = Math.sin(i * 123.4) * w * 0.6;
+                beam.moveTo(xOff, yy);
+                beam.lineTo(xOff, yy - 12);
+            }
         }
         beam.lineStyle(0);
         // swallow flash at the hull mouth as the victim goes in

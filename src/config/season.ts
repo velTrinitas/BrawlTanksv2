@@ -15,7 +15,26 @@
 import type { TranslationKey } from '../i18n/i18n';
 
 export interface SeasonConfig {
-    /** Stabilny id ('s2', 's3'...) — zmiana id triggeruje reset licznikow u klienta. */
+    /**
+     * NIERUCHOMY id ('s2', 's3'...). To NIE jest numer sezonu pokazywany graczowi —
+     * numer siedzi w tekscie i18n pod `nameKey`. Id jest KLUCZEM ZAPISU STANU:
+     *   - ProgressionService.ensureSeason (307): obce id kasuje `trophies` I `claimed`,
+     *   - kolumna `seasonId` w chmurze (571) + warunek merge przy syncPull (835),
+     *   - nazwa pliku artu `public/seasons/<id>.jpg` (SeasonOverlay:31).
+     *
+     * PO STARCIE SEZONU ID SIE NIE ZMIENIA. Proba 2026-08-25 (przenumerowanie calej
+     * roadmapy o 1 w dol, zeby numer zgadzal sie z artem promo) zostala COFNIETA,
+     * bo dawala dwie szkody:
+     *   1) reset licznika i listy `claimed` u wszystkich w trakcie trwajacego sezonu
+     *      => nagrody Season Tracku do odebrania po raz drugi;
+     *   2) gorsze: PRZEKORZYSTANIE zwolnionego id dla INNEGO sezonu. Stare wiersze
+     *      w Supabase maja seasonId 's2' (Arena), a po przenumerowaniu 's2' oznacza
+     *      Back to School — warunek w syncPull przechodzi, wiec stary postep wlewa
+     *      sie do nowego sezonu, a `seasonClaimed` idzie unia i oznacza progi jako
+     *      odebrane, choc nikt ich nie zdobyl. Mina odpala dopiero w dniu startu.
+     *
+     * Chcesz zmienic numer widziany przez gracza? Zmien TEKST w pl.ts/en.ts.
+     */
     readonly id: string;
     readonly nameKey: TranslationKey;
     /** ISO lokalne (bez strefy = czas lokalny gracza — wystarczajace dla gry casual). */

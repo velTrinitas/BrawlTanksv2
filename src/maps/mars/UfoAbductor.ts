@@ -531,12 +531,14 @@ export class UfoAbductor {
         this.cooldownUntil = now + 4000;
         this.container.visible = true;
         this.gfxShadow.visible = true;   // paired with markDead's hide
-        // NOTE(nie ruszam w tym refaktorze): `threat` NIE jest tu zerowany, wiec
-        // nowy spodek przylatuje z zapalonym lontem po poprzedniku. Sam zgasnie
-        // (ESCALATION_DECAY_MS), ale do tego czasu `takeDamage` nie podbije
-        // poziomu (threat < PROVOKE_HITS jest falszem), wiec swiezy spodek przez
-        // ~22 s obrywa bez ostrzezenia i nie odpowiada ogniem. Do decyzji Mariusza
-        // — to zmiana MECHANIKI, a ten pass mial nie ruszac mechaniki.
+        // A fresh saucer gets a fresh fuse. Inheriting the dead one's `threat`
+        // did more than show a lit ring: at threat 5 the guard in takeDamage
+        // (`threat < PROVOKE_HITS`) is already false, so the level never climbs
+        // and `alertedAt` is never set — the new saucer took hits with no warning
+        // and never shot back until ESCALATION_DECAY_MS burned the fuse down
+        // (~22 s). Decyzja Mariusza 2026-08-25.
+        this.threat = 0;
+        this.threatBumped = false;   // stale bump left over by the previous hull
     }
 
     /**

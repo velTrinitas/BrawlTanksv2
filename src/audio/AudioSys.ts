@@ -66,7 +66,7 @@ const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
     tropics: ['tropiki.mp3'],
     arctic:  ['arktyka1.ogg', 'arktyka2.mp3'],  // FAZA A — 2-track pool (smart-random). Gentle-fail jesli plikow brak.
     fortified_ruins: ['ctf.ogg'],  // FAZA CTF F1 — track eksploracji. Carry-state (ctf_flag_captured.ogg) jest osobnym Howlem (patrz ctfCarryMusic), F4.
-    mars:    ['mars1.ogg'],  // FAZA MARS M2 — asset od Mariusza (gentle-fail dopoki brak pliku).
+    mars:    ['mars1.ogg', 'mars2.ogg'],  // FAZA MARS — 2-track pool (smart-random), jak arctic
 };
 
 /**

@@ -165,17 +165,28 @@ export class BattleSection implements HubSection {
         // ── MAPY 3x2 (4 realne + 2 placeholdery WKROTCE) ────────────────────
         let maps = '';
         if (this.selectedScenario === 'ktb') {
-            const mapCards = AVAILABLE_MAPS.map(m => `
-                <button class="bt-hub0-card${m.id === this.selectedMap ? ' is-selected' : ''}"
-                        data-map="${m.id}" type="button" style="--tank:${m.accentColor}">
-                    <span class="cd-media">${renderMapPreview(m.previewType)}</span>
+            // M5d: renderujemy WSZYSTKIE karty, takze zablokowane. Locked mapa
+            // jest <span> (nieklikalna) z badge "WKROTCE", ale ma PELNY animowany
+            // podglad — gracz widzi, co jest w drodze, zamiast pustego "???".
+            const mapCards = MENU_MAP_CARDS.map(m => {
+                const preview = `<span class="cd-media">${renderMapPreview(m.previewType)}</span>`;
+                const body = `
                     <span class="cd-body">
                         <span class="cd-top">
                             <b class="cd-name">${m.emoji} ${t(m.nameKey)}</b>
+                            ${m.available ? '' : `<i class="cd-badge">${t(m.comingSoonKey ?? 'common.soon')}</i>`}
                         </span>
                         <span class="cd-sub">${t(m.taglineKey)}</span>
-                    </span>
-                </button>`).join('');
+                    </span>`;
+                if (!m.available) {
+                    return `<span class="bt-hub0-card is-soon" style="--tank:${m.accentColor}">${preview}${body}</span>`;
+                }
+                return `
+                <button class="bt-hub0-card${m.id === this.selectedMap ? ' is-selected' : ''}"
+                        data-map="${m.id}" type="button" style="--tank:${m.accentColor}">
+                    ${preview}${body}
+                </button>`;
+            }).join('');
             const soonMap = `
                 <span class="bt-hub0-card is-soon">
                     <span class="cd-media"><span class="cd-q" aria-hidden="true">?</span></span>
@@ -189,7 +200,7 @@ export class BattleSection implements HubSection {
                 </span>`;
             maps = `
             <div class="bt-hub0-subhead">🗺️ ${t('picker.mapTitle')}</div>
-            <div class="bt-hub0-cards">${mapCards}${soonMap}${soonMap}</div>`;
+            <div class="bt-hub0-cards">${mapCards}</div>`;
         }
         // Iteracja 7 (pkt 5, decyzja Mariusza): CTF BEZ osobnego boxa mapy —
         // mapa jest wbudowana (fortified_ruins), wybor scenariusza = gotowy do GRAJ

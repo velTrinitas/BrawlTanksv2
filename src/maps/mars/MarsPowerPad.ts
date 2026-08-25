@@ -34,6 +34,7 @@ export class MarsPowerPad {
     public cooldownEnd: number = -1;
     public container: PIXI.Container;
 
+    private lastMs = 0;                   // for clock-derived delta (D4)
     private innerContainer: PIXI.Container;
     private gfxBase: PIXI.Graphics;    // static deck + reactor body
     private gfxFins: PIXI.Container;   // rotating cooling fins
@@ -169,7 +170,11 @@ export class MarsPowerPad {
 
     /** Per-frame: fin spin, core pulse, arcs while charged. */
     private drawVisuals(now: number, isActive: boolean, inside: boolean): void {
-        this.gfxFins.rotation += isActive ? 0.012 : 0.003;
+        // D4: time-scaled (see MarsMediPad — clock-derived delta, pad contract
+        // has no `delta` parameter).
+        const dt = this.lastMs ? Math.min(4, (now - this.lastMs) / 16.667) : 1;
+        this.lastMs = now;
+        this.gfxFins.rotation += (isActive ? 0.012 : 0.003) * dt;
         this.gfxFins.alpha = isActive ? 1 : 0.4;
 
         // core: hot amber when charged, dull ember while cooling

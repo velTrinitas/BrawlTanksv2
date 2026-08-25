@@ -304,7 +304,7 @@ export class UfoAbductor {
         // +50% overall (playtest) — the saucer was too small to read as a threat
         this.container.scale.set((1.06 + 0.12 * this.altitude) * 1.5);
 
-        this.drawShadow();
+        this.drawShadow(lift);
         this.drawLights(now);
         this.drawBeam(now, lift);
         this.drawAlien(now);
@@ -650,7 +650,7 @@ export class UfoAbductor {
      * and pushed further SE (sun sits NW). This is the reference that turns "a
      * saucer sliding across the dirt" into "a saucer flying above it".
      */
-    private drawShadow(): void {
+    private drawShadow(lift: number): void {
         const g = this.gfxShadow;
         g.clear();
         const a = this.altitude;
@@ -658,11 +658,16 @@ export class UfoAbductor {
         const rx = 34 * (1 - a * 0.34);
         const ry = 13 * (1 - a * 0.34);
         const alpha = 0.30 * (1 - a * 0.5);
+        // A9 fix: when parked (altitude 0) `lift` goes NEGATIVE — the hull is
+        // drawn ~46 px south of its ground point while the shadow stayed put, so
+        // a landed saucer appeared to hover beside its own shadow. Track the hull
+        // downward whenever lift dips below zero.
+        const sy = this.y + Math.max(0, -lift) + off * 0.7;
         g.beginFill(0x000000, alpha);
-        g.drawEllipse(this.x + off, this.y + off * 0.7, rx, ry);
+        g.drawEllipse(this.x + off, sy, rx, ry);
         g.endFill();
         g.beginFill(0x000000, alpha * 0.5);   // soft penumbra
-        g.drawEllipse(this.x + off, this.y + off * 0.7, rx * 1.4, ry * 1.4);
+        g.drawEllipse(this.x + off, sy, rx * 1.4, ry * 1.4);
         g.endFill();
     }
 
@@ -753,18 +758,22 @@ export class UfoAbductor {
      * the kill — main.ts gets the event and runs the score path.
      */
     private doDevour(delta: number, now: number): UfoAbductEvent | null {
-        void delta;
+
         const t = Math.min(1, (now - this.phaseAt) / DEVOUR_MS);
         const ease = t * t;                       // slow start, snatched at the end
 
         if (this.victimEnemy) {
             const e = this.victimEnemy;
             const groundY = this.targetY;
-            const mouthY = this.y - 30;           // just under the hull
+            // Mouth = the actual hull position. `this.y - 30` was a guess made
+            // before the lift existed, so the victim vanished ~60 px BELOW the
+            // saucer instead of disappearing into it.
+            const lift = UFO_LIFT_PX * this.altitude - DESCEND_PX * (1 - this.altitude);
+            const mouthY = this.y - lift + 6;
             e.container.x = this.targetX + Math.sin(now / 60) * 3 * (1 - t);
             e.container.y = groundY + (mouthY - groundY) * ease;
             e.container.scale.set(this.victimBaseScale * (1 - 0.85 * ease));
-            e.container.rotation += (0.05 + 0.25 * t) * (1 + t);
+            e.container.rotation += (0.05 + 0.25 * t) * (1 + t) * delta;   // D4
             e.container.zIndex = Z_UFO_AIR - 1;   // inside the beam, under the hull
             e.x = this.targetX;
             e.y = this.targetY;                   // logical spot stays on the ground
@@ -822,7 +831,12 @@ export class UfoAbductor {
         // The cone must reach the GROUND, and the body is drawn `lift` px above
         // its ground point — so in container space the drop is lift + the
         // distance from the saucer's ground point down to the victim.
-        const drop = lift + (this.targetY - this.y);
+        // The container is SCALED (x1.5 playtest bump), so world-space pixels must
+        // be divided by that scale — otherwise the cone overshoots the ground by
+        // ~50 px and the telegraph ring ends up HALF the width of the real beam,
+        // which is exactly the F8 promise ("the ring is the danger zone") broken.
+        const s = this.container.scale.y || 1;
+        const drop = (lift + (this.targetY - this.y)) / s;
         const lockT = this.phase === 'lock'
             ? Math.min(1, (now - this.phaseAt) / LOCK_MS)
             : 1;
@@ -845,7 +859,7 @@ export class UfoAbductor {
         // Cone: narrow at the hull, wide on the ground. It brightens as the lock
         // completes and again while feeding — the beam visibly "bites".
         const bite = this.phase === 'devour' ? 1 + 0.5 * Math.sin(devourT * Math.PI) : 1;
-        const w = BEAM_HALF_W * (this.phase === 'lock' ? 0.45 + 0.55 * lockT : 1) * bite;
+        const w = (BEAM_HALF_W / s) * (this.phase === 'lock' ? 0.45 + 0.55 * lockT : 1) * bite;
         const a = (this.phase === 'devour' ? 0.24 : 0.13) * lockT;
         beam.beginFill(MARS_HEX.alienGreen, a);
         beam.drawPolygon([-11, 8, 11, 8, w, drop, -w, drop]);

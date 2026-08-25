@@ -47,6 +47,7 @@ export class DuststormBorder {
     private particles: DustParticle[];
 
     private collisionRects: ICollidable[];
+    private lastMs = 0;                   // for clock-derived delta (D4)
 
     private static _particleTexture: PIXI.Texture | null = null;
 
@@ -264,13 +265,18 @@ export class DuststormBorder {
         }
         ga.lineStyle(0);
 
+        // D4: swirl + drift must be time-scaled. Clock-derived, because the
+        // border's update() takes no arguments (shared with the other borders).
+        const dt = this.lastMs ? Math.min(4, (time - this.lastMs) / 16.667) : 1;
+        this.lastMs = time;
+
         for (const p of this.particles) {
-            p.angle += p.rotationSpeed;
+            p.angle += p.rotationSpeed * dt;
             const cx = p.baseX + Math.cos(p.angle) * p.radius;
             const cy = p.baseY + Math.sin(p.angle) * p.radius;
 
-            p.baseX += Math.cos(p.driftAngle) * p.driftSpeed;
-            p.baseY += Math.sin(p.driftAngle) * p.driftSpeed;
+            p.baseX += Math.cos(p.driftAngle) * p.driftSpeed * dt;
+            p.baseY += Math.sin(p.driftAngle) * p.driftSpeed * dt;
 
             if (p.baseX < -50) p.baseX = this.worldW + 50;
             if (p.baseX > this.worldW + 50) p.baseX = -50;

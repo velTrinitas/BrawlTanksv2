@@ -458,9 +458,9 @@ export const pl = {
     // Scenario Picker (Ekran 1)
     // ============================================================
     'picker.scenarioTitle': 'Wybierz scenariusz',
-    'picker.mapTitle': 'Wybierz otoczenie',
+    'picker.mapTitle':      'Wybierz mapę',
     'picker.brawlerTitle': 'Wybierz pojazd',
-    'picker.difficultyTitle': 'POZIOM TRUDU',
+    'picker.difficultyTitle': 'Poziom trudności',
     'picker.step': 'Krok {current} z {total}',
 
     // Scenarios — name, description, CTA
@@ -502,6 +502,9 @@ export const pl = {
 
     'map.mars.name': 'MARS',
     'map.mars.tagline': 'Opuszczona baza i UFO',
+
+    'map.range.name': 'POLIGON',
+    'map.range.tagline': 'Wojskowy tor przeszkód',
 
     // ============================================================
     // Difficulty levels

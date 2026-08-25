@@ -42,12 +42,16 @@ export class SolarFarm {
     private conduitPath: { x: number; y: number }[] = [];
     private inverter: { x: number; y: number };
     private junction!: { x: number; y: number };
+    private worldRef: PIXI.Container;
+    /** Y-sort key for the inverter shed — it is a small building on the ground. */
+    private inverterZ(): number { return this.inverter.y + 20; }
 
     constructor(worldContainer: PIXI.Container) {
         // ALL Graphics up front (E1)
         this.container = new PIXI.Container();
         this.conduitContainer = new PIXI.Container();
         this.gfxPulses = new PIXI.Graphics();
+        this.worldRef = worldContainer;
         this.gfxInverter = new PIXI.Graphics();
 
         // Conduit + pulses live on the GROUND band, under everything that drives
@@ -56,13 +60,19 @@ export class SolarFarm {
         worldContainer.addChild(this.conduitContainer);
         this.conduitContainer.addChild(this.gfxPulses);
 
+        // The inverter shed and the junction box are ~1460 px apart in Y, so ONE
+        // container cannot Y-sort both. They go straight into the world with
+        // their own keys; a shared container left at zIndex 0 put them UNDER the
+        // ground decals and the tank drove over the shed (A5).
+        this.container.zIndex = 0;
         worldContainer.addChild(this.container);
-        this.container.addChild(this.gfxInverter);
 
-        // inverter shed sits at the farm's NE corner, facing the base
-        const last = MARS_SOLAR_ROWS[MARS_SOLAR_ROWS.length - 1];
+        // inverter shed sits at the farm's NE corner, facing the base.
+        // MUST be computed BEFORE the shed's zIndex is derived from it.
         const first = MARS_SOLAR_ROWS[0];
         this.inverter = { x: first[0] + first[2] + 40, y: first[1] + 30 };
+        this.gfxInverter.zIndex = this.inverterZ();
+        worldContainer.addChild(this.gfxInverter);
 
         // Conduit: farm -> base, with one dog-leg so it is not a bare line.
         // M5b fix ("kabel nie styka sie z budynkiem"): the run used to stop 90 px
@@ -99,7 +109,6 @@ export class SolarFarm {
             worldContainer.addChild(panels);
             this.panelGfx.push(panels);
         }
-        void last;
     }
 
     /**
@@ -184,7 +193,7 @@ export class SolarFarm {
         const j = this.junction;
         const box = new PIXI.Graphics();
         box.zIndex = j.y + 4;              // sits against the hull, above ground decals
-        this.container.addChild(box);
+        this.worldRef.addChild(box);       // world, not the shared container (see ctor)
         // riser climbing the last stretch onto the hull
         box.lineStyle(5, 0x4a4038, 0.95);
         box.moveTo(j.x, j.y + 18);

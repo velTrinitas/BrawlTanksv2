@@ -36,6 +36,7 @@ export class MarsMediPad {
     public container: PIXI.Container;
 
     private _repairStart: number | null = null;
+    private lastMs = 0;                   // for clock-derived delta (D4)
 
     private innerContainer: PIXI.Container;
     private gfxBase: PIXI.Graphics;       // static platform art
@@ -220,7 +221,12 @@ export class MarsMediPad {
         const repairing = this.repairProgress > 0;
 
         // gear spins while repairing, idles slowly otherwise
-        this.gfxGear.rotation += repairing ? 0.055 : 0.006;
+        // D4: rotation MUST be time-scaled. `+=` per frame ran 2.4x faster on a
+        // 144 Hz screen. The pad's update() has no `delta`, so we derive it from
+        // the clock instead of changing the shared pad contract.
+        const dt = this.lastMs ? Math.min(4, (now - this.lastMs) / 16.667) : 1;
+        this.lastMs = now;
+        this.gfxGear.rotation += (repairing ? 0.055 : 0.006) * dt;
         this.gfxGear.alpha = isActive ? 1 : 0.35;
 
         // airlock ring: breathing when ready, sweeping when repairing

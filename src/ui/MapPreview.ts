@@ -18,7 +18,7 @@
  * - prefers-reduced-motion respected (w menu-styles.css)
  */
 
-export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars';
+export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range';
 
 /**
  * Map z generators per type.
@@ -30,6 +30,7 @@ export const MapPreviews: Record<PreviewType, () => string> = {
     tropics:   renderTropics,
     arctic:    renderArctic,
     mars:      renderMars,
+    range:     renderRange,
 };
 
 /**
@@ -582,6 +583,84 @@ function renderMars(): string {
     <circle class="mpd-particle mpd-p1" cx="45"  cy="122" r="0.9"/>
     <circle class="mpd-particle mpd-p2" cx="125" cy="118" r="0.8"/>
     <circle class="mpd-particle mpd-p3" cx="205" cy="120" r="1"/>
+  </g>
+</svg>`.trim();
+}
+// =============================================================
+// RANGE — Poligon wojskowy (LOCKED zapowiedz, M5d)
+// =============================================================
+// Skladniki: khaki teren + tory przeszkod + tarcze strzelnicze (obracaja sie),
+// flagi na wietrze, kurz + KLODKA z pulsem "wkrotce".
+// Reuse istniejacych keyframes: .mpd-particle (kurz), .mpc-antenna-light (puls
+// klodki), .mpt-palm (kolysanie flag) — zero nowych regul CSS.
+// =============================================================
+function renderRange(): string {
+    return `
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-range" aria-hidden="true">
+  <defs>
+    <linearGradient id="bt-r-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#c8d4a8"/>
+      <stop offset="55%"  stop-color="#9aad74"/>
+      <stop offset="100%" stop-color="#6d7d4c"/>
+    </linearGradient>
+    <linearGradient id="bt-r-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#8a9a5b"/>
+      <stop offset="100%" stop-color="#5d6b3c"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="240" height="140" fill="url(#bt-r-sky)"/>
+  <path d="M0,78 L40,66 L80,74 L120,60 L160,72 L200,62 L240,70 L240,140 L0,140 Z" fill="#7a8a55" opacity="0.9"/>
+  <path d="M0,92 Q60,86 120,92 T240,90 L240,140 L0,140 Z" fill="url(#bt-r-ground)"/>
+
+  <!-- tory przeszkod: opony + belki -->
+  <g opacity="0.85">
+    <ellipse cx="40" cy="112" rx="9" ry="4" fill="#3a3a32"/>
+    <ellipse cx="58" cy="116" rx="9" ry="4" fill="#3a3a32"/>
+    <ellipse cx="76" cy="112" rx="9" ry="4" fill="#3a3a32"/>
+    <rect x="150" y="104" width="52" height="5" rx="2" fill="#6b5a3c"/>
+    <rect x="156" y="109" width="5" height="12" fill="#5a4a30"/>
+    <rect x="191" y="109" width="5" height="12" fill="#5a4a30"/>
+  </g>
+
+  <!-- tarcze strzelnicze (obracaja sie jak dron) -->
+  <g class="mpc-drone">
+    <circle cx="0" cy="0" r="11" fill="#efe6d2"/>
+    <circle cx="0" cy="0" r="7.5" fill="#d94a3d"/>
+    <circle cx="0" cy="0" r="4" fill="#efe6d2"/>
+    <circle cx="0" cy="0" r="1.6" fill="#d94a3d"/>
+  </g>
+  <g transform="translate(196,66)">
+    <rect x="-1.5" y="0" width="3" height="22" fill="#5a4a30"/>
+    <circle cx="0" cy="-4" r="10" fill="#efe6d2"/>
+    <circle cx="0" cy="-4" r="6.5" fill="#d94a3d"/>
+    <circle cx="0" cy="-4" r="3" fill="#efe6d2"/>
+  </g>
+
+  <!-- flagi kierunkowe (kolysza sie) -->
+  <g class="mpt-palm mpt-palm-1" transform="translate(30,52)">
+    <rect x="0" y="0" width="2" height="30" fill="#4a4a3a"/>
+    <path d="M2,2 L18,7 L2,12 Z" fill="#d94a3d"/>
+  </g>
+  <g class="mpt-palm mpt-palm-2" transform="translate(112,44)">
+    <rect x="0" y="0" width="2" height="34" fill="#4a4a3a"/>
+    <path d="M2,2 L17,7 L2,12 Z" fill="#e8b53d"/>
+  </g>
+
+  <!-- kurz -->
+  <g fill="#d8dcc0" opacity="0.7">
+    <circle class="mpd-particle mpd-p1" cx="52"  cy="126" r="1"/>
+    <circle class="mpd-particle mpd-p2" cx="130" cy="122" r="0.9"/>
+    <circle class="mpd-particle mpd-p3" cx="205" cy="128" r="1.1"/>
+  </g>
+
+  <!-- KLODKA: to jest zapowiedz, nie mapa do grania -->
+  <g transform="translate(120,70)">
+    <ellipse cx="0" cy="2" rx="30" ry="26" fill="#12160f" opacity="0.45"/>
+    <path d="M-9,-4 a9,10 0 0 1 18,0 v6 h-5 v-6 a4,5 0 0 0 -8,0 v6 h-5 Z" fill="#e8d9a8"/>
+    <rect class="mpc-antenna-light" x="-13" y="2" width="26" height="20" rx="4" fill="#e8d9a8"/>
+    <circle cx="0" cy="11" r="3" fill="#5a4a30"/>
+    <rect x="-1.4" y="11" width="2.8" height="6" fill="#5a4a30"/>
   </g>
 </svg>`.trim();
 }

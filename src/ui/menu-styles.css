@@ -376,7 +376,12 @@
     50%      { transform: scale(1.08); }
 }
 
-.bt-mp-desert .mpd-particle {
+/* MARS reuses the desert dust drift (M5d: animations were map-scoped, so
+   .bt-mp-mars never matched and the preview sat still). */
+.bt-mp-desert .mpd-particle,
+.bt-sp-ktb .mpd-particle,
+.bt-sp-castle .mpd-particle,
+.bt-mp-mars .mpd-particle {
     animation: bt-sand-drift 9s linear infinite;
     transform-origin: center;
 }
@@ -392,7 +397,8 @@
 }
 
 /* --- Cyberpunk --- */
-.bt-mp-cyberpunk .mpc-window {
+.bt-mp-cyberpunk .mpc-window,
+.bt-mp-mars .mpc-window {
     animation: bt-window-flicker 4s ease-in-out infinite;
 }
 .bt-mp-cyberpunk .mpc-w2 { animation-duration: 5.5s; animation-delay: -0.6s; }
@@ -408,7 +414,9 @@
     98%           { opacity: 0.35; }
 }
 
-.bt-mp-cyberpunk .mpc-drone {
+.bt-mp-cyberpunk .mpc-drone,
+.bt-sp-ctf .mpc-drone,
+.bt-mp-mars .mpc-drone {
     animation: bt-drone-fly 9s linear infinite;
 }
 
@@ -418,7 +426,10 @@
     100% { transform: translate(252px, 30px); }
 }
 
-.bt-mp-cyberpunk .mpc-antenna-light {
+.bt-mp-cyberpunk .mpc-antenna-light,
+.bt-sp-ktb .mpc-antenna-light,
+.bt-sp-castle .mpc-antenna-light,
+.bt-mp-mars .mpc-antenna-light {
     animation: bt-antenna-blink 1.4s ease-in-out infinite;
 }
 
@@ -441,11 +452,15 @@
     100% { transform: translateY(0); opacity: 0; }
 }
 
-.bt-mp-tropics .mpt-palm {
+/* Scenario previews reuse the same sway/drift keyframes as the maps (M5d:
+   they were static because every rule was scoped to a map class). */
+.bt-mp-tropics .mpt-palm,
+.bt-sp-ctf .mpt-palm {
     transform-origin: bottom center;
     animation: bt-palm-sway 5s ease-in-out infinite;
 }
-.bt-mp-tropics .mpt-palm-2 { animation-delay: -2.5s; }
+.bt-mp-tropics .mpt-palm-2,
+.bt-sp-ctf .mpt-palm-2 { animation-delay: -2.5s; }
 
 @keyframes bt-palm-sway {
     0%, 100% { transform: rotate(-1.5deg); }

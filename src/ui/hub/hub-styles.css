@@ -1398,11 +1398,19 @@ body.bt-desktop .bt-hub0-flag-grid { grid-template-columns: repeat(3, 94px); }
 .bt-hub0-s2:active { transform: translateY(1px) scale(1); }
 
 /* Iteracja 5 (pkt 2): WIEKSZA belka na desktopie — czytelnosc czcionek */
-body.bt-desktop .bt-hub0-screen { grid-template-rows: 64px 1fr; }
+/* M5d (playtest): belka podniesiona z 64 na 72 px, zeby chip gracza (58x56)
+   miescil sie z oddechem i konczyl na tej samej linii co przyciski nawigacji. */
+body.bt-desktop .bt-hub0-screen { grid-template-rows: 72px 1fr; }
 /* Iteracja 7 (pkt 6): box awatara LICUJE z kolumna raila — 48px jak przyciski
    nav, padding-left 14px = (76 - 48) / 2 => idealnie nad BATTLE. */
-body.bt-desktop .bt-hub0-top { padding: 0 14px; gap: 10px; }
-body.bt-desktop .bt-hub0-avatar { width: 48px; height: 48px; border-radius: 12px; }
+body.bt-desktop .bt-hub0-top { padding: 0 14px 0 10px; gap: 10px; }
+/* Chip wyrownany LEWA krawedzia do railu nawigacji (58 px szerokosci), zeby
+   lewy brzeg hubu byl jedna linia, a nie schodkiem. */
+body.bt-desktop .bt-hub0-profile { padding: 4px; gap: 10px; }
+/* M5d (playtest): the chip must match the nav buttons sitting right below it —
+   .bt-hub0-navbtn is 58x56 on desktop, so the avatar was visibly smaller and the
+   left edge of the hub read as ragged. */
+body.bt-desktop .bt-hub0-avatar { width: 58px; height: 56px; border-radius: 14px; }
 body.bt-desktop .bt-hub0-pname { font-size: 15px; max-width: 180px; }
 body.bt-desktop .bt-hub0-coin { font-size: 14px; padding: 7px 13px 7px 10px; }
 body.bt-desktop .bt-hub0-coin .ic { font-size: 15px; }

@@ -84,7 +84,7 @@ export interface ICollidable {
  * MenuMapCardId == MapId. Gdy w przyszlosci dojdzie LOCKED mapa z id spoza MapId,
  * rozszerz ten union (np. `MapId | 'volcano'`).
  */
-export type MenuMapCardId = MapId;
+export type MenuMapCardId = MapId | 'range';   // 'range' = LOCKED zapowiedz (M5d)
 
 export interface MenuMapCard {
     id: MenuMapCardId;
@@ -105,7 +105,7 @@ export interface MenuMapCard {
     /** Translation key dla badge gdy locked (np. 'common.soon'). */
     comingSoonKey?: TranslationKey;
     /** Typ MapPreview component (FAZA 6b). */
-    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars';
+    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range';
 }
 
 /**
@@ -167,6 +167,21 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
         bgGradient: 'linear-gradient(160deg, #e0997f 0%, #c97b62 50%, #8a4a5a 100%)',
         available: true,                  // FAZA MARS M2: unlocked
         previewType: 'mars',
+    },
+    {
+        // M5d: 6. kafel = LOCKED zapowiedz. Zastapil generyczny slot "???",
+        // zeby siatka 3-kolumnowa dawala rowne 2 rzedy i zeby gracz widzial,
+        // co jest w drodze (a nie pusty znak zapytania).
+        id: 'range',
+        nameKey: 'map.range.name',
+        taglineKey: 'map.range.tagline',
+        emoji: '🎯',
+        accentColor: '#8a9a5b',
+        accentDarker: '#4a5530',
+        bgGradient: 'linear-gradient(160deg, #b3bf8a 0%, #8a9a5b 50%, #4a5530 100%)',
+        available: false,
+        comingSoonKey: 'common.soon',
+        previewType: 'range',
     },
 ];
 

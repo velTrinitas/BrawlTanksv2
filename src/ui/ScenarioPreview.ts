@@ -29,7 +29,7 @@ export function renderScenarioPreview(id: ScenarioPreviewId): string {
 // ============================================================
 function renderKTB(): string {
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-scenario-preview-svg bt-sp-ktb" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-scenario-preview-svg bt-sp-ktb" aria-hidden="true">
   <defs>
     <linearGradient id="bt-s-ktb-sky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"  stop-color="#3a0e0e"/>
@@ -82,7 +82,7 @@ function renderKTB(): string {
 // ============================================================
 function renderCTF(): string {
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-scenario-preview-svg bt-sp-ctf" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-scenario-preview-svg bt-sp-ctf" aria-hidden="true">
   <defs>
     <linearGradient id="bt-s-ctf-sky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#c4d8e8"/>
@@ -145,6 +145,33 @@ function renderCTF(): string {
     <polygon points="100,128 102,122 104,128"/>
     <polygon points="140,128 142,124 144,128"/>
   </g>
+
+  <!-- FLAGI (playtest: "ctf nie zawiera wogole wzmianki o fladze").
+       Dwie bazy, dwa kolory, obie powiewaja (reuse keyframes .mpt-palm).
+       To jest CEL trybu, wiec musi byc pierwsza rzecza, ktora widac. -->
+  <g class="mpt-palm mpt-palm-1" transform="translate(52,52)">
+    <rect x="0" y="0" width="3" height="66" fill="#5a4d40"/>
+    <circle cx="1.5" cy="-3" r="3" fill="#d9c07a"/>
+    <path d="M3,4 L34,11 L3,20 Z" fill="#d94a3d"/>
+    <path d="M3,4 L34,11 L3,11 Z" fill="#ef6b5e" opacity="0.7"/>
+  </g>
+  <g class="mpt-palm mpt-palm-2" transform="translate(186,46)">
+    <rect x="0" y="0" width="3" height="72" fill="#5a4d40"/>
+    <circle cx="1.5" cy="-3" r="3" fill="#d9c07a"/>
+    <path d="M0,4 L-31,11 L0,20 Z" fill="#3d7ad9"/>
+    <path d="M0,4 L-31,11 L0,11 Z" fill="#5e9bef" opacity="0.7"/>
+  </g>
+
+  <!-- Zdobyta flaga NIESIONA przez czolg — opowiada mechanike w jednym obrazku -->
+  <g class="mpc-drone">
+    <ellipse cx="0" cy="9" rx="15" ry="4" fill="#000" opacity="0.22"/>
+    <rect x="-13" y="-3" width="26" height="11" rx="3" fill="#6b7a4a"/>
+    <rect x="-15" y="5" width="30" height="5" rx="2" fill="#4a5530"/>
+    <rect x="-4" y="-8" width="12" height="7" rx="2" fill="#7d8c58"/>
+    <rect x="6" y="-6" width="13" height="3" rx="1" fill="#5a6840"/>
+    <rect x="-9" y="-22" width="2" height="16" fill="#d9c07a"/>
+    <path d="M-7,-21 L10,-16 L-7,-11 Z" fill="#3d7ad9"/>
+  </g>
 </svg>`;
 }
 
@@ -154,7 +181,7 @@ function renderCTF(): string {
 // ============================================================
 function renderCastle(): string {
     return `
-<svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" class="bt-scenario-preview-svg bt-sp-castle" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-scenario-preview-svg bt-sp-castle" aria-hidden="true">
   <defs>
     <linearGradient id="bt-s-castle-sky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"  stop-color="#5da9d8"/>

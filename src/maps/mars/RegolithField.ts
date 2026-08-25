@@ -33,6 +33,7 @@ export class RegolithField {
     private gfxRim: PIXI.Graphics;
     private gfxMotes: PIXI.Graphics;
     private motes: Mote[];
+    private lastMs = 0;                   // for clock-derived delta (D4)
 
     constructor(x: number, y: number, w: number, h: number, seed: number, worldContainer: PIXI.Container) {
         this.x = x;
@@ -120,10 +121,14 @@ export class RegolithField {
         rim.lineStyle(0);
 
         // motes: tiny orbiting grains — the patch is never static
+        // D4: swirl must be time-scaled, not per-frame (144 Hz ran 2.4x faster).
+        const dt = this.lastMs ? Math.min(4, (t - this.lastMs) / 16.667) : 1;
+        this.lastMs = t;
+
         const g = this.gfxMotes;
         g.clear();
         for (const m of this.motes) {
-            m.ang += m.spin;
+            m.ang += m.spin * dt;
             const mx = m.ax + Math.cos(m.ang) * m.r;
             const my = m.ay + Math.sin(m.ang) * m.r * 0.6;
             g.beginFill(MARS_HEX.duneLight, 0.42);

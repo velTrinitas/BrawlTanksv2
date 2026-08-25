@@ -220,9 +220,16 @@ function makeGrainTile(
         const h = w * (0.6 + rng() * 0.7);
         g.globalAlpha = alphaMin + rng() * (alphaMax - alphaMin);
         g.fillStyle = tones[(rng() * tones.length) | 0];
-        // wrap-around copies keep the tile seamless
-        for (const ox of [0, x + w > size ? -size : 0]) {
-            for (const oy of [0, y + h > size ? -size : 0]) {
+        // Wrap-around copies keep the tile seamless. NOTE: the offset lists must
+        // be BUILT conditionally — the old `[0, cond ? -size : 0]` form drew the
+        // speck 4x in the SAME spot when it did not cross an edge (alpha piling
+        // 0.10 -> 0.34), while edge specks drew only 2x. Result: the tile interior
+        // was darker than its seams, i.e. exactly the visible grid this trick is
+        // supposed to prevent (A7).
+        const oxs = x + w > size ? [0, -size] : [0];
+        const oys = y + h > size ? [0, -size] : [0];
+        for (const ox of oxs) {
+            for (const oy of oys) {
                 g.fillRect(x + ox, y + oy, w, h);
             }
         }

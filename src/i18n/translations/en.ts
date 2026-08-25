@@ -491,6 +491,9 @@ export const en: typeof pl = {
     'map.mars.name': 'MARS',
     'map.mars.tagline': 'Abandoned base and UFO',
 
+    'map.range.name': 'FIRING RANGE',
+    'map.range.tagline': 'Military obstacle course',
+
     // ============================================================
     // Difficulty
     // ============================================================

@@ -56,6 +56,9 @@ const VOLUMES = {
 const MUSIC_VOL_KEY = 'bt2:audio:musicVol';
 const SFX_VOL_KEY = 'bt2:audio:sfxVol';
 
+/** SHOP-1: baseline glosnosci dzwiekow kupowanych (klakson / kwestia glosowa). */
+const OWNED_SOUND_VOLUME = 0.7;
+
 /**
  * Music tracks per map. Kazda mapa ma swoja pule utworow (smart random within pool).
  * Tracki musza byc w public/sfx/ folderze.
@@ -149,6 +152,18 @@ export class AudioSys {
     private static _instance: AudioSys | null = null;
 
     private sounds: Map<string, Howl> = new Map();
+
+    /**
+     * SHOP-1: dzwieki KUPOWANE (klaksony, kwestie glosowe) — osobny rejestr, LENIWY.
+     *
+     * POWOD, dla ktorego NIE moga trafic do SOUND_LIST: preloadAll() laduje ta liste
+     * zachlannie przy pierwszym getInstance(), wiec kazdy gracz pobieralby towar,
+     * ktorego nie kupil — na telefonie, przy muzyce wazacej juz 2-7 MB na utwor.
+     * Tutaj Howl powstaje dopiero przy zalozeniu przedmiotu (preload: false + load()).
+     *
+     * Klucz = nazwa pliku wzgledem public/sfx/.
+     */
+    private ownedSounds: Map<string, Howl> = new Map();
 
     // Music: per-map pool z Howl instancjami
     private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [], fortified_ruins: [], mars: [] };
@@ -467,6 +482,17 @@ export class AudioSys {
                 }
             }
         }
+
+        // SHOP-1: dzwieki kupowane zyja POZA SOUND_LIST, wiec petla wyzej ich nie
+        // widzi. Bez tej drugiej petli klakson gralby na pelnej glosnosci komus,
+        // kto scizyl gre do zera — i suwak wygladalby na zepsuty.
+        for (const howl of this.ownedSounds.values()) {
+            try {
+                howl.volume(OWNED_SOUND_VOLUME * this.sfxVolMult);
+            } catch {
+                // Silent fail
+            }
+        }
     }
 
     /** Get current music volume multiplier (0..1). */
@@ -650,6 +676,61 @@ export class AudioSys {
     /** RANKS-1: fanfara awansu rangi (RankUpOverlay w hubie — muzyka menu gra dalej). */
     playRankFanfare(): void {
         this.safePlay('rank_fanfare');
+    }
+
+    // === SHOP-1: dzwieki kupowane (klaksony + kwestie glosowe) ===
+
+    /**
+     * Zwroc (tworzac przy pierwszym uzyciu) Howl dla kupowanego dzwieku.
+     * `preload: false` + jawny load() => plik leci po sieci dopiero teraz, nie na boocie.
+     */
+    private getOwnedSound(file: string): Howl | null {
+        const cached = this.ownedSounds.get(file);
+        if (cached) return cached;
+        try {
+            const howl = new Howl({
+                src: [BASE + 'sfx/' + file],
+                volume: OWNED_SOUND_VOLUME * this.sfxVolMult,
+                preload: false,
+                onloaderror: (_id, err) => {
+                    // GENTLE FAILURE — brak pliku nie moze wywalic gry ani sklepu.
+                    console.warn('[AudioSys] nie udalo sie zaladowac dzwieku sklepowego:', file, err);
+                },
+            });
+            howl.load();
+            this.ownedSounds.set(file, howl);
+            return howl;
+        } catch (e) {
+            console.warn('[AudioSys] getOwnedSound failed:', file, (e as Error).message);
+            return null;
+        }
+    }
+
+    /**
+     * Wgraj z wyprzedzeniem dzwiek zalozonego przedmiotu (wolane przy equip / wejsciu
+     * do meczu), zeby pierwsze wcisniecie H nie czekalo na siec.
+     */
+    preloadOwnedSound(file: string | undefined): void {
+        if (!file) return;
+        this.getOwnedSound(file);
+    }
+
+    /**
+     * Odtworz kupowany dzwiek. Throttle 400 ms — klakson na klawiaturze zaprasza do
+     * mlocenia klawisza, a projekt ma udokumentowany problem ze zmeczeniem powtarzanym
+     * dzwiekiem (stad safePlayVaried dla strzalow/trafien).
+     */
+    private ownedSoundTimer: number = 0;
+    playOwnedSound(file: string | undefined, throttleMs: number = 400): void {
+        if (!file) return;
+        const now = Date.now();
+        if (throttleMs > 0 && now - this.ownedSoundTimer < throttleMs) return;
+        this.ownedSoundTimer = now;
+        try {
+            this.getOwnedSound(file)?.play();
+        } catch (e) {
+            console.warn('[AudioSys] playOwnedSound failed:', file, (e as Error).message);
+        }
     }
 
     /**

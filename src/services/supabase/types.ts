@@ -209,6 +209,15 @@ export interface ProgressionStats {
     wins?: number;
     rankClaimed?: number[];
     rankShown?: number;
+    /**
+     * SHOP-1 — ledger waluty. `bolts` (kolumna) = sigmy ZDOBYTE lifetime i dalej
+     * merguje sie przez MAX; `boltsSpent` = WYDANE lifetime, tez MAX. Saldo liczy
+     * sie z roznicy i nigdy nie jest zapisywane — pole malejace zmergowane przez
+     * MAX wskrzesiloby wydany zasob. Zyje w JSONB `stats`, wiec ZERO migracji SQL.
+     */
+    boltsSpent?: number;
+    /** SHOP-1 — kupione SKU rzeczy TRWALYCH (podloga audytu wydatku). Merge: UNION. */
+    purchases?: string[];
 }
 
 /** Wynik RPC profile_lifetime_stats — agregat z wlasnych wierszy `scores`. */

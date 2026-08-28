@@ -37,7 +37,7 @@ export type QuestMetric =
  * starymi celami zapisanymi w localStorage az do zmiany doby/tygodnia, albo — gorzej —
  * z rozkazem, ktorego definicja juz nie istnieje. Podbijaj przy KAZDEJ zmianie puli/celow.
  */
-export const QUEST_CONFIG_VERSION = 3;
+export const QUEST_CONFIG_VERSION = 4;   // v0.125.0 — obnizenie celow (patrz QUEST_TARGETS)
 
 /**
  * sum = kumuluje sie miedzy meczami · max = liczy NAJLEPSZY pojedynczy mecz
@@ -87,9 +87,12 @@ export const QUEST_BOLTS = {
  * Skalowanie celow wraz z progresja konta (Akty Szlaku). Gracz rosnie => rozkazy rosna,
  * bez duplikowania puli. Granice aktow jak w Doc v1.2 §C.
  *
- * TUNING 2026-08-06 (decyzja Mariusza): bazy podniesione o 100% (patrz QUEST_TARGETS nizej).
- * Skoro +100% siedzi juz w BAZACH, stromizna aktow wraca do lagodniejszej (1.35/1.7) —
- * inaczej Akt II dostalby 3.2x wzgledem stanu wyjsciowego, czego nikt nie zamawial.
+ * TUNING 2026-08-06: bazy podniesione o 100%.
+ * TUNING 2026-08-28 (decyzja Mariusza: "obniz wymagania"): podwyzka z 08-06 COFNIETA —
+ * bazy wracaja do polowy. Wyjatki, ktore NIE byly mnozone x2, obnizone recznie i z osobnym
+ * uzasadnieniem przy kazdym (d_bomb, w_maps, s_combo, s_trophies); s_perfect zostaje,
+ * bo jest zero-jedynkowy. Stromizna aktow (1.35/1.7) BEZ ZMIAN — obnizamy punkt startowy,
+ * nie tempo wzrostu.
  * Dane: mediana 5 meczow/dzien, p75 15.5 (sesja dev, prawdziwa kalibracja po Q7 na realnych statach).
  */
 export const QUEST_SCALE_BY_ACT = { act1: 1.0, act2: 1.35, act3: 1.7 } as const;
@@ -114,41 +117,42 @@ export const MAP_LABEL_KEY: Record<string, TranslationKey> = {
 
 // ── PULA ŁATWA (domyka sie sama przy normalnej grze) ────────────────────────
 export const EASY_QUESTS: readonly QuestDef[] = [
-    { id: 'e_kill',      tier: 'easy', metric: 'kill',        mode: 'sum', target: 80,   icon: '💀', labelKey: 'quest.e_kill',      bolts: QUEST_BOLTS.easy },
-    { id: 'e_gem',       tier: 'easy', metric: 'gem',         mode: 'sum', target: 64,   icon: '💎', labelKey: 'quest.e_gem',       bolts: QUEST_BOLTS.easy },
-    { id: 'e_heart',     tier: 'easy', metric: 'heart',       mode: 'sum', target: 10,   icon: '❤️', labelKey: 'quest.e_heart',     bolts: QUEST_BOLTS.easy },
-    { id: 'e_supershot', tier: 'easy', metric: 'super_shot',  mode: 'sum', target: 16,   icon: '🔫', labelKey: 'quest.e_supershot', bolts: QUEST_BOLTS.easy },
-    { id: 'e_superpwr',  tier: 'easy', metric: 'super_power', mode: 'sum', target: 14,   icon: '⚡', labelKey: 'quest.e_superpwr',  bolts: QUEST_BOLTS.easy },
-    { id: 'e_seconds',   tier: 'easy', metric: 'seconds',     mode: 'sum', target: 1200, icon: '⏱️', labelKey: 'quest.e_seconds',  bolts: QUEST_BOLTS.easy },
-    { id: 'e_match',     tier: 'easy', metric: 'match',       mode: 'sum', target: 6,    icon: '🎮', labelKey: 'quest.e_match',     bolts: QUEST_BOLTS.easy },
+    { id: 'e_kill',      tier: 'easy', metric: 'kill',        mode: 'sum', target: 40,  icon: '💀', labelKey: 'quest.e_kill',      bolts: QUEST_BOLTS.easy },
+    { id: 'e_gem',       tier: 'easy', metric: 'gem',         mode: 'sum', target: 32,  icon: '💎', labelKey: 'quest.e_gem',       bolts: QUEST_BOLTS.easy },
+    { id: 'e_heart',     tier: 'easy', metric: 'heart',       mode: 'sum', target: 5,   icon: '❤️', labelKey: 'quest.e_heart',     bolts: QUEST_BOLTS.easy },
+    { id: 'e_supershot', tier: 'easy', metric: 'super_shot',  mode: 'sum', target: 8,   icon: '🔫', labelKey: 'quest.e_supershot', bolts: QUEST_BOLTS.easy },
+    { id: 'e_superpwr',  tier: 'easy', metric: 'super_power', mode: 'sum', target: 7,   icon: '⚡', labelKey: 'quest.e_superpwr',  bolts: QUEST_BOLTS.easy },
+    { id: 'e_seconds',   tier: 'easy', metric: 'seconds',     mode: 'sum', target: 600, icon: '⏱️', labelKey: 'quest.e_seconds',  bolts: QUEST_BOLTS.easy },
+    { id: 'e_match',     tier: 'easy', metric: 'match',       mode: 'sum', target: 3,   icon: '🎮', labelKey: 'quest.e_match',     bolts: QUEST_BOLTS.easy },
 ];
 
 // ── PULA ŚREDNIA (1-2 runy / jeden dobry run) ──────────────────────────────
 export const MEDIUM_QUESTS: readonly QuestDef[] = [
-    { id: 'm_kill',     tier: 'medium', metric: 'kill',         mode: 'sum', target: 180, icon: '💀', labelKey: 'quest.m_kill',     bolts: QUEST_BOLTS.medium },
-    { id: 'm_boss',     tier: 'medium', metric: 'boss_kill',    mode: 'sum', target: 10,  icon: '👹', labelKey: 'quest.m_boss',     bolts: QUEST_BOLTS.medium },
-    { id: 'm_magnet',   tier: 'medium', metric: 'magnet',       mode: 'sum', target: 6,   icon: '🧲', labelKey: 'quest.m_magnet',   bolts: QUEST_BOLTS.medium },
-    { id: 'm_cube',     tier: 'medium', metric: 'cube',         mode: 'sum', target: 14,  icon: '📦', labelKey: 'quest.m_cube',     bolts: QUEST_BOLTS.medium },
-    { id: 'm_combo',    tier: 'medium', metric: 'combo',        mode: 'max', target: 10,  icon: '🔥', labelKey: 'quest.m_combo',    bolts: QUEST_BOLTS.medium },
+    { id: 'm_kill',     tier: 'medium', metric: 'kill',         mode: 'sum', target: 90,  icon: '💀', labelKey: 'quest.m_kill',     bolts: QUEST_BOLTS.medium },
+    { id: 'm_boss',     tier: 'medium', metric: 'boss_kill',    mode: 'sum', target: 5,   icon: '👹', labelKey: 'quest.m_boss',     bolts: QUEST_BOLTS.medium },
+    { id: 'm_magnet',   tier: 'medium', metric: 'magnet',       mode: 'sum', target: 3,   icon: '🧲', labelKey: 'quest.m_magnet',   bolts: QUEST_BOLTS.medium },
+    { id: 'm_cube',     tier: 'medium', metric: 'cube',         mode: 'sum', target: 7,   icon: '📦', labelKey: 'quest.m_cube',     bolts: QUEST_BOLTS.medium },
+    { id: 'm_combo',    tier: 'medium', metric: 'combo',        mode: 'max', target: 5,   icon: '🔥', labelKey: 'quest.m_combo',    bolts: QUEST_BOLTS.medium },
     // TROFEA zamiast surowego score: skala punktow rozni sie miedzy mapami ~5x (p90 city 55
     // vs arctic 264), wiec "150 pkt w meczu" bylo trywialne na Arktyce i prawie nieosiagalne
     // na Pustyni. Trofea sa juz znormalizowane per mapa (F1), wiec rozkaz jest MAPOWO UCZCIWY.
-    { id: 'm_trophies', tier: 'medium', metric: 'run_trophies', mode: 'max', target: 60,  icon: '🏆', labelKey: 'quest.m_trophies', bolts: QUEST_BOLTS.medium },
-    { id: 'm_runtime',  tier: 'medium', metric: 'run_seconds',  mode: 'max', target: 480, icon: '⏱️', labelKey: 'quest.m_runtime',  bolts: QUEST_BOLTS.medium },
-    { id: 'm_rungems',  tier: 'medium', metric: 'run_gems',     mode: 'max', target: 90,  icon: '💎', labelKey: 'quest.m_rungems',  bolts: QUEST_BOLTS.medium },
+    { id: 'm_trophies', tier: 'medium', metric: 'run_trophies', mode: 'max', target: 30,  icon: '🏆', labelKey: 'quest.m_trophies', bolts: QUEST_BOLTS.medium },
+    { id: 'm_runtime',  tier: 'medium', metric: 'run_seconds',  mode: 'max', target: 240, icon: '⏱️', labelKey: 'quest.m_runtime',  bolts: QUEST_BOLTS.medium },
+    { id: 'm_rungems',  tier: 'medium', metric: 'run_gems',     mode: 'max', target: 45,  icon: '💎', labelKey: 'quest.m_rungems',  bolts: QUEST_BOLTS.medium },
 ];
 
 // ── PULA KIERUNKOWA (cichy tutor — uczy mechanik, ktorych gracz sam nie tknie) ──
 export const DIRECTIONAL_QUESTS: readonly QuestDef[] = [
-    { id: 'd_frozen',   tier: 'directional', metric: 'frozen_kill',    mode: 'sum', target: 24,  icon: '🥶', labelKey: 'quest.d_frozen',   bolts: QUEST_BOLTS.directional },
-    // WYJATEK OD x2: "wrogowie w JEDNEJ bombie" ogranicza promien mega bomby i liczba wrogow
-    // stojacych obok siebie — 10 nie da sie zebrac w kupe wiarygodnie. 8 = gorna granica realna.
-    { id: 'd_bomb',     tier: 'directional', metric: 'bomb_multikill', mode: 'max', target: 8,   icon: '💣', labelKey: 'quest.d_bomb',     bolts: QUEST_BOLTS.directional },
-    { id: 'd_ram',      tier: 'directional', metric: 'ramming_kill',   mode: 'sum', target: 10,  icon: '🛡️', labelKey: 'quest.d_ram',      bolts: QUEST_BOLTS.directional },
-    { id: 'd_stealth',  tier: 'directional', metric: 'stealth_kill',   mode: 'sum', target: 12,  icon: '🌾', labelKey: 'quest.d_stealth',  bolts: QUEST_BOLTS.directional },
-    { id: 'd_medipad',  tier: 'directional', metric: 'medi_pad',       mode: 'sum', target: 6,   icon: '✚', labelKey: 'quest.d_medipad',  bolts: QUEST_BOLTS.directional },
-    { id: 'd_flag',     tier: 'directional', metric: 'flag_capture',   mode: 'sum', target: 6,   icon: '🚩', labelKey: 'quest.d_flag',     bolts: QUEST_BOLTS.directional },
-    { id: 'd_trophies', tier: 'directional', metric: 'trophies',       mode: 'sum', target: 120, icon: '⭐', labelKey: 'quest.d_trophies', bolts: QUEST_BOLTS.directional },
+    { id: 'd_frozen',   tier: 'directional', metric: 'frozen_kill',    mode: 'sum', target: 12,  icon: '🥶', labelKey: 'quest.d_frozen',   bolts: QUEST_BOLTS.directional },
+    // Nie polowa, tylko 6: "wrogowie w JEDNEJ bombie" ogranicza promien mega bomby i to,
+    // ilu wrogow realnie stoi obok siebie. Ten cel nigdy nie byl mnozony x2 (patrz historia),
+    // wiec halvowanie go dalo by trywialne 4.
+    { id: 'd_bomb',     tier: 'directional', metric: 'bomb_multikill', mode: 'max', target: 6,   icon: '💣', labelKey: 'quest.d_bomb',     bolts: QUEST_BOLTS.directional },
+    { id: 'd_ram',      tier: 'directional', metric: 'ramming_kill',   mode: 'sum', target: 5,   icon: '🛡️', labelKey: 'quest.d_ram',      bolts: QUEST_BOLTS.directional },
+    { id: 'd_stealth',  tier: 'directional', metric: 'stealth_kill',   mode: 'sum', target: 6,   icon: '🌾', labelKey: 'quest.d_stealth',  bolts: QUEST_BOLTS.directional },
+    { id: 'd_medipad',  tier: 'directional', metric: 'medi_pad',       mode: 'sum', target: 3,   icon: '✚', labelKey: 'quest.d_medipad',  bolts: QUEST_BOLTS.directional },
+    { id: 'd_flag',     tier: 'directional', metric: 'flag_capture',   mode: 'sum', target: 3,   icon: '🚩', labelKey: 'quest.d_flag',     bolts: QUEST_BOLTS.directional },
+    { id: 'd_trophies', tier: 'directional', metric: 'trophies',       mode: 'sum', target: 60,  icon: '⭐', labelKey: 'quest.d_trophies', bolts: QUEST_BOLTS.directional },
     {
         id: 'd_map', tier: 'directional', metric: 'map_played', mode: 'sum', target: 1,
         icon: '🗺️', labelKey: 'quest.d_map', bolts: QUEST_BOLTS.directional, paramPool: QUEST_MAP_POOL,
@@ -157,26 +161,27 @@ export const DIRECTIONAL_QUESTS: readonly QuestDef[] = [
 
 // ── TYGODNIOWE (2 stale + 1 aspiracyjny "Rozkaz Specjalny Generala") ────────
 export const WEEKLY_ANCHOR: QuestDef = {
-    id: 'w_trophies', tier: 'weekly', metric: 'trophies', mode: 'sum', target: 800,
+    id: 'w_trophies', tier: 'weekly', metric: 'trophies', mode: 'sum', target: 400,
     icon: '🏆', labelKey: 'quest.w_trophies', bolts: 60, crates: 1,
 };
 
 export const WEEKLY_CHECKLIST: QuestDef = {
-    // WYJATEK OD x2: to KOLEKCJA map, nie licznik. Map jest 5 (4 KTB + fortified_ruins z CTF),
-    // wiec 6 byloby nieosiagalne. 4 = wszystkie mapy KTB, bez wymuszania CTF.
-    id: 'w_maps', tier: 'weekly', metric: 'map_played', mode: 'set', target: 4,
+    // KOLEKCJA map, nie licznik — nie ma czego dzielic na pol. 3 zamiast 4: gracz moze
+    // odpuscic jedna mape, ktorej akurat nie lubi, i tydzien i tak sie domknie.
+    id: 'w_maps', tier: 'weekly', metric: 'map_played', mode: 'set', target: 3,
     icon: '🗺️', labelKey: 'quest.w_maps', bolts: 50, crates: 1,
 };
 
 /** Aspiracyjne (zlota ramka) — moze sie NIE udac i to jest OK (§17.4). Rotacja tygodniowa. */
 export const WEEKLY_SPECIALS: readonly QuestDef[] = [
     // WYJATEK OD x2: to warunek ZERO-JEDYNKOWY (mecz bez utraty zycia) — nie ma czego mnozyc.
+    // Warunek ZERO-JEDYNKOWY (mecz bez utraty zycia) — nie ma czego obnizac.
     { id: 's_perfect',  tier: 'special', metric: 'perfect_run',   mode: 'sum', target: 1,  icon: '✨', labelKey: 'quest.s_perfect',  bolts: 100, crates: 1 },
-    { id: 's_combo',    tier: 'special', metric: 'combo',         mode: 'max', target: 16, icon: '🔥', labelKey: 'quest.s_combo',    bolts: 100, crates: 1 },
-    // WYJATEK OD x2: SUFIT SILNIKA. Trofea z runa = min(score/dzielnik, TROPHY_CAP_PER_RUN=75)
-    // + bonusy (5+5+10) => absolutne maksimum to 95. Cel 120 bylby NIEOSIAGALNY z definicji.
-    // 75 = pelny cap "za wynik" — aspiracyjne, ale mapowo uczciwe (trofea sa znormalizowane).
-    { id: 's_trophies', tier: 'special', metric: 'run_trophies', mode: 'max', target: 75, icon: '🏆', labelKey: 'quest.s_trophies', bolts: 100, crates: 1 },
+    { id: 's_combo',    tier: 'special', metric: 'combo',         mode: 'max', target: 10, icon: '🔥', labelKey: 'quest.s_combo',    bolts: 100, crates: 1 },
+    // SUFIT SILNIKA: trofea z runa = min(score/dzielnik, TROPHY_CAP_PER_RUN=75) + bonusy
+    // (5+5+10) => absolutne maksimum to 95. Zejscie na 55 zostawia rozkaz aspiracyjnym
+    // (to dalej bardzo dobry mecz), ale przestaje wymagac PELNEGO capa za wynik.
+    { id: 's_trophies', tier: 'special', metric: 'run_trophies', mode: 'max', target: 55, icon: '🏆', labelKey: 'quest.s_trophies', bolts: 100, crates: 1 },
 ];
 
 /** Wszystkie definicje w jednym miejscu — lookup po id (odtwarzanie stanu z localStorage). */

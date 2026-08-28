@@ -1,0 +1,331 @@
+/* ============================================================================
+   shop-styles.css — SHOP-1 (v0.124.0): sekcja SKLEP, dwa modale, kulka stickera.
+
+   OSOBNY PLIK CELOWO: hub-styles.css ma juz 1900 linii, a regula projektu mowi
+   o izolacji per-feature (.claude/rules/design-values.md) — sklep ma dac sie
+   dostroic albo wyciac bez dotykania reszty hubu. Tokeny dziedziczy z
+   .bt-hub0-screen, wiec wizualnie jest czescia tego samego systemu.
+
+   Wszystko stoi na istniejacej gramatyce hubu: skorupa jak .bt-hub0-powcard
+   (gradient 170deg + border 2px + chunky cien 0 4px 0 + wcisniecie translateY),
+   obraz jak .so-tile (aspect-ratio 1 + contain + poswiata rzadkosci przez --g),
+   przyciski .bt-hub0-pbtn / --gold, cena z .bt-sigma i tabular-nums.
+
+   TYPOGRAFIA: Titan One jest JEDNOWAGOWY i wyswietlaniowy — ponizej ~16px zlewa
+   sie w plame. Dlatego nazwy/opisy/ceny ida na --font-body w wadze 800 (tak jak
+   .ph-nick i .pc-nm), a Titan One zostaje tytulom modali i przyciskom.
+   ============================================================================ */
+
+/* ── hero ─────────────────────────────────────────────────────────────────── */
+.bt-shop-hero {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    border: 1px solid rgba(241, 196, 15, 0.35);
+    border-radius: var(--radius-md, 14px);
+    background: linear-gradient(110deg, #2a2412, #1a2530 60%, #241a10);
+    padding: 14px 16px; margin-bottom: 12px; box-sizing: border-box;
+}
+.bt-shop-hero .sh-art {
+    width: 72px; height: 72px; flex: 0 0 auto; border-radius: 14px;
+    background:
+        radial-gradient(circle at 50% 40%, rgba(241, 196, 15, 0.35), transparent 70%),
+        var(--hub-steel-850);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.10), 0 4px 0 var(--hub-steel-950);
+}
+/* Moneta w hero jako <img> w HTML bylaby dekoracja bez tresci — tu wystarczy tlo.
+   Sciezka idzie przez CSS var ustawiany z JS (BASE_URL), bo hardkod prefiksu
+   repo w CSS juz raz ugryzl przy tle hubu. */
+.bt-shop-hero .sh-art::after {
+    content: ''; display: block; width: 100%; height: 100%;
+    background-image: var(--sh-coin); background-size: 44px 44px;
+    background-position: center; background-repeat: no-repeat;
+}
+.bt-shop-hero .sh-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.bt-shop-hero .sh-balance {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 26px; color: var(--hub-ink); font-variant-numeric: tabular-nums;
+}
+.bt-shop-hero .sh-balance-lbl {
+    font-size: 11px; letter-spacing: 1px; color: var(--hub-ink-dim); text-transform: uppercase;
+}
+.bt-shop-hero .sh-copy {
+    margin: 0; font-family: var(--font-body, system-ui, sans-serif); font-weight: 600;
+    font-size: 12px; line-height: 1.35; color: var(--hub-ink-dim);
+}
+
+/* ── pasek piaskownicy (dev; znika na produkcji) ──────────────────────────── */
+.bt-shop-sandbox {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 10px; padding: 8px 12px; border-radius: 10px;
+    border: 1px dashed rgba(155, 89, 182, 0.6); background: rgba(155, 89, 182, 0.12);
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 11px; letter-spacing: 0.4px; color: #d9b6ea;
+}
+.bt-shop-reset {
+    margin-left: auto; padding: 5px 12px; min-height: 30px; cursor: pointer;
+    border-radius: 999px; border: 2px solid rgba(155, 89, 182, 0.7);
+    background: var(--hub-steel-850); color: #e6cdf3;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 11px;
+}
+.bt-shop-reset:active { transform: translateY(2px); }
+
+/* ── zakladki ─────────────────────────────────────────────────────────────── */
+.bt-shop-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* ── siatka kafli ─────────────────────────────────────────────────────────── */
+/* auto-fill, a nie sztywne 4 kolumny: przy 1200px content sztywna czworka dawala
+   kafle po ~290px, w ktorych sam obrazek miał 290px wysokosci — to przestawalo
+   wygladac jak siatka produktow, a zaczynalo jak galeria. minmax(168px) daje
+   ~6 kolumn na desktopie i 3 na telefonie w poziomie.
+   Dwa twarde breakpointy zostaja jako PODLOGA: nigdy 1 kolumna — jednokolumnowy
+   "sklep" przestaje wygladac jak sklep. */
+.bt-shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+@media (max-width: 700px) { .bt-shop-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 460px) { .bt-shop-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.bt-shop-card {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 8px; cursor: pointer; text-align: center;
+    border: 2px solid var(--hub-line); border-radius: var(--radius-md, 14px);
+    background: linear-gradient(170deg, var(--hub-steel-850), var(--hub-steel-900) 80%);
+    box-shadow: 0 4px 0 var(--hub-steel-950);
+    color: var(--hub-ink); font-family: var(--font-body, system-ui, sans-serif);
+    transition: transform var(--transition-fast, 0.12s), box-shadow var(--transition-fast, 0.12s);
+}
+.bt-shop-card:active { transform: translateY(4px); box-shadow: 0 0 0 var(--hub-steel-950); }
+@media (hover: hover) {
+    .bt-shop-card:hover { border-color: color-mix(in srgb, var(--g) 50%, var(--hub-line)); }
+    .bt-shop-card:hover .sk-art img { transform: scale(1.08); }
+}
+.bt-shop-card .sk-art {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    border: 1px solid var(--hub-line);
+    background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--g) 26%, transparent), transparent 72%),
+        var(--hub-steel-850);
+}
+.bt-shop-card .sk-art img {
+    width: 76%; height: 76%; object-fit: contain; position: relative; z-index: 1;
+    transition: transform var(--transition-base, 0.18s) cubic-bezier(0.16, 1, 0.32, 1);
+}
+/* emoji lezy POD obrazkiem — gdy onerror zdejmie <img>, zostaje widoczne zamiast dziury */
+.bt-shop-card .sk-emoji { position: absolute; font-size: 52px; line-height: 1; }
+.bt-shop-card .sk-name {
+    font-weight: 800; font-size: 14px; line-height: 1.2;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bt-shop-card .sk-price {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums;
+    padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--hub-line); background: var(--hub-steel-800);
+}
+.bt-shop-card .sk-owned { font-weight: 800; font-size: 11px; color: var(--hub-accent); }
+.bt-shop-card .sk-soon {
+    font-weight: 800; font-size: 10px; letter-spacing: 0.6px; color: var(--hub-ink-dim);
+    padding: 3px 10px; border-radius: 999px; border: 1px dashed var(--hub-line);
+}
+.bt-shop-card.is-owned { border-color: var(--hub-accent); box-shadow: 0 4px 0 rgba(241, 196, 15, 0.55); }
+.bt-shop-card.is-locked { opacity: 0.65; box-shadow: none; transform: translateY(2px); }
+.bt-shop-card.is-locked .sk-art img { filter: grayscale(0.7); }
+/* "za drogo" tylko przygasza cene — kafel DALEJ jest klikalny, bo gracz ma prawo
+   obejrzec, na co zbiera. Zablokowanie wejscia byloby kara za bycie nowym. */
+.bt-shop-card.is-poor .sk-price { opacity: 0.55; }
+
+/* ── modal 1: szczegoly (art z lewej, tresc z prawej — jak popup sezonu) ──── */
+.bt-shop-detail { display: flex; flex-direction: row; gap: 0; padding: 0; overflow: hidden; }
+.bt-shop-detail .sd-art {
+    position: relative; flex: 0 0 40%; min-height: 200px;
+    display: flex; align-items: center; justify-content: center;
+    background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--g) 30%, transparent), transparent 72%),
+        var(--hub-steel-900);
+    border-right: 1px solid var(--hub-line);
+}
+.bt-shop-detail .sd-img { width: 68%; max-width: 200px; object-fit: contain; position: relative; z-index: 1; }
+.bt-shop-detail .sd-emoji { position: absolute; font-size: 72px; line-height: 1; }
+.bt-shop-detail .sd-body {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;
+    padding: 18px 18px 16px; overflow-y: auto;
+}
+.bt-shop-detail .sd-rarity {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--g);
+}
+.bt-shop-detail .sd-name {
+    margin: 0; font-family: var(--font-display, 'Titan One', cursive);
+    font-size: 24px; line-height: 1.1; color: var(--hub-ink);
+    overflow-wrap: anywhere;   /* dluga nazwa (EN bywa dluzsza) lamie sie, nie ucieka */
+}
+.bt-shop-detail .sd-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Chip deklaruje wplyw na rozgrywke. Zielony = "nic nie zmienia". Gdy dojdzie
+   drzewko czesci, ten sam chip powie "+3% obrazen" — roznica ma byc widoczna. */
+.bt-shop-detail .sd-chip {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 10px;
+    padding: 4px 9px; border-radius: 999px;
+    border: 1px solid rgba(46, 204, 113, 0.45); background: rgba(46, 204, 113, 0.14);
+    color: #7ee0a8;
+}
+.bt-shop-detail .sd-desc,
+.bt-shop-detail .sd-note {
+    margin: 0; font-family: var(--font-body, system-ui, sans-serif); font-weight: 600;
+    font-size: 12px; line-height: 1.35; color: var(--hub-ink-dim);
+}
+.bt-shop-detail .sd-note { font-style: italic; }
+.bt-shop-detail .sd-price {
+    display: flex; align-items: center; gap: 8px; margin-top: 2px;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 22px; color: var(--hub-ink); font-variant-numeric: tabular-nums;
+}
+.bt-shop-detail .sd-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+.bt-shop-detail .sd-cta { flex: 1; min-height: 48px; font-size: 15px; }
+.bt-shop-detail .sd-listen { flex: 0 0 auto; min-height: 48px; }
+
+/* ── modal 2: potwierdzenie ───────────────────────────────────────────────── */
+.bt-shop-confirm {
+    max-width: 380px; text-align: center; padding: 20px 18px 16px;
+    border: 2px solid rgba(241, 196, 15, 0.55);
+}
+.bt-shop-confirm .sc-art {
+    position: relative; width: 84px; height: 84px; margin: 0 auto 10px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 16px; border: 1px solid var(--hub-line);
+    background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--g) 30%, transparent), transparent 72%),
+        var(--hub-steel-850);
+}
+.bt-shop-confirm .sc-img { width: 72%; height: 72%; object-fit: contain; position: relative; z-index: 1; }
+.bt-shop-confirm .sc-emoji { position: absolute; font-size: 40px; line-height: 1; }
+.bt-shop-confirm .sc-name {
+    margin: 0 0 4px; font-family: var(--font-display, 'Titan One', cursive);
+    font-size: 20px; line-height: 1.15; color: var(--hub-ink); overflow-wrap: anywhere;
+}
+.bt-shop-confirm .sc-q {
+    margin: 0 0 14px; font-family: var(--font-body, system-ui, sans-serif); font-weight: 600;
+    font-size: 13px; color: var(--hub-ink-dim);
+}
+.bt-shop-confirm .sc-q b { color: var(--hub-accent); font-variant-numeric: tabular-nums; }
+/* Moneta stoi tuz za liczba i bez tego odstepu skleja sie z nia w "800🪙?" —
+   dziecko czyta to jako jeden dziwny znak, nie jako cene. */
+.bt-shop-confirm .sc-q .bt-sigma,
+.bt-shop-confirm .sc-left .bt-sigma { margin-left: 4px; }
+.bt-shop-confirm .sc-actions { display: flex; gap: 10px; }
+.bt-shop-confirm .sc-actions button { flex: 1; min-height: 44px; }
+/* "Zostanie Ci" pokazuje konsekwencje PRZED decyzja. Kwota na --hub-ink, NIGDY na
+   --hub-ink-faint: ten token ma ~3.2:1 kontrastu, czyli ponizej progu czytelnosci. */
+.bt-shop-confirm .sc-left {
+    margin: 10px 0 0; font-family: var(--font-body, system-ui, sans-serif); font-weight: 600;
+    font-size: 12px; color: var(--hub-ink-dim);
+}
+.bt-shop-confirm .sc-left b { color: var(--hub-ink); font-variant-numeric: tabular-nums; }
+
+/* ── kulka stickera na portrecie profilu ──────────────────────────────────── */
+/* .ph-portrait ma overflow:hidden, wiec kulka NIE MOZE byc jego dzieckiem —
+   zostalaby przycieta. Siedzi w opakowaniu .ph-portrait-wrap position:relative.
+   display:flex JEST KONIECZNE: .ph-portrait to <span> bez wlasnego display, ktory
+   dotad byl elementem flex (hero) i przez to blokowal sie automatycznie. Po owinieciu
+   w zwykly <span> wracal do display:inline i jego width/height 112px przestawaly
+   dzialac — portret puchl. To byl regres zgloszony przez Mariusza. */
+.ph-portrait-wrap { position: relative; flex: 0 0 auto; display: flex; }
+/* Prawy GORNY rog (decyzja Mariusza 28.08) — tam nie koliduje z nickiem i pillami,
+   ktore leza na dole obok portretu. */
+.ph-sticker {
+    position: absolute; right: -8px; top: -8px; z-index: 2;
+    width: 42px; height: 42px; padding: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; border: 2px solid var(--hub-steel-950);
+    background: linear-gradient(170deg, var(--hub-steel-800), var(--hub-steel-900));
+    box-shadow: 0 3px 0 var(--hub-steel-950);
+}
+.ph-sticker:active { transform: translateY(3px); box-shadow: 0 0 0 var(--hub-steel-950); }
+.ph-sticker img { width: 72%; height: 72%; object-fit: contain; }
+.ph-sticker .ph-sticker-emoji { font-size: 22px; line-height: 1; }
+.ph-sticker .ph-sticker-add { font-size: 18px; line-height: 1; color: var(--hub-ink-dim); }
+.ph-sticker.is-set { border-color: var(--hub-accent); }
+
+/* wybor stickera — rozwijany pod hero profilu */
+/* Kafelki STALEJ szerokosci i pakowane do lewej, nie rozciagane na `1fr`:
+   przy jednej posiadanej naklejce rozciagniety grid dawal szeroki, pusty pas,
+   ktory wyglada na niedokonczony ekran. */
+.ph-stickerpick {
+    display: grid; grid-template-columns: repeat(auto-fill, 64px); gap: 8px;
+    justify-content: start;
+    margin: -4px 0 12px; padding: 10px;
+    border: 1px solid var(--hub-line); border-radius: var(--radius-md, 14px);
+    background: var(--hub-steel-900);
+}
+.ph-stickerpick .sp-tile {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border-radius: 10px; border: 2px solid var(--hub-line);
+    background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--g) 26%, transparent), transparent 72%),
+        var(--hub-steel-850);
+}
+.ph-stickerpick .sp-tile img { width: 74%; height: 74%; object-fit: contain; }
+.ph-stickerpick .sp-emoji { font-size: 30px; line-height: 1; }
+.ph-stickerpick .sp-tile.is-equipped { border-color: var(--hub-accent); }
+.ph-stickerpick .sp-empty {
+    grid-column: 1 / -1; margin: 0; text-align: center;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 600;
+    font-size: 12px; color: var(--hub-ink-dim);
+}
+
+/* ── telefon w poziomie: ~237px na cala sekcje, wiec chrome musi schudnac ──── */
+/* Cel: >=1 pelny rzad kafli widoczny BEZ scrollowania, oba modale bez scrolla.
+   Dokladamy sie do jedynego query pisanego pod telefon w poziomie (hub-styles.css). */
+@media (orientation: landscape) and (max-height: 560px) {
+    /* ZMIERZONE: pierwsza wersja tego bloku dawala 211px chrome przy budzecie 237px
+       i kafel wysokosci 242px — jedna karta byla wyzsza niz cale pole. Ponizej jest
+       wersja po pomiarze, nie po oszacowaniu. Cel: chrome <=110px, kafel ~130px. */
+
+    /* Tytul sekcji znika: nawigacja obok i tak mowi SKLEP, wiec to 33px czystej
+       dekoracji w miejscu, gdzie walczymy o kazdy piksel. */
+    /* margin:0 razem z display:none — sam display zostawia margines w rachunku
+       niektorych przegladarek, a walczymy o kazdy piksel. */
+    .bt-shop-title { display: none; margin: 0; }
+
+    /* Hero w JEDNYM rzedzie: moneta + saldo + jednolinijkowy opis z ellipsis. */
+    .bt-shop-hero { padding: 6px 10px; gap: 10px; margin-bottom: 6px; flex-wrap: nowrap; }
+    .bt-shop-hero .sh-art { width: 34px; height: 34px; border-radius: 8px; }
+    .bt-shop-hero .sh-art::after { background-size: 22px 22px; }
+    .bt-shop-hero .sh-info { flex-direction: row; align-items: baseline; gap: 10px; }
+    .bt-shop-hero .sh-balance { font-size: 17px; gap: 6px; }
+    .bt-shop-hero .sh-balance-lbl { font-size: 9px; letter-spacing: 0.5px; }
+    .bt-shop-hero .sh-copy {
+        font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bt-shop-hero .sh-copy br { display: none; }
+
+    .bt-shop-tabs { gap: 6px; margin-bottom: 6px; }
+    .bt-shop-tabs .bt-hub0-ptab { min-height: 30px; padding: 5px 11px; font-size: 11px; }
+    .bt-shop-sandbox { padding: 3px 10px; margin-bottom: 6px; font-size: 10px; }
+    .bt-shop-reset { min-height: 24px; padding: 3px 10px; }
+
+    /* Kafel: kwadratowy art przy 3 kolumnach dawal 206px samego obrazka. Tutaj art
+       dostaje STALA niska wysokosc — produkt dalej jest czytelny, a caly kafel
+       miesci sie w polu widzenia razem z chrome. */
+    .bt-shop-card { padding: 7px 6px; gap: 3px; }
+    .bt-shop-card .sk-art { aspect-ratio: auto; height: 72px; }
+    .bt-shop-card .sk-emoji { font-size: 36px; }
+    .bt-shop-card .sk-name { font-size: 12px; }
+    .bt-shop-card .sk-price { font-size: 11px; padding: 2px 8px; }
+    .bt-shop-card .sk-owned, .bt-shop-card .sk-soon { font-size: 10px; padding: 2px 8px; }
+
+    .bt-shop-detail { max-height: 100%; }
+    .bt-shop-detail .sd-art { min-height: 0; flex-basis: 34%; }
+    .bt-shop-detail .sd-body { padding: 12px 14px; gap: 6px; }
+    .bt-shop-detail .sd-name { font-size: 18px; }
+    .bt-shop-detail .sd-desc { font-size: 11px; }
+    .bt-shop-detail .sd-price { font-size: 18px; }
+    .bt-shop-detail .sd-cta { min-height: 44px; font-size: 14px; }
+    .bt-shop-detail .sd-listen { min-height: 44px; }
+
+    .bt-shop-confirm { padding: 12px 14px 10px; max-width: 340px; }
+    .bt-shop-confirm .sc-art { width: 56px; height: 56px; margin-bottom: 6px; }
+    .bt-shop-confirm .sc-name { font-size: 17px; }
+    .bt-shop-confirm .sc-q { font-size: 12px; margin-bottom: 10px; }
+    .bt-shop-confirm .sc-left { font-size: 11px; margin-top: 8px; }
+
+    .ph-sticker { width: 36px; height: 36px; right: -6px; bottom: -6px; }
+}

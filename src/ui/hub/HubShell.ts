@@ -11,6 +11,9 @@ import { QuestsSection } from './sections/QuestsSection';
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
 import { ProfileSection } from './sections/ProfileSection'; // PROFILE-1 (zastapil StatsOverlay)
+import { ShopSection } from './sections/ShopSection';       // SHOP-1
+import { ShopOverlay } from './overlays/ShopOverlay';       // SHOP-1
+import { isShopEnabled } from '../../config/shop';          // SHOP-1
 import { CrateOverlay } from './overlays/CrateOverlay';
 import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
 import { AVATARS } from '../../config/avatars'; // PROFILE-1 — miniatura w chipie
@@ -21,6 +24,7 @@ import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebra
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
+import './shop-styles.css'; // SHOP-1 — izolacja per-feature (design-values.md)
 
 /**
  * HubShell — Menu Hub „COMMAND DECK” (HUB-0, DOM-overlay za flaga ?hub=1).
@@ -36,7 +40,7 @@ import './hub-styles.css';
  * (HUB-0 nie buduje wlasnego GRAJ-flow — to HUB-1).
  */
 
-type SectionId = 'battle' | 'garage' | 'quests' | 'trophies' | 'rank' | 'profile';
+type SectionId = 'battle' | 'garage' | 'shop' | 'quests' | 'trophies' | 'rank' | 'profile';
 
 export class HubShell implements IScreen {
     private rootEl: HTMLElement | null = null;
@@ -48,6 +52,9 @@ export class HubShell implements IScreen {
     private readonly garage = new GarageSection();
     private readonly quests = new QuestsSection();
     private readonly rank = new RankSection();
+    /** SHOP-1 — sekcja tylko za flaga ?shop=1 (towar to jeszcze placeholdery). */
+    private readonly shop = new ShopSection();
+    private readonly shopModal = new ShopOverlay();
     /** PROFILE-1 — strona profilu (ukryta sekcja poza nav, wejscie przez chip). */
     private readonly profile = new ProfileSection();
     private readonly crate = new CrateOverlay();
@@ -99,9 +106,31 @@ export class HubShell implements IScreen {
         this.season.onViewTrack = () => this.openSeasonTrack();
         // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
         this.quests.onRewardClaimed = () => this.refreshReadout();
+        // SHOP-1 — kafel otwiera modal szczegolow; zakup odswieza siatke I belke
+        // (saldo zyje w dwoch miejscach naraz, wiec musi sie zgadzac bez wychodzenia).
+        this.shop.onOpenItem = (sku) => {
+            if (this.rootEl) this.shopModal.openDetail(this.rootEl, sku, this.pid());
+        };
+        this.shop.onBalanceChanged = () => this.refreshReadout();
+        this.shopModal.onPurchased = () => {
+            this.refreshReadout();
+            this.renderMain();
+        };
+        // Kupiona skrzynka otwiera sie OD RAZU — ten sam overlay co w GARAZU, zero
+        // nowego flow. Zakup, po ktorym nic sie nie dzieje, to zla sensoryka, a przy
+        // wydanych sigmach takze zla Czytelnosc ("zaplacilem i co?").
+        this.shopModal.onCratesBought = () => {
+            if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => {
+                this.refreshReadout();
+                this.renderMain();
+            });
+        };
         this.sections = [
             this.battle,
             this.garage,
+            // SHOP-1: SKLEP siedzi zaraz za GARAZEM (tematycznie sasiaduje ze skrzynkami
+            // i kosmetyka). Bez flagi w ogole nie wchodzi do nawigacji.
+            ...(isShopEnabled() ? [this.shop] : []),
             this.quests,
             new TrophyRoadSection(),
             this.rank,
@@ -175,6 +204,7 @@ export class HubShell implements IScreen {
         this.crate.close();
         this.season.close();
         this.rankUp.close();
+        this.shopModal.close();
         this.rootEl?.remove();
         this.rootEl = null;
     }
@@ -202,7 +232,10 @@ export class HubShell implements IScreen {
         const name = profile?.nickname ?? 'Brawler';
         const pid = profile?.id ?? 'default';
         const trophies = ProgressionService.getTrophies(pid);
-        const bolts = ProgressionService.getBolts(pid);
+        // SHOP-1: belka pokazuje SALDO (zdobyte - wydane), nie lifetime. Gracz mysli
+        // "ile moge wydac", a nie "ile kiedykolwiek zebralem". Bez sklepu obie liczby
+        // sa identyczne, wiec dla istniejacych kont nic sie nie zmienia.
+        const bolts = ProgressionService.getBoltsBalance(pid);
 
         // F2a — equipped kosmetyki (kolor nicku / ramka avatara). PROFILE-1: tytul
         // WYCIETY z chipa (kolidowal z planowanymi Rangami Zalog), chip pokazuje
@@ -225,7 +258,13 @@ export class HubShell implements IScreen {
             <span class="bt-hub0-wallet">
                 <button class="bt-hub0-coin bt-hub0-coin--btn" data-action="trophies" type="button"
                         aria-label="${t('hub.nav.trophies')}"><span class="ic" aria-hidden="true">🏆</span>${trophies}</button>
-                <span class="bt-hub0-coin"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</span>
+                ${isShopEnabled()
+                    // SHOP-1: pigulka sigm prowadzi do sklepu — dokladnie tak, jak
+                    // sasiedni przycisk trofeow prowadzi do Szlaku. Zero nowego CSS,
+                    // ta sama para klas co tam. Bez sklepu zostaje zwyklym <span>.
+                    ? `<button class="bt-hub0-coin bt-hub0-coin--btn" data-action="shop" type="button"
+                               aria-label="${t('hub.shop')}"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</button>`
+                    : `<span class="bt-hub0-coin"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</span>`}
             </span>
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>
@@ -268,6 +307,7 @@ export class HubShell implements IScreen {
             if (action === 'settings') this.onOpenSettings?.();
             else if (action === 'profile') this.openProfile(); // PROFILE-1 — strona profilu
             else if (action === 'trophies') this.setActive('trophies'); // PROFILE-1 — pill 🏆
+            else if (action === 'shop') this.setActive('shop');         // SHOP-1 — pill sigm
             // SEASON-2 — pill sezonu otwiera POPUP (CTA popupu prowadzi do tracku)
             else if (action === 'season' && this.rootEl) this.season.open(this.rootEl);
             // 'play' obslugiwane wewnatrz BattleSection (wlasny listener)

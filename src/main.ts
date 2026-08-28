@@ -183,6 +183,7 @@ import { showToast } from './ui/toast';
 // === FAZA 7a: Profile system foundation ===
 import { ProfileSpriteCache } from './rendering/profile/ProfileSpriteCache';
 import { ProfileService } from './services/ProfileService';
+import { getCosmetic, voiceFile } from './config/cosmetics'; // SHOP-1 — klakson + paczka glosowa
 
 // === FAZA 9b.3a: cloud profile sync (push aktywny profil -> oproznia kolejke scores) ===
 import { syncActiveProfileToCloud } from './services/profileSync';
@@ -446,6 +447,37 @@ let lastShotTime = 0;
 let isMouseDown = false;
 
 const audio = AudioSys.getInstance();
+
+// ── SHOP-1: PACZKA GLOSOWA ──────────────────────────────────────────────────
+/**
+ * Latch kwestii „malo zycia". Odpalamy RAZ NA MECZ, nie z histereza: pady leczace
+ * i serca przewijaja HP w obie strony, wiec przy histerezie „uwazaj, zginiesz"
+ * polecialoby kilka razy w meczu. Projekt ma udokumentowany problem ze zmeczeniem
+ * powtarzanym dzwiekiem (stad safePlayVaried dla strzalow) — piec ostrzezen jest
+ * gorsze niz cisza. Reset w startGame().
+ */
+let lowHpVoiceFired = false;
+const LOW_HP_VOICE_AT = 0.5;
+
+/**
+ * Zagraj kwestie zalozonej paczki glosowej + pokaz napis. Brak paczki => no-op.
+ * Napis jest OBOWIAZKOWY: VO bez napisu nie istnieje dla kogos z wyciszonym
+ * dzwiekiem, a to polowa graczy na telefonie.
+ */
+function playVoiceLine(line: 'start' | 'lowHp'): void {
+    try {
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const voiceId = ProgressionService.getCosmeticState(pid).equipped.voice;
+        if (!voiceId) return;
+        const def = getCosmetic(voiceId);
+        const file = voiceFile(def, line, i18n.getLanguage());
+        if (!file) return;
+        audio.playOwnedSound(file, 0);
+        hud.addNotif(line === 'start' ? t('shop.voice.start') : t('shop.voice.lowHp'), '#f1c40f');
+    } catch (e) {
+        console.error('[shop] playVoiceLine failed:', (e as Error).stack ?? e, { line });
+    }
+}
 
 const _prefersTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 // Desktop-only marker: endcard v2 skalowany 1.5x TYLKO na desktopie (CSS w index.html).
@@ -1044,6 +1076,16 @@ window.addEventListener('keydown', e => {
     if (k === 'm') {
         const nowMuted = audio.toggleMute();
         hud.addNotif(nowMuted ? t('hud.muted') : t('hud.unmuted'), '#aaaaaa');
+    }
+    // SHOP-1: KLAKSON. Czysty flex — zero wplywu na rozgrywke, dziala tylko gdy
+    // gracz kupil i zalozyl klakson. Throttle siedzi w AudioSys (klawiatura zapracza
+    // do mlocenia klawisza, a projekt ma udokumentowany problem ze zmeczeniem
+    // powtarzanym dzwiekiem). Na dotyku klaksonu nie ma — dlatego kafle znikaja
+    // ze sklepu na urzadzeniach dotykowych, zamiast sprzedawac martwy towar.
+    if (k === 'h') {
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const hornId = ProgressionService.getCosmeticState(pid).equipped.horn;
+        if (hornId) audio.playOwnedSound(getCosmetic(hornId)?.sound);
     }
 });
 window.addEventListener('keyup', e => {
@@ -2215,6 +2257,21 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
     audio.startMusic(config.map);
 
+    // SHOP-1 — PACZKA GLOSOWA. Latch 50% HP zerujemy na kazdy mecz, potem kwestia
+    // startowa. Napis idzie razem z dzwiekiem: VO bez napisu to informacja, ktora
+    // znika u kogos z wyciszonym telefonem.
+    lowHpVoiceFired = false;
+    // Klakson i druga kwestia sciagamy z wyprzedzeniem — rejestr kupowanych dzwiekow
+    // jest LENIWY z zalozenia (zeby nie obciazac gracza towarem, ktorego nie kupil),
+    // wiec bez tego pierwsze H w meczu czekaloby na siec.
+    {
+        const voPid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const eq = ProgressionService.getCosmeticState(voPid).equipped;
+        if (eq.horn) audio.preloadOwnedSound(getCosmetic(eq.horn)?.sound);
+        if (eq.voice) audio.preloadOwnedSound(voiceFile(getCosmetic(eq.voice), 'lowHp', i18n.getLanguage()));
+    }
+    playVoiceLine('start');
+
     // PROG-F3 — ROZKAZY: od tego momentu track() ksieguje postep. Tutorial NIE liczy sie
     // do rozkazow (beginRun nie jest wolane => track() jest no-opem).
     if (!tutorialMode && currentSession) {
@@ -2370,70 +2427,20 @@ interface EndScreenData {
 }
 
 /**
- * v0.46.0 — Render wybranego czolgu (hull+turret) do dataURL (PNG) na hero ekranu konca.
- * Buduje TYMCZASOWY kontener (baked 2.5D gdy ?baker=1, inaczej flat getBrawlerTextures), lufa w PRAWO,
- * scale x2 dla ostrosci na karcie, ekstrahuje przez renderer.extract. Tekstury sa cache'owane
- * i WSPOLDZIELONE z zywym graczem — destroy({children}) NIE niszczy textur (tylko sprite'y).
- * Zwraca '' przy bledzie -> renderEndScreen fallbackuje do emoji.
+ * v0.125.0 — hero endcarda to gotowy PNG 200x200 z przezroczystoscia
+ * (`assets/tanks/tanks_200/<nazwa>_200.png`), a nie render z PIXI.
+ *
+ * Sciezke wyprowadzamy z pola `icon` brawlera (`assets/tanks/twardy.jpg`), zeby NIE
+ * powstala druga mapa id->plik, ktora trzeba pamietac aktualizowac. Nowy czolg
+ * dziedziczy hero automatycznie, o ile dostanie plik o tej samej nazwie.
+ * Brak pliku => `onerror` w renderEndScreen zdejmuje <img> i zostaje emoji brawlera.
  */
-function renderTankHeroDataURL(brawler: Brawler, damaged: boolean = false): string {
-    try {
-        const temp = new PIXI.Container();
-        const hull = new PIXI.Sprite();
-        hull.anchor.set(0.5);
-        const turret = new PIXI.Sprite();
-        turret.anchor.set(0.5);
-
-        // FAZA P4 — hero 2.5D: gdy ?baker=1 i gracz upieczony, baked tekstury (jak w grze) zamiast
-        // flat placka. Poza JEDZIE W PRAWO: baked bierze angle 0 (barrel-right), flat NIE rotuje temp.
-        const bakerHero = BAKER_ENABLED && TankSpriteBaker.isBaked(brawler.id);
-        if (bakerHero) {
-            const heroAngle = 0; // jazda/lufa w PRAWO (angle 0 = baked barrel-right)
-            hull.texture = TankSpriteBaker.getHullTexture(brawler.id, heroAngle);
-            turret.texture = TankSpriteBaker.getTurretTexture(brawler.id, heroAngle);
-        } else {
-            const tex = getBrawlerTextures(brawler);
-            hull.texture = tex.hull;
-            turret.texture = tex.turret;
-        }
-        temp.addChild(hull);
-        temp.addChild(turret);
-
-        // Slady przegranej — wpieczone w obraz (local space czolgu, centered 0,0).
-        if (damaged) {
-            const dmg = new PIXI.Graphics();
-            const scorch = (sx: number, sy: number, r: number) => {
-                dmg.beginFill(0x080808, 0.52); dmg.drawCircle(sx, sy, r); dmg.endFill();
-                dmg.beginFill(0x2c2c2c, 0.4); dmg.drawCircle(sx, sy, r * 0.62); dmg.endFill();
-            };
-            scorch(-8, -5, 13);
-            scorch(17, 7, 10);
-            scorch(-25, 6, 8);
-            // pekniecia (jagged dark)
-            dmg.lineStyle(1.7, 0x000000, 0.6);
-            dmg.moveTo(-6, -15); dmg.lineTo(2, -5); dmg.lineTo(-3, 3); dmg.lineTo(6, 13);
-            dmg.lineStyle(1.2, 0x000000, 0.5);
-            dmg.moveTo(20, -2); dmg.lineTo(26, 6); dmg.lineTo(22, 12);
-            dmg.lineStyle(0);
-            // tlace zarzewie (baked glints)
-            dmg.beginFill(0xff5a1e, 0.85); dmg.drawCircle(-8, -5, 2.4); dmg.endFill();
-            dmg.beginFill(0xffd24a, 0.95); dmg.drawCircle(-8, -5, 1.1); dmg.endFill();
-            dmg.beginFill(0xff5a1e, 0.8); dmg.drawCircle(17, 7, 1.8); dmg.endFill();
-            temp.addChild(dmg);
-        }
-
-        // Poza "w prawo" dla obu sciezek: flat tekstury sa barrel-right przy rotation 0,
-        // baked wybralo angle 0 -> zadna rotacja temp nie jest potrzebna.
-        temp.scale.set(bakerHero ? 2.2 : 2); // baked = wieksza tekstura -> 2.2 dla podobnego rozmiaru na karcie
-        const canvas = app.renderer.extract.canvas(temp) as HTMLCanvasElement;
-        const url = canvas.toDataURL('image/png');
-        temp.destroy({ children: true }); // niszczy sprite'y/gfx, NIE tekstury (cache)
-        return url;
-    } catch (e) {
-        console.warn('[EndScreen] tank hero render failed:', e);
-        return '';
-    }
+function tankHeroPng(brawler: Brawler): string {
+    const base = brawler.icon.split('/').pop()?.replace(/\.[a-z]+$/i, '') ?? '';
+    if (!base) return '';
+    return `${import.meta.env.BASE_URL}assets/tanks/tanks_200/${base}_200.png`;
 }
+
 
 /**
  * Buduje wnetrze ekranu konca gry (defeat/victory) — pelne i18n + premium look.
@@ -2458,7 +2465,13 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // maja natywne padding glyphs i wygladaja wieksze; gem PNG bez tego paddingu wizualnie ginal.
     // Powiekszenie tylko gem-icon (span slot 1.7rem nieruszony — flex pozwoli img rozlac sie
     // o ~0.55rem; gap:10px do tekstu i transparent BG sprawiaja ze nic sie nie roznie).
-    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:2.25rem;height:2.25rem;display:block;object-fit:contain;">`;
+    // v0.125.0: 2.25rem -> 3.375rem (kolejne +50%, decyzja Mariusza).
+    const gemIcon = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:3.375rem;height:3.375rem;display:block;object-fit:contain;">`;
+    // v0.125.0: BOSSY dostaja realna ikone wroga zamiast emoji 👑 — korona myli sie
+    // z brawlerem King, a to jest licznik pokonanych bossow. Rozmiary dobrane tak, by
+    // wizualnie zrownac sie z sasiednimi emoji (te maja wlasny padding w glifie).
+    const bossIcon = `<img src="${import.meta.env.BASE_URL}assets/sprites/boss_100.png" alt="" style="width:2.6rem;height:2.6rem;display:block;object-fit:contain;">`;
+    const bossIconSm = `<img src="${import.meta.env.BASE_URL}assets/sprites/boss_100.png" alt="" style="width:1.5rem;height:1.5rem;display:block;object-fit:contain;">`;
 
     // iconHtml = surowy HTML (emoji-char ALBO <img>) renderowany w ramce ikony.
     const chip = (iconHtml: string, value: string | number, label: string): string => `
@@ -2471,9 +2484,9 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
         </div>`;
 
     // v2 (landscape) — kompaktowy mini-kafelek: ikona+liczba w jednym rzedzie, label pod spodem.
-    // Wchodzi 4-w-rzedzie w prawej kolumnie (siatka 4x2). Mniejszy gem (1.3rem) bo pelny 2.25rem
-    // rozwalilby waskie kafelki.
-    const gemIconSm = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:1.3rem;height:1.3rem;display:block;object-fit:contain;">`;
+    // Wchodzi 4-w-rzedzie w prawej kolumnie (siatka 4x2). Gem jest tu mniejszy niz w chipie,
+    // bo pelny rozmiar rozwalilby waskie kafelki. v0.125.0: 1.3rem -> 1.95rem (+50%).
+    const gemIconSm = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:1.95rem;height:1.95rem;display:block;object-fit:contain;">`;
     const statTile = (iconHtml: string, value: string | number, label: string): string => `
         <div style="background:#f1f0f6;border:2px solid #e2e1ea;border-radius:12px;padding:6px 3px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center;box-sizing:border-box;">
             <div style="display:flex;align-items:center;justify-content:center;gap:5px;line-height:1;">
@@ -2605,13 +2618,26 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
           @keyframes esFlame{0%,100%{transform:translateX(-50%) scaleY(.82) scaleX(1);opacity:.85}50%{transform:translateX(-50%) scaleY(1.18) scaleX(.92);opacity:1}}`;
     }
 
+    // v0.125.0 — hero to PNG z przezroczystoscia (tanks_200), a nie render z PIXI.
+    // Cala strefa POWIEKSZONA O 50% (decyzja Mariusza): kontener, poswiata, cien i obraz
+    // skalowane tym samym wspolczynnikiem, zeby czolg nie wyszedl poza maske.
+    // PRZEGRANA: PIXI wpiekalo w obraz osmalenia; PNG jest jeden dla obu koncowek, wiec
+    // "rozbity" czyta sie filtrem. Bez tego wygrana i przegrana mialyby ten sam czolg.
+    const heroFilter = isVictory
+        ? 'drop-shadow(0 7px 8px rgba(0,0,0,0.4))'
+        : 'drop-shadow(0 7px 8px rgba(0,0,0,0.45)) brightness(0.68) saturate(0.5) contrast(1.05)';
+    // Emoji lezy POD obrazkiem — gdy pliku brak, onerror zdejmuje <img> i zostaje fallback
+    // zamiast pustej poswiaty (ta sama zasada co w kaflach sklepu).
+    const heroFallback = `<div style="position:absolute;bottom:44px;left:50%;transform:translateX(-50%);font-size:3.2rem;line-height:1;z-index:1;">${icon}</div>`;
+
     const heroZone = d.tankImg ? `
         <style>${heroKeyframes}</style>
-        <div style="position:relative;width:100%;height:168px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 34px);mask-image:linear-gradient(to bottom,transparent 0,#000 34px);">
-            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:178px;height:178px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
-            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:128px;height:26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+        <div style="position:relative;width:100%;height:252px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 51px);mask-image:linear-gradient(to bottom,transparent 0,#000 51px);">
+            <div style="position:absolute;bottom:33px;left:50%;transform:translateX(-50%);width:267px;height:267px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
+            <div style="position:absolute;bottom:33px;left:50%;transform:translateX(-50%);width:192px;height:39px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+            ${heroFallback}
             ${heroEffects}
-            <img src="${d.tankImg}" alt="" style="position:relative;z-index:2;height:152px;width:auto;filter:drop-shadow(0 7px 8px rgba(0,0,0,0.4));">
+            <img src="${d.tankImg}" alt="" onerror="this.remove()" style="position:relative;z-index:2;height:228px;width:auto;filter:${heroFilter};">
         </div>`
         : `<div style="font-size:3.2rem;line-height:1;margin-bottom:4px;">${icon}</div>`;
 
@@ -2619,11 +2645,12 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // +10% wzgledem 124/112 (Mariusz chce troche wieksza animacje po tescie).
     const heroZoneV2 = d.tankImg ? `
         <style>${heroKeyframes}</style>
-        <div style="position:relative;width:100%;height:136px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30px);mask-image:linear-gradient(to bottom,transparent 0,#000 30px);">
-            <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:154px;height:154px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
-            <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:110px;height:22px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+        <div style="position:relative;width:100%;height:204px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 45px);mask-image:linear-gradient(to bottom,transparent 0,#000 45px);">
+            <div style="position:absolute;bottom:21px;left:50%;transform:translateX(-50%);width:231px;height:231px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
+            <div style="position:absolute;bottom:21px;left:50%;transform:translateX(-50%);width:165px;height:33px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+            <div style="position:absolute;bottom:34px;left:50%;transform:translateX(-50%);font-size:2.9rem;line-height:1;z-index:1;">${icon}</div>
             ${heroEffects}
-            <img src="${d.tankImg}" alt="" style="position:relative;z-index:2;height:123px;width:auto;filter:drop-shadow(0 6px 7px rgba(0,0,0,0.4));">
+            <img src="${d.tankImg}" alt="" onerror="this.remove()" style="position:relative;z-index:2;height:184px;width:auto;filter:${heroFilter};">
         </div>`
         : `<div style="font-size:2.9rem;line-height:1;">${icon}</div>`;
 
@@ -2647,7 +2674,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
                         ${statTile('💀', d.kills, t('end.kills'))}
                         ${statTile(gemIconSm, d.gems, t('end.gems'))}
-                        ${statTile('👑', d.bosses, t('end.bosses'))}
+                        ${statTile(bossIconSm, d.bosses, t('end.bosses'))}
                         ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
                         ${statTile('🟦', d.cubesTotal, t('end.cubes'))}
                         ${d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
@@ -2677,7 +2704,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             <div style="display:flex;flex-wrap:wrap;gap:8px;width:100%;margin-top:12px;">
                 ${chip('💀', d.kills, t('end.kills'))}
                 ${chip(gemIcon, d.gems, t('end.gems'))}
-                ${chip('👑', d.bosses, t('end.bosses'))}
+                ${chip(bossIcon, d.bosses, t('end.bosses'))}
                 ${chip('🔥', `${d.maxCombo}x`, t('end.combo'))}
                 ${chip('🟦', d.cubesTotal, t('end.cubes'))}
                 ${d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
@@ -2759,7 +2786,7 @@ async function triggerGameOver(): Promise<void> {
     const questsDoneRun = finalizeRunQuests(runProg?.trophiesGained ?? 0, false);
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
-    const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, true) : '';
+    const tankImg = heroBrawler ? tankHeroPng(heroBrawler) : '';
     const screenEl = document.getElementById('gameOverScreen')!;
     screenEl.innerHTML = renderEndScreen('defeat', {
         score: currentSession?.score ?? 0,
@@ -2837,7 +2864,7 @@ async function triggerVictory(): Promise<void> {
     const questsDoneVictory = finalizeRunQuests(victoryRunProg?.trophiesGained ?? 0, victoryPerfectRun);
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
-    const tankImg = heroBrawler ? renderTankHeroDataURL(heroBrawler, false) : '';
+    const tankImg = heroBrawler ? tankHeroPng(heroBrawler) : '';
     const screenEl = document.getElementById('victoryScreen')!;
     screenEl.innerHTML = renderEndScreen('victory', {
         score: currentSession?.score ?? 0,
@@ -2948,6 +2975,15 @@ app.ticker.add((rawDelta) => {
     const clampedDelta = Math.max(0.5, Math.min(2.0, rawDelta));
     smoothedDelta += (clampedDelta - smoothedDelta) * DELTA_SMOOTH;
     const delta = SMOOTH_MODE ? 1 : smoothedDelta;
+
+    // SHOP-1 — paczka glosowa: ostrzezenie przy spadku ponizej polowy pancerza.
+    // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
+    // snieg, pady, serca, kostki mocy) i callback na takeDamage() przegapilby leczenie.
+    // Koszt: jedno dzielenie na krok logiki, po czym latch zamyka temat na caly mecz.
+    if (!lowHpVoiceFired && player.hp / player.maxHp < LOW_HP_VOICE_AT) {
+        lowHpVoiceFired = true;
+        playVoiceLine('lowHp');
+    }
 
     const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     const viewW = hud.screenW / ZOOM;

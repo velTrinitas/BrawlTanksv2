@@ -167,11 +167,19 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
 }
 
 /* v0.108.0 — BITWA centralnie w docku jako wyniesiony zloty FAB (mobile only;
-   desktop rail zostaje pionowy z BITWA na gorze). Kolejnosc przez flex order:
-   [garaz, rozkazy] (0, DOM) -> BITWA (1) -> [trofea, ranking] (2). */
-body:not(.bt-desktop) .bt-hub0-navbtn--battle { order: 1; }
-body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn:nth-child(4),
-body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn:nth-child(5) { order: 2; }
+   desktop rail zostaje pionowy z BITWA na gorze).
+
+   SHOP-1 (v0.124.0): kolejnosc byla PO POZYCJI (nth-child(4)/(5)) i rozjezdzala sie
+   z kazda nowa sekcja — szosty przycisk zepchnalby BITWE ze srodka. Teraz order jest
+   przypisany JAWNIE po data-section, wiec jest odporny na liczbe zakladek i czytelny
+   wprost. Siodma sekcja = jedna linijka tutaj, zero niespodzianek.
+   Uklad: GARAZ - SKLEP - [BITWA] - ROZKAZY - TROFEA - RANKING. */
+body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]   { order: 1; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="shop"]     { order: 2; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"]   { order: 3; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="quests"]   { order: 4; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="trophies"] { order: 5; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="rank"]     { order: 6; }
 
 body:not(.bt-desktop) .bt-hub0-navbtn--battle {
     flex: 0 0 auto;

@@ -28,6 +28,7 @@ import {
     type CrateOpenResult,
 } from '../config/progression';
 import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kosmetyki
+import { getShopItem, isShopEnabled, isShopSandbox } from '../config/shop'; // SHOP-1
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
 import type { ProgressionCosmetics, ProgressionPowers, ProgressionStats } from './supabase/types'; // PROG-F2b/F7a/PROFILE-1 sync
 import {
@@ -143,6 +144,41 @@ interface ProgressionState {
     rankShown: number;
     /** ms zakonczonego backfillu wins z scores (0 = pending). Merge: MAX. */
     ranksBackfilledAt: number;
+
+    // ── SHOP-1: ledger waluty (sklep = pierwsze ujscie sigm) ──
+    /**
+     * Sigmy WYDANE lacznie (MONOTONICZNY — merge: MAX). Saldo = bolts - boltsSpent.
+     * POWOD: `bolts` merguje sie przez MAX, wiec pole MALEJACE wskrzesiloby wydany
+     * zasob przy pierwszym syncPull (dokladnie ten bug blokowal sklep do v0.123).
+     * Wzorzec 1:1 z cratesEarned/cratesOpened — saldo NIGDY nie jest zapisywane.
+     */
+    boltsSpent: number;
+    /**
+     * Kupione SKU rzeczy TRWALYCH (merge: UNION). Zapis historii zakupow — NIE liczy
+     * salda (patrz spentOf: podloga z cen katalogowych zostala odrzucona, bo wiazala
+     * saldo z cennikiem i polykala zakupy konsumpcyjne). Przyda sie pod historie
+     * zakupow w profilu i pod diagnostyke.
+     */
+    purchases: string[];
+    /**
+     * PIASKOWNICA sklepu (?shop=1): migawka stanu sprzed pierwszego zakupu.
+     * RESET przywraca ja w calosci — jeden mechanizm zamiast cofania pole po polu.
+     * Dopoki istnieje, syncPush jest ODCIETY (nic z testow nie trafia do chmury),
+     * a start gry BEZ flagi automatycznie ja przywraca i kasuje. Dzieki temu
+     * "pobawilem sie w sklepie i zapomnialem zresetowac" nie kosztuje nic realnego.
+     * CELOWO nieserializowana do chmury.
+     */
+    shopSandbox?: {
+        bolts: number;
+        boltsSpent: number;
+        purchases: string[];
+        cratesEarned: number;
+        cratesOpened: number;
+        pityCounter: number;
+        ownedCosmetics: string[];
+        equipped: Partial<Record<CosmeticType, string>>;
+        equippedAt: number;
+    };
 }
 
 /** PROFILE-1: staty jednego meczu do recordRun (zrodla: Spawn + GameSession w main.ts). */
@@ -169,6 +205,30 @@ const ZERO_RECORDS = { maxKills: 0, maxGems: 0, maxSeconds: 0, bestAccuracy: 0, 
  */
 function crateCountOf(st: ProgressionState): number {
     return Math.max(0, st.cratesEarned - st.cratesOpened);
+}
+
+/** SHOP-1: czy zakupy ida do piaskownicy (sklep wlaczony flaga, produkcja wylaczona). */
+function isShopSandboxActive(): boolean {
+    return isShopEnabled() && isShopSandbox();
+}
+
+/**
+ * SHOP-1: efektywnie wydane sigmy = po prostu licznik monotoniczny.
+ *
+ * PROBOWALEM tu podlogi audytu `max(boltsSpent, suma cen z purchases)`, zeby zalatac
+ * niedoszacowanie przy dwoch urzadzeniach offline. Odrzucone po testach, dwa powody:
+ *  1. Podloga POLYKALA zakupy konsumpcyjne. Gdy po merdze suma cen przewyzszyla licznik
+ *     (A kupil X i skrzynki, B kupil Y => MAX liczników < suma cen X+Y), kolejne
+ *     skrzynki byly darmowe az licznik dogonil podloge.
+ *  2. Wiazala saldo z CENNIKIEM. Kazde strojenie ceny po playtescie przepisywaloby
+ *     historie wydatkow wszystkim graczom wstecz — a strojenie jest pewne, nie hipotetyczne.
+ *
+ * Zostaje ten sam, JAWNIE UDOKUMENTOWANY kompromis, ktory ma juz reszta pol w tym
+ * pliku (bolts, lifetime, wins): gra na dwoch urzadzeniach naraz daje undercount,
+ * bo merge to MAX, nie suma delt. Ledger delt kiedys, jesli w ogole.
+ */
+function spentOf(st: ProgressionState): number {
+    return st.boltsSpent;
 }
 
 /** Migawka kosmetyczna do GARAZU / readout. */
@@ -670,6 +730,14 @@ class ProgressionServiceImpl {
             console.warn('[Progression] syncPush pominiety — aktywny podglad sezonu (?season=)');
             return;
         }
+        // PIASKOWNICA SKLEPU (?shop=1) — dopoki wisi migawka, stan lokalny zawiera
+        // testowe zakupy. Wyslanie ich do chmury zabetonowaloby je przez MAX-merge
+        // (boltsSpent rosnie, ownedCosmetics to UNION) i RESET nie mialby juz czego
+        // cofnac na drugim urzadzeniu. Ta sama klasa szkody co podglad sezonu.
+        if (st.shopSandbox) {
+            console.warn('[Progression] syncPush pominiety — piaskownica sklepu (?shop=1)');
+            return;
+        }
         void supabaseProgressionService
             .upsert({
                 profile_id: profileId,
@@ -712,6 +780,8 @@ class ProgressionServiceImpl {
                     wins: st.wins,                          // RANKS-1 — ranga czolgisty
                     rankClaimed: st.rankClaimed,
                     rankShown: st.rankShown,
+                    boltsSpent: st.boltsSpent,              // SHOP-1 — ledger waluty
+                    purchases: st.purchases,
                 },
             })
             .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
@@ -786,9 +856,115 @@ class ProgressionServiceImpl {
         }
     }
 
+    /**
+     * Sigmy ZDOBYTE lacznie (lifetime). To jest kolumna `progression.bolts` w chmurze.
+     * Do pokazania graczowi uzyj getBoltsBalance — gracz mysli saldem, nie historia.
+     */
     getBolts(profileId: string): number {
         this.ensureInitialized();
         return this.getOrCreate(profileId).bolts;
+    }
+
+    // === SHOP-1: sklep (pierwsze ujscie sigm) ===
+
+    /** SALDO do wydania = zdobyte - wydane. Nigdy nie zapisywane, zawsze liczone. */
+    getBoltsBalance(profileId: string): number {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        return Math.max(0, st.bolts - spentOf(st));
+    }
+
+    /** Sigmy wydane lacznie — do statystyk w profilu. */
+    getBoltsSpent(profileId: string): number {
+        this.ensureInitialized();
+        return spentOf(this.getOrCreate(profileId));
+    }
+
+    /** Czy w tej sesji zakupy ida do piaskownicy (pasek dev + przycisk RESET w UI). */
+    isSandboxActive(): boolean {
+        return isShopSandboxActive();
+    }
+
+    /** Czy piaskownica ma cokolwiek do cofniecia (steruje widocznoscia RESET-u). */
+    hasSandboxChanges(profileId: string): boolean {
+        this.ensureInitialized();
+        return !!this.getOrCreate(profileId).shopSandbox;
+    }
+
+    /**
+     * Zakup. Zwraca powod odmowy albo null przy sukcesie — UI pokazuje konkret,
+     * nie ciche nic-sie-nie-stalo.
+     */
+    purchase(profileId: string, sku: string): 'ok' | 'unknown' | 'soon' | 'poor' | 'owned' {
+        this.ensureInitialized();
+        const item = getShopItem(sku);
+        if (!item) return 'unknown';
+        if (item.soon || item.grant.kind === 'none') return 'soon';
+
+        const st = this.getOrCreate(profileId);
+        if (item.grant.kind === 'cosmetic' && st.ownedCosmetics.includes(item.grant.id)) return 'owned';
+        if (this.getBoltsBalance(profileId) < item.price) return 'poor';
+
+        // Piaskownica: migawka PRZED pierwsza zmiana. Dalej zakup idzie zwykla
+        // sciezka, wiec testujemy prawdziwy kod, a nie rownolegla atrape.
+        if (isShopSandboxActive()) this.snapshotShopSandbox(st);
+
+        st.boltsSpent += item.price;
+        if (item.grant.kind === 'crates') {
+            // Skrzynka jest KONSUMPCYJNA — celowo NIE trafia do `purchases`
+            // (lista jest UNION, wiec i tak zdedplikowalaby zakupy, a jako
+            // podloga audytu klamalaby o rzeczach kupionych wielokrotnie).
+            st.cratesEarned += item.grant.count;
+        } else {
+            st.ownedCosmetics = [...new Set([...st.ownedCosmetics, item.grant.id])];
+            st.purchases = [...new Set([...st.purchases, sku])];
+        }
+        st.updatedAt = Date.now();
+        this.save();
+        this.syncPush(profileId);
+        return 'ok';
+    }
+
+    /** Migawka stanu sprzed zabawy w piaskownicy (robiona raz, przy pierwszym zakupie). */
+    private snapshotShopSandbox(st: ProgressionState): void {
+        if (st.shopSandbox) return;
+        st.shopSandbox = {
+            bolts: st.bolts,
+            boltsSpent: st.boltsSpent,
+            purchases: [...st.purchases],
+            cratesEarned: st.cratesEarned,
+            cratesOpened: st.cratesOpened,
+            pityCounter: st.pityCounter,
+            ownedCosmetics: [...st.ownedCosmetics],
+            equipped: { ...st.equipped },
+            equippedAt: st.equippedAt,
+        };
+    }
+
+    /** Przywroc stan sprzed piaskownicy i skasuj migawke. Bez zapisu — wola sie z kontekstu. */
+    private restoreShopSandbox(st: ProgressionState): void {
+        const snap = st.shopSandbox;
+        if (!snap) return;
+        st.bolts = snap.bolts;
+        st.boltsSpent = snap.boltsSpent;
+        st.purchases = [...snap.purchases];
+        st.cratesEarned = snap.cratesEarned;
+        st.cratesOpened = snap.cratesOpened;
+        st.pityCounter = snap.pityCounter;
+        st.ownedCosmetics = [...snap.ownedCosmetics];
+        st.equipped = { ...snap.equipped };
+        st.equippedAt = snap.equippedAt;
+        delete st.shopSandbox;
+    }
+
+    /** RESET piaskownicy z UI — cofa wszystko, co zrobily testowe zakupy. */
+    resetShopSandbox(profileId: string): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        if (!st.shopSandbox) return;
+        this.restoreShopSandbox(st);
+        st.updatedAt = Date.now();
+        this.save();
     }
 
     // === F2a: Zrzuty + kosmetyki (F2b: syncowane przez kolumne progression.cosmetics) ===
@@ -994,6 +1170,12 @@ class ProgressionServiceImpl {
                 st.season.claimed = [...union].sort((a, b) => a - b);
             }
         }
+        // SHOP-1 — ledger waluty. boltsSpent MAX (monotoniczny, jak cratesOpened),
+        // purchases UNION. Bez tego pierwszy syncPull po zakupie oddalby wydane sigmy.
+        st.boltsSpent = mx(st.boltsSpent, remote.boltsSpent);
+        if (Array.isArray(remote.purchases)) {
+            st.purchases = [...new Set([...st.purchases, ...remote.purchases.map(String)])];
+        }
         // RANKS-1 — wins/rankShown MAX, rankClaimed UNION (idempotencja nagrod).
         st.wins = mx(st.wins, remote.wins);
         st.rankShown = mx(st.rankShown, remote.rankShown);
@@ -1099,11 +1281,20 @@ class ProgressionServiceImpl {
                 rankClaimed: [],
                 rankShown: 0,
                 ranksBackfilledAt: 0,
+                boltsSpent: 0,
+                purchases: [],
             };
             this.states[profileId] = st;
         } else {
             // normalizacja starych stanow z localStorage (sprzed F2a) — dopelnij nowe pola
             st.pityCounter ??= 0;
+            // SHOP-1 — konta sprzed sklepu: nic nie wydaly, wiec zero jest poprawne
+            // (bolts do tej pory bylo czystym "lifetime earned").
+            st.boltsSpent ??= 0;
+            st.purchases ??= [];
+            // SHOP-1: samoleczenie piaskownicy siedzi w load() (healShopSandbox) —
+            // tam odpala sie raz i dla wszystkich profili, niezaleznie od tego,
+            // kto pierwszy poprosi o stan.
             st.ownedCosmetics ??= [];
             st.equipped ??= {};
             st.equippedAt ??= 0;
@@ -1191,9 +1382,33 @@ class ProgressionServiceImpl {
                 else console.warn('[ProgressionService] Dropping invalid progression entry:', pid);
             }
             this.states = valid;
+            this.healShopSandbox();
         } catch (e) {
             console.error('[ProgressionService] Failed to parse progression, resetting:', e);
             this.states = {};
+        }
+    }
+
+    /**
+     * SHOP-1 — samoleczenie piaskownicy sklepu. Gra wystartowala BEZ ?shop=1, a jakis
+     * profil ma wiszaca migawke => ktos testowal sklep i nie kliknal RESET. Cofamy
+     * wszystko, co zrobily testowe zakupy, i zapisujemy.
+     *
+     * Robimy to TUTAJ, a nie w getOrCreate: tam odpalaloby sie dopiero wtedy, gdy ktos
+     * akurat poprosi o ten profil, wiec cala gwarancja zalezalaby od kolejnosci wywolan.
+     * load() leci raz, na pewno i dla wszystkich profili naraz.
+     */
+    private healShopSandbox(): void {
+        if (isShopSandboxActive()) return;
+        let healed = 0;
+        for (const st of Object.values(this.states)) {
+            if (!st.shopSandbox) continue;
+            this.restoreShopSandbox(st);
+            healed++;
+        }
+        if (healed > 0) {
+            console.warn(`[shop] piaskownica cofnieta na ${healed} profilu/-ach (start bez ?shop=1)`);
+            this.save();
         }
     }
 

@@ -5,7 +5,10 @@ import { ProgressionService } from '../../../services/ProgressionService';
 import { TROPHY_MILESTONES, ACCURACY_MIN_SHOTS } from '../../../config/progression';
 import { leaderboardService } from '../../../services/ScoreService';
 import { LEADERBOARD_BOARDS } from '../../../services/leaderboard';
-import { getCosmetic, nickColorStyle, frameStyle, COSMETICS } from '../../../config/cosmetics';
+import {
+    getCosmetic, nickColorStyle, frameStyle, COSMETICS, cosmeticsByType, RARITY_COLOR,
+    type CosmeticType,
+} from '../../../config/cosmetics';
 import { AVATARS } from '../../../config/avatars';
 import { RANKS } from '../../../config/ranks';
 import { flagImgHtml } from '../../flagArt';
@@ -46,6 +49,8 @@ export class ProfileSection implements HubSection {
     public onProfileChanged: (() => void) | null = null;
 
     private activeTab: ProfileTab = 'overview';
+    /** SHOP-1 — czy rozwiniety jest wybor stickera (kulka w rogu portretu). */
+    private stickerPickerOpen = false;
     private editMode = false;
     private readonly editView = new ProfileEditView();
     private el: HTMLElement | null = null;
@@ -95,6 +100,7 @@ export class ProfileSection implements HubSection {
                 <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.profile.title')}</h2>
             </div>
             ${this.heroHtml()}
+            ${this.stickerPickerHtml()}
             ${this.ranksHtml()}
             ${this.tabsHtml()}
             <div class="bt-hub0-ptabcontent">${this.tabContentHtml()}</div>
@@ -109,7 +115,9 @@ export class ProfileSection implements HubSection {
         const profile = ProfileService.getActiveProfile()!;
         const pid = profile.id;
         const trophies = ProgressionService.getTrophies(pid);
-        const bolts = ProgressionService.getBolts(pid);
+        // SHOP-1: pille pokazuja SALDO, tak samo jak belka hubu — dwa miejsca nie moga
+        // pokazywac dwoch roznych liczb tej samej waluty.
+        const bolts = ProgressionService.getBoltsBalance(pid);
         const cos = ProgressionService.getCosmeticState(pid);
         const nickDef = cos.equipped.nickColor ? getCosmetic(cos.equipped.nickColor) : undefined;
         const frameDef = cos.equipped.frame ? getCosmetic(cos.equipped.frame) : undefined;
@@ -146,8 +154,11 @@ export class ProfileSection implements HubSection {
 
         return `
             <div class="bt-hub0-phero bt-hub0-phero--v2">
-                <span class="ph-portrait" style="${frameStyle(frameDef)}">
-                    <img src="${import.meta.env.BASE_URL}${avatar.assetPath}" alt="" draggable="false">
+                <span class="ph-portrait-wrap">
+                    <span class="ph-portrait" style="${frameStyle(frameDef)}">
+                        <img src="${import.meta.env.BASE_URL}${avatar.assetPath}" alt="" draggable="false">
+                    </span>
+                    ${this.stickerBubbleHtml(cos)}
                 </span>
                 <span class="ph-info">
                     <b class="ph-nick${shimmer}" style="${nickColorStyle(nickDef)}">${profile.nickname}</b>
@@ -163,6 +174,48 @@ export class ProfileSection implements HubSection {
                     ✏️ ${t('hub.profile.edit')}
                 </button>
             </div>`;
+    }
+
+    // ── SHOP-1: sticker na portrecie ────────────────────────────────────────
+
+    /**
+     * Kulka w rogu portretu — zalozony sticker albo zaproszenie „+".
+     * MUSI byc rodzenstwem .ph-portrait, nie dzieckiem: portret ma overflow:hidden
+     * (potrzebne na zaokraglenie awatara), wiec kulka w srodku zostalaby przycieta.
+     */
+    private stickerBubbleHtml(cos: { equipped: Partial<Record<CosmeticType, string>> }): string {
+        const def = cos.equipped.sticker ? getCosmetic(cos.equipped.sticker) : undefined;
+        let inner: string;
+        if (def?.emoji) inner = `<span class="ph-sticker-emoji" aria-hidden="true">${def.emoji}</span>`;
+        else if (def?.asset) inner = `<img src="${import.meta.env.BASE_URL}${def.asset}" alt="" draggable="false" onerror="this.remove()">`;
+        else inner = `<span class="ph-sticker-add" aria-hidden="true">+</span>`;
+        return `<button class="ph-sticker${def ? ' is-set' : ''}" data-action="sticker-toggle"
+                        type="button" aria-label="${t('hub.profile.sticker')}">${inner}</button>`;
+    }
+
+    /**
+     * Wybor stickera — rozwijany pod hero. Pokazuje TYLKO posiadane; pusta lista
+     * mowi wprost, gdzie ich szukac, zamiast zostawiac gracza z pusta ramka.
+     * Ponowne tapniecie zalozonego zdejmuje go (equipCosmetic to toggle po typie).
+     */
+    private stickerPickerHtml(): string {
+        if (!this.stickerPickerOpen) return '';
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const cos = ProgressionService.getCosmeticState(pid);
+        const owned = cosmeticsByType('sticker').filter(d => cos.owned.includes(d.id));
+        if (!owned.length) {
+            return `<div class="ph-stickerpick"><p class="sp-empty">${t('hub.profile.stickerEmpty')}</p></div>`;
+        }
+        const tiles = owned.map(d => {
+            const art = d.emoji
+                ? `<span class="sp-emoji" aria-hidden="true">${d.emoji}</span>`
+                : `<img src="${import.meta.env.BASE_URL}${d.asset ?? ''}" alt="" draggable="false" onerror="this.remove()">`;
+            return `
+            <button class="sp-tile${cos.equipped.sticker === d.id ? ' is-equipped' : ''}"
+                    data-sticker="${d.id}" type="button" style="--g:${RARITY_COLOR[d.rarity]}"
+                    aria-label="${t(d.labelKey)}">${art}</button>`;
+        }).join('');
+        return `<div class="ph-stickerpick">${tiles}</div>`;
     }
 
     // ── RANGA CZOLGISTY: drabinka 10 rang NA ZYWO (RANKS-1) ─────────────────
@@ -320,7 +373,10 @@ export class ProfileSection implements HubSection {
         const pid = ProfileService.getActiveProfile()!.id;
         const stats = ProgressionService.getStatsState(pid);
         const trophies = ProgressionService.getTrophies(pid);
-        const bolts = ProgressionService.getBolts(pid);
+        // SHOP-1: SALDO, nie lifetime. Kafel podpisany jest po prostu „SIGMY", a obok
+        // w hero stoja pille z ta sama etykieta — dwie rozne liczby pod tym samym
+        // slowem to gotowe poczucie, ze gra sie myli. Jedno slowo = jedna liczba.
+        const bolts = ProgressionService.getBoltsBalance(pid);
         const milestones = TROPHY_MILESTONES.filter(m => trophies >= m.threshold).length;
         const sigmaImg = `<img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">`;
         // 9. kafel (iteracja 2: pelny grid 3x3 na desktopie): CELNOSC OGOLNA
@@ -413,6 +469,23 @@ export class ProfileSection implements HubSection {
             this.editMode = true;
             this.editView.reset();
             this.render(el);
+        });
+
+        // SHOP-1 — kulka stickera: rozwin/zwin wybor, a w nim zaloz/zdejmij.
+        el.querySelector('[data-action="sticker-toggle"]')?.addEventListener('click', () => {
+            playUiClick();
+            this.stickerPickerOpen = !this.stickerPickerOpen;
+            this.render(el);
+        });
+        el.querySelectorAll<HTMLElement>('[data-sticker]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.sticker;
+                if (!id) return;
+                playUiClick();
+                const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+                ProgressionService.equipCosmetic(pid, id); // toggle po typie
+                this.render(el);
+            });
         });
 
         el.querySelectorAll<HTMLElement>('[data-ptab]').forEach(btn => {

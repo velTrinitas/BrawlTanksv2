@@ -12,8 +12,17 @@
 
 import type { TranslationKey } from '../i18n/i18n';
 
-export type CosmeticType = 'nickColor' | 'frame' | 'title';
+export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice';
 export type Rarity = 'c' | 'r' | 'e' | 'l';
+
+/**
+ * SHOP-1: typy, ktore NIE wypadaja ze skrzynek — towar wylacznie sklepowy.
+ * Zasada podzialu: skrzynki daja kosmetyke profilowa, sklep sprzedaje kategorie,
+ * ktorych skrzynki nie daja. Zero kanibalizacji, zero rotacji dobowej.
+ * 'title' bylo tu juz wczesniej (kolizja z Rangami Zalog, v0.118.0) — ODWRACALNE.
+ */
+export const SHOP_ONLY_TYPES: ReadonlySet<CosmeticType> =
+    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice']);
 
 export interface CosmeticDef {
     readonly id: string;
@@ -30,6 +39,21 @@ export interface CosmeticDef {
     readonly border?: string;
     /** frame: box-shadow glow. */
     readonly glow?: string;
+    /** sticker: sciezka obrazka wzgledem BASE_URL (kulka na profilu + kafel sklepu). */
+    readonly asset?: string;
+    /**
+     * sticker: emoji zamiast pliku. Zero assetow, zero wagi bundla, dziala od razu
+     * w obu jezykach — dla naklejek to lepszy material niz PNG, bo caly zestaw da sie
+     * rozszerzyc jednym wierszem. Renderowane gdy brak `asset`.
+     */
+    readonly emoji?: string;
+    /** horn: nazwa pliku w public/sfx/ (ladowany LENIWIE, patrz AudioSys.registerOwnedSound). */
+    readonly sound?: string;
+    /**
+     * voice: pliki kwestii, `{lang}` podmieniane na aktywny jezyk ('pl' | 'en').
+     * Dwie kwestie na paczke: start meczu + spadek ponizej 50% HP.
+     */
+    readonly voice?: { readonly start: string; readonly lowHp: string };
 }
 
 /** Kolor rzadkosci (obwodki reveal / kropki w gridzie). */
@@ -84,6 +108,39 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'ti_builder',  type: 'title', rarity: 'r', labelKey: 'cosmetic.ti_builder' },
     { id: 'ti_bossbane', type: 'title', rarity: 'e', labelKey: 'cosmetic.ti_bossbane' },
     { id: 'ti_immortal', type: 'title', rarity: 'l', labelKey: 'cosmetic.ti_immortal' },
+
+    // ── SHOP-1 (v0.124.0): towar WYLACZNIE sklepowy (SHOP_ONLY_TYPES). ──────────
+    // ⚠️ ASSETY TYMCZASOWE — wskazuja na pliki, ktore juz sa w repo, zeby mechanika
+    //    byla testowalna przed dostarczeniem artu. Podmiana = jeden string na pozycje.
+    //    Docelowe wymiary i formaty: docs/shop-kit/SHOP_ASSETS.md
+    // stickery — kulka na portrecie profilu. Zestaw wg wyboru Mariusza (28.08):
+    // dwie grupy tematyczne, SILA/CIALO i MILITARIA. Emoji, nie pliki — zestaw
+    // rozszerza sie jednym wierszem i nie wazy nic w bundlu.
+    { id: 'st_biceps',  type: 'sticker', rarity: 'c', labelKey: 'cosmetic.st_biceps',  emoji: '💪' },
+    { id: 'st_fist',    type: 'sticker', rarity: 'c', labelKey: 'cosmetic.st_fist',    emoji: '✊' },
+    { id: 'st_punch',   type: 'sticker', rarity: 'r', labelKey: 'cosmetic.st_punch',   emoji: '👊' },
+    { id: 'st_glove',   type: 'sticker', rarity: 'r', labelKey: 'cosmetic.st_glove',   emoji: '🥊' },
+    { id: 'st_arm',     type: 'sticker', rarity: 'e', labelKey: 'cosmetic.st_arm',     emoji: '🦾' },
+    { id: 'st_leg',     type: 'sticker', rarity: 'e', labelKey: 'cosmetic.st_leg',     emoji: '🦿' },
+    { id: 'st_helmet',  type: 'sticker', rarity: 'c', labelKey: 'cosmetic.st_helmet',  emoji: '🪖' },
+    { id: 'st_shield',  type: 'sticker', rarity: 'r', labelKey: 'cosmetic.st_shield',  emoji: '🛡️' },
+    { id: 'st_swords',  type: 'sticker', rarity: 'r', labelKey: 'cosmetic.st_swords',  emoji: '⚔️' },
+    { id: 'st_target',  type: 'sticker', rarity: 'e', labelKey: 'cosmetic.st_target',  emoji: '🎯' },
+    { id: 'st_medal',   type: 'sticker', rarity: 'l', labelKey: 'cosmetic.st_medal',   emoji: '🎖️' },
+    { id: 'st_bolt',    type: 'sticker', rarity: 'l', labelKey: 'cosmetic.st_bolt',    emoji: '🔩' },
+    // klaksony — klawisz H (desktop; kafle ukryte na dotyku, patrz shop.ts desktopOnly).
+    // Pliki Mariusza z public/sfx/honks/. Ladowane LENIWIE (AudioSys.ownedSounds), wiec
+    // gracz sciaga tylko to, co kupil — te szesc nie jest w SOUND_LIST.
+    { id: 'hn_1', type: 'horn', rarity: 'c', labelKey: 'cosmetic.hn_1', sound: 'honks/honk1.mp3', emoji: '📣' },
+    { id: 'hn_2', type: 'horn', rarity: 'c', labelKey: 'cosmetic.hn_2', sound: 'honks/honk2.mp3', emoji: '📣' },
+    { id: 'hn_3', type: 'horn', rarity: 'r', labelKey: 'cosmetic.hn_3', sound: 'honks/honk3.mp3', emoji: '📢' },
+    { id: 'hn_4', type: 'horn', rarity: 'r', labelKey: 'cosmetic.hn_4', sound: 'honks/honk4.mp3', emoji: '📢' },
+    { id: 'hn_5', type: 'horn', rarity: 'e', labelKey: 'cosmetic.hn_5', sound: 'honks/honk5.mp3', emoji: '🔊' },
+    { id: 'hn_6', type: 'horn', rarity: 'l', labelKey: 'cosmetic.hn_6', sound: 'honks/honk6.mp3', emoji: '🎺' },
+    // paczka glosowa — jedna, PL+EN (decyzja Mariusza: caly system na jednej paczce).
+    // Docelowo 'voice/cmdr_{lang}_start.ogg' — AudioSys podmienia {lang} na aktywny jezyk.
+    { id: 'vo_commander', type: 'voice', rarity: 'e', labelKey: 'cosmetic.vo_commander',
+      voice: { start: 'rank_fanfare.wav', lowHp: 'yeti.mp3' } },
 ];
 
 const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));
@@ -99,12 +156,29 @@ export function cosmeticsByType(type: CosmeticType): CosmeticDef[] {
  * PROFILE-1 (v0.118.0): TYTULY WYCIETE z puli losowania (kolidowaly z planowanymi
  * Rangami Zalog — docs/crew-ranks-v1.md). Defy ti_* ZOSTAJA w rejestrze (mergeCosmetics
  * waliduje id po rejestrze — juz posiadane tytuly przezywaja sync bez szkody).
- * ODWRACALNE: usun filtr type !== 'title', tytuly wracaja do dropu.
+ * SHOP-1 (v0.124.0): filtr uogolniony na SHOP_ONLY_TYPES — stickery/klaksony/glosy
+ * kupuje sie w sklepie i NIE moga wypasc ze skrzynki (inaczej sklep kanibalizuje sam
+ * siebie i gracz placi za cos, co i tak dostanie za darmo).
+ * ODWRACALNE: usun typ z SHOP_ONLY_TYPES, wraca do dropu.
  * Pule po filtrze: c=7 / r=6 / e=5 / l=4 — zadna pusta; wyczerpana pula i tak
  * konwertuje na srubki (CRATE_DUP_BOLTS), pity 10/30 dziala bez zmian.
  */
 export function cosmeticIdsOfRarity(rarity: Rarity): string[] {
-    return COSMETICS.filter(c => c.rarity === rarity && c.type !== 'title').map(c => c.id);
+    return COSMETICS.filter(c => c.rarity === rarity && !SHOP_ONLY_TYPES.has(c.type)).map(c => c.id);
+}
+
+/**
+ * SHOP-1: plik kwestii glosowej dla aktywnego jezyka. `{lang}` w definicji jest
+ * podmieniane na 'pl'/'en', wiec docelowa paczka to cztery pliki i ZERO kodu.
+ * Placeholdery bez `{lang}` przechodza bez zmian (ten sam plik w obu jezykach).
+ */
+export function voiceFile(
+    def: CosmeticDef | undefined,
+    line: 'start' | 'lowHp',
+    lang: string,
+): string | undefined {
+    if (!def || def.type !== 'voice' || !def.voice) return undefined;
+    return def.voice[line].replace('{lang}', lang === 'pl' ? 'pl' : 'en');
 }
 
 /** Inline-style dla nicku wg equipped nickColor (helper dla readout + preview). */

@@ -13,6 +13,8 @@ import { rankBadgeHtml } from '../rankBadge';
 import { cosmeticGroupsHtml, wireCosmeticGrid } from '../cosmeticGrid';
 import { ProfileEditView } from './ProfileEditView';
 import { playUiClick } from '../../uiSounds';
+import { getCurrentSeason } from '../../../config/season';          // SEASON KIT — zakladka SEZON
+import { getSeasonContent } from '../../../config/seasonContent';
 
 /**
  * ProfileSection — PROFILE-1 (v0.118.0). Strona PROFILU GRACZA, otwierana tapnieciem
@@ -28,7 +30,7 @@ import { playUiClick } from '../../uiSounds';
  * Caly DOM poza petla gry — zero kosztu frame-pacing.
  */
 
-type ProfileTab = 'overview' | 'records' | 'collection';
+type ProfileTab = 'overview' | 'records' | 'collection' | 'season';
 
 /** Kosmetyki aktywne w kolekcji — tytuly WYCIETE z UI (PROFILE-1; dane zostaja). */
 const ACTIVE_COSMETIC_COUNT = COSMETICS.filter(c => c.type !== 'title').length;
@@ -204,6 +206,85 @@ export class ProfileSection implements HubSection {
                 ${tab('overview', t('hub.profile.tab.overview'))}
                 ${tab('records', t('hub.profile.tab.records'))}
                 ${tab('collection', t('hub.profile.tab.collection'))}
+                ${getSeasonContent(getCurrentSeason().id) ? tab('season', t('hub.profile.tab.season')) : ''}
+            </div>`;
+    }
+
+    /**
+     * SEASON KIT — pelny widok sezonu (popup pokazuje wersje skrocona).
+     * Trzy bloki: kolekcja 6 przedmiotow z licznikami, tor ILOSCI (progi punktowe)
+     * i tor ROZNORODNOSCI (bramki zbiorow). Wszystko czytane z manifestu, wiec
+     * nowy sezon nie wymaga tu zadnej zmiany.
+     */
+    private seasonHtml(): string {
+        const season = getCurrentSeason();
+        const content = getSeasonContent(season.id);
+        const profile = ProfileService.getActiveProfile();
+        if (!content || !profile) return '';
+
+        const owned = ProgressionService.getSeasonItemsOwned(profile.id);
+        const points = ProgressionService.getSeasonCollected(profile.id);
+        const claimed = new Set(ProgressionService.getSeasonRewardsClaimed(profile.id));
+        const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+
+        // ── Kolekcja: 6 kafli z licznikiem. Niezdobyte to "?" — luka ciekawosci.
+        const tiles = content.items.map(it => {
+            const n = owned[it.value] ?? 0;
+            const glow = '#' + it.glow.toString(16).padStart(6, '0');
+            return n > 0
+                ? `<div class="ps-item is-owned" style="--g:${glow}">
+                       <img src="${base}${it.asset}" alt="" draggable="false">
+                       <span class="ps-item-name">${t(it.nameKey)}</span>
+                       <span class="ps-item-n">×${n}</span>
+                   </div>`
+                : `<div class="ps-item">
+                       <span class="ps-item-q">?</span>
+                       <span class="ps-item-name">???</span>
+                       <span class="ps-item-n">${it.value} pkt</span>
+                   </div>`;
+        }).join('');
+
+        // ── Tor ILOSCI: progi punktowe -> skrzynki
+        const ptRows = content.pointThresholds.map(th => {
+            const done = claimed.has(`pts:${th.points}`) || points >= th.points;
+            return `<div class="ps-th${done ? ' is-done' : ''}">
+                        <span>${done ? '✓' : '○'} ${th.points} pkt</span>
+                        <span class="ps-th-rew">📦${th.crates > 1 ? `×${th.crates}` : ''}</span>
+                    </div>`;
+        }).join('');
+
+        // ── Tor ROZNORODNOSCI: bramki zbiorow (kolejnosc zdobycia bez znaczenia)
+        const gate = (key: string, values: readonly number[], label: string, reward: string) => {
+            const have = values.filter(v => (owned[v] ?? 0) > 0).length;
+            const done = claimed.has(`set:${key}`) || have === values.length;
+            return `<div class="ps-th${done ? ' is-done' : ''}">
+                        <span>${done ? '✓' : '○'} ${label} <b>${have}/${values.length}</b></span>
+                        <span class="ps-th-rew">${reward}</span>
+                    </div>`;
+        };
+
+        return `
+            <div class="ps-season">
+                <div class="bt-hub0-subhead">${season.emoji} ${t(season.nameKey)}</div>
+                <div class="ps-season-sum">
+                    <span>${t(content.counterKey)}</span>
+                    <b>${points}</b>
+                </div>
+
+                <div class="bt-hub0-subhead">🎒 ${t('hub.profile.season.collection')}</div>
+                <div class="ps-items">${tiles}</div>
+
+                <div class="bt-hub0-subhead">📦 ${t('hub.profile.season.pointTrack')}</div>
+                <div class="ps-ths">${ptRows}</div>
+
+                <div class="bt-hub0-subhead">🏅 ${t('hub.profile.season.setTrack')}</div>
+                <div class="ps-ths">
+                    ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), '📦')}
+                    ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), '🏅')}
+                    ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), '👑')}
+                </div>
+
+                <p class="ps-season-note">${t('hub.profile.season.museumSoon')}</p>
             </div>`;
     }
 
@@ -212,6 +293,7 @@ export class ProfileSection implements HubSection {
             case 'overview': return this.overviewHtml();
             case 'records': return this.recordsHtml();
             case 'collection': return this.collectionHtml();
+            case 'season': return this.seasonHtml();
         }
     }
 

@@ -106,27 +106,90 @@ export const SEASON_MILESTONES: readonly SeasonMilestone[] = [
     { threshold: 1500, bolts: 600, crates: 1 },
 ];
 
+// ══════════════════════════════════════════════════════════════════════════
+// PODGLAD SEZONU (dev) — ?season=<id> [&seasonday=N]
+// ══════════════════════════════════════════════════════════════════════════
+/**
+ * Sezon wybiera sie po dacie, wiec sezonu, ktory jeszcze nie wystartowal, NIE DA
+ * SIE zobaczyc — a to znaczy, ze nie da sie go tez odebrac przed premiera. Flaga
+ * przesuwa ZEGAR (nie podmienia wyboru), dzieki czemu wszystkie cztery funkcje
+ * ponizej — lacznie z odliczaniem dni — sa spojne same z soba.
+ *
+ *   ?season=s3              -> pierwszy dzien sezonu s3
+ *   ?season=s3&seasonday=40 -> 40. dzien sezonu s3 (test "koniec sie zbliza")
+ *   ?seasonday=40           -> 40. dzien BIEZACEGO sezonu
+ *
+ * Wzorzec flag URL jak ?hub= / ?zoom= / ?superv2 w main.ts.
+ *
+ * UWAGA — podglad jest ODCIETY OD CHMURY. `isSeasonOverridden()` wylacza syncPush
+ * w ProgressionService: bez tego rozegranie meczu w podgladzie zapisaloby do
+ * Supabase `seasonId` sezonu, ktory jeszcze nie wystartowal, i przy prawdziwej
+ * premierze ten wiersz zmergowalby sie jako "postep juz zdobyty". Dokladnie ta
+ * klasa szkody, ktora naprawialismy 26.08.2026.
+ */
+let _devNowCache: number | null | undefined;
+
+function devNowOverride(): number | null {
+    if (_devNowCache !== undefined) return _devNowCache;
+    _devNowCache = null;
+    try {
+        if (typeof window === 'undefined') return _devNowCache;
+        const q = new URLSearchParams(window.location.search);
+        const wantId = q.get('season');
+        const dayRaw = q.get('seasonday');
+        if (!wantId && dayRaw === null) return _devNowCache;
+
+        const day = Math.max(0, Math.floor(Number(dayRaw ?? 0)) || 0);
+        const base = wantId
+            ? SEASONS.find(s => s.id === wantId)
+            : SEASONS.find(s => Date.now() <= Date.parse(s.end)) ?? SEASONS[SEASONS.length - 1];
+        if (!base) {
+            console.warn(`[season] ?season=${wantId} — nie ma takiego sezonu. Znane: ${SEASONS.map(s => s.id).join(', ')}`);
+            return _devNowCache;
+        }
+        // +12 h, zeby wyladowac w srodku doby, a nie na granicy start/end
+        _devNowCache = Date.parse(base.start) + day * 86_400_000 + 43_200_000;
+        console.warn(
+            `[season] PODGLAD: udaje ${base.id}, dzien ${day} (${new Date(_devNowCache).toISOString().slice(0, 10)}). ` +
+            'Sync progresji do chmury WYLACZONY.',
+        );
+    } catch {
+        _devNowCache = null;   // sandbox bez URLSearchParams — zachowuj sie normalnie
+    }
+    return _devNowCache;
+}
+
+/** True gdy dziala podglad sezonu — ProgressionService blokuje wtedy syncPush. */
+export function isSeasonOverridden(): boolean {
+    return devNowOverride() !== null;
+}
+
+/** Zegar dla logiki sezonowej: przesuniety w podgladzie, normalny w produkcji. */
+function seasonNow(): number {
+    return devNowOverride() ?? Date.now();
+}
+
 /**
  * Biezacy sezon wg daty: pierwszy z konca >= teraz (sezony stykaja sie datami).
  * Po ostatnim wpisie roadmapy => ostatni sezon w stanie "zakonczony"
  * (isSeasonActive=false) — przypomnienie o przedluzeniu roadmapy.
  */
-export function getCurrentSeason(now: number = Date.now()): SeasonConfig {
+export function getCurrentSeason(now: number = seasonNow()): SeasonConfig {
     return SEASONS.find(s => now <= Date.parse(s.end)) ?? SEASONS[SEASONS.length - 1];
 }
 
-export function isSeasonActive(now: number = Date.now()): boolean {
+export function isSeasonActive(now: number = seasonNow()): boolean {
     const s = getCurrentSeason(now);
     return now >= Date.parse(s.start) && now <= Date.parse(s.end);
 }
 
 /** Pelne dni do konca biezacego sezonu (ceil; 0 gdy skonczony). */
-export function seasonDaysLeft(now: number = Date.now()): number {
+export function seasonDaysLeft(now: number = seasonNow()): number {
     const ms = Date.parse(getCurrentSeason(now).end) - now;
     return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
 /** Numer do pillu na belce ('S2'/'S3'...) — z id, bez i18n. */
-export function seasonShortLabel(now: number = Date.now()): string {
+export function seasonShortLabel(now: number = seasonNow()): string {
     return getCurrentSeason(now).id.toUpperCase();
 }

@@ -35,8 +35,9 @@ import {
     type PowerId, type LoadoutTriple,
 } from '../config/powers'; // PROG-F7a — loadout Super Mocy (v0.114.0: 3 sloty)
 import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedna sciezka upsertu)
+import { getSeasonContent } from '../config/seasonContent';
 import {
-    getCurrentSeason, SEASON_MILESTONES, isSeasonActive, seasonDaysLeft,
+    getCurrentSeason, SEASON_MILESTONES, isSeasonActive, seasonDaysLeft, isSeasonOverridden,
     type SeasonMilestone,
 } from '../config/season'; // SEASON-1/2 — trofea sezonowe + Season Track (auto-rollover)
 import {
@@ -115,7 +116,23 @@ interface ProgressionState {
      * TYLKO przy zgodnym id sezonu (trophies MAX, claimed UNION); stare sezony
      * z chmury ignorowane. `claimed` = progi z wyplacona nagroda (idempotencja).
      */
-    season: { id: string; trophies: number; claimed: number[] };
+    season: {
+        id: string;
+        trophies: number;
+        claimed: number[];
+        /** SEASON KIT: suma `value` sezonowych znajdziek. Merge z chmury: MAX. */
+        collected?: number;
+        /**
+         * SEASON KIT: ile sztuk kazdego przedmiotu, klucz = `value` (1..6).
+         * Potrzebne do toru ROZNORODNOSCI (bramki zbiorow) i do siatki w UI.
+         * Merge z chmury: MAX per klucz.
+         */
+        items?: Record<number, number>;
+        /** Wyplacone nagrody sezonowe (idempotencja, wzorzec `claimed` Szlaku). */
+        rewardsClaimed?: string[];
+        /** Dzien (YYYY-MM-DD), w ktorym zebrano legendarna znajdzke — bramka 1/dobe. */
+        legendaryDay?: string;
+    };
 
     // ── RANKS-1: RANGA CZOLGISTY (per gracz) ──
     /** Zwyciestwa gracza (dowolny czolg, mecz >= RANK_MIN_SECONDS). Merge: MAX. */
@@ -136,6 +153,10 @@ export interface RunStatsInput {
     shotsFired: number;
     shotsHit: number;
     maxCombo: number;
+    /** SEASON KIT: suma `value` znajdziek z TEGO meczu (opcjonalne — sezon moze ich nie miec). */
+    seasonPickups?: number;
+    /** SEASON KIT: ile sztuk kazdego przedmiotu w tym meczu, klucz = `value` 1..6. */
+    seasonItems?: Record<number, number>;
 }
 
 const ZERO_LIFETIME = { kills: 0, gems: 0, seconds: 0, shotsFired: 0, shotsHit: 0 } as const;
@@ -247,7 +268,22 @@ class ProgressionServiceImpl {
         this.ensureSeason(st);
         if (isSeasonActive()) {
             st.season.trophies += breakdown.total;
+            // SEASON KIT: znajdzki doliczane RAZ, na koncu meczu — tak samo jak
+            // trofea. Przerwany mecz nie zapisuje polowy zbiorki.
+            const picked = Math.max(0, Math.floor(opts.stats?.seasonPickups ?? 0));
+            if (picked > 0) st.season.collected = (st.season.collected ?? 0) + picked;
+            // liczniki per przedmiot (tor ROZNORODNOSCI)
+            const perItem = opts.stats?.seasonItems;
+            if (perItem) {
+                st.season.items ??= {};
+                for (const [k, n] of Object.entries(perItem)) {
+                    const v = Number(k);
+                    if (!Number.isFinite(v) || n <= 0) continue;
+                    st.season.items[v] = (st.season.items[v] ?? 0) + n;
+                }
+            }
             this.creditSeasonMilestones(st);
+            this.creditSeasonRewards(st);
         }
         // RANKS-1: zwyciestwo (dowolny czolg/scenariusz) => wins++ + auto-nagrody rang.
         // Guard anty-farm: mecz >= RANK_MIN_SECONDS (sub-60s liczy sie do score, nie rangi).
@@ -305,8 +341,99 @@ class ProgressionServiceImpl {
     private ensureSeason(st: ProgressionState): void {
         const cur = getCurrentSeason();
         if (st.season.id !== cur.id) {
-            st.season = { id: cur.id, trophies: 0, claimed: [] };
+            // Podmiana W CALOSCI: licznik znajdziek i dzienna bramka MAJA zginac
+            // razem z sezonem. Stan TRWALY (gablota swiadectw, Akt 2) nie moze tu
+            // mieszkac — pilnuje tego bramka G7 straznika.
+            st.season = { id: cur.id, trophies: 0, claimed: [], collected: 0, items: {}, rewardsClaimed: [] };
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // SEASON KIT — licznik znajdziek + dzienna bramka legendarnej
+    // ══════════════════════════════════════════════════════════════════
+
+    /** Suma zebranych znajdziek w BIEZACYM sezonie (0 gdy sezon ich nie ma). */
+    getSeasonCollected(profileId: string): number {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        return st.season.collected ?? 0;
+    }
+
+    /** Liczniki per przedmiot, klucz = `value` 1..6 (do siatki i bramek zbiorow). */
+    getSeasonItemsOwned(profileId: string): Record<number, number> {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        return st.season.items ?? {};
+    }
+
+    /** Ktore nagrody sezonowe juz wyplacono (do UI progow). */
+    getSeasonRewardsClaimed(profileId: string): string[] {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        return st.season.rewardsClaimed ?? [];
+    }
+
+    /**
+     * Wyplata nagrod sezonowych — DWA TORY z tego samego zbioru znajdziek.
+     * Idempotentna przez liste `rewardsClaimed` (wzorzec `creditSeasonMilestones`),
+     * wiec ponowne wywolanie nie dubluje nagrod, a merge z chmury ich nie cofa.
+     *
+     * Tor ILOSCI: progi punktowe -> skrzynki.
+     * Tor ROZNORODNOSCI: bramki SET-based po `value` — kolejnosc zdobycia bez
+     * znaczenia, liczy sie komplet zbioru. Gracz moze trafic "szostke" pierwsza.
+     */
+    private creditSeasonRewards(st: ProgressionState): void {
+        const content = getSeasonContent(st.season.id);
+        if (!content) return;
+        const claimed = new Set(st.season.rewardsClaimed ?? []);
+        const owned = st.season.items ?? {};
+        const points = st.season.collected ?? 0;
+        const has = (v: number) => (owned[v] ?? 0) > 0;
+
+        for (const th of content.pointThresholds) {
+            const key = `pts:${th.points}`;
+            if (points >= th.points && !claimed.has(key)) {
+                st.cratesEarned += th.crates;
+                claimed.add(key);
+            }
+        }
+        for (const [gate, values] of Object.entries(content.varietyGates)) {
+            const key = `set:${gate}`;
+            if (claimed.has(key)) continue;
+            if (!(values as readonly number[]).every(has)) continue;
+            claimed.add(key);
+            // Skrzynka za pierwszy zbior; wyzsze bramki to kosmetyki, ktore
+            // przyznaje warstwa UI po odczytaniu `rewardsClaimed` (nie ma tu
+            // jeszcze inwentarza kosmetyk sezonowych — patrz SEASON_ENGINE §6).
+            if (gate === 'crate') st.cratesEarned += 1;
+        }
+        st.season.rewardsClaimed = [...claimed];
+    }
+
+    /**
+     * Czy legendarna znajdzka moze sie dzis pojawic. Bramka po stronie klienta —
+     * ten sam wzorzec, co rozkazy dzienne (`localDayKey`), wiec spojna z tym, jak
+     * gra juz dzis rozdaje nagrody dobowe. Swiadomie do obejscia przez czyszczenie
+     * localStorage; uszczelnienie tego to osobna decyzja o WSZYSTKICH nagrodach
+     * dziennych, a nie o tym jednym przedmiocie.
+     */
+    canSpawnSeasonLegendary(profileId: string): boolean {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        return st.season.legendaryDay !== localDayKey();
+    }
+
+    /** Oznacz legendarna jako zebrana dzisiaj (blokuje spawn do polnocy). */
+    markSeasonLegendaryTaken(profileId: string): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        st.season.legendaryDay = localDayKey();
+        this.save();
     }
 
     /**
@@ -535,6 +662,14 @@ class ProgressionServiceImpl {
     syncPush(profileId: string): void {
         const st = this.states[profileId];
         if (!st) return;
+        // PODGLAD SEZONU (?season=) — zero zapisu do chmury. Bez tego rozegranie
+        // meczu w podgladzie wyslaloby `seasonId` sezonu, ktory jeszcze nie
+        // wystartowal, a przy premierze ten wiersz zmergowalby sie jako "postep
+        // juz zdobyty" (warunek w syncPull ponizej porownuje seasonId).
+        if (isSeasonOverridden()) {
+            console.warn('[Progression] syncPush pominiety — aktywny podglad sezonu (?season=)');
+            return;
+        }
         void supabaseProgressionService
             .upsert({
                 profile_id: profileId,
@@ -571,6 +706,9 @@ class ProgressionServiceImpl {
                     seasonId: st.season.id,                 // SEASON-1 — postep sezonu
                     seasonTrophies: st.season.trophies,
                     seasonClaimed: st.season.claimed,
+                    seasonCollected: st.season.collected ?? 0,   // SEASON KIT — znajdzki
+                    seasonItems: st.season.items ?? {},
+                    seasonRewards: st.season.rewardsClaimed ?? [],
                     wins: st.wins,                          // RANKS-1 — ranga czolgisty
                     rankClaimed: st.rankClaimed,
                     rankShown: st.rankShown,
@@ -834,6 +972,20 @@ class ProgressionServiceImpl {
         this.ensureSeason(st);
         if (remote.seasonId === getCurrentSeason().id) {
             st.season.trophies = mx(st.season.trophies, remote.seasonTrophies);
+            // SEASON KIT: MAX, tak jak trofea — licznik jest monotoniczny w obrebie
+            // sezonu, wiec MAX jest bezpieczny przy dwoch urzadzeniach.
+            st.season.collected = mx(st.season.collected ?? 0, remote.seasonCollected);
+            // liczniki per przedmiot: MAX per klucz (monotoniczne, jak reszta sezonu)
+            if (remote.seasonItems) {
+                st.season.items ??= {};
+                for (const [k, n] of Object.entries(remote.seasonItems)) {
+                    const v = Number(k);
+                    if (Number.isFinite(v)) st.season.items[v] = mx(st.season.items[v] ?? 0, Number(n));
+                }
+            }
+            if (Array.isArray(remote.seasonRewards)) {
+                st.season.rewardsClaimed = [...new Set([...(st.season.rewardsClaimed ?? []), ...remote.seasonRewards.map(String)])];
+            }
             if (Array.isArray(remote.seasonClaimed)) {
                 const union = new Set<number>([
                     ...st.season.claimed,

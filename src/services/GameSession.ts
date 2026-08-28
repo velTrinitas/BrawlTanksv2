@@ -295,6 +295,24 @@ export class GameSession {
     public cubesTotal: number = 0;
 
     /**
+     * SEASON KIT — sezonowe znajdzki zebrane W TYM MECZU (suma `value`, nie sztuk:
+     * podrecznik liczy sie za 3, encyklopedia za 10).
+     *
+     * Licznik PER-RUN, celowo tutaj a nie w progresji: GameSession jest stanem
+     * jednego meczu (warstwa 2 modelu), a main.ts przekazuje wynik do progresji
+     * dopiero na koncu runu — tak samo jak kills/gemy. Dzieki temu przerwany mecz
+     * nie zapisuje polowy zbiorki, a ekran konca meczu ma z czego pokazac "+7".
+     */
+    public seasonPickupsCollected: number = 0;
+
+    /**
+     * SEASON KIT — ile sztuk KAZDEGO przedmiotu zebrano w tym meczu, klucz = `value`
+     * (1..6), NIE indeks tablicy. Potrzebne do toru ROZNORODNOSCI: bramki nagrod
+     * pytaja „czy zdobyto komplet zbioru {1,2,3}", a nie „ile lacznie punktow".
+     */
+    public seasonItemsPicked: Record<number, number> = {};
+
+    /**
      * Skumulowany damage bonus (0.0 do 0.50). Wartosc 0.0 = no bonus,
      * 0.05 = +5%, 0.50 = +50% (10 dmg cubes wszystkie zebrane).
      *

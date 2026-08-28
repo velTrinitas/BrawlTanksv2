@@ -168,6 +168,17 @@ export const en: typeof pl = {
     'season.s3.b1': 'Fresh Season Track: sigma and crates to earn',
     'season.s3.b2': 'School vibes: chalk, backpacks and trophy homework',
     'season.s3.b3': 'More surprises coming soon!',
+    // SEASON KIT: name of the season collectible counter (HUD, end-of-run screen).
+    'season.s3.counter': 'books',
+    // SEASON KIT — names of the 6 season-3 collectibles.
+    'season.s3.item1': 'Pencil',
+    'season.s3.item2': 'Book',
+    'season.s3.item3': 'Notebook',
+    'season.s3.item4': 'Set square',
+    'season.s3.item5': 'Backpack',
+    'season.s3.item6': 'Globe',
+    // SEASON KIT — "all thresholds reached" state in the popup bar.
+    'season.allRewards': 'all rewards earned!',
     'season.s4.name': 'Season 4 — Snow Ops',
     'season.s4.b1': 'Fresh Season Track: sigma and crates to earn',
     'season.s4.b2': 'Winter vibes: snow, gifts and Santa on tracks',
@@ -211,6 +222,15 @@ export const en: typeof pl = {
     'hub.profile.tab.overview': 'Overview',
     'hub.profile.tab.records': 'Records',
     'hub.profile.tab.collection': 'Collection',
+    'hub.profile.tab.season': 'Season',
+    // SEASON KIT — SEASON tab in the profile.
+    'hub.profile.season.collection': 'Season collection',
+    'hub.profile.season.pointTrack': 'For points',
+    'hub.profile.season.setTrack': 'For sets',
+    'hub.profile.season.gateCrate': 'Three commons',
+    'hub.profile.season.gateTitle': 'Five items',
+    'hub.profile.season.gateFull': 'Full collection',
+    'hub.profile.season.museumSoon': 'Finished seasons will be kept here in the collection museum.',
     'hub.profile.rank': 'Leaderboard rank',
     'hub.profile.kills': 'Enemies defeated',
     'hub.profile.gems': 'Gems collected',
@@ -442,6 +462,8 @@ export const en: typeof pl = {
     'hud.questProgress': '📋 {name} — {cur}/{max}',
     'end.questsDone': 'Orders: {n}',
     'end.funMode': 'Crazy Powers',
+    // SEASON KIT — collectibles chip on the end-of-run screen.
+    'end.seasonPickups': 'textbooks',
 
     // ============================================================
     // Scenario Picker
@@ -703,6 +725,13 @@ export const en: typeof pl = {
     'hud.caravanHeart':   '🐪 Caravan dropped ❤️',
     'hud.caravanMagnet':  '🐪 Caravan dropped 🧲',
     'hud.roverGem':       '🛰️ Rover dropped 💎',
+    // SEASON KIT — HUD counter chip label.
+    'hud.books': 'Books',
+    // SEASON KIT — legendary collectible (1 per day).
+    'hud.seasonLegendary': '📙 GOLDEN ENCYCLOPEDIA!',
+    // SEASON KIT — first time this collectible type is picked up.
+    'hud.seasonNewItem': 'NEW IN COLLECTION: {name}!',
+    'hud.seasonNewShort': 'NEW!',
     'hud.roverHeart':     '🛰️ Rover dropped ❤️',
     'hud.roverMagnet':    '🛰️ Rover dropped 🧲',
     // ARC-R2 — penguins (Ice Arena)

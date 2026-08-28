@@ -86,6 +86,16 @@ export class HUD {
     /** Czy rysowac dolny SuperPowerBar (centered 3-icon bar). False na mobile (SuperButton zastepuje). */
     public showPowerBar: boolean = true;
 
+    /**
+     * SEASON KIT — licznik znajdziek sezonowych w TYM meczu, albo null gdy sezon
+     * ich nie ma (Arena, roadmapa 2027). `null` znaczy "nie rysuj i nie rezerwuj
+     * miejsca": chip zajmuje wiersz w prawej kolumnie, wiec gdyby zostawal przy
+     * pustym sezonie, magnes i turbo byly by zepchniete bez powodu.
+     */
+    public seasonCount: number | null = null;
+    /** Emoji znajdzki (📕) — z konfiguracji sezonu, nie zahardkodowane w HUD. */
+    public seasonIcon: string = '';
+
     /** FAZA CTF F3 — dane CTF (null poza scenariuszem ctf). Ustawiane per klatke z main.ts. */
     public ctfInfo: HudCtfInfo | null = null;
 
@@ -612,13 +622,51 @@ export class HUD {
         }
     }
     
+    /**
+     * O ile zsunac w dol prawa kolumne (magnes, turbo), gdy chip sezonu zajmuje
+     * wiersz pod KILLS. Jedno zrodlo prawdy — bez tego chip nachodzilby na magnes
+     * (KILLS konczy sie na y=62, magnes startowal na y=80, chip zajmuje 68..102).
+     */
+    private seasonRowShift(): number {
+        return this.seasonCount !== null ? 42 : 0;
+    }
+
+    /** SEASON KIT — chip "📕 N". Ten sam jezyk wizualny co pill KILLS, mniejszy. */
+    private drawSeasonPill(px: number, py: number, PW: number, PH: number, r: number): void {
+        const c = this.ctx;
+        c.fillStyle = 'rgba(8,8,18,0.75)';
+        c.beginPath();
+        c.roundRect(px, py, PW, PH, r);
+        c.fill();
+
+        const cy = py + PH / 2;
+        // Uklad jak w pillu KILLS: PODPIS po lewej, wartosc po prawej — ta sama os,
+        // wiec oba pille czytaja sie jako jeden rzad, a nie dwa rozne widgety.
+        c.font = `${HUD_LABEL_PX}px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
+        c.strokeStyle = 'rgba(0,0,0,0.9)';
+        c.lineWidth = 4;
+        const label = tr('hud.books');
+        c.strokeText(label, px + 12, cy);
+        c.fillStyle = '#ffffff';
+        c.fillText(label, px + 12, cy);
+
+        const val = `${this.seasonIcon} ${this.seasonCount ?? 0}`;
+        c.font = `22px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'right';
+        c.strokeText(val, px + PW - 12, cy + 1);
+        c.fillStyle = '#f1c40f';
+        c.fillText(val, px + PW - 12, cy + 1);
+    }
+
     private drawMagnetStatus(powerSystem: PowerSystem): void {
         if (!powerSystem.magnetActive) return;
         const c = this.ctx;
         const remaining = Math.max(0, (powerSystem.magnetEndTime - Date.now()) / 1000);
         
         const px = this.screenW - 14 - 200;
-        const py = 80;
+        const py = 80 + this.seasonRowShift();   // SEASON KIT: ustap miejsca chipowi
         
         const pulse = 0.85 + Math.sin(Date.now() / 100) * 0.15;
         c.save();
@@ -645,7 +693,7 @@ export class HUD {
         const remaining = Math.max(0, (player.speedBoostEnd - Date.now()) / 1000);
         
         const px = this.screenW - 14 - 200;
-        const py = 118;
+        const py = 118 + this.seasonRowShift();  // SEASON KIT: ustap miejsca chipowi
         
         const pulse = 0.85 + Math.sin(Date.now() / 80) * 0.15;
         c.save();
@@ -1107,6 +1155,15 @@ export class HUD {
 
         const kx = (this.screenW / this.uiScale) - 14 - 230;
         this.drawKillsPill(spawnSystem, kx, 8, 230, 54, 16);
+
+        // SEASON KIT — chip licznika pod KILLS, w tej samej (prawej) kolumnie.
+        // Nie tworzy nowej kolumny ani nie rozpycha gornego rzedu; zsuwa natomiast
+        // magnes i turbo o swoja wysokosc (patrz seasonRowShift()).
+        if (this.seasonCount !== null) {
+            // 200 px zamiast 150 — chip niesie teraz PODPIS ("Książki"/"Books")
+            // obok wartosci, wiec potrzebuje tyle szerokosci co pill KILLS minus zapas.
+            this.drawSeasonPill(kx + 230 - 200, 68, 200, 34, 12);
+        }
 
         // === SUPER pill (scalony gem-charge + super charges) — lewa kolumna, drugi rzad ===
         this.drawSuperPill(player, spawnSystem, 14, 70, 172, 54, 14);

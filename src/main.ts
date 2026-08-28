@@ -143,6 +143,9 @@ import { Heart } from './entities/pickups/Heart';
 import { Gem } from './entities/pickups/Gem';
 import { Magnet } from './entities/pickups/Magnet';
 import { PowerCube } from './entities/pickups/PowerCube'; // v0.44.0 FAZA 8.6
+import { SeasonPickup } from './entities/pickups/SeasonPickup'; // SEASON KIT — znajdzki sezonowe
+import { getSeasonContent, getItemByValue, rollSeasonItem, type SeasonContentDef } from './config/seasonContent';
+import { getCurrentSeason } from './config/season';
 import { HoverRepairPad } from './maps/HoverRepairPad';
 import { PowerHoverPad } from './maps/PowerHoverPad';
 import { HUD, type HudCtfInfo } from './rendering/HUD';
@@ -297,6 +300,13 @@ let enemyBullets: EnemyBullet[] = [];
 let hearts: Heart[] = [];
 let gems: Gem[] = [];
 let magnets: Magnet[] = [];
+// SEASON KIT — znajdzki sezonowe. JEDEN zegar spawnu na cala pule; ktory przedmiot
+// padnie, decyduje losowanie wazone z manifestu (+ pity na wartosc 6).
+let seasonPickups: SeasonPickup[] = [];
+let seasonPickupPool: SeasonPickup[] = [];
+let seasonNextSpawnAt = 0;
+let seasonMissStreak = 0;          // proby bez przedmiotu o wartosci 6 (pity)
+let seasonContentCache: SeasonContentDef | null = null;
 let powerCubes: PowerCube[] = []; // v0.44.0 FAZA 8.6
 let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad | MarsMediPad> = [];
 let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad | MarsPowerPad> = [];
@@ -2149,6 +2159,17 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     gemPool = []; // POOLING: pula zyje w obrebie meczu (stare sprite'y znika removeChildren)
     magnets = [];
     powerCubes = []; // v0.44.0 FAZA 8.6 reset
+    // SEASON KIT: pule zyja w obrebie meczu (sprite'y znika worldContainer.removeChildren).
+    // Pierwszy spawn kazdej rzadkosci przesuniety o jej wlasny odstep, zeby ksiazki
+    // nie sypnely sie wszystkie w sekundzie zero.
+    seasonPickups = [];
+    seasonPickupPool = [];
+    {
+        seasonContentCache = getSeasonContent(getCurrentSeason().id);
+        seasonMissStreak = 0;
+        // pierwszy spawn po pelnym odstepie — inaczej znajdzka lezy juz w sekundzie zero
+        seasonNextSpawnAt = Date.now() + (seasonContentCache?.spawn.everyMs ?? 0);
+    }
     isMouseDown = false;
     gameState = 'PLAYING';
 
@@ -2253,6 +2274,8 @@ function collectProgressionStats(): RunStatsInput {
         shotsFired: currentSession?.shotsFired ?? 0,
         shotsHit: currentSession?.shotsHit ?? 0,
         maxCombo: currentSession?.maxCombo ?? 0,
+        seasonPickups: currentSession?.seasonPickupsCollected ?? 0,   // SEASON KIT
+        seasonItems: currentSession?.seasonItemsPicked ?? {},
     };
 }
 
@@ -2341,6 +2364,9 @@ interface EndScreenData {
     questsDone?: number;
     /** v0.114.0 — ile razy uzyto kostki 🎲 (chip "Szalone Moce"; run poza glowna formula). */
     diceUsed?: number;
+    /** SEASON KIT — punkty znajdziek sezonowych z tego meczu (chip, bez nowego kafelka:
+     *  siatka statow ma 8 kafli = rowne 2 rzedy, dziewiaty podnioslby endcard). */
+    seasonPickups?: number;
 }
 
 /**
@@ -2473,6 +2499,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.milestoneBolts && d.milestoneBolts > 0 ? `<span style="font-family:${TITAN};font-size:0.82rem;color:#fff;background:#27ae60;padding:5px 14px;border-radius:12px;border:2px solid #1e8449;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎖️ ${t('end.milestone')}!</span>` : ''}
             ${d.questsDone && d.questsDone > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#c0721c;padding:5px 14px;border-radius:12px;border:2px solid #8a4f12;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📋 ${t('end.questsDone', { n: d.questsDone })}</span>` : ''}
             ${d.diceUsed && d.diceUsed > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #6c3483;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎲 ${t('end.funMode')}</span>` : ''}
+            ${d.seasonPickups && d.seasonPickups > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#2f6fb5;padding:5px 14px;border-radius:12px;border:2px solid #1f4e82;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📕 +${d.seasonPickups} ${t('end.seasonPickups')}</span>` : ''}
         </div>` : '';
 
     // v0.100.0 FIX REGRESJI — wariant KOMPAKTOWY wiersza progresji dla layoutu v2 (landscape @375px).
@@ -2491,6 +2518,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.milestoneBolts && d.milestoneBolts > 0 ? chipC('#27ae60', '#1e8449', '#fff', `🎖️ +${d.milestoneBolts}`) : ''}
             ${d.questsDone && d.questsDone > 0 ? chipC('#c0721c', '#8a4f12', '#fff', `📋 ${d.questsDone}`) : ''}
             ${d.diceUsed && d.diceUsed > 0 ? chipC('#8e44ad', '#6c3483', '#fff', '🎲') : ''}
+            ${d.seasonPickups && d.seasonPickups > 0 ? chipC('#2f6fb5', '#1f4e82', '#fff', `📕 +${d.seasonPickups}`) : ''}
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
@@ -2752,6 +2780,7 @@ async function triggerGameOver(): Promise<void> {
         milestoneBolts: runProg ? runProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
         questsDone: questsDoneRun,                        // PROG-F3
         diceUsed: currentSession?.dicePowersUsed ?? 0,    // v0.114.0 kostka 🎲
+        seasonPickups: currentSession?.seasonPickupsCollected ?? 0,  // SEASON KIT
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -2829,6 +2858,7 @@ async function triggerVictory(): Promise<void> {
         milestoneBolts: victoryRunProg ? victoryRunProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
         questsDone: questsDoneVictory,                    // PROG-F3
         diceUsed: currentSession?.dicePowersUsed ?? 0,    // v0.114.0 kostka 🎲
+        seasonPickups: currentSession?.seasonPickupsCollected ?? 0,  // SEASON KIT
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -3429,6 +3459,94 @@ app.ticker.add((rawDelta) => {
                 gems.splice(i, 1);
                 gemPool.push(g); // POOLING: zwrot do puli po zebraniu
             }
+        }
+    }
+
+    // ── SEASON KIT: znajdzki sezonowe (warstwa 1-2) ──────────────────────────
+    // Spawn DYNAMICZNY, nie autorskie rozmieszczenie per mapa: to samo dzialaloby
+    // na 6 mapach i 2 scenariuszach dopiero po 8 przebiegach generatora, a tak
+    // wystarczy istniejacy `findSafePickupPos` (dodany przy porcie CTF), ktory juz
+    // omija `buildings`. Sezon bez tresci => `content` jest null i caly blok jest
+    // martwy, czyli Arena i mapy poza sezonem nie placa nic.
+    {
+        const content = getSeasonContent(getCurrentSeason().id);
+        // Chip w HUD: null przy sezonie bez znajdziek => HUD nie rysuje go I nie
+        // rezerwuje wiersza (magnes/turbo zostaja na swoich miejscach).
+        hud.seasonCount = content ? currentSession.seasonPickupsCollected : null;
+        if (content) {
+            hud.seasonIcon = '📕';
+            const nowMs = Date.now();
+            // JEDEN zegar spawnu na cala pule (nie po jednym na rzadkosc): przedmiot
+            // wybiera losowanie wazone z manifestu, wiec rzadkosc wynika z wagi,
+            // a nie z osobnego, latwego do rozjechania tempa per tier.
+            if (nowMs >= seasonNextSpawnAt && seasonPickups.length < content.spawn.maxAlive) {
+                seasonNextSpawnAt = nowMs + content.spawn.everyMs;
+                const item = rollSeasonItem(content, seasonMissStreak);
+                // pity: licznik prob BEZ "szostki" — zerowany dopiero, gdy padnie
+                seasonMissStreak = item.value === 6 ? 0 : seasonMissStreak + 1;
+
+                // Przedmiot o wartosci 6 ma byc SZUKANY, nie lezec pod nogami:
+                // kilka prob o pozycje dalej niz 900 px, inaczej odpuszczamy do
+                // nastepnego okna (zamiast psuc jego range polozeniem przy graczu).
+                let pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
+                if (item.value === 6 && pos) {
+                    const MIN_D2 = 900 * 900;
+                    let tries = 0;
+                    while (pos && tries < 6
+                        && (pos.x - player.x) ** 2 + (pos.y - player.y) ** 2 < MIN_D2) {
+                        pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
+                        tries++;
+                    }
+                    if (pos && (pos.x - player.x) ** 2 + (pos.y - player.y) ** 2 < MIN_D2) pos = null;
+                }
+                if (pos) {
+                    const pooled = seasonPickupPool.pop();
+                    if (pooled) { pooled.reset(pos.x, pos.y, item, content); seasonPickups.push(pooled); }
+                    else seasonPickups.push(new SeasonPickup(pos.x, pos.y, item, content, worldContainer));
+                }
+            }
+        }
+    }
+    for (let i = seasonPickups.length - 1; i >= 0; i--) {
+        const sp = seasonPickups[i];
+        sp.update(delta, player.x, player.y);
+        if (!sp.active) { seasonPickups.splice(i, 1); seasonPickupPool.push(sp); continue; }
+        const dx = player.x - sp.x, dy = player.y - sp.y;
+        const rr = sp.radius + 18;
+        if (dx * dx + dy * dy < rr * rr) {
+            // PIERWSZE zdobycie tego typu? Sprawdzamy PRZED inkrementacja: trwaly stan
+            // z progresji (poprzednie mecze) + to, co juz padlo w tym meczu.
+            const ownedBefore = ProgressionService.getSeasonItemsOwned(currentSession.config.profileId);
+            const isFirstEver = (ownedBefore[sp.value] ?? 0) === 0
+                && (currentSession.seasonItemsPicked[sp.value] ?? 0) === 0;
+
+            currentSession.seasonPickupsCollected += sp.value;
+            currentSession.seasonItemsPicked[sp.value] = (currentSession.seasonItemsPicked[sp.value] ?? 0) + 1;
+            effects.spawnFloatingText(sp.x, sp.y - 12, `+${sp.value}`, 0xf1c40f);
+            audio.playGemPickup();
+
+            const nameKey = seasonContentCache
+                ? getItemByValue(seasonContentCache, sp.value)?.nameKey : null;
+
+            // Celebracja skalowana rzadkoscia (SEASON_ENGINE §13): pospolite maja byc
+            // ledwo zauwazalne, bo beda dziesiatki razy; szostka ma byc momentem.
+            if (sp.value >= 5) {
+                effects.shake(sp.value === 6 ? 6 : 3, sp.value === 6 ? 12 : 7);
+                if (sp.value === 6) triggerHitStop(6);
+                if (nameKey) hud.addNotif(`${sp.value === 6 ? '🌟' : '✨'} ${t(nameKey)}!`, '#f1c40f');
+            }
+
+            // "NOWY W KOLEKCJI!" — 40. olowek to nie to samo, co pierwszy. Osobny
+            // sygnal od celebracji rzadkosci: tamta mowi "to jest cenne", ta mowi
+            // "odkryles nowy kafel w kolekcji". Pospolity przedmiot tez na to zasluguje.
+            if (isFirstEver && nameKey) {
+                hud.addNotif(`🆕 ${t('hud.seasonNewItem', { name: t(nameKey) })}`, '#39d98a');
+                effects.spawnFloatingText(sp.x, sp.y - 34, t('hud.seasonNewShort'), 0x39d98a);
+                if (sp.value < 5) effects.shake(2, 5);   // rzadkie i tak juz trzesly
+            }
+            sp.despawn();
+            seasonPickups.splice(i, 1);
+            seasonPickupPool.push(sp);
         }
     }
 

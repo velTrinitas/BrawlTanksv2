@@ -196,6 +196,12 @@ export interface ProgressionStats {
     /** SEASON-1 — postep sezonu. Merge TYLKO gdy seasonId == CURRENT_SEASON.id
      *  (trophies MAX, claimed UNION); inny/stary sezon = ignorowany. */
     seasonId?: string;
+    /** SEASON KIT — suma zebranych znajdziek sezonowych. Merge: MAX przy zgodnym seasonId. */
+    seasonCollected?: number;
+    /** SEASON KIT — liczniki per przedmiot (klucz = value 1..6). Merge: MAX per klucz. */
+    seasonItems?: Record<string, number>;
+    /** SEASON KIT — wyplacone nagrody sezonowe. Merge: UNION. */
+    seasonRewards?: string[];
     seasonTrophies?: number;
     seasonClaimed?: number[];
     /** RANKS-1 — ranga czolgisty: wins/rankShown MAX, rankClaimed UNION.

@@ -14,7 +14,8 @@ import { ProfileSection } from './sections/ProfileSection'; // PROFILE-1 (zastap
 import { CrateOverlay } from './overlays/CrateOverlay';
 import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
 import { AVATARS } from '../../config/avatars'; // PROFILE-1 — miniatura w chipie
-import { seasonDaysLeft, seasonShortLabel } from '../../config/season'; // SEASON-1/2 — pill sezonu
+import { seasonDaysLeft, seasonShortLabel, getCurrentSeason } from '../../config/season'; // SEASON-1/2 — pill sezonu
+import { getSeasonContent } from '../../config/seasonContent'; // SEASON KIT — badge licznika
 import { SeasonOverlay } from './overlays/SeasonOverlay'; // SEASON-2 — popup sezonu
 import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebracja awansu
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
@@ -52,6 +53,22 @@ export class HubShell implements IScreen {
     private readonly crate = new CrateOverlay();
     /** SEASON-2 — popup sezonu (pill na belce). */
     private readonly season = new SeasonOverlay();
+
+    /**
+     * SEASON KIT — badge z liczba zebranych znajdziek na pillu sezonu. To jest
+     * haczyk ciagnacy gracza do popupu: pill i tak juz jest na belce, wiec licznik
+     * nie zajmuje nowego miejsca w layoucie. Sezon bez znajdziek => pusty string,
+     * czyli pill wyglada dokladnie jak dotad.
+     */
+    private seasonCollectBadge(): string {
+        const content = getSeasonContent(getCurrentSeason().id);
+        if (!content) return '';
+        const profile = ProfileService.getActiveProfile();
+        if (!profile) return '';
+        const have = ProgressionService.getSeasonCollected(profile.id);
+        if (have <= 0) return '';   // zero nie jest informacja, tylko szumem
+        return `<b class="s2-collect">📕${have}</b>`;
+    }
     /** RANKS-1 — spektakularna celebracja awansu rangi. */
     private readonly rankUp = new RankUpOverlay();
     private readonly sections: HubSection[];
@@ -213,7 +230,7 @@ export class HubShell implements IScreen {
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>
             <button class="bt-hub0-s2" data-action="season" type="button"
-                    aria-label="${t('hub.season.eyebrow')}"><span>${seasonShortLabel()}</span>${seasonDaysLeft() > 0 ? `<small>⏳${seasonDaysLeft()}d</small>` : ''}</button>
+                    aria-label="${t('hub.season.eyebrow')}"><span>${seasonShortLabel()}</span>${this.seasonCollectBadge()}${seasonDaysLeft() > 0 ? `<small>⏳${seasonDaysLeft()}d</small>` : ''}</button>
         `;
     }
 

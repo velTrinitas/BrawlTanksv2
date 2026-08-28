@@ -177,6 +177,17 @@ export const pl = {
     'season.s3.b1': 'Świeży Season Track: sigmy i skrzynki do zdobycia',
     'season.s3.b2': 'Szkolny klimat: kreda, plecaki i praca domowa z trofeów',
     'season.s3.b3': 'Więcej niespodzianek wkrótce!',
+    // SEASON KIT: nazwa licznika znajdziek sezonu (HUD, ekran konca meczu).
+    'season.s3.counter': 'książki',
+    // SEASON KIT — nazwy 6 znajdziek sezonu 3 (dec. A, 28.08.2026).
+    'season.s3.item1': 'Ołówek',
+    'season.s3.item2': 'Książka',
+    'season.s3.item3': 'Zeszyt',
+    'season.s3.item4': 'Ekierka',
+    'season.s3.item5': 'Plecak',
+    'season.s3.item6': 'Globus',
+    // SEASON KIT — stan "wszystkie progi zdobyte" w pasku popupu.
+    'season.allRewards': 'wszystkie nagrody zdobyte!',
     'season.s4.name': 'Sezon 4 — Śnieżna Ofensywa',
     'season.s4.b1': 'Świeży Season Track: sigmy i skrzynki do zdobycia',
     'season.s4.b2': 'Zimowy klimat: śnieg, prezenty i Mikołaj na gąsienicach',
@@ -220,6 +231,15 @@ export const pl = {
     'hub.profile.tab.overview': 'Przegląd',
     'hub.profile.tab.records': 'Rekordy',
     'hub.profile.tab.collection': 'Kolekcja',
+    'hub.profile.tab.season': 'Sezon',
+    // SEASON KIT — zakladka SEZON w profilu.
+    'hub.profile.season.collection': 'Kolekcja sezonu',
+    'hub.profile.season.pointTrack': 'Za punkty',
+    'hub.profile.season.setTrack': 'Za komplety',
+    'hub.profile.season.gateCrate': 'Trzy pospolite',
+    'hub.profile.season.gateTitle': 'Piec przedmiotow',
+    'hub.profile.season.gateFull': 'Cala kolekcja',
+    'hub.profile.season.museumSoon': 'Zakonczone sezony trafia tu do muzeum kolekcji.',
     'hub.profile.rank': 'Miejsce w rankingu',
     'hub.profile.kills': 'Pokonani wrogowie',
     'hub.profile.gems': 'Zebrane gemy',
@@ -453,6 +473,8 @@ export const pl = {
     'hud.questProgress': '📋 {name} — {cur}/{max}',
     'end.questsDone': 'Rozkazy: {n}',
     'end.funMode': 'Szalone Moce',
+    // SEASON KIT — chip znajdziek na ekranie konca meczu.
+    'end.seasonPickups': 'podreczniki',
 
     // ============================================================
     // Scenario Picker (Ekran 1)
@@ -720,6 +742,13 @@ export const pl = {
     'hud.caravanHeart':   '🐪 Karawana dropiła ❤️',
     'hud.caravanMagnet':  '🐪 Karawana dropiła 🧲',
     'hud.roverGem':       '🛰️ Łazik zgubił 💎',
+    // SEASON KIT — podpis chipa licznika w HUD.
+    'hud.books': 'Książki',
+    // SEASON KIT — legendarna znajdzka (1 na dobe).
+    'hud.seasonLegendary': '📙 ZŁOTA ENCYKLOPEDIA!',
+    // SEASON KIT — pierwsze zdobycie danego typu znajdzki.
+    'hud.seasonNewItem': 'NOWY W KOLEKCJI: {name}!',
+    'hud.seasonNewShort': 'NOWY!',
     'hud.roverHeart':     '🛰️ Łazik zgubił ❤️',
     'hud.roverMagnet':    '🛰️ Łazik zgubił 🧲',
     // ARC-R2 — pingwiny (Lodowa Arena)

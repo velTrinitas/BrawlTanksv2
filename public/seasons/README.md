@@ -1,5 +1,19 @@
 # public/seasons — grafiki sezonow
 
+> **NOWY FORMAT (SEASON_ENGINE v2): katalog per sezon.**
+> ```
+> public/seasons/s3/
+>   hero.jpg      576x1024 (9:16)  <=250 KB   popup sezonu
+>   decor.jpg     2400x400         <=250 KB   tlo panelu gracza (FAKTURA, nie scena)
+>   item1..6.png  128x128 RGBA     <=30 KB    znajdzki, wypelnienie kadru >=90%
+> ```
+> Pelne wytyczne + checklista producenta: `docs/season-kit/SEASON_ENGINE.md`.
+> Bramka G3 w `tools/season_check.mjs` sprawdza KOMPLETNOSC paczki — polowiczna
+> paczka to FAIL, bo silnik podlaczylby sezon z dziura w kolekcji.
+>
+> Ponizszy opis dotyczy STAREGO formatu (plaski `<id>.jpg`), ktory dziala jako
+> fallback, dopoki katalog nie powstanie.
+
 SeasonOverlay laduje `public/seasons/<id>.jpg`, gdzie `<id>` to `id` sezonu
 z `src/config/season.ts` (s1, s2, s3...). Brak pliku = cichy fallback na
 gradient akcentu + emoji motywu (`onerror` usuwa <img>). Zero configu.

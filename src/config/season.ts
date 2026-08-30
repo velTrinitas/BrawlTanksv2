@@ -20,7 +20,10 @@ export interface SeasonConfig {
      * numer siedzi w tekscie i18n pod `nameKey`. Id jest KLUCZEM ZAPISU STANU:
      *   - ProgressionService.ensureSeason (307): obce id kasuje `trophies` I `claimed`,
      *   - kolumna `seasonId` w chmurze (571) + warunek merge przy syncPull (835),
-     *   - nazwa pliku artu `public/seasons/<id>.jpg` (SeasonOverlay:31).
+     *   - nazwa KATALOGU artu `public/seasons/<id>/` (hero.jpg, decor.jpg, item1..6.png).
+     *     v0.129.0: kod czytal plaskie `public/seasons/<id>.jpg` ze starego formatu,
+     *     mimo ze kontrakt SEASON_ENGINE v2 przeszedl na katalogi — dlatego hero
+     *     Sezonu 2 sie nie ladowal. Nowy sezon = katalog, nie plik.
      *
      * PO STARCIE SEZONU ID SIE NIE ZMIENIA. Proba 2026-08-25 (przenumerowanie calej
      * roadmapy o 1 w dol, zeby numer zgadzal sie z artem promo) zostala COFNIETA,
@@ -37,6 +40,13 @@ export interface SeasonConfig {
      */
     readonly id: string;
     readonly nameKey: TranslationKey;
+    /**
+     * KROTKA nazwa do pillu na belce ("Sezon 2"), bez podtytulu motywu.
+     * v0.129.0: pill pokazywal `id.toUpperCase()`, czyli "S2" — a id NIE jest numerem
+     * widzianym przez gracza (patrz komentarz przy `id`). Osobny klucz trzyma numer
+     * w tekscie, wiec przenumerowanie sezonu w UI nigdy nie dotknie klucza zapisu.
+     */
+    readonly shortKey: TranslationKey;
     /** ISO lokalne (bez strefy = czas lokalny gracza — wystarczajace dla gry casual). */
     readonly start: string;
     readonly end: string;
@@ -58,37 +68,37 @@ export interface SeasonMilestone {
 /** Roadmapa sezonow (propozycja 6 nowych zatwierdzona 2026-08-24). */
 export const SEASONS: readonly SeasonConfig[] = [
     {
-        id: 's2', nameKey: 'season.s2.name', emoji: '🎖️', accentColor: '#f1c40f',
+        id: 's2', nameKey: 'season.s2.name', shortKey: 'season.s2.short', emoji: '🎖️', accentColor: '#f1c40f',
         start: '2026-08-01T00:00:00', end: '2026-08-31T23:59:59',
         bulletKeys: ['season.s2.b1', 'season.s2.b2', 'season.s2.b3'],
     },
     {
-        id: 's3', nameKey: 'season.s3.name', emoji: '🎒', accentColor: '#3aa0e0',
+        id: 's3', nameKey: 'season.s3.name', shortKey: 'season.s3.short', emoji: '🎒', accentColor: '#3aa0e0',
         start: '2026-09-01T00:00:00', end: '2026-10-31T23:59:59',
         bulletKeys: ['season.s3.b1', 'season.s3.b2', 'season.s3.b3'],
     },
     {
-        id: 's4', nameKey: 'season.s4.name', emoji: '🎄', accentColor: '#2ecc71',
+        id: 's4', nameKey: 'season.s4.name', shortKey: 'season.s4.short', emoji: '🎄', accentColor: '#2ecc71',
         start: '2026-11-01T00:00:00', end: '2026-12-31T23:59:59',
         bulletKeys: ['season.s4.b1', 'season.s4.b2', 'season.s4.b3'],
     },
     {
-        id: 's5', nameKey: 'season.s5.name', emoji: '🧊', accentColor: '#4dd7c8',
+        id: 's5', nameKey: 'season.s5.name', shortKey: 'season.s5.short', emoji: '🧊', accentColor: '#4dd7c8',
         start: '2027-01-01T00:00:00', end: '2027-02-28T23:59:59',
         bulletKeys: ['season.s5.b1', 'season.s5.b2', 'season.s5.b3'],
     },
     {
-        id: 's6', nameKey: 'season.s6.name', emoji: '🐣', accentColor: '#a3e635',
+        id: 's6', nameKey: 'season.s6.name', shortKey: 'season.s6.short', emoji: '🐣', accentColor: '#a3e635',
         start: '2027-03-01T00:00:00', end: '2027-04-30T23:59:59',
         bulletKeys: ['season.s6.b1', 'season.s6.b2', 'season.s6.b3'],
     },
     {
-        id: 's7', nameKey: 'season.s7.name', emoji: '🌭', accentColor: '#ff9f43',
+        id: 's7', nameKey: 'season.s7.name', shortKey: 'season.s7.short', emoji: '🌭', accentColor: '#ff9f43',
         start: '2027-05-01T00:00:00', end: '2027-06-30T23:59:59',
         bulletKeys: ['season.s7.b1', 'season.s7.b2', 'season.s7.b3'],
     },
     {
-        id: 's8', nameKey: 'season.s8.name', emoji: '🏖️', accentColor: '#37a0e0',
+        id: 's8', nameKey: 'season.s8.name', shortKey: 'season.s8.short', emoji: '🏖️', accentColor: '#37a0e0',
         start: '2027-07-01T00:00:00', end: '2027-08-31T23:59:59',
         bulletKeys: ['season.s8.b1', 'season.s8.b2', 'season.s8.b3'],
     },
@@ -189,7 +199,14 @@ export function seasonDaysLeft(now: number = seasonNow()): number {
     return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
-/** Numer do pillu na belce ('S2'/'S3'...) — z id, bez i18n. */
-export function seasonShortLabel(now: number = seasonNow()): string {
-    return getCurrentSeason(now).id.toUpperCase();
+/**
+ * Klucz krotkiej nazwy do pillu na belce ("Sezon 2"). Zwraca KLUCZ, nie tekst —
+ * `t()` kompiluje sie tylko z literalem, wiec tlumaczenie robi wolajacy.
+ *
+ * v0.129.0: bylo `id.toUpperCase()` => pill pokazywal "S2". Id jest kluczem zapisu
+ * stanu i NIE jest numerem widzianym przez gracza (patrz komentarz przy `id`),
+ * wiec pokazywanie go w UI wiazalo tekst z kluczem bazy.
+ */
+export function seasonShortKey(now: number = seasonNow()): TranslationKey {
+    return getCurrentSeason(now).shortKey;
 }

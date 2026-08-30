@@ -487,6 +487,59 @@
     100% { transform: translateY(110px); opacity: 0; }
 }
 
+/* --- KTB: boss strzela (v0.128.0) ---------------------------------------
+   Karta KILL THE BOSS byla jedynym podgladem scenariusza bez ruchu. Trzy elementy
+   dziela JEDEN okres 2.6s, wiec odrzut, blysk i pocisk zawsze padaja w tej samej
+   klatce — gdyby kazdy mial swoj czas trwania, po kilku cyklach rozjechalyby sie
+   i strzal przestalby czytac sie jako jedno zdarzenie.
+   Mgla (.mpd-particle) leci osobno na wspoldzielonym bt-sand-drift — jej opoznienia
+   sa scope'owane na .bt-mp-desert, wiec KTB potrzebuje wlasnych, inaczej trzy platy
+   dryfowalyby idealnie rownolegle. */
+.bt-sp-ktb .mpd-p2 { animation-delay: -3s; }
+.bt-sp-ktb .mpd-p3 { animation-delay: -6s; }
+
+.bt-sp-ktb .mpk-boss {
+    transform-box: fill-box; transform-origin: center;
+    animation: bt-boss-recoil 2.6s ease-out infinite;
+}
+.bt-sp-ktb .mpk-flash {
+    transform-box: fill-box; transform-origin: center;
+    opacity: 0;
+    animation: bt-boss-shot 2.6s linear infinite;
+}
+.bt-sp-ktb .mpk-shell {
+    opacity: 0;
+    animation: bt-boss-shell 2.6s linear infinite;
+}
+
+/* SAM ODRZUT, zero ruchu w pionie (v0.129.0, zgloszenie Mariusza "nie lewituje").
+   Poprzedni `bt-boss-hover` unosil czolg, podczas gdy cien stal nieruchomo — oko
+   czyta taka pare jako unoszenie sie nad ziemia, nie jako oddech. Czolg stoi, a
+   w momencie strzalu kopie w PRAWO (lufa celuje w lewo) i wraca z lekkim wytraceniem. */
+@keyframes bt-boss-recoil {
+    0%, 7%    { transform: translateX(0); }
+    10%       { transform: translateX(5px); }
+    16%       { transform: translateX(-1px); }
+    24%, 100% { transform: translateX(0); }
+}
+
+/* Blysk lufy — bardzo krotki, inaczej wyglada jak swiecaca lampka, a nie wystrzal. */
+@keyframes bt-boss-shot {
+    0%, 7%    { opacity: 0; transform: scale(0.6); }
+    9%        { opacity: 1; transform: scale(1.15); }
+    14%       { opacity: 0.5; transform: scale(0.9); }
+    18%, 100% { opacity: 0; transform: scale(0.6); }
+}
+
+/* Pocisk: wygasa PRZED krawiedzia widocznego kadru (x=50), zeby nie "wsiakal" w ramke. */
+@keyframes bt-boss-shell {
+    0%, 8%  { opacity: 0; transform: translateX(0); }
+    12%     { opacity: 1; transform: translateX(-8px); }
+    34%     { opacity: 1; transform: translateX(-38px); }
+    42%     { opacity: 0; transform: translateX(-46px); }
+    100%    { opacity: 0; transform: translateX(-46px); }
+}
+
 /* =============================================================
    6. LOCK OVERLAY
    ============================================================= */
@@ -618,6 +671,10 @@
     .bt-mp-tropics .mpt-fall,
     .bt-mp-tropics .mpt-palm,
     .bt-mp-arctic .mpa-snow,
+    .bt-sp-ktb .mpd-particle,
+    .bt-sp-ktb .mpk-boss,
+    .bt-sp-ktb .mpk-flash,
+    .bt-sp-ktb .mpk-shell,
     .bt-map-lock-overlay .lock-icon {
         animation: none !important;
     }

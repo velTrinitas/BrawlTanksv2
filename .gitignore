@@ -38,3 +38,6 @@ dist-ssr
 # Environment secrets (never commit)
 .env.development.local
 .env.production.local
+
+# Prywatne notatki Mariusza o grze — nie sa czescia produktu
+docs/edu/

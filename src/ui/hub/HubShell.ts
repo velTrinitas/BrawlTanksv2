@@ -17,9 +17,9 @@ import { isShopEnabled } from '../../config/shop';          // SHOP-1
 import { CrateOverlay } from './overlays/CrateOverlay';
 import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
 import { AVATARS } from '../../config/avatars'; // PROFILE-1 — miniatura w chipie
-import { seasonDaysLeft, seasonShortLabel, getCurrentSeason } from '../../config/season'; // SEASON-1/2 — pill sezonu
-import { getSeasonContent } from '../../config/seasonContent'; // SEASON KIT — badge licznika
-import { SeasonOverlay } from './overlays/SeasonOverlay'; // SEASON-2 — popup sezonu
+import { seasonShortKey } from '../../config/season'; // SEASON-1/2 — pill sezonu
+import { SeasonSection } from './sections/SeasonSection'; // v0.129.0 — strona sezonu
+import { MapPickerOverlay } from './overlays/MapPickerOverlay'; // v0.127.0 — wybor mapy 3x2
 import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebracja awansu
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
@@ -40,7 +40,7 @@ import './shop-styles.css'; // SHOP-1 — izolacja per-feature (design-values.md
  * (HUB-0 nie buduje wlasnego GRAJ-flow — to HUB-1).
  */
 
-type SectionId = 'battle' | 'garage' | 'shop' | 'quests' | 'trophies' | 'rank' | 'profile';
+type SectionId = 'battle' | 'garage' | 'shop' | 'quests' | 'trophies' | 'rank' | 'profile' | 'season';
 
 /**
  * v0.126.0 — ktore sekcje maja PRZYCISK W NAWIGACJI. Reszta jest normalnie renderowana,
@@ -50,11 +50,12 @@ type SectionId = 'battle' | 'garage' | 'shop' | 'quests' | 'trophies' | 'rank' |
  * Dok na telefonie schudl z 6 przyciskow do 4 + GRAJ — duplikowanie wejscia do tej samej
  * sekcji zjadalo tam szerokosc i nic nie wnosilo.
  *
- * SKLEP jest wyjatkiem: siedzi w tym zbiorze, ale CSS chowa go na dotyku
+ * SKLEP i TROFEA sa wyjatkami: siedza w tym zbiorze, ale CSS chowa je na dotyku
  * (`body:not(.bt-desktop)`). Powod: pionowy rail desktopu ma miejsca pod dostatkiem,
- * a dok telefonu nie — wiec tam zostaje sama pigulka sigm.
+ * a dok telefonu nie — wiec tam zostaja same pigulki gornej belki (sigmy i 🏆).
+ * v0.128.0: TROFEA dolaczyly do SKLEPU, ktory wrocil do railu w v0.126.0.
  */
-const NAV_SECTIONS: ReadonlySet<string> = new Set(['battle', 'garage', 'shop', 'quests', 'rank']);
+const NAV_SECTIONS: ReadonlySet<string> = new Set(['battle', 'garage', 'shop', 'quests', 'trophies', 'rank']);
 
 export class HubShell implements IScreen {
     private rootEl: HTMLElement | null = null;
@@ -72,24 +73,11 @@ export class HubShell implements IScreen {
     /** PROFILE-1 — strona profilu (ukryta sekcja poza nav, wejscie przez chip). */
     private readonly profile = new ProfileSection();
     private readonly crate = new CrateOverlay();
-    /** SEASON-2 — popup sezonu (pill na belce). */
-    private readonly season = new SeasonOverlay();
+    /** v0.129.0 — SEZON jako pelna strona (byl popup); wejscie przez pill na belce. */
+    private readonly season = new SeasonSection();
+    /** v0.127.0 — wybor mapy KTB w popupie (siatka 3x2) zamiast listy inline. */
+    private readonly mapPicker = new MapPickerOverlay();
 
-    /**
-     * SEASON KIT — badge z liczba zebranych znajdziek na pillu sezonu. To jest
-     * haczyk ciagnacy gracza do popupu: pill i tak juz jest na belce, wiec licznik
-     * nie zajmuje nowego miejsca w layoucie. Sezon bez znajdziek => pusty string,
-     * czyli pill wyglada dokladnie jak dotad.
-     */
-    private seasonCollectBadge(): string {
-        const content = getSeasonContent(getCurrentSeason().id);
-        if (!content) return '';
-        const profile = ProfileService.getActiveProfile();
-        if (!profile) return '';
-        const have = ProgressionService.getSeasonCollected(profile.id);
-        if (have <= 0) return '';   // zero nie jest informacja, tylko szumem
-        return `<b class="s2-collect">📕${have}</b>`;
-    }
     /** RANKS-1 — spektakularna celebracja awansu rangi. */
     private readonly rankUp = new RankUpOverlay();
     private readonly sections: HubSection[];
@@ -107,6 +95,11 @@ export class HubShell implements IScreen {
         // hub tylko przekazuje pelny wybor do MainMenu (bezposredni start meczu).
         this.battle.onPlay = (scenario, map, brawlerId, difficulty) =>
             this.onPlay?.(scenario, map, brawlerId, difficulty);
+        // v0.127.0 — sekcja prosi o popup mapy, shell montuje go w swoim roocie
+        // (ta sama sciezka co CrateOverlay / SeasonOverlay).
+        this.battle.onOpenMapPicker = (selected, pick) => {
+            if (this.rootEl) this.mapPicker.open(this.rootEl, selected, pick);
+        };
         this.rank.onOpenLeaderboard = () => this.onOpenLeaderboard?.();
         // F2a — GARAŻ: OTWÓRZ skrzynkę => CrateOverlay; po zamknięciu re-render GARAŻU
         this.garage.onOpenCrate = () => {
@@ -119,7 +112,7 @@ export class HubShell implements IScreen {
         // v0.126.0 — pigulki w profilu prowadza do TROFEOW / SKLEPU (obie sekcje wypadly
         // z doku, wiec potrzebuja drugiego wejscia poza pigulkami gornej belki).
         this.profile.onNavigate = (id) => this.setActive(id);
-        // SEASON-2 — CTA popupu prowadzi do Season Tracku w TROFEA.
+        // SEASON-2 — CTA strony sezonu prowadzi do Season Tracku w TROFEA.
         this.season.onViewTrack = () => this.openSeasonTrack();
         // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
         this.quests.onRewardClaimed = () => this.refreshReadout();
@@ -160,6 +153,9 @@ export class HubShell implements IScreen {
             this.quests,
             new TrophyRoadSection(),
             this.rank,
+            // v0.129.0 — SEZON poza NAV_SECTIONS: wejsciem jest pill na belce, tak jak
+            // PROFIL wchodzi chipem gracza. Sekcja renderuje sie normalnie.
+            this.season,
         ];
     }
 
@@ -228,7 +224,6 @@ export class HubShell implements IScreen {
         this.unsubscribeSync?.();
         this.unsubscribeSync = null;
         this.crate.close();
-        this.season.close();
         this.rankUp.close();
         this.shopModal.close();
         this.rootEl?.remove();
@@ -310,7 +305,7 @@ export class HubShell implements IScreen {
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>
             <button class="bt-hub0-s2" data-action="season" type="button"
-                    aria-label="${t('hub.season.eyebrow')}"><span>${seasonShortLabel()}</span>${this.seasonCollectBadge()}${seasonDaysLeft() > 0 ? `<small>⏳${seasonDaysLeft()}d</small>` : ''}</button>
+                    aria-label="${t('hub.season.eyebrow')}"><span>${t(seasonShortKey())}</span></button>
         `;
     }
 
@@ -357,8 +352,8 @@ export class HubShell implements IScreen {
             // v0.126.0 — GRAJ z doku: startuje BIEZACYM wyborem BattleSection, wiec
             // dziala z kazdej sekcji huba bez wchodzenia do BITWY.
             else if (action === 'play-dock') this.battle.startCurrentMatch();
-            // SEASON-2 — pill sezonu otwiera POPUP (CTA popupu prowadzi do tracku)
-            else if (action === 'season' && this.rootEl) this.season.open(this.rootEl);
+            // v0.129.0 — pill sezonu przelacza na STRONE sezonu (byl popup).
+            else if (action === 'season') this.setActive('season');
             // 'play' obslugiwane wewnatrz BattleSection (wlasny listener)
         });
     }

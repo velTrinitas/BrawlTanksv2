@@ -6,7 +6,6 @@ import { MENU_MAP_CARDS, type MapId } from '../../../types/MapType';
 import { BRAWLERS } from '../../../config/brawlers';
 import type { Brawler } from '../../../types/Brawler';
 import { sessionService } from '../../../services/SessionService';
-import { renderMapPreview } from '../../MapPreview'; // zywe podglady map (SVG, reuse)
 import { renderScenarioPreview, type ScenarioPreviewId } from '../../ScenarioPreview';
 import { playUiClick } from '../../uiSounds'; // Sensoryka: wybor "klika"
 import { getCurrentSeason } from '../../../config/season'; // SEASON-2 — baner biezacego sezonu
@@ -54,6 +53,12 @@ export class BattleSection implements HubSection {
 
     /** Wpiete przez HubShell → MainMenu (buduje GameConfig i startuje mecz BEZPOSREDNIO). */
     public onPlay: ((scenario: ScenarioId, map: MapId, brawlerId: string, difficulty: DifficultyId) => void) | null = null;
+
+    /**
+     * v0.127.0 — otwarcie popupu wyboru mapy. Overlaye w hubie montuje HubShell
+     * w swoim `rootEl`, wiec sekcja tylko PROSI o popup i przyjmuje wynik.
+     */
+    public onOpenMapPicker: ((selected: MapId, pick: (id: MapId) => void) => void) | null = null;
 
     private selectedScenario: ScenarioId = 'ktb';
     private selectedMap: MapId = (AVAILABLE_MAPS[0]?.id ?? 'desert') as MapId;
@@ -166,6 +171,16 @@ export class BattleSection implements HubSection {
             <div class="bt-hub0-cards bt-hub0-cards--tanks">${tankCards}${enigma}</div>`;
 
         // ── SCENARIUSZE 3x1 (ktb/ctf/castle; save_king wyciety) ─────────────
+        //
+        // v0.128.0 — KARTA KTB NIESIE WYBRANA MAPE. Do v0.127.0 mapa miala wlasna
+        // sekcje ("WYBIERZ MAPE" + kafel-wyzwalacz), czyli jeden ekran przewijania
+        // wiecej za informacje, ktora nalezy do scenariusza. Teraz karta KTB pokazuje
+        // mape zamiast statycznego opisu i sama jest wyzwalaczem popupu — wybor mapy
+        // przestal byc osobnym krokiem, a nie zniknal z oczu (Czytelnosc: gracz caly
+        // czas widzi, na czym zagra, bez otwierania czegokolwiek).
+        //
+        // CTF zostaje z opisem: mape ma wbudowana (fortified_ruins), wiec nie ma tu
+        // czego wybierac. Castle jest zablokowany.
         const scenCards = SCENARIO_ORDER.map(id => {
             const c = SCENARIO_CONFIGS[id];
             const locked = !c.available;
@@ -173,6 +188,13 @@ export class BattleSection implements HubSection {
             const preview = SCEN_WITH_SVG.includes(id as ScenarioPreviewId)
                 ? renderScenarioPreview(id as ScenarioPreviewId)
                 : `<span class="cd-emoji" aria-hidden="true">${SCENARIO_EMOJI[id] ?? '🎮'}</span>`;
+            let sub = `<span class="cd-sub">${t(c.descKey)}</span>`;
+            if (id === 'ktb' && !locked) {
+                const m = MENU_MAP_CARDS.find(x => x.id === this.selectedMap) ?? MENU_MAP_CARDS[0];
+                sub = `
+                    <span class="cd-sub cd-sub--map">${m.emoji} ${t(m.nameKey)}</span>
+                    <span class="cd-maphint">${t('picker.mapChangeHint')}</span>`;
+            }
             return `
             <button class="bt-hub0-card${sel ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
                     data-scenario="${id}" type="button" style="--tank:${c.color}" ${locked ? 'aria-disabled="true"' : ''}>
@@ -181,7 +203,7 @@ export class BattleSection implements HubSection {
                     <span class="cd-top">
                         <b class="cd-name">${SCENARIO_EMOJI[id] ?? ''} ${t(c.nameKey)}</b>
                     </span>
-                    <span class="cd-sub">${t(c.descKey)}</span>
+                    ${sub}
                 </span>
             </button>`;
         }).join('');
@@ -189,49 +211,9 @@ export class BattleSection implements HubSection {
             <div class="bt-hub0-subhead">⚔️ ${t('picker.scenarioTitle')}</div>
             <div class="bt-hub0-cards">${scenCards}</div>`;
 
-        // ── MAPY 3x2 (4 realne + 2 placeholdery WKROTCE) ────────────────────
-        let maps = '';
-        if (this.selectedScenario === 'ktb') {
-            // M5d: renderujemy WSZYSTKIE karty, takze zablokowane. Locked mapa
-            // jest <span> (nieklikalna) z badge "WKROTCE", ale ma PELNY animowany
-            // podglad — gracz widzi, co jest w drodze, zamiast pustego "???".
-            const mapCards = MENU_MAP_CARDS.map(m => {
-                const preview = `<span class="cd-media">${renderMapPreview(m.previewType)}</span>`;
-                const body = `
-                    <span class="cd-body">
-                        <span class="cd-top">
-                            <b class="cd-name">${m.emoji} ${t(m.nameKey)}</b>
-                            ${m.available ? '' : `<i class="cd-badge">${t(m.comingSoonKey ?? 'common.soon')}</i>`}
-                        </span>
-                        <span class="cd-sub">${t(m.taglineKey)}</span>
-                    </span>`;
-                if (!m.available) {
-                    return `<span class="bt-hub0-card is-soon" style="--tank:${m.accentColor}">${preview}${body}</span>`;
-                }
-                return `
-                <button class="bt-hub0-card${m.id === this.selectedMap ? ' is-selected' : ''}"
-                        data-map="${m.id}" type="button" style="--tank:${m.accentColor}">
-                    ${preview}${body}
-                </button>`;
-            }).join('');
-            const soonMap = `
-                <span class="bt-hub0-card is-soon">
-                    <span class="cd-media"><span class="cd-q" aria-hidden="true">?</span></span>
-                    <span class="cd-body">
-                        <span class="cd-top">
-                            <b class="cd-name">???</b>
-                            <i class="cd-badge">${t('common.soon')}</i>
-                        </span>
-                        <span class="cd-sub"></span>
-                    </span>
-                </span>`;
-            maps = `
-            <div class="bt-hub0-subhead">🗺️ ${t('picker.mapTitle')}</div>
-            <div class="bt-hub0-cards">${mapCards}</div>`;
-        }
-        // Iteracja 7 (pkt 5, decyzja Mariusza): CTF BEZ osobnego boxa mapy —
-        // mapa jest wbudowana (fortified_ruins), wybor scenariusza = gotowy do GRAJ
-        // (PLAY summary dalej pokazuje FORTIFIED RUINS).
+        // v0.128.0 — SEKCJA MAPY NIE ISTNIEJE. Wybor mapy zyje na karcie KTB (wyzej)
+        // i w popupie `MapPickerOverlay`. Iteracja 7: CTF nigdy nie mial boxa mapy,
+        // bo ma ja wbudowana (fortified_ruins) — teraz KTB tez go nie ma.
 
         // ── TRUDNOSC (pigulki — bez zmian) ──────────────────────────────────
         const diffs = `
@@ -279,7 +261,6 @@ export class BattleSection implements HubSection {
                 ${season}
                 ${tanks}
                 ${scenarios}
-                ${maps}
                 ${diffs}
             </div>
             <div class="bt-battle-bar">
@@ -294,6 +275,15 @@ export class BattleSection implements HubSection {
     private wire(): void {
         const el = this.el;
         if (!el) return;
+        // v0.128.0 — karta KTB jest JEDNOCZESNIE wyborem scenariusza i wejsciem do mapy.
+        // Popup wstaje przy KAZDYM klikniciu w KTB, takze gdy KTB juz bylo wybrane —
+        // to jest wprost prosba Mariusza: "a jak chce zmienic mape, klikam ponownie
+        // w scenariusz i ponownie otwiera mi sie popup".
+        //
+        // KOLEJNOSC MA ZNACZENIE: `render()` nadpisuje `innerHTML` sekcji, ale overlay
+        // mieszka w `HubShell.rootEl`, czyli POZA tym drzewem. Otwieramy go PO renderze,
+        // zeby popup pokazywal juz swiezy stan i zeby nie polegac na tym, ze przetrwa
+        // przebudowe DOM sekcji.
         el.querySelectorAll<HTMLElement>('[data-scenario]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const id = btn.dataset.scenario as ScenarioId;
@@ -302,14 +292,16 @@ export class BattleSection implements HubSection {
                 this.selectedScenario = id;
                 this.bump = true;
                 this.render(el);
-            });
-        });
-        el.querySelectorAll<HTMLElement>('[data-map]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                playUiClick();
-                this.selectedMap = btn.dataset.map as MapId;
-                this.bump = true;
-                this.render(el);
+                if (id !== 'ktb') return;
+                // Sekcja nie montuje overlaya sama: overlaye huba zyja w `HubShell.rootEl`
+                // (wzorzec CrateOverlay / SeasonOverlay), a sekcja nie zna roota. Stad
+                // callback — sekcja mowi CO wybrac i CO zrobic z wynikiem, shell decyduje
+                // GDZIE to narysowac.
+                this.onOpenMapPicker?.(this.selectedMap, (mapId) => {
+                    this.selectedMap = mapId;
+                    this.bump = true;
+                    this.render(el);
+                });
             });
         });
         el.querySelectorAll<HTMLElement>('[data-difficulty]').forEach(btn => {

@@ -166,7 +166,10 @@ export class ShopOverlay {
                 const result = ProgressionService.purchase(profileId, item.sku);
                 this.close();
                 if (result === 'ok') {
-                    AudioSys.getInstance().playMenuClick();
+                    // v0.128.0 — KA-CHING zamiast zwyklego klikniecia menu. Zakup jest
+                    // nieodwracalny i kosztuje sigmy, wiec musi brzmiec inaczej niz kazde
+                    // inne dotkniecie UI (Sensoryka: to jest moment, ktory ma sie liczyc).
+                    AudioSys.getInstance().playShopPurchase();
                     // Kupiony dzwiek sciagamy OD RAZU, zeby pierwsze H w meczu
                     // nie czekalo na siec (rejestr jest leniwy z zalozenia).
                     if (def?.type === 'horn') AudioSys.getInstance().preloadOwnedSound(def.sound);

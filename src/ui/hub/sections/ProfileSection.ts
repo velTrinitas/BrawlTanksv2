@@ -33,7 +33,9 @@ import { getSeasonContent } from '../../../config/seasonContent';
  * Caly DOM poza petla gry — zero kosztu frame-pacing.
  */
 
-type ProfileTab = 'overview' | 'records' | 'collection' | 'season';
+// v0.129.0: zakladka 'season' wycieta — cala tresc sezonu przeniesiona do
+// dedykowanej sekcji SEZON (`SeasonSection`), do ktorej wchodzi sie pillem na belce.
+type ProfileTab = 'overview' | 'records' | 'collection';
 
 /** Kosmetyki aktywne w kolekcji — tytuly WYCIETE z UI (PROFILE-1; dane zostaja). */
 const ACTIVE_COSMETIC_COUNT = COSMETICS.filter(c => c.type !== 'title').length;
@@ -268,85 +270,6 @@ export class ProfileSection implements HubSection {
                 ${tab('overview', t('hub.profile.tab.overview'))}
                 ${tab('records', t('hub.profile.tab.records'))}
                 ${tab('collection', t('hub.profile.tab.collection'))}
-                ${getSeasonContent(getCurrentSeason().id) ? tab('season', t('hub.profile.tab.season')) : ''}
-            </div>`;
-    }
-
-    /**
-     * SEASON KIT — pelny widok sezonu (popup pokazuje wersje skrocona).
-     * Trzy bloki: kolekcja 6 przedmiotow z licznikami, tor ILOSCI (progi punktowe)
-     * i tor ROZNORODNOSCI (bramki zbiorow). Wszystko czytane z manifestu, wiec
-     * nowy sezon nie wymaga tu zadnej zmiany.
-     */
-    private seasonHtml(): string {
-        const season = getCurrentSeason();
-        const content = getSeasonContent(season.id);
-        const profile = ProfileService.getActiveProfile();
-        if (!content || !profile) return '';
-
-        const owned = ProgressionService.getSeasonItemsOwned(profile.id);
-        const points = ProgressionService.getSeasonCollected(profile.id);
-        const claimed = new Set(ProgressionService.getSeasonRewardsClaimed(profile.id));
-        const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
-
-        // ── Kolekcja: 6 kafli z licznikiem. Niezdobyte to "?" — luka ciekawosci.
-        const tiles = content.items.map(it => {
-            const n = owned[it.value] ?? 0;
-            const glow = '#' + it.glow.toString(16).padStart(6, '0');
-            return n > 0
-                ? `<div class="ps-item is-owned" style="--g:${glow}">
-                       <img src="${base}${it.asset}" alt="" draggable="false">
-                       <span class="ps-item-name">${t(it.nameKey)}</span>
-                       <span class="ps-item-n">×${n}</span>
-                   </div>`
-                : `<div class="ps-item">
-                       <span class="ps-item-q">?</span>
-                       <span class="ps-item-name">???</span>
-                       <span class="ps-item-n">${it.value} pkt</span>
-                   </div>`;
-        }).join('');
-
-        // ── Tor ILOSCI: progi punktowe -> skrzynki
-        const ptRows = content.pointThresholds.map(th => {
-            const done = claimed.has(`pts:${th.points}`) || points >= th.points;
-            return `<div class="ps-th${done ? ' is-done' : ''}">
-                        <span>${done ? '✓' : '○'} ${th.points} pkt</span>
-                        <span class="ps-th-rew">📦${th.crates > 1 ? `×${th.crates}` : ''}</span>
-                    </div>`;
-        }).join('');
-
-        // ── Tor ROZNORODNOSCI: bramki zbiorow (kolejnosc zdobycia bez znaczenia)
-        const gate = (key: string, values: readonly number[], label: string, reward: string) => {
-            const have = values.filter(v => (owned[v] ?? 0) > 0).length;
-            const done = claimed.has(`set:${key}`) || have === values.length;
-            return `<div class="ps-th${done ? ' is-done' : ''}">
-                        <span>${done ? '✓' : '○'} ${label} <b>${have}/${values.length}</b></span>
-                        <span class="ps-th-rew">${reward}</span>
-                    </div>`;
-        };
-
-        return `
-            <div class="ps-season">
-                <div class="bt-hub0-subhead">${season.emoji} ${t(season.nameKey)}</div>
-                <div class="ps-season-sum">
-                    <span>${t(content.counterKey)}</span>
-                    <b>${points}</b>
-                </div>
-
-                <div class="bt-hub0-subhead">🎒 ${t('hub.profile.season.collection')}</div>
-                <div class="ps-items">${tiles}</div>
-
-                <div class="bt-hub0-subhead">📦 ${t('hub.profile.season.pointTrack')}</div>
-                <div class="ps-ths">${ptRows}</div>
-
-                <div class="bt-hub0-subhead">🏅 ${t('hub.profile.season.setTrack')}</div>
-                <div class="ps-ths">
-                    ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), '📦')}
-                    ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), '🏅')}
-                    ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), '👑')}
-                </div>
-
-                <p class="ps-season-note">${t('hub.profile.season.museumSoon')}</p>
             </div>`;
     }
 
@@ -355,11 +278,20 @@ export class ProfileSection implements HubSection {
             case 'overview': return this.overviewHtml();
             case 'records': return this.recordsHtml();
             case 'collection': return this.collectionHtml();
-            case 'season': return this.seasonHtml();
         }
     }
 
     /** Kafel statystyki (gramatyka StatsOverlay/HUB-5 — CSS .bt-hub0-stat reuse). */
+    /**
+     * v0.128.0 (zgloszenie Mariusza) — emoji 💎 to systemowy niebieski brylant, czyli
+     * INNY ksztalt i kolor niz gem, ktory gracz realnie zbiera na mapie. Kafel ma
+     * pokazywac te sama rzecz co gra. Wzorzec 1:1 z `sigmaImg` w `overviewHtml`;
+     * metoda, bo ikona jest potrzebna w DWOCH zakladkach (Przeglad i Rekordy).
+     */
+    private gemIcon(): string {
+        return `<img class="bt-sigma bt-sigma--gem" src="${import.meta.env.BASE_URL}assets/gem.png" alt="">`;
+    }
+
     private tile(icon: string, value: string | number, label: string): string {
         return `
             <div class="bt-hub0-stat">
@@ -388,6 +320,7 @@ export class ProfileSection implements HubSection {
         const bolts = ProgressionService.getBoltsBalance(pid);
         const milestones = TROPHY_MILESTONES.filter(m => trophies >= m.threshold).length;
         const sigmaImg = `<img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">`;
+        const gemImg = this.gemIcon();
         // 9. kafel (iteracja 2: pelny grid 3x3 na desktopie): CELNOSC OGOLNA
         // lifetime — clamp 100 (fragi/breakup zawyzaja trafienia, fix przy L2b).
         const lifeAcc = stats.lifetime.shotsFired > 0
@@ -401,7 +334,7 @@ export class ProfileSection implements HubSection {
                 ${this.tile('🎮', stats.totalRuns, t('hub.stats.games'))}
                 ${this.tile('⭐', milestones, t('hub.stats.milestones'))}
                 ${this.tile('💀', stats.lifetime.kills, t('hub.profile.kills'))}
-                ${this.tile('💎', stats.lifetime.gems, t('hub.profile.gems'))}
+                ${this.tile(gemImg, stats.lifetime.gems, t('hub.profile.gems'))}
                 ${this.tile('⏱️', this.formatPlaytime(stats.lifetime.seconds), t('hub.profile.time'))}
                 ${this.tile('🎯', lifeAcc, t('hub.profile.accuracy'))}
                 ${this.tile('🏅', '<span data-rank>…</span>', t('hub.profile.rank'))}
@@ -420,7 +353,7 @@ export class ProfileSection implements HubSection {
             <div class="bt-hub0-stats bt-hub0-stats--9">
                 ${this.tile('🥇', bestScore || dash, t('hub.stats.best'))}
                 ${this.tile('💀', records.maxKills || dash, t('hub.profile.rec.kills'))}
-                ${this.tile('💎', records.maxGems || dash, t('hub.profile.rec.gems'))}
+                ${this.tile(this.gemIcon(), records.maxGems || dash, t('hub.profile.rec.gems'))}
                 ${this.tile('⏱️', records.maxSeconds > 0 ? this.formatPlaytime(records.maxSeconds) : dash, t('hub.profile.rec.time'))}
                 ${this.tile('🎯', acc, t('hub.profile.rec.accuracy'))}
                 ${this.tile('🔥', combo, t('hub.profile.rec.combo'))}

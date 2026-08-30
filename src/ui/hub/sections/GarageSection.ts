@@ -76,13 +76,24 @@ export class GarageSection implements HubSection {
                 </button>
             </div>`;
 
-        // PROFILE-1: kolekcja przeniesiona do profilu — jednoliniowy drogowskaz
-        // pod skrzynka (gracz otwiera zrzut tutaj, zaklada zdobycz w profilu).
+        // v0.129.0 (zgloszenie Mariusza "nie wiem skad one tam sa") — SKRZYNKI NA GORZE.
+        // Do v0.128.0 pudelko lezalo POD 18 kartami mocy i przelacznikiem Szalonych Mocy,
+        // czyli na samym dole najdluzszej sekcji huba: gotowa skrzynka, najbardziej
+        // klikalna rzecz na tym ekranie, byla niewidoczna bez przewiniecia.
+        //
+        // Dochodzi tez linijka ZRODEL. Skrzynki podbijaja `cratesEarned` az z szesciu
+        // miejsc (rozkazy i ich komplety, milestony Szlaku, milestony Season Tracku,
+        // progi punktowe sezonu, bramka roznorodnosci, sklep) i NIGDZIE w UI nie bylo
+        // o tym slowa. Tekst jest dla dziecka, nie sciaga z kodu.
+        //
+        // PROFILE-1: kolekcja mieszka w profilu — drogowskaz stoi teraz tuz przy
+        // przycisku OTWORZ, a nie kilkaset pikseli nizej.
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.garage')}</h2>
-            ${this.loadoutHtml(pid)}
             ${crateBox}
+            <small class="bt-hub0-lhint">📦 ${t('hub.garage.cratesFrom')}</small>
             <small class="bt-hub0-lhint">🪖 ${t('hub.garage.cosmeticsMoved')}</small>
+            ${this.loadoutHtml(pid)}
         `;
         this.wire();
     }

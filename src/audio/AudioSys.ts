@@ -143,6 +143,11 @@ const SOUND_LIST: SoundDef[] = [
 
     // UI feedback (FAZA 6d)
     { key: 'menu_click', file: 'menu_click.mp3', volume: 0.35 },
+    // v0.128.0 — KA-CHING przy potwierdzeniu zakupu w sklepie (asset Mariusza).
+    // Idzie do SOUND_LIST, a NIE do leniwego rejestru kupowanych dzwiekow: to dzwiek
+    // systemowy UI, jeden dla wszystkich graczy, a nie towar. Podkatalog przechodzi
+    // bez zmian w loaderze, bo sciezka sklada sie jako BASE + 'sfx/' + file.
+    { key: 'shop_purchase', file: 'system_sounds/ka-ching.mp3', volume: VOLUMES.pickup },
 ];
 
 /** Tracks autoplay-pending state — jeśli initial play() rejected, restart przy first gesture. */
@@ -743,6 +748,16 @@ export class AudioSys {
         if (now - this.menuClickTimer < 60) return;
         this.menuClickTimer = now;
         this.safePlay('menu_click');
+    }
+
+    /**
+     * v0.128.0 — KA-CHING po udanym zakupie w sklepie. Bez throttla `menuClickTimer`:
+     * zakup jest zdarzeniem pojedynczym i potwierdzonym w osobnym modalu, wiec nie ma
+     * czego anty-spamowac, a wspoldzielenie licznika z klikiem gubiloby dzwiek wtedy,
+     * gdy potwierdzenie padnie zaraz po klikniciu w przycisk.
+     */
+    playShopPurchase(): void {
+        this.safePlay('shop_purchase');
     }
 
     // ==========================================

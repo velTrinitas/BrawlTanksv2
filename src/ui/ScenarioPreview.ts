@@ -46,10 +46,13 @@ function renderKTB(): string {
   <!-- Sky/atmosphere -->
   <rect width="240" height="140" fill="url(#bt-s-ktb-sky)"/>
 
-  <!-- Red mist patches (atmospheric depth) -->
-  <circle cx="60"  cy="50" r="30" fill="url(#bt-s-ktb-mist)"/>
-  <circle cx="180" cy="40" r="35" fill="url(#bt-s-ktb-mist)"/>
-  <circle cx="120" cy="90" r="40" fill="url(#bt-s-ktb-mist)"/>
+  <!-- Red mist patches (atmospheric depth).
+       v0.128.0: klasa mpd-particle wpina je w DZIALAJACY juz keyframe bt-sand-drift
+       (menu-styles.css scope'uje go m.in. na .bt-sp-ktb). Do teraz scope istnial, ale
+       SVG nie mialo ANI JEDNEGO elementu z ta klasa — regula byla martwa od M5d. -->
+  <circle class="mpd-particle" cx="60"  cy="50" r="30" fill="url(#bt-s-ktb-mist)"/>
+  <circle class="mpd-particle mpd-p2" cx="180" cy="40" r="35" fill="url(#bt-s-ktb-mist)"/>
+  <circle class="mpd-particle mpd-p3" cx="120" cy="90" r="40" fill="url(#bt-s-ktb-mist)"/>
 
   <!-- Distant skull silhouettes (background layer) -->
   <g opacity="0.18" fill="#1a0606">
@@ -69,6 +72,42 @@ function renderKTB(): string {
     <!-- Right crossbone -->
     <line x1="218" y1="132" x2="232" y2="118"/>
     <line x1="218" y1="118" x2="232" y2="132"/>
+  </g>
+
+  <!-- ── BOSS + STRZAL (v0.128.0) ─────────────────────────────────────────
+       Karta KTB byla JEDYNYM podgladem scenariusza bez ruchu (CTF ma drona i palmy,
+       Castle pyl). Bohaterem jest ten sam boss_100.png, ktorego endcard pokazuje
+       w kaflu BOSSY — gracz widzi w obu miejscach dokladnie tego przeciwnika.
+
+       GEOMETRIA: karta ma 92x92 px, a viewBox jest 240x140 ze "slice", wiec widac
+       tylko srodkowy kwadrat ~x 50..190. Cala scena mieszka w tym pasie; nic
+       istotnego nie moze wyjsc poza x=50 ani x=190, bo zostanie przyciete.
+       Lufa bossa celuje w LEWO, wiec pocisk leci w lewo, a odrzut kopie w prawo.
+
+       KOLOR: blysk i pocisk sa CIEPLE (#ffe08a / #ffd75e), nie czerwone — czerwony
+       na czerwonym tle znikalby, a to ma byc widoczne na 92 px (Czytelnosc).
+
+       v0.129.0 (makieta 20260830_boss.png): czolg 64->96 px i STOI NA ZIEMI.
+       Wersja z v0.128.0 unosila sie w pionie, a cien stal w miejscu — stad wrazenie
+       lewitacji. Teraz cien jest przyklejony pod gasienicami, a jedyny ruch czolgu
+       to POZIOMY odrzut w momencie strzalu. -->
+  <!-- Cien LEZY POZA grupa czolgu: gdyby jechal razem z odrzutem, znowu odklejalby
+       sie od gruntu. Stoi nieruchomo, czolg sie po nim cofa. -->
+  <ellipse cx="134" cy="130" rx="40" ry="7.5" fill="#2a0808" opacity="0.42"/>
+  <g class="mpk-boss">
+    <image class="mpk-boss-img" href="${import.meta.env.BASE_URL}assets/sprites/boss_100.png"
+           x="86" y="38" width="96" height="96" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+  <!-- Blysk lufy — dwa ksztalty: rdzen i poswiata, zeby na malym rozmiarze czytal sie
+       jako wystrzal, a nie jako kropka. Pozycja idzie za wylotem lufy po powiekszeniu. -->
+  <g class="mpk-flash">
+    <circle cx="95" cy="94" r="12" fill="#ffb347" opacity="0.55"/>
+    <circle cx="95" cy="94" r="6.5" fill="#ffe08a"/>
+  </g>
+  <!-- Pocisk leci w lewo; smuga za nim daje kierunek przy 92 px lepiej niz sam pocisk. -->
+  <g class="mpk-shell">
+    <rect x="86" y="92.3" width="16" height="3.4" rx="1.7" fill="#ffd75e" opacity="0.45"/>
+    <circle cx="86" cy="94" r="3.6" fill="#ffe9b0" stroke="#c9762a" stroke-width="1"/>
   </g>
 
   <!-- Vignette darkening edges -->

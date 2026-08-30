@@ -42,6 +42,20 @@ import './shop-styles.css'; // SHOP-1 — izolacja per-feature (design-values.md
 
 type SectionId = 'battle' | 'garage' | 'shop' | 'quests' | 'trophies' | 'rank' | 'profile';
 
+/**
+ * v0.126.0 — ktore sekcje maja PRZYCISK W NAWIGACJI. Reszta jest normalnie renderowana,
+ * tylko wchodzi sie do niej inaczej (decyzja Mariusza po playtescie A54):
+ *  - TROFEA  -> pigulka 🏆 na gornej belce,
+ *  - PROFIL  -> chip gracza (tak bylo od PROFILE-1).
+ * Dok na telefonie schudl z 6 przyciskow do 4 + GRAJ — duplikowanie wejscia do tej samej
+ * sekcji zjadalo tam szerokosc i nic nie wnosilo.
+ *
+ * SKLEP jest wyjatkiem: siedzi w tym zbiorze, ale CSS chowa go na dotyku
+ * (`body:not(.bt-desktop)`). Powod: pionowy rail desktopu ma miejsca pod dostatkiem,
+ * a dok telefonu nie — wiec tam zostaje sama pigulka sigm.
+ */
+const NAV_SECTIONS: ReadonlySet<string> = new Set(['battle', 'garage', 'shop', 'quests', 'rank']);
+
 export class HubShell implements IScreen {
     private rootEl: HTMLElement | null = null;
     private activeSection: SectionId = 'battle';
@@ -102,10 +116,22 @@ export class HubShell implements IScreen {
         // (awatar/nick/kosmetyk zmieniaja chip na zywo).
         this.profile.onBack = () => this.setActive(this.prevSection);
         this.profile.onProfileChanged = () => this.refreshReadout();
+        // v0.126.0 — pigulki w profilu prowadza do TROFEOW / SKLEPU (obie sekcje wypadly
+        // z doku, wiec potrzebuja drugiego wejscia poza pigulkami gornej belki).
+        this.profile.onNavigate = (id) => this.setActive(id);
         // SEASON-2 — CTA popupu prowadzi do Season Tracku w TROFEA.
         this.season.onViewTrack = () => this.openSeasonTrack();
         // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
         this.quests.onRewardClaimed = () => this.refreshReadout();
+        // v0.126.0 — skrzynka z rozkazu otwiera sie OD RAZU, tym samym overlayem co
+        // w Garazu i sklepie. Wczesniej ladowala po cichu w Garazu i gracz mial pelne
+        // prawo myslec, ze klikniecie ODBIERZ nic nie zrobilo.
+        this.quests.onCratesGranted = () => {
+            if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => {
+                this.refreshReadout();
+                this.renderMain();
+            });
+        };
         // SHOP-1 — kafel otwiera modal szczegolow; zakup odswieza siatke I belke
         // (saldo zyje w dwoch miejscach naraz, wiec musi sie zgadzac bez wychodzenia).
         this.shop.onOpenItem = (sku) => {
@@ -213,16 +239,31 @@ export class HubShell implements IScreen {
     private renderChrome(): string {
         // v0.108.0 — BITWA dostaje modyfikator: na mobile dock centruje ja jako
         // wyniesiony zloty FAB (feedback Mariusza: glowna akcja byla nieodroznialna).
-        const nav = this.sections.map(s => `
+        const nav = this.sections
+            .filter(s => NAV_SECTIONS.has(s.id))
+            .map(s => `
             <button class="bt-hub0-navbtn${s.id === 'battle' ? ' bt-hub0-navbtn--battle' : ''}${s.id === this.activeSection ? ' is-active' : ''}"
                     data-section="${s.id}" type="button">
                 <span class="gi" aria-hidden="true">${s.icon}</span>
                 <small>${s.label()}</small>
             </button>`).join('');
 
+        // v0.126.0 — GRAJ W DOKU (decyzja Mariusza po playtescie A54): glowna akcja gry
+        // ma byc pod kciukiem z KAZDEGO ekranu huba, nie tylko z sekcji BITWA. Startuje
+        // biezacym wyborem (`BattleSection.startCurrentMatch`), wiec nie trzeba tam wchodzic.
+        // Widoczny TYLKO na mobile — na desktopie zostaje pasek akcji w sekcji BITWA,
+        // bo pionowy rail nie jest miejscem na akcje domykajaca.
+        const play = `
+            <button class="bt-hub0-navbtn bt-hub0-navbtn--play" data-action="play-dock" type="button"
+                    aria-label="${t('hub.play')}">
+                <span class="np-arrow" aria-hidden="true">»</span>
+                <span class="np-label">${t('hub.play')}</span>
+                <span class="np-arrow" aria-hidden="true">»</span>
+            </button>`;
+
         return `
             <div class="bt-hub0-top">${this.renderReadout()}</div>
-            <nav class="bt-hub0-nav">${nav}</nav>
+            <nav class="bt-hub0-nav">${nav}${play}</nav>
             <div class="bt-hub0-main"></div>
         `;
     }
@@ -276,6 +317,11 @@ export class HubShell implements IScreen {
     private renderMain(): void {
         const main = this.rootEl?.querySelector('.bt-hub0-main') as HTMLElement | null;
         if (!main) return;
+        // v0.126.0 — TRYB DZIELONY dla BITWY: przewija sie tylko `.bt-battle-scroll`,
+        // a pasek z GRAJ stoi POZA scrollem, wiec nigdy nie zaslania tresci.
+        // Toggle musi byc TUTAJ, bo `innerHTML = ''` czysci dzieci, ale NIE klasy —
+        // bez zdejmowania klasa zostalaby na kolejnej sekcji i zabila jej przewijanie.
+        main.classList.toggle('bt-hub0-main--split', this.activeSection === 'battle');
         main.innerHTML = '';
         // PROFILE-1 — profil to ukryta sekcja poza nav (wejscie przez chip w readoucie).
         if (this.activeSection === 'profile') {
@@ -308,6 +354,9 @@ export class HubShell implements IScreen {
             else if (action === 'profile') this.openProfile(); // PROFILE-1 — strona profilu
             else if (action === 'trophies') this.setActive('trophies'); // PROFILE-1 — pill 🏆
             else if (action === 'shop') this.setActive('shop');         // SHOP-1 — pill sigm
+            // v0.126.0 — GRAJ z doku: startuje BIEZACYM wyborem BattleSection, wiec
+            // dziala z kazdej sekcji huba bez wchodzenia do BITWY.
+            else if (action === 'play-dock') this.battle.startCurrentMatch();
             // SEASON-2 — pill sezonu otwiera POPUP (CTA popupu prowadzi do tracku)
             else if (action === 'season' && this.rootEl) this.season.open(this.rootEl);
             // 'play' obslugiwane wewnatrz BattleSection (wlasny listener)

@@ -75,26 +75,69 @@ export interface SeasonContentDef {
 /**
  * Lista zatwierdzona przez Mariusza 28.08.2026 (dec. A w SEASON_ENGINE.md).
  *
- * ⚠️ ASSETY SA TYMCZASOWE. Paczka `public/seasons/s3/item1..6.png` jeszcze nie
- * istnieje — do czasu jej dostarczenia szesc pozycji wskazuje na TRZY istniejace
- * ksiazki, zeby cala mechanika (wagi, pity, bramki zbiorow, progi) byla testowalna
- * juz teraz. Podmiana na docelowa paczke = zmiana szesciu stringow `asset`,
- * zero zmian w kodzie. Bramka G3 pilnuje kompletnosci paczki, gdy ta powstanie.
+ * v0.126.0 — KONIEC PLACEHOLDEROW. Szesc pozycji wskazywalo na trzy istniejace
+ * ksiazki (`assets/items/book_*.png`), zeby mechanika byla testowalna przed artem.
+ * Mariusz dostarczyl paczke `public/seasons/s3/item1..6.png`, wiec podmiana wyszla
+ * dokladnie tak, jak zapowiadal SEASON_ENGINE.md: szesc stringow, zero zmian w kodzie.
  */
-const TMP_GREEN = 'assets/items/book_green_100.png';
-const TMP_BLUE = 'assets/items/book_blue_100.png';
-const TMP_GOLD = 'assets/items/book_golden_100.png';
-
 const S3_ITEMS: readonly SeasonItemDef[] = [
-    { value: 1, nameKey: 'season.s3.item1', asset: TMP_GREEN, glow: 0x54d17a, weight: 40 },
-    { value: 2, nameKey: 'season.s3.item2', asset: TMP_GREEN, glow: 0x7fe39a, weight: 25 },
-    { value: 3, nameKey: 'season.s3.item3', asset: TMP_BLUE,  glow: 0x4aa8f0, weight: 15 },
-    { value: 4, nameKey: 'season.s3.item4', asset: TMP_BLUE,  glow: 0x86c9ff, weight: 10 },
-    { value: 5, nameKey: 'season.s3.item5', asset: TMP_GOLD,  glow: 0xa46cf0, weight: 7 },
-    { value: 6, nameKey: 'season.s3.item6', asset: TMP_GOLD,  glow: 0xff5e6a, weight: 3 },
+    { value: 1, nameKey: 'season.s3.item1', asset: 'seasons/s3/item1.png', glow: 0x54d17a, weight: 40 },
+    { value: 2, nameKey: 'season.s3.item2', asset: 'seasons/s3/item2.png', glow: 0x7fe39a, weight: 25 },
+    { value: 3, nameKey: 'season.s3.item3', asset: 'seasons/s3/item3.png', glow: 0x4aa8f0, weight: 15 },
+    { value: 4, nameKey: 'season.s3.item4', asset: 'seasons/s3/item4.png', glow: 0x86c9ff, weight: 10 },
+    { value: 5, nameKey: 'season.s3.item5', asset: 'seasons/s3/item5.png', glow: 0xa46cf0, weight: 7 },
+    { value: 6, nameKey: 'season.s3.item6', asset: 'seasons/s3/item6.png', glow: 0xff5e6a, weight: 3 },
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// SEZON 2 — "Arena" (BIEZACY, do 31.08)
+// ══════════════════════════════════════════════════════════════════════════
+/**
+ * v0.126.0 (prosba Mariusza) — sezon 2 dostaje znajdzki, zeby silnik sezonowy byl
+ * WIDOCZNY JUZ TERAZ, a nie dopiero 01.09. Do v0.125.0 manifest mial wylacznie `s3`,
+ * wiec w biezacym sezonie nie spawnowalo sie nic: ani licznik w HUD, ani zakladka
+ * SEZON w profilu, ani tory nagrod.
+ *
+ * ⚠️ ART I NAZWY SA WSPOLNE Z S3 — Mariusz skopiowal te sama paczke do
+ * `public/seasons/s2/`. To szkolne przybory w sezonie „Arena", czyli tematyczna
+ * niespojnosc na jeden dzien; SWIADOMA, bo alternatywa byloby wymyslanie „arenowych"
+ * nazw do obrazkow przedstawiajacych olowek i globus, czyli klamanie o zawartosci.
+ * Sezon 2 konczy sie 31.08 — przy S4 kazdy sezon dostaje wlasna paczke.
+ *
+ * Reguly (wagi, progi, bramki, pity) sa IDENTYCZNE z S3, zeby to, co Mariusz
+ * przetestuje teraz, bylo tym samym mechanizmem, ktory wystartuje 01.09.
+ */
+const S2_ITEMS: readonly SeasonItemDef[] = [
+    { value: 1, nameKey: 'season.s2.item1', asset: 'seasons/s2/item1.png', glow: 0x54d17a, weight: 40 },
+    { value: 2, nameKey: 'season.s2.item2', asset: 'seasons/s2/item2.png', glow: 0x7fe39a, weight: 25 },
+    { value: 3, nameKey: 'season.s2.item3', asset: 'seasons/s2/item3.png', glow: 0x4aa8f0, weight: 15 },
+    { value: 4, nameKey: 'season.s2.item4', asset: 'seasons/s2/item4.png', glow: 0x86c9ff, weight: 10 },
+    { value: 5, nameKey: 'season.s2.item5', asset: 'seasons/s2/item5.png', glow: 0xa46cf0, weight: 7 },
+    { value: 6, nameKey: 'season.s2.item6', asset: 'seasons/s2/item6.png', glow: 0xff5e6a, weight: 3 },
 ];
 
 const SEASON_CONTENT: readonly SeasonContentDef[] = [
+    {
+        // Reguly celowo 1:1 z S3 — to, co gracz przetestuje teraz, ma byc dokladnie
+        // tym mechanizmem, ktory wystartuje 01.09. Zadnych „testowych" wartosci.
+        seasonId: 's2',
+        counterKey: 'season.s2.counter',
+        items: S2_ITEMS,
+        pointThresholds: [
+            { points: 25, crates: 1 },
+            { points: 60, crates: 1 },
+            { points: 120, crates: 1 },
+            { points: 200, crates: 2 },
+        ],
+        varietyGates: {
+            crate: [1, 2, 3],
+            title: [1, 2, 3, 4, 5],
+            full: [1, 2, 3, 4, 5, 6],
+        },
+        spawn: { maxAlive: 3, everyMs: 4000, pityAfter: 40, pityStepPct: 2 },
+        size: 51,
+        radius: 38,
+    },
     {
         seasonId: 's3',
         counterKey: 'season.s3.counter',

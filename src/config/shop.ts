@@ -17,14 +17,21 @@ import type { TranslationKey } from '../i18n/i18n';
 import { getCosmetic, cosmeticsByType, type Rarity } from './cosmetics';
 
 /**
- * SHOP_LIVE=false => zakupy zapisuja sie do PIASKOWNICY (ProgressionService.shopDev),
- * ktora nigdy nie idzie do chmury i znika po RESET. Prawdziwe saldo nietkniete.
- * Wyjscie na produkcje = ta jedna linia. Ledger boltsSpent dziala na serio w obu
- * trybach, wiec piaskownica testuje PRAWDZIWA sciezke kodu, nie atrape.
+ * SHOP_LIVE steruje DWIEMA rzeczami naraz i warto o tym pamietac przy przelaczaniu:
+ *  - widocznoscia sekcji SKLEP w nawigacji,
+ *  - trybem zakupow (`isShopSandbox` to doslownie `!SHOP_LIVE`).
+ *
+ * `false` => sklep tylko za `?shop=1`, a zakupy ida do PIASKOWNICY: biora migawke stanu,
+ * `syncPush` jest odciety, a start bez flagi cofa wszystko sam.
+ * `true`  => sklep zawsze widoczny, zakupy PRAWDZIWE, synchronizacja normalna.
+ *
+ * v0.126.0 (decyzja Mariusza po playtescie desktopowym): WLACZONY.
+ * Ledger `boltsSpent` dzialal na serio w obu trybach, wiec piaskownica testowala
+ * prawdziwa sciezke kodu — przejscie na zywo nie zmienia logiki, tylko trwalosc.
  */
-export const SHOP_LIVE = false;
+export const SHOP_LIVE = true;
 
-/** Sekcja SKLEP jest w nawigacji tylko za flaga (towar to jeszcze placeholdery). */
+/** Sekcja SKLEP w nawigacji: zawsze przy SHOP_LIVE, inaczej tylko za flaga. */
 export function isShopEnabled(): boolean {
     try {
         if (SHOP_LIVE) return true;
@@ -147,10 +154,20 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
     // ── klaksony (klawisz H) — desktopOnly, patrz komentarz przy polu ───────
     ...hornSkus(),
 
-    // ── paczka glosowa (jedna, PL+EN) ──────────────────────────────────────
+    // ── paczka glosowa ─────────────────────────────────────────────────────
+    // WKROTCE, a nie na sprzedaz — SWIADOMA decyzja przy wlaczaniu SHOP_LIVE.
+    // Pliki kwestii NIE ISTNIEJA; definicja w cosmetics.ts wskazuje tymczasowo na
+    // `rank_fanfare.wav` i `yeti.mp3`. Sprzedawanie za 3000 sigm czegos, co odgrywa
+    // ryk yeti, byloby klamstwem o zawartosci — a chip „0 wplywu na gre" na kazdym
+    // produkcie ma znaczyc, ze opis produktu jest prawdziwy.
+    //
+    // PRZYWROCENIE po dostarczeniu 4 plikow (start/lowHp x pl/en):
+    //   1. usun `soon: true`
+    //   2. grant: { kind: 'cosmetic', id: 'vo_commander' }
+    //   3. podmien sciezki w cosmetics.ts na 'voice/cmdr_{lang}_start.ogg' itd.
     { sku: 'vo_commander', category: 'voice', price: 3000, currency: 'sigma', rarity: 'e',
       nameKey: 'shop.item.vo_commander.name', descKey: 'shop.item.vo_commander.desc',
-      impactKey: 'shop.impact.none', grant: { kind: 'cosmetic', id: 'vo_commander' },
+      impactKey: 'shop.impact.none', grant: { kind: 'none' }, soon: true,
       emoji: '🗣️' },
 
     // ── WKROTCE (placeholdery; art i systemy w osobnych fazach) ────────────
@@ -181,9 +198,17 @@ const _BY_SKU: Record<string, ShopItemDef> = Object.fromEntries(SHOP_ITEMS.map(i
 
 export function getShopItem(sku: string): ShopItemDef | undefined { return _BY_SKU[sku]; }
 
-/** Pozycje danej kategorii; na dotyku odpadaja te bezuzyteczne bez klawiatury. */
-export function shopItemsOf(category: ShopCategory, isDesktop: boolean): ShopItemDef[] {
-    return SHOP_ITEMS.filter(i => i.category === category && (isDesktop || !i.desktopOnly));
+/**
+ * Pozycje danej kategorii.
+ *
+ * v0.126.0 (decyzja Mariusza): towar `desktopOnly` jest widoczny i kupowalny TAKZE
+ * na dotyku — wczesniej byl tam ukryty. Warunek jest jeden i twardy: kafel MUSI
+ * wtedy niesc informacje, ze dziala tylko na komputerze (badge na kaflu + zdanie
+ * w modalu). Ukrywanie chronilo przed kupnem martwego towaru, ale odbieralo tez
+ * mozliwosc zobaczenia calej kategorii — informacja robi to samo bez chowania.
+ */
+export function shopItemsOf(category: ShopCategory): ShopItemDef[] {
+    return SHOP_ITEMS.filter(i => i.category === category);
 }
 
 /**

@@ -178,6 +178,14 @@ export const pl = {
     'season.s3.b2': 'Szkolny klimat: kreda, plecaki i praca domowa z trofeów',
     'season.s3.b3': 'Więcej niespodzianek wkrótce!',
     // SEASON KIT: nazwa licznika znajdziek sezonu (HUD, ekran konca meczu).
+    // SEZON 2 — znajdzki (art i nazwy wspolne z S3, patrz seasonContent.ts)
+    'season.s2.counter': 'książki',
+    'season.s2.item1': 'Ołówek',
+    'season.s2.item2': 'Książka',
+    'season.s2.item3': 'Zeszyt',
+    'season.s2.item4': 'Ekierka',
+    'season.s2.item5': 'Plecak',
+    'season.s2.item6': 'Globus',
     'season.s3.counter': 'książki',
     // SEASON KIT — nazwy 6 znajdziek sezonu 3 (dec. A, 28.08.2026).
     'season.s3.item1': 'Ołówek',
@@ -358,7 +366,7 @@ export const pl = {
     'shop.tooPoor': 'Za mało sigm',
     'shop.bought': 'Kupione!',
     'shop.empty': 'Tu jeszcze nic nie ma.',
-    'shop.hornDesktopNote': 'Klakson działa na klawiaturze (klawisz H).',
+    'shop.hornDesktopNote': '🖥️ Działa TYLKO na komputerze — klawisz H. Na telefonie nie zabrzmi.',
     'shop.sandbox': 'PIASKOWNICA — zakupy nie są zapisywane',
     'shop.sandboxReset': 'RESET',
     'shop.tab.crates': 'SKRZYNKI',
@@ -489,6 +497,8 @@ export const pl = {
     'hub.quests.setTitle': 'Komplet dnia',
     'hub.quests.setDesc': 'Wykonaj wszystkie 3 rozkazy dnia',
     'hub.quests.setReward': '+{bolts} sigm i skrzynka',
+    'hub.quests.weekSetTitle': 'Komplet tygodnia',
+    'hub.quests.weekSetReward': '+{bolts} sigm i {crates} skrzynki',
     'hub.quests.locked': 'Rozkazy od {n} 🏆',
     'hub.quests.lockedHint': 'Zdobywaj trofea w meczach — zostało {n} 🏆',
     'hub.quests.resetDaily': 'Nowe rozkazy jutro',
@@ -837,6 +847,9 @@ export const pl = {
 
     // Pady — etykieta na padzie (FAZA MARS M4; starsze pady maja hardcoded PL)
     'pad.repairing':      'NAPRAWA',
+    'ctf.flagLabel':      'FLAGA {team}',
+    'portrait.title':     'Obróć telefon do poziomu',
+    'portrait.subtitle':  'Brawl Tanks gra się najlepiej w trybie poziomym — szersze pole bitwy widać lepiej 🔄',
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

@@ -20,8 +20,8 @@
  */
 
 // linie ~25-26 w public/sw.js
-const CACHE_VERSION = 'bt-s2-v0.19.0';   // bump z v0.18.7
-const RUNTIME_CACHE = 'bt-runtime-v0.19.0';  // bump z v0.18.7
+const CACHE_VERSION = 'bt-s2-v0.20.0';   // bump z v0.19.0 — doszedl self-hosted font
+const RUNTIME_CACHE = 'bt-runtime-v0.20.0';  // bump z v0.19.0
 
 /**
  * Precache list — minimal essentials for PWA bootstrap.
@@ -34,6 +34,11 @@ const PRECACHE_URLS = [
     './icon-512.png',
     './apple-touch-icon.png',
     './favicon.png',
+    // TYPO-P0-1: font MUSI byc w PRECACHE, nie w runtime-cache. PIXI.Text piecze
+    // teksture RAZ — jesli przy pierwszym wejsciu na mape fontu jeszcze nie ma,
+    // napisy zostaja krojem zastepczym do konca sesji. Runtime-cache jest za pozno.
+    './fonts/titan-one-latin.woff2',
+    './fonts/titan-one-latin-ext.woff2',
 ];
 
 // === INSTALL: precache critical assets ===

@@ -90,15 +90,14 @@ export class VirtualJoystick {
         this.rootEl.className = `bt-joystick bt-joystick--${this.side} bt-joystick--${this.mode}`;
         this.rootEl.setAttribute('aria-hidden', 'true');
 
-        // v0.108.0: prawy drazek dostaje ikone CELOWNIKA 🎯 na srodku bazy (decyzja
-        // Mariusza — bullseye zamiast CSS-owego pocisku). Afordancja "tu sie celuje
-        // i strzela" po zdjeciu zlotego ringu; znika przy .is-active.
-        const fireIcon = this.side === 'right'
-            ? `<span class="bt-joystick-fireicon" aria-hidden="true">🎯</span>`
-            : '';
+        // v0.126.0 (decyzja Mariusza po playtescie): USUNIETA ikona celownika 🎯
+        // ze srodka prawej galki. Wprowadzil ja v0.108.0 jako afordancje „tu sie celuje",
+        // ale w praktyce siedziala dokladnie pod kciukiem — czyli byla zaslonieta wtedy,
+        // gdy mialaby cokolwiek tlumaczyc, a widoczna tylko wtedy, gdy nie byla potrzebna.
+        // Styl `.bt-joystick-fireicon` zostaje w menu-styles.css bez konsumenta i moze
+        // zniknac przy najblizszym sprzataniu CSS.
         this.rootEl.innerHTML = `
             <div class="bt-joystick-base"></div>
-            ${fireIcon}
             <div class="bt-joystick-knob"></div>
         `;
 

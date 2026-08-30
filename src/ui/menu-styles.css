@@ -4064,6 +4064,12 @@
 .bt-lb-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 10px;
     background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.07);
+    /* v0.126.0 (zgloszenie z playtestu: „pierwsze 3 miejsca to waskie paski").
+       Wysokosc wiersza byla WYPADKOWA zawartosci — jesli cokolwiek w srodku sie nie
+       wyrenderowalo (np. awatar), wiersz zapadal sie do wysokosci samego tekstu.
+       `min-height` odbiera te zaleznosc: kazdy wiersz ma ten sam rozmiar niezaleznie
+       od tego, co uda sie zaladowac. */
+    min-height: 46px; box-sizing: border-box;
 }
 /* Top-3 = zwykle wiersze, wyroznione tylko tlem/ramka (zloto/srebro/braz). */
 .bt-lb-row--1 { background: linear-gradient(90deg, rgba(255,210,74,0.30), rgba(255,210,74,0.10)); border-color: #ffd24a; }
@@ -4167,7 +4173,7 @@
     .bt-lb-screen { padding: 8px 14px; gap: 7px; }
     .bt-lb-screen .bt-settings-title { font-size: 1.2rem; }
     .bt-lb-avatar { width: 26px; height: 26px; }
-    .bt-lb-row { padding: 5px 12px; }
+    .bt-lb-row { padding: 5px 12px; min-height: 38px; }
 }
 /* v0.119.0 (iteracja 7, pkt 1): ODDECH takze na pelnym rankingu — content
    ograniczony i wycentrowany na desktopie (spojnie z .bt-hub0-main ~1200px). */

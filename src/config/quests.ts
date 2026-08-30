@@ -77,6 +77,15 @@ export const DAILY_QUEST_COUNT = 3;         // 1x latwy + 1x sredni + 1x kierunk
 export const DAILY_SET_BOLTS = 30;          // bonus za komplet dnia...
 export const DAILY_SET_CRATES = 1;          // ...+ skrzynka (glowny hak dnia)
 
+/**
+ * v0.126.0 — KOMPLET TYGODNIA (prosba Mariusza: kolumna tygodniowa miala pusto tam,
+ * gdzie dzienna ma swoj komplet). Nagroda wyzsza niz dzienna, bo to tydzien pracy,
+ * ale NIE przyclmiewa samych rozkazow (te daja lacznie 210 sigm + 3 skrzynki).
+ * Wartosci startowe do kalibracji po playtescie, jak reszta ekonomii rozkazow.
+ */
+export const WEEKLY_SET_BOLTS = 100;
+export const WEEKLY_SET_CRATES = 2;
+
 export const QUEST_BOLTS = {
     easy: 25,
     medium: 45,

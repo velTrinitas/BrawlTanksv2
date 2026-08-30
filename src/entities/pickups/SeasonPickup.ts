@@ -31,10 +31,20 @@ const TTL_MS = 25_000;
 /** Ostatnie 4 s miga, zeby znikniecie nie bylo "oszustwem" (Czytelnosc). */
 const BLINK_MS = 4_000;
 /**
- * Zrodlowe PNG maja 100x100 (kontrakt s3). Uzywamy STALEJ, a nie
- * `texture.width` — patrz applySize().
+ * Bok zrodlowego PNG znajdzki. Uzywamy STALEJ, a nie `texture.width` — patrz applySize()
+ * (nieza ladowana tekstura ma width 1, co dawalo skale 34 i ksiazke na pol ekranu).
+ *
+ * ⚠️ MUSI ZGADZAC SIE Z KONTRAKTEM PACZKI: `docs/season-kit/SEASON_ENGINE.md` mowi
+ * `item1..6.png` = **128x128**.
+ *
+ * v0.126.0 — BYLO 100, bo tyle mialy TYMCZASOWE ksiazki-zastepniki. Gdy Mariusz
+ * dostarczyl prawdziwa paczke 128x128, skala `size/SRC_PX` przestala odpowiadac
+ * rzeczywistosci: przy `size: 51` znajdzka renderowala sie jako `128 * 0.51 = 65px`,
+ * czyli **o 28% wieksza niz deklaruje manifest** — i to bylo zgloszenie „ikony sa
+ * za duze", a nie kwestia gustu. Poprawka przywraca zgodnosc: `size` w manifescie
+ * znowu znaczy realne piksele na mapie.
  */
-const SRC_PX = 100;
+const SRC_PX = 128;
 /**
  * Cien wzgledem szerokosci ksiazki. Stale, bo te same liczby sa uzywane w dwoch
  * miejscach (applyDef ustawia rozmiar bazowy, update go oddycha) — rozjechanie

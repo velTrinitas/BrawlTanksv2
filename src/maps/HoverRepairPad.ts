@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+// TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
+import { t } from '../i18n/i18n';
 
 /**
  * HoverRepairPad — MediPad z v4.48.
@@ -158,11 +160,11 @@ export class HoverRepairPad {
         this.progressBarFill.visible = false;
         this.platformBase.addChild(this.progressBarFill);
         
-        this.progressLabel = new PIXI.Text('NAPRAWIAM...', {
+        this.progressLabel = new PIXI.Text(t('pad.repairing'), {
             fontFamily: 'Courier New',
             fontSize: 10,
             fontWeight: 'bold',
-            fill: 0xffffff,
+            fill: 0xffffff, stroke: 0x000000, strokeThickness: 3,
         });
         this.progressLabel.anchor.set(0.5);
         this.progressLabel.visible = false;
@@ -172,7 +174,7 @@ export class HoverRepairPad {
             fontFamily: 'Arial',
             fontSize: 9,
             fontWeight: 'bold',
-            fill: 0xffeedd,
+            fill: 0xffeedd, stroke: 0x000000, strokeThickness: 3,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;

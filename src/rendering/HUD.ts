@@ -395,6 +395,11 @@ export class HUD {
             c.fillStyle = '#ff0033';
             c.font = `13px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'right';
+            // TYPO-P0-3: kontur. Czerwien #ff0033 na ciemnym tle mapy sama w sobie ma
+            // slaby kontrast, a to jest ZACHETA do dobicia MegaBossa — musi sie czytac.
+            c.strokeStyle = 'rgba(0,0,0,0.9)';
+            c.lineWidth = 3;
+            c.strokeText(tr('hud.killProgressTaunt'), px + PW - 4, py + PH + 18);
             c.fillText(tr('hud.killProgressTaunt'), px + PW - 4, py + PH + 18);
             c.restore();
         }
@@ -576,8 +581,14 @@ export class HUD {
         }
 
         c.font = `12px "${FONT_FAMILY}",cursive`;
-        c.fillStyle = 'rgba(255,255,255,0.55)';
         c.textAlign = 'center';
+        // TYPO-P0-3: kontur. Podpowiedz jest CELOWO przygaszona (alpha 0.55), wiec bez
+        // obrysu potrafila zniknac calkiem na jasnym tle — a to jedyna instrukcja, ktora
+        // mowi graczowi, jak odpalic moc. Kontur tez przygaszony, zeby nie krzyczal.
+        c.strokeStyle = 'rgba(0,0,0,0.55)';
+        c.lineWidth = 3;
+        c.strokeText(tr('hud.powerHint'), cx, hintY);
+        c.fillStyle = 'rgba(255,255,255,0.55)';
         c.fillText(tr('hud.powerHint'), cx, hintY);
         
         if (powerSystem.activePowerId !== null) {
@@ -632,32 +643,73 @@ export class HUD {
     }
 
     /** SEASON KIT — chip "📕 N". Ten sam jezyk wizualny co pill KILLS, mniejszy. */
+    /**
+     * TYPO-P0-5 (v0.126.0) — dwie poprawki wzgledem pierwszej wersji:
+     *
+     * 1. `save`/`restore`. Metoda zostawiala w kontekscie font 22px, textAlign 'right',
+     *    fillStyle zloty, lineWidth 4. Skutku nie bylo widac TYLKO dlatego, ze nastepny
+     *    `drawSuperPill` nadpisuje wszystkie te pola u siebie — czyli blad byl utajony
+     *    i wybuchlby przy zmianie kolejnosci rysowania. Sasiednie `drawMagnetStatus`
+     *    i `drawTurboStatus` robia to poprawnie; to bylo odstepstwo od wzorca w pliku.
+     *
+     * 2. `measureText` + auto-shrink. Budzet poziomy to PW - 24 px dzielone miedzy
+     *    podpis (26 px) i wartosc (22 px), a podpis rosnie z jezykiem ("Książki" 7 zn.
+     *    vs "Books" 5 zn., +40%) i wartosc rosnie z liczba (📕 5 -> 📕 123). Bez pomiaru
+     *    oba napisy po prostu wchodzily na siebie. Pozostale pille, ktore rosna z trescia
+     *    (drawNotifs), mierza tekst od zawsze — ten jeden nie mierzyl.
+     */
     private drawSeasonPill(px: number, py: number, PW: number, PH: number, r: number): void {
         const c = this.ctx;
+        c.save();
+
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
         c.roundRect(px, py, PW, PH, r);
         c.fill();
 
         const cy = py + PH / 2;
+        const PAD = 12;
+        const GAP = 8;                      // minimalny odstep podpis <-> wartosc
+        const budget = PW - PAD * 2 - GAP;
+
+        const label = tr('hud.books');
+        const val = `${this.seasonIcon} ${this.seasonCount ?? 0}`;
+
+        // Wartosc jest wazniejsza od podpisu (podpis stoi obok ikony 📕, wiec i tak
+        // sie domysli), dlatego przy ciasnocie kurczy sie NAJPIERW podpis.
+        let valPx = 22;
+        c.font = `${valPx}px "${FONT_FAMILY}",cursive`;
+        let valW = c.measureText(val).width;
+        while (valW > budget * 0.6 && valPx > 15) {
+            valPx -= 1;
+            c.font = `${valPx}px "${FONT_FAMILY}",cursive`;
+            valW = c.measureText(val).width;
+        }
+
+        let labelPx = HUD_LABEL_PX;
+        c.font = `${labelPx}px "${FONT_FAMILY}",cursive`;
+        while (c.measureText(label).width > budget - valW && labelPx > 14) {
+            labelPx -= 1;
+            c.font = `${labelPx}px "${FONT_FAMILY}",cursive`;
+        }
+
         // Uklad jak w pillu KILLS: PODPIS po lewej, wartosc po prawej — ta sama os,
         // wiec oba pille czytaja sie jako jeden rzad, a nie dwa rozne widgety.
-        c.font = `${HUD_LABEL_PX}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'left';
         c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.9)';
         c.lineWidth = 4;
-        const label = tr('hud.books');
-        c.strokeText(label, px + 12, cy);
+        c.strokeText(label, px + PAD, cy);
         c.fillStyle = '#ffffff';
-        c.fillText(label, px + 12, cy);
+        c.fillText(label, px + PAD, cy);
 
-        const val = `${this.seasonIcon} ${this.seasonCount ?? 0}`;
-        c.font = `22px "${FONT_FAMILY}",cursive`;
+        c.font = `${valPx}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'right';
-        c.strokeText(val, px + PW - 12, cy + 1);
+        c.strokeText(val, px + PW - PAD, cy + 1);
         c.fillStyle = '#f1c40f';
-        c.fillText(val, px + PW - 12, cy + 1);
+        c.fillText(val, px + PW - PAD, cy + 1);
+
+        c.restore();
     }
 
     private drawMagnetStatus(powerSystem: PowerSystem): void {

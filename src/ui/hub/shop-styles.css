@@ -16,6 +16,16 @@
    .ph-nick i .pc-nm), a Titan One zostaje tytulom modali i przyciskom.
    ============================================================================ */
 
+/* TYPO-P1-10: trzy kolory tekstu byly wpisane hexem, gdy reszta pliku konsekwentnie
+   uzywa tokenow. Nie ma dla nich odpowiednika w palecie `--hub-*` (ta jest stalowo-zlota,
+   bez fioletu i zieleni), wiec zamiast naciagac istniejace tokeny albo zmieniac kolory —
+   nazywam je tutaj SEMANTYCZNIE. Fiolet = tryb deweloperski, zielen = „nie wplywa na gre". */
+.bt-hub0-screen {
+    --shop-dev-ink: #d9b6ea;
+    --shop-dev-ink-strong: #e6cdf3;
+    --shop-impact-ok: #7ee0a8;
+}
+
 /* ── hero ─────────────────────────────────────────────────────────────────── */
 .bt-shop-hero {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
@@ -59,12 +69,12 @@
     margin-bottom: 10px; padding: 8px 12px; border-radius: 10px;
     border: 1px dashed rgba(155, 89, 182, 0.6); background: rgba(155, 89, 182, 0.12);
     font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
-    font-size: 11px; letter-spacing: 0.4px; color: #d9b6ea;
+    font-size: 11px; letter-spacing: 0.4px; color: var(--shop-dev-ink);
 }
 .bt-shop-reset {
     margin-left: auto; padding: 5px 12px; min-height: 30px; cursor: pointer;
     border-radius: 999px; border: 2px solid rgba(155, 89, 182, 0.7);
-    background: var(--hub-steel-850); color: #e6cdf3;
+    background: var(--hub-steel-850); color: var(--shop-dev-ink-strong);
     font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 11px;
 }
 .bt-shop-reset:active { transform: translateY(2px); }
@@ -154,18 +164,21 @@
     font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--g);
 }
 .bt-shop-detail .sd-name {
-    margin: 0; font-family: var(--font-display, 'Titan One', cursive);
+    margin: 0; font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     font-size: 24px; line-height: 1.1; color: var(--hub-ink);
     overflow-wrap: anywhere;   /* dluga nazwa (EN bywa dluzsza) lamie sie, nie ucieka */
 }
 .bt-shop-detail .sd-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 /* Chip deklaruje wplyw na rozgrywke. Zielony = "nic nie zmienia". Gdy dojdzie
    drzewko czesci, ten sam chip powie "+3% obrazen" — roznica ma byc widoczna. */
+/* TYPO-P1-10: 10px -> 11px. Regula dopuszcza 10px tylko dla WERSALIKOWYCH mikro-etykiet
+   (te czytaja sie lepiej w malym stopniu); ten chip to pelne zdanie mieszana wielkoscia
+   liter i najdluzszy tekst w modalu — czyli dokladnie odwrotny przypadek. */
 .bt-shop-detail .sd-chip {
-    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 10px;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 11px;
     padding: 4px 9px; border-radius: 999px;
     border: 1px solid rgba(46, 204, 113, 0.45); background: rgba(46, 204, 113, 0.14);
-    color: #7ee0a8;
+    color: var(--shop-impact-ok);
 }
 .bt-shop-detail .sd-desc,
 .bt-shop-detail .sd-note {
@@ -198,7 +211,7 @@
 .bt-shop-confirm .sc-img { width: 72%; height: 72%; object-fit: contain; position: relative; z-index: 1; }
 .bt-shop-confirm .sc-emoji { position: absolute; font-size: 40px; line-height: 1; }
 .bt-shop-confirm .sc-name {
-    margin: 0 0 4px; font-family: var(--font-display, 'Titan One', cursive);
+    margin: 0 0 4px; font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     font-size: 20px; line-height: 1.15; color: var(--hub-ink); overflow-wrap: anywhere;
 }
 .bt-shop-confirm .sc-q {
@@ -291,9 +304,9 @@
     .bt-shop-hero .sh-art::after { background-size: 22px 22px; }
     .bt-shop-hero .sh-info { flex-direction: row; align-items: baseline; gap: 10px; }
     .bt-shop-hero .sh-balance { font-size: 17px; gap: 6px; }
-    .bt-shop-hero .sh-balance-lbl { font-size: 9px; letter-spacing: 0.5px; }
+    .bt-shop-hero .sh-balance-lbl { font-size: 11px; letter-spacing: 0.5px; }
     .bt-shop-hero .sh-copy {
-        font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .bt-shop-hero .sh-copy br { display: none; }
 
@@ -316,7 +329,8 @@
     .bt-shop-detail .sd-art { min-height: 0; flex-basis: 34%; }
     .bt-shop-detail .sd-body { padding: 12px 14px; gap: 6px; }
     .bt-shop-detail .sd-name { font-size: 18px; }
-    .bt-shop-detail .sd-desc { font-size: 11px; }
+    .bt-shop-detail .sd-desc,
+    .bt-shop-detail .sd-note { font-size: 11px; }
     .bt-shop-detail .sd-price { font-size: 18px; }
     .bt-shop-detail .sd-cta { min-height: 44px; font-size: 14px; }
     .bt-shop-detail .sd-listen { min-height: 44px; }
@@ -328,4 +342,15 @@
     .bt-shop-confirm .sc-left { font-size: 11px; margin-top: 8px; }
 
     .ph-sticker { width: 36px; height: 36px; right: -6px; bottom: -6px; }
+}
+
+/* v0.126.0 — znacznik „tylko na komputerze". Towar desktopOnly jest od teraz kupowalny
+   takze na telefonie (decyzja Mariusza), wiec informacja MUSI byc widoczna na kaflu,
+   a nie dopiero w modalu — kafel to jedyny moment, w ktorym gracz jeszcze nie zdecydowal. */
+.bt-shop-card .sk-pc {
+    position: absolute; top: 5px; left: 5px; z-index: 2;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 10px;
+    letter-spacing: 0.3px; color: var(--hub-ink);
+    background: rgba(8, 8, 18, 0.82); border: 1px solid var(--hub-line);
+    padding: 2px 6px; border-radius: 999px;
 }

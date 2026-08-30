@@ -75,16 +75,16 @@ body.bt-desktop .bt-hub0-screen {
     background: transparent;
     color: inherit;
     cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 10px;
+    padding: 4px 10px 4px 5px;
+    border-radius: 100px;
     min-height: 44px;
     transition: background 0.15s;
 }
 .bt-hub0-profile:hover { background: rgba(255, 255, 255, 0.05); }
 .bt-hub0-avatar {
-    width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto;
+    width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
     display: grid; place-items: center; font-size: 16px; overflow: hidden;
-    color: #1a2530; font-family: var(--font-display, 'Titan One', cursive);
+    color: #1a2530; font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     background: linear-gradient(160deg, #f1c40f, #d35400);
     box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18);
 }
@@ -104,18 +104,17 @@ body.bt-desktop .bt-hub0-screen {
 }
 .bt-hub0-coin .ic { font-size: 13px; line-height: 1; }
 .bt-hub0-gear {
-    width: 40px; height: 40px; flex: 0 0 auto; border-radius: 10px;
+    width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
     border: 1px solid var(--hub-line); background: var(--hub-steel-800);
     color: var(--hub-ink-dim); font-size: 16px; cursor: pointer;
     display: grid; place-items: center; transition: transform 0.15s, color 0.15s;
 }
 .bt-hub0-gear:hover { color: var(--hub-accent); transform: rotate(35deg); }
-.bt-hub0-s2 {
-    font-family: var(--font-display, 'Titan One', cursive); font-size: 11px; color: #2a2100;
-    padding: 5px 8px; border-radius: 8px; flex: 0 0 auto;
-    background: repeating-linear-gradient(45deg, var(--hub-gold) 0 7px, #141414 7px 14px);
-}
-.bt-hub0-s2 span { background: var(--hub-gold); padding: 1px 5px; border-radius: 4px; }
+/* v0.126.0 — TU BYLA MARTWA REGULA. `.bt-hub0-s2` (promien 8px, tlo w ukosne paski)
+   i `.bt-hub0-s2 span` byly w CALOSCI nadpisane przez pozniejsza definicje pilla
+   sezonu (~1509, „Iteracja 5"): inny promien, inne tlo, inny padding, inny font.
+   Zostawaly w pliku jako styl, ktory nic nie robi — i przy okazji sugerowal, ze pill
+   sezonu ma promien 8px, czyli mieszal w porzadkach na gornej belce. Usuniete. */
 /* SEASON KIT — licznik znajdziek na pillu. Ciemne tlo + zloty tekst, zeby odcial
    sie od zoltej tasmy pilla i nie zlal z numerem sezonu obok. */
 .bt-hub0-s2 .s2-collect {
@@ -173,13 +172,66 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
    z kazda nowa sekcja — szosty przycisk zepchnalby BITWE ze srodka. Teraz order jest
    przypisany JAWNIE po data-section, wiec jest odporny na liczbe zakladek i czytelny
    wprost. Siodma sekcja = jedna linijka tutaj, zero niespodzianek.
-   Uklad: GARAZ - SKLEP - [BITWA] - ROZKAZY - TROFEA - RANKING. */
-body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]   { order: 1; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="shop"]     { order: 2; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"]   { order: 3; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="quests"]   { order: 4; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="trophies"] { order: 5; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="rank"]     { order: 6; }
+   KOLEJNOSC LICZONA POD PRODUKCJE, czyli PIEC przyciskow (SKLEP siedzi za flaga
+   ?shop=1 i normalnie go nie ma). Zeby FAB byl wysrodkowany, przed BITWA musza stac
+   DOKLADNIE DWA przyciski — stad garage=1, quests=2, battle=3.
+     bez sklepu (5): GARAZ · ROZKAZY · [BITWA] · TROFEA · RANKING   <- wysrodkowany
+     ze sklepem (6): GARAZ · ROZKAZY · [BITWA] · SKLEP · TROFEA · RANKING
+   Przy szesciu przyciskach idealnego srodka nie ma, wiec SKLEP ladu je tuz ZA BITWA —
+   czyli w najlepiej dostepnej kciukiem strefie doku, a nie na skraju.
+   PIERWSZA WERSJA TEJ REGULY (v0.125.0) MIALA BLAD: dawala shop=2, przez co bez flagi
+   przed BITWA stal tylko GARAZ i FAB wypadal z osi. Nie bylo tego widac, bo testowalem
+   wylacznie z ?shop=1. */
+/* v0.126.0 — dok schudl do 4 sekcji + GRAJ (TROFEA i SKLEP maja wejscie przez pigulki
+   gornej belki). Uklad: GARAZ · ROZKAZY · [BITWA] · RANKING · GRAJ — BITWA nadal
+   dokladnie na srodku pieciu slotow. */
+/* SKLEP w nawigacji TYLKO na desktopie (decyzja Mariusza): pionowy rail ma miejsce,
+   dok telefonu nie — tam wejsciem zostaje pigulka sigm na gornej belce. */
+body:not(.bt-desktop) .bt-hub0-nav [data-section="shop"] { display: none; }
+
+body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"] { order: 1; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="quests"] { order: 2; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"] { order: 3; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="rank"]   { order: 4; }
+body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn--play   { order: 5; }
+
+/* GRAJ w doku — DELIKATNE zloto (prosba Mariusza: „nie napastliwie, bez mocnego
+   odciecia krecha"). Zamiast obramowania: gradient wygaszajacy sie w lewo, wiec
+   przycisk wtapia sie w belke od strony RANKINGU, a nasyca dopiero przy krawedzi.
+   Mocne zloto zostaje zarezerwowane dla FAB-a BITWY — dwa krzyczace zlota obok
+   siebie znioslyby sie nawzajem. */
+.bt-hub0-navbtn--play {
+    flex-direction: row; gap: 3px;
+    color: var(--hub-accent);
+    background: linear-gradient(90deg,
+        rgba(241, 196, 15, 0) 0%,
+        rgba(241, 196, 15, 0.10) 45%,
+        rgba(241, 196, 15, 0.26) 100%);
+}
+/* v0.126.0 — wieksze i „mocniejsze" GRAJ (prosba Mariusza). CELOWO BEZ `font-weight`:
+   Titan One jest JEDNOWAGOWY, wiec `bold` daje faux-bold — rozmyty i cienszy w odbiorze,
+   dokladnie ten defekt, ktory HUD unika swiadomie od v0.46.0 i ktory audyt typografii
+   wypunktowal jako P1-9. Masy dokladamy stopniem (15px) i cieniem podbijajacym krawedz. */
+.bt-hub0-navbtn--play .np-label {
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
+    font-size: 15px; letter-spacing: 0.6px; line-height: 1;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+/* Strzalki ciemniejsze od slowa — prowadza wzrok w prawo, ale nie konkuruja z napisem. */
+.bt-hub0-navbtn--play .np-arrow { font-size: 12px; opacity: 0.55; line-height: 1; }
+.bt-hub0-navbtn--play:active { transform: translateY(2px); }
+@media (hover: hover) {
+    .bt-hub0-navbtn--play:hover {
+        color: #ffe066;
+        background: linear-gradient(90deg,
+            rgba(241, 196, 15, 0) 0%,
+            rgba(241, 196, 15, 0.16) 45%,
+            rgba(241, 196, 15, 0.38) 100%);
+    }
+}
+/* Desktop: rail pionowy nie jest miejscem na akcje domykajaca — tam GRAJ zostaje
+   w pasku akcji sekcji BITWA (.bt-battle-bar). */
+body.bt-desktop .bt-hub0-navbtn--play { display: none; }
 
 body:not(.bt-desktop) .bt-hub0-navbtn--battle {
     flex: 0 0 auto;
@@ -193,8 +245,10 @@ body:not(.bt-desktop) .bt-hub0-navbtn--battle {
     box-shadow: 0 4px 16px rgba(241, 196, 15, 0.45);
 }
 body:not(.bt-desktop) .bt-hub0-navbtn--battle .gi { font-size: 26px; }
+/* TYPO-P1-3, priorytet audytu: 8px na etykiecie NAJWAZNIEJSZEGO przycisku w hubie.
+   11px miesci sie w kole FAB 64px zarowno dla PL „BITWA", jak i dluzszego EN „BATTLE". */
 body:not(.bt-desktop) .bt-hub0-navbtn--battle small {
-    font-size: 8px; font-weight: 800; color: #1a2530; letter-spacing: 0.2px;
+    font-size: 11px; font-weight: 800; color: #1a2530; letter-spacing: 0.2px;
 }
 body:not(.bt-desktop) .bt-hub0-navbtn--battle:hover { color: #1a2530; background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 60%, #d8a20c); }
 body:not(.bt-desktop) .bt-hub0-navbtn--battle.is-active {
@@ -208,6 +262,10 @@ body:not(.bt-desktop) .bt-hub0-navbtn--battle.is-active {
     grid-area: main;
     position: relative;
     overflow-y: auto;
+    /* CSS wymusza `overflow-x: auto`, gdy druga os nie jest `visible` — wiec sam
+       `overflow-y: auto` wystarczal, zeby kazdy nawis (np. ✓ zaznaczonej karty)
+       robil pasek przewijania w POZIOMIE. Hub nigdy nie przewija sie w bok. */
+    overflow-x: hidden;
     padding: 14px;
     z-index: 1;
 }
@@ -215,9 +273,23 @@ body:not(.bt-desktop) .bt-hub0-navbtn--battle.is-active {
    ~1200px i wycentrowany (marginesy boczne "czyszcza scene"), scrollbar zostaje
    przy krawedzi ekranu. Mobile nietkniete (padding 14px). Jeden mechanizm dla
    WSZYSTKICH podstron (battle/garage/orders/trophies/profil). */
+/* v0.126.0 — margines boczny wyliczany RAZ, do zmiennej. Potrzebny takze poza
+   paddingiem: pasek akcji BITWY wychodzi o niego w prawo, zeby GRAJ siadl przy
+   krawedzi ekranu (prosba Mariusza). `100vw - 76px` = szerokosc main po odjeciu raila;
+   liczymy z viewportu, a nie z `100%`, bo zmienna jest uzywana takze przez dziecko,
+   ktore ma inna szerokosc odniesienia. */
+body.bt-desktop .bt-hub0-screen { --hub-gutter: max(28px, calc((100vw - 76px - 1200px) / 2)); }
 body.bt-desktop .bt-hub0-main {
-    padding-left: max(28px, calc((100% - 1200px) / 2));
-    padding-right: max(28px, calc((100% - 1200px) / 2));
+    padding-left: var(--hub-gutter);
+    padding-right: var(--hub-gutter);
+}
+/* GRAJ dosuniety do prawej krawedzi ekranu — martwy margines po prawej stronie
+   kolumny tresci robi sie strefa akcji. Krawedz ekranu to najlatwiejszy cel dla myszy
+   (prawo Fittsa), a przycisk przestaje konkurowac o miejsce z trescia. */
+/* +14px oddechu: na styk z krawiedzia przycisk czyta sie jak blad layoutu, a nie
+   jak decyzja. To dalej ta sama strefa, ktora Mariusz zaznaczyl na makiecie. */
+body.bt-desktop .bt-hub0-main--split .bt-battle-bar {
+    margin-right: calc(14px - var(--hub-gutter));
 }
 .bt-hub0-sectitle {
     font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; letter-spacing: 0.5px;
@@ -230,7 +302,7 @@ body.bt-desktop .bt-hub0-main {
 }
 .bt-hub0-play {
     display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
-    font-family: var(--font-display, 'Titan One', cursive); font-size: 18px;
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 18px;
     color: #1a2530; background: var(--hub-accent); border: 0;
     border-radius: 14px; padding: 12px 28px; cursor: pointer;
     box-shadow: 0 4px 14px rgba(241, 196, 15, 0.35); min-height: 48px;
@@ -238,31 +310,74 @@ body.bt-desktop .bt-hub0-main {
 }
 .bt-hub0-play:active { transform: translateY(2px); }
 
-/* v0.108.0 — GRAJ jako HERO (feedback Mariusza: przycisk ginal na koncu sekcji).
-   Pelna szerokosc + wiekszy + zloty gradient z pulsem + STICKY przy dolnej krawedzi
-   scrolla (na mobile karty trybow + chipy potrafily zepchnac GRAJ pod fold).
-   Wariant --hero uzywa TYLKO BattleSection — maly .bt-hub0-play w cratebox nietkniety. */
-.bt-hub0-play--hero {
+/* ============================================================================
+   GRAJ — PASEK AKCJI (v0.126.0). Zastapil `--hero` z v0.108.0.
+
+   HISTORIA, zeby nikt nie cofnal tego omylkowo: v0.108.0 zrobila GRAJ pelnej szerokosci
+   i STICKY, bo „przycisk ginal na koncu sekcji" (feedback Mariusza). Problem byl prawdziwy,
+   ale lekarstwo mialo skutek uboczny: sticky W STRUMIENIU tresci PLYWA nad nia — karty
+   i pigulki chowaly sie pod przyciskiem i lapaly jego klikniecia. Do tego przycisk nie mial
+   ANI JEDNEGO media query, wiec te same 1185x60 px i 24 px szly na telefon, gdzie cala
+   tresc ma 237 px wysokosci (34% ekranu na jeden przycisk).
+   Teraz: pasek POZA obszarem przewijania. Zawsze widoczny — i nic nie zaslania.
+   ============================================================================ */
+
+/* Tryb dzielony `.bt-hub0-main` — WLACZANY TYLKO dla sekcji BITWA przez HubShell.
+   Bez tego main scrolluje calosc i pasek by z niej odjechal. */
+.bt-hub0-main--split { display: flex; flex-direction: column; overflow: hidden; }
+/* min-height:0 jest KONIECZNE — bez niego element flex nie zejdzie ponizej rozmiaru
+   swojej tresci i scroll nigdy sie nie wlaczy (klasyczna pulapka flexboxa). */
+.bt-hub0-main--split .bt-battle-scroll {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+}
+
+.bt-battle-bar {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding-top: 10px; margin-top: 2px;
+    border-top: 1px solid var(--hub-line);
+}
+/* Podsumowanie wyboru WYSZLO z przycisku (bylo w nim jako 11 px `<small>`).
+   Informacja obok akcji, nie w srodku niej — dzieki temu przycisk moze byc mniejszy,
+   a podsumowanie dostaje czytelny stopien zamiast najmniejszego w hubie. */
+.bb-summary {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800;
+    font-size: 13px; letter-spacing: 0.3px; color: var(--hub-ink-dim);
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.bt-hub0-play--go {
     display: flex;
-    width: 100%;
+    /* NIE 100%: pelna szerokosc sprawia, ze element przestaje czytac sie jako przycisk,
+       a zaczyna jak baner. clamp trzyma go w rozsadnych granicach na kazdym ekranie. */
+    width: clamp(200px, 26%, 320px);
+    flex: 0 0 auto;
     justify-content: center;
-    font-size: 24px;
-    letter-spacing: 1.5px;
-    min-height: 60px;
-    margin-top: 16px;
-    border-radius: 16px;
+    font-size: 20px;
+    letter-spacing: 1.2px;
+    min-height: 52px;
+    margin-top: 0;
+    border-radius: 14px;
     background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 55%, #d8a20c);
     box-shadow: 0 6px 22px rgba(241, 196, 15, 0.4), inset 0 -3px 0 rgba(0, 0, 0, 0.18);
-    position: sticky;
-    bottom: 4px;
-    z-index: 4;
-    animation: bt-hub0-play-glow 2s ease-in-out infinite;
 }
-.bt-hub0-play--hero:hover { filter: brightness(1.06); }
+.bt-hub0-play--go:hover { filter: brightness(1.06); }
+/* v0.126.0 — na MOBILE GRAJ przeniosl sie do doku, wiec w pasku akcji zostaje samo
+   PODSUMOWANIE. Nie kasuje calego paska: gracz musi widziec, CO wystartuje, zanim
+   tapnie GRAJ na dole — to byl powod, dla ktorego podsumowanie w ogole powstalo. */
+body:not(.bt-desktop) .bt-hub0-play--go { display: none; }
+body:not(.bt-desktop) .bt-battle-bar {
+    border-top: 0; padding-top: 4px; margin-top: 0; justify-content: flex-start;
+}
+/* Blysk JEDNORAZOWY po zmianie wyboru (klase dokłada BattleSection). Ciagly puls
+   z v0.108.0 ciagnal oko przez caly czas wybierania, czyli konkurowal z trescia,
+   ktora gracz ma wlasnie czytac — Czytelnosc przed Sensoryka. */
+.bt-hub0-play--go.is-bumped { animation: bt-hub0-play-bump 0.6s ease-out 1; }
 
-@keyframes bt-hub0-play-glow {
-    0%, 100% { box-shadow: 0 6px 22px rgba(241, 196, 15, 0.40), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
-    50%      { box-shadow: 0 6px 32px rgba(241, 196, 15, 0.72), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+@keyframes bt-hub0-play-bump {
+    0%   { box-shadow: 0 6px 22px rgba(241, 196, 15, 0.40), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+    35%  { box-shadow: 0 6px 34px rgba(241, 196, 15, 0.85), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+    100% { box-shadow: 0 6px 22px rgba(241, 196, 15, 0.40), inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
 }
 
 /* ---------- BITWA (HUB-1) ---------- */
@@ -818,6 +933,13 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-cards {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
     margin-bottom: 4px;
+    /* v0.126.0 — POZIOMY SCROLL W BITWIE (zgloszenie z playtestu A54).
+       Znaczek ✓ zaznaczonej karty jest pozycjonowany `right: -7px`, czyli CELOWO wystaje
+       poza rog karty. Na desktopie jest zapas w marginesach, na telefonie nie ma zadnego —
+       skrajna prawa kolumna wypychala kontener i pojawial sie pasek przewijania w poziomie.
+       8px zapasu miesci nawis w srodku kontenera. Znaczka nie przenosze do srodka karty
+       (jak w kaflach awatarow), bo w prawym gornym rogu siedzi juz badge roli czolgu. */
+    padding-right: 8px;
 }
 .bt-hub0-card {
     display: flex; align-items: center; gap: 10px; padding: 8px;
@@ -897,8 +1019,12 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     flex: 1 1 auto; font-size: 15px; font-weight: 800; line-height: 1.15;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* TYPO-P1-3: 8px -> 10px, a nie 11px. Regula podlogi dopuszcza 10px dla WERSALIKOWYCH
+   mikro-etykiet, a to dokladnie ona (typ czolgu: STANDARD/SCOUT/PLASMA). Badge stoi obok
+   nazwy czolgu, ktora ma ellipsis — kazdy piksel badge'a zjada nazwe, wiec 11px kupiloby
+   nam czytelnosc etykiety kosztem czytelnosci nazwy. To zamiana, nie zysk. */
 .bt-hub0-card .cd-badge {
-    font-style: normal; font-size: 8px; font-weight: 800; letter-spacing: 0.4px;
+    font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: 0.4px;
     text-transform: uppercase;
     color: var(--tank, var(--hub-ink-dim));
     border: 1px solid color-mix(in srgb, var(--tank, #888888) 55%, transparent);
@@ -916,10 +1042,13 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     display: flex; align-items: center; gap: 6px; line-height: 1;
     font-variant-numeric: tabular-nums;
 }
+/* TYPO-P1-3: 9px -> 11px. Slot MUSIAL urosnac razem z fontem — 38px starczalo dla
+   „SPEED" przy 9px, ale przy 11px etykieta by go przelala. Pasek obok jest `flex: 1 1 auto`,
+   wiec po prostu zwezi sie o te 6px. */
 .bt-hub0-card .cd-stat em {
-    font-style: normal; font-size: 9px; font-weight: 800; letter-spacing: 0.4px;
+    font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
     text-transform: uppercase; color: var(--hub-ink-faint);
-    width: 38px; flex: 0 0 auto;
+    width: 44px; flex: 0 0 auto;
 }
 .bt-hub0-card .cd-stat .bar {
     flex: 1 1 auto; height: 6px; border-radius: 999px; overflow: hidden;
@@ -935,12 +1064,6 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* GRAJ hero — podsumowanie wyboru pod glownym napisem (Czytelnosc). */
-.bt-hub0-play--hero .play-summary {
-    display: block; font-family: var(--font-body, system-ui, sans-serif);
-    font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
-    color: rgba(26, 37, 48, 0.75); margin-top: 1px;
-}
-
 /* Waskie ekrany: 3 kolumny -> 2 -> 1 (pion telefonu). */
 @media (max-width: 700px) {
     .bt-hub0-cards { grid-template-columns: repeat(2, 1fr); }
@@ -1028,6 +1151,16 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 }
 .bt-hub0-general .say span { font-size: 12px; line-height: 1.25; color: var(--hub-ink-dim); font-style: italic; }
 
+/* v0.126.0 — DZIENNE i TYGODNIOWE obok siebie. Do v0.125.0 szly jedno pod drugim,
+   wiec zeby zobaczyc tygodniowe (te ze skrzynkami) trzeba bylo przewinac caly zestaw
+   dzienny. Jedna kolumna wraca dopiero przy 700px, czyli tam, gdzie i tak zwezaja sie
+   wszystkie siatki huba — bez dokladania nowego progu. */
+.bt-hub0-qcols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; align-items: start; }
+@media (max-width: 700px) { .bt-hub0-qcols { grid-template-columns: 1fr; } }
+/* Pierwszy naglowek w kolumnie bez gornego marginesu — inaczej kolumny startowaly
+   na roznych wysokosciach mimo wyrownania do gory. */
+.bt-hub0-qcol > .bt-hub0-q-head:first-child { margin-top: 4px; }
+
 .bt-hub0-q-head {
     display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
     font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
@@ -1083,7 +1216,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     .bt-hub0-diff-pill,
     .bt-hub0-q .qbar i { transition: none; }
     .bt-hub0-overlay, .bt-cos-shimmer, .bt-hub0-crate-box.shake, .bt-hub0-reveal,
-    .bt-hub0-play--hero, .bt-hub0-crate-modal.thud, .bt-hub0-crate-dust span,
+    .bt-hub0-play--go, .bt-hub0-crate-modal.thud, .bt-hub0-crate-dust span,
     .bt-hub0-crate-flash, .bt-hub0-reveal-rays,
     .bt-hub0-crate-glow, .bt-hub0-cratebox.is-ready .bt-hub0-crate-art,
     .bt-hub0-lslot.is-armed::after { animation: none; }
@@ -1141,6 +1274,15 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bt-hub0-phero .ph-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* v0.126.0 — wariant KLIKALNY (🏆 -> TROFEA, sigmy -> SKLEP). To <button>, wiec
+   musi dostac `color`/`font` jawnie, inaczej przegladarka narzuci swoje domyslne. */
+.bt-hub0-phero .ph-pill--btn {
+    cursor: pointer; color: inherit; font-family: inherit;
+}
+.bt-hub0-phero .ph-pill--btn:active { transform: translateY(1px); }
+@media (hover: hover) {
+    .bt-hub0-phero .ph-pill--btn:hover { border-color: rgba(241, 196, 15, 0.55); }
+}
 .bt-hub0-phero .ph-pill {
     display: flex; align-items: center; gap: 7px;
     background: var(--hub-steel-800); border: 1px solid var(--hub-line);
@@ -1173,7 +1315,7 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     color: var(--hub-ink-faint);
 }
 .bt-hub0-phero .ph-rank-info b {
-    font-family: var(--font-display, 'Titan One', cursive); font-size: 16px;
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 16px;
     color: var(--hub-gold); letter-spacing: 0.5px;
 }
 .bt-hub0-phero .ph-rank-bar {
@@ -1249,8 +1391,10 @@ body.bt-desktop .bt-hub0-pranks .pr-slot small { font-size: 11px; }
     background: linear-gradient(170deg, #ffe066, var(--hub-gold) 70%, #b8860b);
     clip-path: polygon(50% 0%, 96% 25%, 96% 75%, 50% 100%, 4% 75%, 4% 25%);
 }
+/* TYPO-P1-9: bylo font-weight:800 na foncie display. Titan One jest JEDNOWAGOWY,
+   wiec 800 dawalo faux-bold — dokladnie to, czego HUD unika swiadomie od v0.46.0. */
 .rb-hex i {
-    font-style: normal; font-weight: 800; font-size: 24px; color: #2a2100;
+    font-style: normal; font-weight: 400; font-size: 24px; color: #2a2100;
     font-family: var(--font-display, 'Titan One', cursive);
 }
 .rb-hex--empty { background: var(--hub-steel-800); }
@@ -1333,7 +1477,7 @@ body.bt-desktop .bt-hub0-flag-grid { grid-template-columns: repeat(3, 94px); }
     cursor: default; place-items: center;
 }
 .bt-hub0-av-tile.is-soon .av-q {
-    font-family: var(--font-display, 'Titan One', cursive); font-size: 34px;
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 34px;
     color: var(--hub-ink-faint);
 }
 .bt-hub0-flag-grid {
@@ -1399,7 +1543,7 @@ body.bt-desktop .bt-hub0-flag-grid { grid-template-columns: repeat(3, 94px); }
     display: flex; align-items: center; gap: 7px; flex: 0 0 auto;
     background: linear-gradient(170deg, #ffe066, var(--hub-gold) 75%);
     color: #2a2100; border-radius: 100px; padding: 6px 10px 6px 12px;
-    font-family: var(--font-display, 'Titan One', cursive); font-size: 13px;
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 13px;
     box-shadow: 0 2px 0 rgba(146, 104, 8, 0.9);
     transition: transform 0.15s, box-shadow 0.15s;
 }
@@ -1556,7 +1700,7 @@ body.bt-desktop .bt-hub0-season-modal { max-width: 800px; }
 .so-ghost {
     position: absolute; inset: 0; z-index: 1;
     display: grid; place-items: center;
-    font-family: var(--font-display, 'Titan One', cursive);
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     font-size: clamp(72px, 22vh, 132px); line-height: 1;
     color: color-mix(in srgb, var(--season, #f1c40f) 26%, transparent);
     letter-spacing: 2px; pointer-events: none;
@@ -1575,7 +1719,7 @@ body.bt-desktop .bt-hub0-season-modal { max-width: 800px; }
    zamkniecia (offset 10 + szerokosc 34) — a przy okazji zostaje wysrodkowany. */
 .so-title {
     margin: 16px 44px 0; text-align: center;
-    font-family: var(--font-display, 'Titan One', cursive);
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     font-size: 24px; line-height: 1.12; color: var(--hub-ink);
 }
 body.bt-desktop .so-title { font-size: 28px; }
@@ -1615,7 +1759,7 @@ body.bt-desktop .so-title { font-size: 28px; }
     color: var(--hub-ink-dim);
 }
 .ps-season-sum b {
-    font-family: var(--font-display, 'Titan One', cursive);
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     font-size: 22px; color: var(--hub-gold); text-transform: none;
 }
 .ps-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
@@ -1687,6 +1831,35 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 /* TELEFON W POZIOMIE — gra jest landscape-locked, wiec ~390 px wysokosci to realny
    kadr. Zbijamy rytm pionowy, zeby CALOSC (z CTA) zmiescila sie BEZ przewijania:
    im nizsza kolumna tekstu, tym wezszy plakat, ale caly czas widoczny w calosci. */
+/* v0.126.0 — GRAJ na telefonie w poziomie. Do v0.125.0 przycisk NIE MIAL zadnego media
+   query: te same 60 px wysokosci i 24 px czcionki co na monitorze, przy 237 px calej
+   tresci. Tutaj pasek schodzi do ~44 px, wiec obszar tresci rosnie. */
+/* v0.126.0 — PROPORCJE KART NA TELEFONIE W POZIOMIE (zgloszenie: „czolgi sa obciete").
+   Karta miala 132px wysokosci przy ~186px calego pola tresci, wiec widac bylo JEDEN rzad
+   i to przecięty w polowie. To nie bylo przycinanie, tylko rozmiar nieprzystajacy do ekranu.
+   Media 112->72px i min-height 128->88px daje pelny rzad plus zapowiedz nastepnego —
+   czyli gracz widzi, ze lista leci dalej. Baner sezonu i naglowki tez chudna, bo to one
+   zjadaly gore ekranu, nie karty. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-hub0-cards--tanks .bt-hub0-card { min-height: 88px; }
+    .bt-hub0-cards--tanks .cd-media { width: 72px; height: 72px; }
+    .bt-hub0-card { padding: 6px; gap: 8px; }
+    .bt-hub0-card .cd-name { font-size: 13px; }
+    .bt-hub0-card .cd-stat em { width: 40px; font-size: 10px; }
+    .bt-hub0-season { padding: 7px 10px; gap: 9px; margin-bottom: 8px; }
+    .bt-hub0-season-art { font-size: 22px; }
+    .bt-hub0-subhead { margin: 8px 2px 5px; }
+    .bt-hub0-sectitle { margin-bottom: 6px; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-battle-bar { padding-top: 6px; gap: 8px; }
+    .bb-summary { font-size: 11px; letter-spacing: 0.2px; }
+    .bt-hub0-play--go {
+        width: clamp(150px, 34%, 200px); min-height: 44px; font-size: 16px; letter-spacing: 0.8px;
+    }
+}
+
 @media (orientation: landscape) and (max-height: 560px) {
     /* 66vw, nie 94vw (feedback Mariusza 26.08: "na mobile popup wymaga skrocenia
        o 30% z szerokosci, wysokosc jest ok"). Prawie pelna szerokosc czytala sie
@@ -1773,12 +1946,12 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     100% { transform: scale(1) rotate(0); }
 }
 .bt-rankup-title {
-    margin: 4px 0 0; font-family: var(--font-display, 'Titan One', cursive);
+    margin: 4px 0 0; font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
     font-size: 34px; color: #fff; letter-spacing: 1px;
     text-shadow: 0 0 18px rgba(241, 196, 15, 0.8), 0 3px 0 rgba(0, 0, 0, 0.5);
 }
 .bt-rankup-name {
-    font-family: var(--font-display, 'Titan One', cursive); font-size: 22px;
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 22px;
     color: var(--hub-gold); letter-spacing: 2px;
 }
 .bt-rankup-reward {
@@ -1903,3 +2076,27 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-rankup-smoke b, .bt-rankup-confetti i { animation: none; }
     .bt-rankup-confetti { display: none; }
 }
+
+/* ============================================================================
+   v0.126.0 — PASEK PRZEWIJANIA W STYLU GRY.
+   Domyslny scrollbar Windows to jasna, systemowa krecha, ktora na ciemnym stalowym
+   hubie wyglada jak element innego programu — i jest jedynym miejscem w calym UI,
+   gdzie widac system operacyjny. Tokeny te same co reszta chrome'u.
+   Zakres celowo szeroki: kazdy kontener huba, ktory moze sie przewijac.
+   ============================================================================ */
+.bt-hub0-screen *::-webkit-scrollbar { width: 10px; height: 10px; }
+.bt-hub0-screen *::-webkit-scrollbar-track {
+    background: var(--hub-steel-950); border-radius: 999px;
+}
+.bt-hub0-screen *::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--hub-steel-700), var(--hub-steel-800));
+    /* Ramka w kolorze toru udaje odstep — `margin` na kciuku nie dziala. */
+    border: 2px solid var(--hub-steel-950);
+}
+.bt-hub0-screen *::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 70%);
+}
+.bt-hub0-screen *::-webkit-scrollbar-corner { background: transparent; }
+/* Firefox nie wspiera ::-webkit-*; ma wlasna, ubozsza sciezke — dwa kolory i tyle. */
+.bt-hub0-screen * { scrollbar-width: thin; scrollbar-color: var(--hub-steel-700) var(--hub-steel-950); }

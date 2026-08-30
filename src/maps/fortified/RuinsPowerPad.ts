@@ -65,7 +65,7 @@ export class RuinsPowerPad {
         this.container.addChild(this.arcsGfx);
 
         this.cooldownLabel = new PIXI.Text('', {
-            fontFamily: 'Arial', fontSize: 9, fontWeight: 'bold', fill: 0xffe6c0,
+            fontFamily: 'Arial', fontSize: 9, fontWeight: 'bold', fill: 0xffe6c0, stroke: 0x000000, strokeThickness: 3,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;

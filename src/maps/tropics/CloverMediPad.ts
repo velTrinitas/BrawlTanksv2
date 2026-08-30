@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+// TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
+import { t } from '../../i18n/i18n';
 
 /**
  * v0.38.1 FAZA T7.x — CLOVER MEDI PAD ("Ogródek Koniczyny")
@@ -143,7 +145,7 @@ export class CloverMediPad {
         this.progressBarFill = new PIXI.Graphics();
         this.container.addChild(this.progressBarFill);
 
-        this.progressLabel = new PIXI.Text('NAPRAWA', {
+        this.progressLabel = new PIXI.Text(t('pad.repairing'), {
             fontFamily: 'Arial Black, sans-serif',
             fontSize: 12,
             fill: 0xd0d8e0,

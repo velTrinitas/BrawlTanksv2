@@ -17,6 +17,7 @@ import type { ProgressionQuests } from './supabase/types';
 import {
     pickDailyQuests, pickWeeklyQuests, getQuestDef, getQuestScale,
     QUEST_UNLOCK_TROPHIES, DAILY_SET_BOLTS, DAILY_SET_CRATES, QUEST_CONFIG_VERSION,
+    WEEKLY_SET_BOLTS, WEEKLY_SET_CRATES,
     type ActiveQuest, type QuestMetric, type QuestDef,
 } from '../config/quests';
 
@@ -73,6 +74,12 @@ export interface QuestBoard {
     dailySetClaimed: boolean;
     setBolts: number;
     setCrates: number;
+    /** v0.126.0 — KOMPLET TYGODNIA, lustro kompletu dnia (osobny klucz okresu). */
+    weeklyDone: number;
+    weeklySetReady: boolean;
+    weeklySetClaimed: boolean;
+    weeklySetBolts: number;
+    weeklySetCrates: number;
 }
 
 export interface QuestReward {
@@ -123,6 +130,7 @@ class QuestServiceImpl {
         const daily = st.daily.map(q => this.toViewSafe(st, q, st.dayKey)).filter((v): v is QuestView => !!v);
         const weekly = st.weekly.map(q => this.toViewSafe(st, q, st.weekKey)).filter((v): v is QuestView => !!v);
         const dailyDone = daily.filter(v => v.done).length;
+        const weeklyDone = weekly.filter(v => v.done).length;
         return {
             unlocked: trophies >= QUEST_UNLOCK_TROPHIES,
             unlockAt: QUEST_UNLOCK_TROPHIES,
@@ -134,6 +142,11 @@ class QuestServiceImpl {
             dailySetClaimed: st.claimed.includes(`${st.dayKey}:__set`),
             setBolts: DAILY_SET_BOLTS,
             setCrates: DAILY_SET_CRATES,
+            weeklyDone,
+            weeklySetReady: weeklyDone >= st.weekly.length && st.weekly.length > 0,
+            weeklySetClaimed: st.claimed.includes(`${st.weekKey}:__wset`),
+            weeklySetBolts: WEEKLY_SET_BOLTS,
+            weeklySetCrates: WEEKLY_SET_CRATES,
         };
     }
 
@@ -177,6 +190,26 @@ class QuestServiceImpl {
         st.updatedAt = Date.now();
         this.save();
         return { bolts: DAILY_SET_BOLTS, crates: DAILY_SET_CRATES };
+    }
+
+    /**
+     * v0.126.0 — KOMPLET TYGODNIA. Lustro `claimDailySet`, ale na kluczu TYGODNIA
+     * (`weekKey:__wset`), wiec nie koliduje z dziennym `dayKey:__set` nawet tego
+     * samego dnia — klucze `claimed` sa prefiksowane okresem.
+     */
+    claimWeeklySet(profileId: string, trophies: number): QuestReward | null {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId, trophies);
+        const claimKey = `${st.weekKey}:__wset`;
+        if (st.claimed.includes(claimKey)) return null;
+        const done = st.weekly.filter(q => this.toView(st, q, st.weekKey).done).length;
+        if (st.weekly.length === 0 || done < st.weekly.length) return null;
+
+        st.claimed.push(claimKey);
+        this.trimClaimed(st);
+        st.updatedAt = Date.now();
+        this.save();
+        return { bolts: WEEKLY_SET_BOLTS, crates: WEEKLY_SET_CRATES };
     }
 
     // === Sciezka gry (main.ts) ===

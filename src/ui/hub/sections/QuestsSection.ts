@@ -26,6 +26,14 @@ export class QuestsSection implements HubSection {
 
     /** Odebrano nagrode -> HubShell odswieza readout (srubki/skrzynki). */
     public onRewardClaimed: (() => void) | null = null;
+    /**
+     * v0.126.0 — nagroda ZAWIERALA SKRZYNKE. Do v0.125.0 `grantQuestReward` po cichu
+     * dopisywalo `cratesEarned`, a jedynym sygnalem byla zmiana napisu na ODEBRANE —
+     * stad wrazenie „kliknalem ODBIERZ i nic sie nie stalo". Teraz HubShell otwiera
+     * ten sam CrateOverlay co w Garazu i sklepie: nagroda jest WIDOCZNA w momencie,
+     * w ktorym ja dostajesz (Sensoryka), a nie dopiero po wejsciu do Garazu.
+     */
+    public onCratesGranted: (() => void) | null = null;
 
     private el: HTMLElement | null = null;
 
@@ -52,25 +60,49 @@ export class QuestsSection implements HubSection {
         const setBtn = board.dailySetClaimed
             ? `<span class="bt-hub0-q-claimed">${t('hub.quests.claimed')}</span>`
             : `<button class="bt-hub0-play" data-set="1" type="button" ${board.dailySetReady ? '' : 'disabled'}>${t('hub.quests.claim')}</button>`;
+        const weekSetBtn = board.weeklySetClaimed
+            ? `<span class="bt-hub0-q-claimed">${t('hub.quests.claimed')}</span>`
+            : `<button class="bt-hub0-play" data-wset="1" type="button" ${board.weeklySetReady ? '' : 'disabled'}>${t('hub.quests.claim')}</button>`;
 
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.quests')}</h2>
             ${this.generalHtml(board.dayKey)}
 
-            <div class="bt-hub0-q-head">${t('hub.quests.daily')}<small>${t('hub.quests.resetDaily')}</small></div>
-            ${board.daily.map(q => this.questCard(q)).join('')}
+            <!-- v0.126.0 (prosba Mariusza po playtescie): DZIENNE i TYGODNIOWE OBOK SIEBIE.
+                 Dotad szly jedno pod drugim, wiec tygodniowych nie bylo widac bez przewijania
+                 przez caly zestaw dzienny — a to one niosa skrzynki. Dwie kolumny na desktopie,
+                 jedna pod druga dopiero na waskim ekranie (CSS: .bt-hub0-qcols). -->
+            <div class="bt-hub0-qcols">
+                <div class="bt-hub0-qcol">
+                    <div class="bt-hub0-q-head">${t('hub.quests.daily')}<small>${t('hub.quests.resetDaily')}</small></div>
+                    ${board.daily.map(q => this.questCard(q)).join('')}
 
-            <div class="bt-hub0-cratebox bt-hub0-q-set">
-                <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
-                <div class="bt-hub0-crate-info">
-                    <b>${t('hub.quests.setTitle')} ${board.dailyDone}/${board.daily.length}</b>
-                    <small>${t('hub.quests.setReward', { bolts: board.setBolts })}</small>
+                    <div class="bt-hub0-cratebox bt-hub0-q-set">
+                        <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
+                        <div class="bt-hub0-crate-info">
+                            <b>${t('hub.quests.setTitle')} ${board.dailyDone}/${board.daily.length}</b>
+                            <small>${t('hub.quests.setReward', { bolts: board.setBolts })}</small>
+                        </div>
+                        ${setBtn}
+                    </div>
                 </div>
-                ${setBtn}
-            </div>
 
-            <div class="bt-hub0-q-head">${t('hub.quests.weekly')}<small>${t('hub.quests.resetWeekly')}</small></div>
-            ${board.weekly.map(q => this.questCard(q)).join('')}
+                <div class="bt-hub0-qcol">
+                    <div class="bt-hub0-q-head">${t('hub.quests.weekly')}<small>${t('hub.quests.resetWeekly')}</small></div>
+                    ${board.weekly.map(q => this.questCard(q)).join('')}
+
+                    <!-- v0.126.0 — KOMPLET TYGODNIA. Kolumna tygodniowa miala pusto dokladnie
+                         tam, gdzie dzienna ma swoje pudelko, wiec tydzien nie mial domkniecia. -->
+                    <div class="bt-hub0-cratebox bt-hub0-q-set">
+                        <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
+                        <div class="bt-hub0-crate-info">
+                            <b>${t('hub.quests.weekSetTitle')} ${board.weeklyDone}/${board.weekly.length}</b>
+                            <small>${t('hub.quests.weekSetReward', { bolts: board.weeklySetBolts, crates: board.weeklySetCrates })}</small>
+                        </div>
+                        ${weekSetBtn}
+                    </div>
+                </div>
+            </div>
         `;
         this.wire(pid, trophies);
     }
@@ -124,6 +156,20 @@ export class QuestsSection implements HubSection {
             </div>`;
     }
 
+    /**
+     * v0.126.0 — JEDNA sciezka ksiegowania nagrody dla wszystkich trzech przyciskow
+     * (pojedynczy rozkaz / komplet dnia / komplet tygodnia). Wczesniej kazdy mial swoja
+     * kopie tych samych czterech linii, wiec dodanie feedbacku o skrzynce trzeba byloby
+     * pamietac w trzech miejscach.
+     */
+    private applyReward(el: HTMLElement, pid: string, reward: { bolts: number; crates: number } | null): void {
+        if (!reward) return;   // juz odebrane / niedokonczone — cichy no-op, jak dotad
+        ProgressionService.grantQuestReward(pid, reward);
+        this.render(el);
+        this.onRewardClaimed?.();
+        if (reward.crates > 0) this.onCratesGranted?.();
+    }
+
     private wire(pid: string, trophies: number): void {
         const el = this.el;
         if (!el) return;
@@ -132,20 +178,15 @@ export class QuestsSection implements HubSection {
             const key = btn.dataset.quest;
             if (!key) return;
             btn.addEventListener('click', () => {
-                const reward = QuestService.claim(pid, key, trophies);
-                if (!reward) return; // juz odebrane / niedokonczone — cichy no-op
-                ProgressionService.grantQuestReward(pid, reward);
-                this.render(el);
-                this.onRewardClaimed?.();
+                this.applyReward(el, pid, QuestService.claim(pid, key, trophies));
             });
         });
 
         el.querySelector<HTMLElement>('[data-set]')?.addEventListener('click', () => {
-            const reward = QuestService.claimDailySet(pid, trophies);
-            if (!reward) return;
-            ProgressionService.grantQuestReward(pid, reward);
-            this.render(el);
-            this.onRewardClaimed?.();
+            this.applyReward(el, pid, QuestService.claimDailySet(pid, trophies));
+        });
+        el.querySelector<HTMLElement>('[data-wset]')?.addEventListener('click', () => {
+            this.applyReward(el, pid, QuestService.claimWeeklySet(pid, trophies));
         });
     }
 }

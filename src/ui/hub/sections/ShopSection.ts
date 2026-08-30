@@ -42,17 +42,13 @@ export class ShopSection implements HubSection {
 
         const pid = ProfileService.getActiveProfile()?.id ?? 'default';
         const balance = ProgressionService.getBoltsBalance(pid);
-        // Klakson jest bezuzyteczny bez klawiatury — kafle znikaja na dotyku.
-        // Ukrycie jest lepsze niz etykietka: dziecko nie czyta ostrzezen, tylko klika,
-        // a kupiony i niedzialajacy towar to poczucie oszustwa (Czytelnosc, wartosc #1).
-        const isDesktop = document.body.classList.contains('bt-desktop');
 
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle bt-shop-title">${this.icon} ${t('shop.title')}</h2>
             ${this.heroHtml(balance)}
             ${this.sandboxHtml(pid)}
             <div class="bt-shop-tabs">${this.tabsHtml()}</div>
-            <div class="bt-shop-grid">${this.gridHtml(pid, isDesktop)}</div>
+            <div class="bt-shop-grid">${this.gridHtml(pid)}</div>
         `;
         this.wire(el, pid);
     }
@@ -91,8 +87,8 @@ export class ShopSection implements HubSection {
                     data-tab="${tab.id}" type="button">${t(tab.labelKey)}</button>`).join('');
     }
 
-    private gridHtml(pid: string, isDesktop: boolean): string {
-        const items = shopItemsOf(this.tab, isDesktop);
+    private gridHtml(pid: string): string {
+        const items = shopItemsOf(this.tab);
         if (!items.length) return `<p class="bt-hub0-placeholder">${t('shop.empty')}</p>`;
         const owned = ProgressionService.getCosmeticState(pid).owned;
         const balance = ProgressionService.getBoltsBalance(pid);
@@ -124,10 +120,16 @@ export class ShopSection implements HubSection {
             foot = `<span class="sk-price"><img class="bt-sigma" src="${BASE}assets/sigma.png" alt=""><b>${item.price}</b></span>`;
         }
 
+        // v0.126.0 — towar `desktopOnly` jest od teraz kupowalny takze na telefonie,
+        // ale MUSI o tym mowic PRZED zakupem. Badge na kaflu widac bez otwierania
+        // szczegolow — a to jedyny moment, w ktorym gracz jeszcze nie zdecydowal.
+        const pcBadge = item.desktopOnly
+            ? `<span class="sk-pc" title="${t('shop.hornDesktopNote')}">🖥️ PC</span>` : '';
+
         return `
             <button class="bt-shop-card${cls}" data-sku="${item.sku}" type="button"
                     style="--g:${RARITY_COLOR[item.rarity]}">
-                <span class="sk-art">${art}</span>
+                <span class="sk-art">${art}${pcBadge}</span>
                 <span class="sk-name">${t(item.nameKey)}</span>
                 ${foot}
             </button>`;

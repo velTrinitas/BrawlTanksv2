@@ -47,6 +47,13 @@ export class ProfileSection implements HubSection {
     public onBack: (() => void) | null = null;
     /** Zmiana awatara/nicku/kosmetyku — HubShell odswieza readout. */
     public onProfileChanged: (() => void) | null = null;
+    /**
+     * v0.126.0 — skrot z pigulek profilu do wlasciwej sekcji (prosba Mariusza):
+     * 🏆 -> TROFEA, sigmy -> SKLEP. Te dwie sekcje wypadly z doku, wiec profil jest
+     * naturalnym drugim wejsciem — liczba stoi obok, a tapniecie prowadzi tam,
+     * gdzie sie ja wydaje albo zdobywa.
+     */
+    public onNavigate: ((id: 'trophies' | 'shop') => void) | null = null;
 
     private activeTab: ProfileTab = 'overview';
     /** SHOP-1 — czy rozwiniety jest wybor stickera (kulka w rogu portretu). */
@@ -164,8 +171,10 @@ export class ProfileSection implements HubSection {
                     <b class="ph-nick${shimmer}" style="${nickColorStyle(nickDef)}">${profile.nickname}</b>
                     <span class="ph-pills">
                         <span class="ph-pill ph-pill--flag">${flagImgHtml(profile.flagId, 'ph-flagimg')}</span>
-                        <span class="ph-pill"><span class="ic" aria-hidden="true">🏆</span>${trophies}</span>
-                        <span class="ph-pill"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</span>
+                        <button class="ph-pill ph-pill--btn" data-goto="trophies" type="button"
+                                aria-label="${t('hub.nav.trophies')}"><span class="ic" aria-hidden="true">🏆</span>${trophies}</button>
+                        <button class="ph-pill ph-pill--btn" data-goto="shop" type="button"
+                                aria-label="${t('hub.shop')}"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</button>
                         <span class="ph-pill ph-pill--dim"><span class="ic" aria-hidden="true">📅</span>${since}</span>
                     </span>
                 </span>
@@ -469,6 +478,16 @@ export class ProfileSection implements HubSection {
             this.editMode = true;
             this.editView.reset();
             this.render(el);
+        });
+
+        // v0.126.0 — pigulki 🏆 / sigmy jako skroty do TROFEOW i SKLEPU.
+        el.querySelectorAll<HTMLElement>('[data-goto]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.goto;
+                if (id !== 'trophies' && id !== 'shop') return;
+                playUiClick();
+                this.onNavigate?.(id);
+            });
         });
 
         // SHOP-1 — kulka stickera: rozwin/zwin wybor, a w nim zaloz/zdejmij.

@@ -60,6 +60,13 @@ export class BattleSection implements HubSection {
     private selectedBrawlerId: string;
     private selectedDifficulty: DifficultyId;
     private el: HTMLElement | null = null;
+    /**
+     * v0.126.0 — „ten render wynika ze ZMIANY WYBORU", nie z wejscia do sekcji.
+     * Steruje jednorazowym blyskiem przycisku GRAJ. Zero timerow i zero sprzatania:
+     * kazdy wybor i tak odtwarza cale DOM sekcji (`render()` nadpisuje innerHTML),
+     * wiec animacja odpala sie raz — przy tworzeniu elementu z klasa `is-bumped`.
+     */
+    private bump = false;
 
     constructor() {
         // Ostatni wybor gracza z LastSession (wygasa 30 dni) — walidowany, fallback
@@ -71,9 +78,29 @@ export class BattleSection implements HubSection {
             ? last.difficulty as DifficultyId : 'normal';
     }
 
+    /**
+     * v0.126.0 — start meczu BIEZACYM wyborem. Wyciagniete z handlera przycisku, bo od
+     * teraz wola to takze GRAJ z doku (HubShell), czyli akcja dostepna z KAZDEJ sekcji
+     * huba. Sekcja BITWA nie musi byc otwarta — wybor zyje w polach tej klasy, a przy
+     * pierwszym uruchomieniu pochodzi z LastSession.
+     */
+    public startCurrentMatch(): void {
+        const map: MapId = this.selectedScenario === 'ctf' ? 'fortified_ruins' : this.selectedMap;
+        this.onPlay?.(this.selectedScenario, map, this.selectedBrawlerId, this.selectedDifficulty);
+    }
+
     render(el: HTMLElement): void {
         this.el = el;
+        // v0.126.0 — ZACHOWAJ POZYCJE PRZEWIJANIA. Kazdy wybor czolgu/scenariusza/mapy
+        // odtwarza cale DOM sekcji, wiec kontener scrolla ginie razem ze swoim scrollTop
+        // i widok skakal na gore. Gracz wybieral mape na dole listy i ladowal przy
+        // banerze sezonu — musial przewijac od nowa do KAZDEGO kolejnego wyboru.
+        const keepScroll = el.querySelector('.bt-battle-scroll')?.scrollTop ?? 0;
         el.innerHTML = this.html();
+        if (keepScroll > 0) {
+            const sc = el.querySelector('.bt-battle-scroll');
+            if (sc) sc.scrollTop = keepScroll;
+        }
         this.wire();
     }
 
@@ -229,16 +256,38 @@ export class BattleSection implements HubSection {
         summaryParts.push(t(DIFFICULTY_CONFIGS[this.selectedDifficulty].labelKey));
         const summary = summaryParts.join(' · ');
 
+        // v0.126.0 — PASEK AKCJI POZA OBSZAREM PRZEWIJANIA.
+        //
+        // Do v0.125.0 GRAJ byl `position: sticky` W STRUMIENIU tresci, przez co plywal
+        // NAD nia: karty i pigulki chowaly sie pod nim i lapaly jego klikniecia. Teraz
+        // sekcja ma dwa pietra — `.bt-battle-scroll` przewija sie, `.bt-battle-bar` nie —
+        // wiec obszar przewijania jest fizycznie krotszy o wysokosc paska i tresc NIGDY
+        // pod niego nie wchodzi. Tryb dzielony wlacza klasa `--split` na `.bt-hub0-main`
+        // (HubShell.renderMain), bo to ona jest scrollportem sekcji.
+        //
+        // NIE wracamy do inline: `sticky` rozwiazywal realny problem z v0.108.0 („przycisk
+        // ginal na koncu sekcji"). Pasek trzyma OBA warunki — zawsze widoczny i nic nie zaslania.
+        //
+        // `is-bumped` odpala JEDNORAZOWY blysk po zmianie wyboru; ciagly puls ciagnal oko
+        // przez caly czas wybierania, czyli konkurowal z trescia (Czytelnosc > Sensoryka).
+        const bump = this.bump ? ' is-bumped' : '';
+        this.bump = false;
+
         return `
-            <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.battle')}</h2>
-            ${season}
-            ${tanks}
-            ${scenarios}
-            ${maps}
-            ${diffs}
-            <button class="bt-hub0-play bt-hub0-play--hero" data-action="play" type="button">
-                ▶ ${t('hub.play')}<small class="play-summary">${summary}</small>
-            </button>
+            <div class="bt-battle-scroll">
+                <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.battle')}</h2>
+                ${season}
+                ${tanks}
+                ${scenarios}
+                ${maps}
+                ${diffs}
+            </div>
+            <div class="bt-battle-bar">
+                <span class="bb-summary">${summary}</span>
+                <button class="bt-hub0-play bt-hub0-play--go${bump}" data-action="play" type="button">
+                    ▶ ${t('hub.play')}
+                </button>
+            </div>
         `;
     }
 
@@ -251,6 +300,7 @@ export class BattleSection implements HubSection {
                 if (!SCENARIO_CONFIGS[id].available) return; // locked — ignoruj
                 playUiClick();
                 this.selectedScenario = id;
+                this.bump = true;
                 this.render(el);
             });
         });
@@ -258,6 +308,7 @@ export class BattleSection implements HubSection {
             btn.addEventListener('click', () => {
                 playUiClick();
                 this.selectedMap = btn.dataset.map as MapId;
+                this.bump = true;
                 this.render(el);
             });
         });
@@ -265,6 +316,7 @@ export class BattleSection implements HubSection {
             btn.addEventListener('click', () => {
                 playUiClick();
                 this.selectedDifficulty = btn.dataset.difficulty as DifficultyId;
+                this.bump = true;
                 this.render(el);
             });
         });
@@ -274,12 +326,10 @@ export class BattleSection implements HubSection {
                 if (!id || !BRAWLERS.some(b => b.id === id)) return;
                 playUiClick();
                 this.selectedBrawlerId = id;
+                this.bump = true;
                 this.render(el);
             });
         });
-        el.querySelector('[data-action="play"]')?.addEventListener('click', () => {
-            const map: MapId = this.selectedScenario === 'ctf' ? 'fortified_ruins' : this.selectedMap;
-            this.onPlay?.(this.selectedScenario, map, this.selectedBrawlerId, this.selectedDifficulty);
-        });
+        el.querySelector('[data-action="play"]')?.addEventListener('click', () => this.startCurrentMatch());
     }
 }

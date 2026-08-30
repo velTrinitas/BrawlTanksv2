@@ -101,7 +101,7 @@ export class DesertStormPad {
             fontFamily: 'Arial',
             fontSize: 11,
             fontWeight: 'bold',
-            fill: 0x5a3a10,
+            fill: 0x5a3a10, stroke: 0xfff0d6, strokeThickness: 3,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;

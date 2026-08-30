@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+// TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
+import { t } from '../../i18n/i18n';
 
 /**
  * CtfFlag — flaga scenariusza CTF (FAZA CTF F2, mobile-crisp F4.1f).
@@ -89,7 +91,7 @@ export class CtfFlag {
         this.gfxTrail.zIndex = 9;
         worldContainer.addChild(this.gfxTrail);
 
-        this.label = new PIXI.Text(`FLAGA ${name}`, {
+        this.label = new PIXI.Text(t('ctf.flagLabel', { team: name }), {
             fontFamily: "'Titan One', cursive",
             fontSize: 13,
             fill: color,

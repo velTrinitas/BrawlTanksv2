@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+// TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
+import { t } from '../../i18n/i18n';
 
 /**
  * RuinsMediPad — medi pad scenariusza CTF (FAZA F4.2), wariant w klimacie ruin.
@@ -73,15 +75,15 @@ export class RuinsMediPad {
         this.progressBarFill.visible = false;
         this.container.addChild(this.progressBarFill);
 
-        this.progressLabel = new PIXI.Text('NAPRAWIAM...', {
-            fontFamily: 'Courier New', fontSize: 10, fontWeight: 'bold', fill: 0xd6ffe0,
+        this.progressLabel = new PIXI.Text(t('pad.repairing'), {
+            fontFamily: 'Courier New', fontSize: 10, fontWeight: 'bold', fill: 0xd6ffe0, stroke: 0x000000, strokeThickness: 3,
         });
         this.progressLabel.anchor.set(0.5);
         this.progressLabel.visible = false;
         this.container.addChild(this.progressLabel);
 
         this.cooldownLabel = new PIXI.Text('', {
-            fontFamily: 'Arial', fontSize: 9, fontWeight: 'bold', fill: 0xcfe8d4,
+            fontFamily: 'Arial', fontSize: 9, fontWeight: 'bold', fill: 0xcfe8d4, stroke: 0x000000, strokeThickness: 3,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;

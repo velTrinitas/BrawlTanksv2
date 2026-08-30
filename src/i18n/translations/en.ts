@@ -168,7 +168,15 @@ export const en: typeof pl = {
     'season.s3.b1': 'Fresh Season Track: sigma and crates to earn',
     'season.s3.b2': 'School vibes: chalk, backpacks and trophy homework',
     'season.s3.b3': 'More surprises coming soon!',
-    // SEASON KIT: name of the season collectible counter (HUD, end-of-run screen).
+    // SEASON KIT: name of the season collectible counter (HUD, end-of-run screen).    // SEASON 2 — collectibles (art and names shared with S3)
+    'season.s2.counter': 'books',
+    'season.s2.item1': 'Pencil',
+    'season.s2.item2': 'Book',
+    'season.s2.item3': 'Notebook',
+    'season.s2.item4': 'Set square',
+    'season.s2.item5': 'Backpack',
+    'season.s2.item6': 'Globe',
+
     'season.s3.counter': 'books',
     // SEASON KIT — names of the 6 season-3 collectibles.
     'season.s3.item1': 'Pencil',
@@ -348,7 +356,7 @@ export const en: typeof pl = {
     'shop.tooPoor': 'Not enough sigmas',
     'shop.bought': 'Bought!',
     'shop.empty': 'Nothing here yet.',
-    'shop.hornDesktopNote': 'The horn works on a keyboard (key H).',
+    'shop.hornDesktopNote': '🖥️ Works ONLY on desktop — key H. It will not sound on a phone.',
     'shop.sandbox': 'SANDBOX — purchases are not saved',
     'shop.sandboxReset': 'RESET',
     'shop.tab.crates': 'CRATES',
@@ -477,6 +485,8 @@ export const en: typeof pl = {
     'hub.quests.setTitle': 'Daily set',
     'hub.quests.setDesc': 'Complete all 3 daily orders',
     'hub.quests.setReward': '+{bolts} sigma and a crate',
+    'hub.quests.weekSetTitle': 'Weekly set',
+    'hub.quests.weekSetReward': '+{bolts} sigma and {crates} crates',
     'hub.quests.locked': 'Orders from {n} 🏆',
     'hub.quests.lockedHint': 'Earn trophies in battles — {n} 🏆 to go',
     'hub.quests.resetDaily': 'New orders tomorrow',
@@ -820,6 +830,9 @@ export const en: typeof pl = {
     // Pickups (heal/turbo/super charge/magnet)
     // Pads — on-pad label (FAZA MARS M4)
     'pad.repairing':      'REPAIRING',
+    'ctf.flagLabel':      'FLAG {team}',
+    'portrait.title':     'Turn your phone sideways',
+    'portrait.subtitle':  'Brawl Tanks plays best in landscape — you see more of the battlefield 🔄',
 
     'hud.mediPadHeal':    '🔧 +{hp} HP',
     'hud.heartHeal':      '❤️ +{hp} HP',

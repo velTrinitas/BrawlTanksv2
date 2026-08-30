@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+// TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
+import { t } from '../../i18n/i18n';
 
 /**
  * DesertHeartPad — desert wariant HoverRepairPad ("Serce Pustyni").
@@ -105,11 +107,11 @@ export class DesertHeartPad {
         this.progressBarFill.visible = false;
         this.platformBase.addChild(this.progressBarFill);
         
-        this.progressLabel = new PIXI.Text('ODNOWA...', {
+        this.progressLabel = new PIXI.Text(t('pad.repairing'), {
             fontFamily: 'Courier New',
             fontSize: 10,
             fontWeight: 'bold',
-            fill: 0xffddaa,
+            fill: 0xffddaa, stroke: 0x000000, strokeThickness: 3,
         });
         this.progressLabel.anchor.set(0.5);
         this.progressLabel.visible = false;
@@ -119,7 +121,7 @@ export class DesertHeartPad {
             fontFamily: 'Arial',
             fontSize: 11,
             fontWeight: 'bold',
-            fill: 0x5a3a10,
+            fill: 0x5a3a10, stroke: 0xfff0d6, strokeThickness: 3,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;

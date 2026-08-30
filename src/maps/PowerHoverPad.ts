@@ -128,7 +128,7 @@ export class PowerHoverPad {
             fontFamily: 'Arial',
             fontSize: 32,
             fontWeight: 'bold',
-            fill: 0xffcc00,
+            fill: 0xffcc00, stroke: 0x000000, strokeThickness: 3,
         });
         this.boltLabel.anchor.set(0.5);
         this.boltLabel.x = PAD_SIZE / 2;
@@ -143,7 +143,7 @@ export class PowerHoverPad {
             fontFamily: 'Arial',
             fontSize: 9,
             fontWeight: 'bold',
-            fill: 0xffeedd,
+            fill: 0xffeedd, stroke: 0x000000, strokeThickness: 3,
         });
         this.cooldownLabel.anchor.set(0.5);
         this.cooldownLabel.visible = false;

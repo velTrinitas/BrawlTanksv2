@@ -948,6 +948,47 @@ menu.onProfileEditRequested = () => {
     // Profil w bazie -> FK scores.profile_id spelniony -> oproznia kolejke offline z 9b.2.
     void syncActiveProfileToCloud();
 
+    // TYPO-P0-1 (v0.126.0) — POCZEKAJ NA FONT przed pierwszym renderem.
+    //
+    // To jedyne miejsce w calym boocie, ktore MUSI byc zablokowane. Powod nie jest
+    // kosmetyczny: `PIXI.Text` rasteryzuje sie RAZ, w konstruktorze, wiec kazdy napis
+    // utworzony zanim Titan One bedzie gotowy (neony Miasta, etykiety flag CTF, pady
+    // Marsa) zapiecze sie krojem zastepczym i ZOSTANIE taki do konca sesji — ponowne
+    // wejscie na mape nie pomoze, bo tekstura juz istnieje.
+    //
+    // Font jest self-hosted i w PRECACHE service workera, wiec realnie to czekanie
+    // trwa tyle, co odczyt z dysku. Timeout 3 s jest bezpiecznikiem na patologie
+    // (uszkodzony plik, zablokowany SW) — lepiej wystartowac z fallbackiem niz wisiec
+    // na czarnym ekranie. `document.fonts` nie istnieje w starszych WebView, stad guard.
+    // PULAPKA, w ktora sam wpadlem przy pierwszym podejsciu: `document.fonts.ready`
+    // NIE gwarantuje, ze konkretny font jest zaladowany — obiecuje tylko, ze zadne
+    // ladowanie nie jest w TOKU. Przy `unicode-range` przegladarka siega po kroj dopiero
+    // wtedy, gdy cos go realnie uzywa, a `<link rel=preload>` wciaga bajty do cache, ale
+    // NIE rejestruje kroju jako zaladowanego. Samo `ready` spelnialo sie natychmiast
+    // i nie znaczylo nic. Trzeba WYMUSIC ladowanie przez `fonts.load()`.
+    //
+    // Dwa wywolania, bo font jest pociety na podzbiory: 'ABC' ciagnie `latin`,
+    // a polskie ogonki ciagna `latin-ext` — bez drugiego wywolania „Ksiazki" w HUD
+    // zapieklyby sie fallbackiem mimo poprawnie zaladowanego pierwszego podzbioru.
+    try {
+        if (document.fonts?.load) {
+            await Promise.race([
+                Promise.all([
+                    document.fonts.load('400 16px "Titan One"', 'ABC'),
+                    document.fonts.load('400 16px "Titan One"', 'ĄĆĘŁŃÓŚŹŻ'),
+                ]),
+                // Bezpiecznik na patologie (uszkodzony plik, zablokowany SW). Lepiej
+                // wystartowac z fallbackiem niz wisiec na czarnym ekranie.
+                new Promise(res => setTimeout(res, 3000)),
+            ]);
+            if (!document.fonts.check('400 16px "Titan One"', 'ĄĆĘŁŃÓŚŹŻ')) {
+                console.warn('[boot] Titan One NIEZALADOWANY po 3 s — teksty PIXI zapieka sie fallbackiem');
+            }
+        }
+    } catch (e) {
+        console.warn('[boot] document.fonts niedostepne:', (e as Error).message);
+    }
+
     menu.start();
 })();
 
@@ -991,8 +1032,27 @@ function returnToMenuFromEnd(): void {
     menu.showHub(); // HUB-0: respektuje flage ?hub=1 (domyslnie stary 'hub')
 }
 
-document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
-document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
+// TYPO-P1-7: te dwa nasluchy montowaly sie na przyciskach ze STATYCZNEGO markupu
+// endcarda, ktory `renderEndScreen()` i tak kasuje przy pierwszym uzyciu. Prawdziwe
+// nasluchy zakladane sa tuz po podmianie `innerHTML` (triggerGameOver/triggerVictory),
+// wiec te tutaj byly martwe — a po oproznieniu kontenerow rzucalyby na null.
+
+/**
+ * TYPO-P1-7 — ostrzezenie „obroc telefon" bylo jedynym NAPRAWDE zywym hardkodem PL
+ * w `index.html` (endcardy okazaly sie martwym markupem). Overlay jest sterowany
+ * wylacznie CSS-em (media query orientation), wiec tekst trzeba wstrzyknac z JS.
+ *
+ * Podpiete pod `onLanguageChange`, bo jezyk da sie zmienic w USTAWIENIACH juz po
+ * boocie — bez tego napis zostalby w jezyku, w ktorym gra wystartowala.
+ */
+function applyPortraitWarningI18n(): void {
+    const title = document.querySelector('.bt-portrait-warning-title');
+    const sub = document.querySelector('.bt-portrait-warning-subtitle');
+    if (title) title.textContent = t('portrait.title');
+    if (sub) sub.textContent = t('portrait.subtitle');
+}
+applyPortraitWarningI18n();
+i18n.onLanguageChange(applyPortraitWarningI18n);
 
 /**
  * PROG-F7a: aktywacja mocy ZE SLOTU (0 = przycisk 1/Space/PPM, 1 = przycisk 2/Q,
@@ -2472,6 +2532,17 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // wizualnie zrownac sie z sasiednimi emoji (te maja wlasny padding w glifie).
     const bossIcon = `<img src="${import.meta.env.BASE_URL}assets/sprites/boss_100.png" alt="" style="width:2.6rem;height:2.6rem;display:block;object-fit:contain;">`;
     const bossIconSm = `<img src="${import.meta.env.BASE_URL}assets/sprites/boss_100.png" alt="" style="width:1.5rem;height:1.5rem;display:block;object-fit:contain;">`;
+    // v0.126.0 — KOSTKI MOCY. Kafel liczy OBA typy razem (cubesTotal), a pokazywal
+    // emoji 🟦 „niebieski kwadrat", ktore nic nie znaczy i na czesci systemow renderuje
+    // sie jako goly prostokat. Teraz dwie prawdziwe ikony rozdzielone ukosnikiem —
+    // widac od razu, ze licznik obejmuje kostke OBRAZEN i kostke ZYCIA.
+    const cubePair = (px: string) => `<span style="display:flex;align-items:center;gap:0.15em;">
+        <img src="${import.meta.env.BASE_URL}assets/items/powercube_dmg_100.png" alt="" style="width:${px};height:${px};display:block;object-fit:contain;">
+        <span style="opacity:0.5;font-size:${px};line-height:1;">/</span>
+        <img src="${import.meta.env.BASE_URL}assets/items/powercube_hp_100.png" alt="" style="width:${px};height:${px};display:block;object-fit:contain;">
+    </span>`;
+    const cubeIcon = cubePair('1.7rem');
+    const cubeIconSm = cubePair('1.15rem');
 
     // iconHtml = surowy HTML (emoji-char ALBO <img>) renderowany w ramce ikony.
     const chip = (iconHtml: string, value: string | number, label: string): string => `
@@ -2676,7 +2747,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile(gemIconSm, d.gems, t('end.gems'))}
                         ${statTile(bossIconSm, d.bosses, t('end.bosses'))}
                         ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
-                        ${statTile('🟦', d.cubesTotal, t('end.cubes'))}
+                        ${statTile(cubeIconSm, d.cubesTotal, t('end.cubes'))}
                         ${d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
                         ${statTile('💥', d.supers, t('end.supers'))}
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
@@ -2706,7 +2777,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                 ${chip(gemIcon, d.gems, t('end.gems'))}
                 ${chip(bossIcon, d.bosses, t('end.bosses'))}
                 ${chip('🔥', `${d.maxCombo}x`, t('end.combo'))}
-                ${chip('🟦', d.cubesTotal, t('end.cubes'))}
+                ${chip(cubeIcon, d.cubesTotal, t('end.cubes'))}
                 ${d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
                 ${chip('💥', d.supers, t('end.supers'))}
                 ${chip('⏱️', `${d.seconds}s`, t('end.time'))}

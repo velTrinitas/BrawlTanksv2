@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { isPointInView, CULL_MARGIN } from '../cullGate';
 import type { ICollidable } from '../../types/MapType';
 
 /**
@@ -236,8 +237,9 @@ export class SandstormBorder {
         drawGradientBand(W - I, 0, I, H, 4, 0.0, 0.25, PALETTE.hazeLight);    // RIGHT
     }
     
-    public update(): void {
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
         const time = Date.now();
+        const cull = camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined;
         
         // Reduced edge ripples (4 vs 8 per side), lower alpha
         const ga = this.gfxAnimated;
@@ -250,8 +252,16 @@ export class SandstormBorder {
         ga.lineStyle(1.5, PALETTE.particleLight, rippleAlpha);
         
         const rippleCount = 4;
+        // v0.132.0 — BRAMKA PER KRAWEDZ. Border otacza cala mape 3000x3000, wiec
+        // pojedyncze on/off nic by nie dalo: gracz prawie zawsze widzi JAKAS krawedz,
+        // ale nigdy czterech naraz (w rogu widzi dwie). `clear()` wyzej zostaje,
+        // rysujemy wylacznie boki bedace w kadrze.
+        const seeTop    = !cull || camY! - CULL_MARGIN <= 30;
+        const seeBottom = !cull || camY! + viewH! + CULL_MARGIN >= H - 30;
+        const seeLeft   = !cull || camX! - CULL_MARGIN <= 30;
+        const seeRight  = !cull || camX! + viewW! + CULL_MARGIN >= W - 30;
         // TOP
-        for (let i = 0; i < rippleCount; i++) {
+        if (seeTop) for (let i = 0; i < rippleCount; i++) {
             const t = (i / rippleCount + (time / 8000)) % 1;
             const x = t * W;
             const y = 15 + Math.sin(time / 600 + i) * 5;
@@ -259,7 +269,7 @@ export class SandstormBorder {
             ga.lineTo(x + 15, y);
         }
         // BOTTOM
-        for (let i = 0; i < rippleCount; i++) {
+        if (seeBottom) for (let i = 0; i < rippleCount; i++) {
             const t = (i / rippleCount - (time / 8000)) % 1;
             const x = (t < 0 ? t + 1 : t) * W;
             const y = H - 15 - Math.sin(time / 600 + i) * 5;
@@ -267,7 +277,7 @@ export class SandstormBorder {
             ga.lineTo(x + 15, y);
         }
         // LEFT
-        for (let i = 0; i < rippleCount; i++) {
+        if (seeLeft) for (let i = 0; i < rippleCount; i++) {
             const t = (i / rippleCount + (time / 8000)) % 1;
             const x = 15 + Math.sin(time / 600 + i) * 5;
             const y = t * H;
@@ -275,7 +285,7 @@ export class SandstormBorder {
             ga.lineTo(x, y + 15);
         }
         // RIGHT
-        for (let i = 0; i < rippleCount; i++) {
+        if (seeRight) for (let i = 0; i < rippleCount; i++) {
             const t = (i / rippleCount - (time / 8000)) % 1;
             const x = W - 15 - Math.sin(time / 600 + i) * 5;
             const y = (t < 0 ? t + 1 : t) * H;
@@ -299,9 +309,14 @@ export class SandstormBorder {
             if (p.baseY < -50) p.baseY = this.worldH + 50;
             if (p.baseY > this.worldH + 50) p.baseY = -50;
             
+            // v0.132.0 — RUCH i wrap licza sie ZAWSZE (czastki dryfuja po calej mapie;
+            // zamrozenie ich poza kadrem zrobiloby dziury w chmurze pylu po powrocie),
+            // ale zapis do sprite'a i puls alpha juz nie.
+            if (cull && !isPointInView(cx, cy, camX!, camY!, viewW!, viewH!)) continue;
+
             p.sprite.x = cx;
             p.sprite.y = cy;
-            
+
             // Opacity pulse — lżejsza
             const pulse = 0.4 + Math.sin(time / 700 + p.phase) * 0.25;
             p.sprite.alpha = pulse * 0.5;  // mniej dominujące (0.5 multiplier vs 0.7)

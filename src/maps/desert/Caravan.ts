@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { isPointInView } from '../cullGate';
 import {
     DESERT_CARAVAN_PATH,
     DESERT_CARAVAN_CAMEL_COUNT,
@@ -473,15 +474,33 @@ export class Caravan {
         }
     }
     
-    public update(delta: number): { type: CaravanDropType; x: number; y: number } | null {
+    /**
+     * v0.132.0 — VIEWPORT CULLING, ale WYLACZNIE NA ANIMACJI NOG.
+     *
+     * UWAGA, to jest jedyny prop Pustyni, w ktorym `update()` niesie LOGIKE ROZGRYWKI:
+     * metoda zwraca DROP (gem/serce/magnes), a wielblady musza isc swoja trasa takze
+     * poza kadrem. Zbramkowanie calego `update()` zamrozilo by karawane i zatrzymalo
+     * dropy — to zmiana rozgrywki, a nie optymalizacja.
+     *
+     * Dlatego bramkujemy tylko `animateCamels()` (kilkanascie `sin()` + zapisow do
+     * rotacji nog i garbow na kazdego wielblada). Postep trasy, pozycje i licznik
+     * dropow lecą zawsze.
+     */
+    public update(delta: number, camX?: number, camY?: number, viewW?: number, viewH?: number): { type: CaravanDropType; x: number; y: number } | null {
         const speedThisFrame = DESERT_CARAVAN_SPEED * delta;
         for (const c of this.camels) {
             c.pathProgress += speedThisFrame;
         }
-        
+
         this.updateCamelPositions();
-        this.animateCamels(delta);
-        
+
+        // Animacja nog tylko dla wielbladow w kadrze. Pozycje sa juz zaktualizowane
+        // wyzej, wiec bramka czyta AKTUALNE `c.x/c.y`, nie zamrozone.
+        const cull = camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined;
+        if (!cull || this.camels.some(c => isPointInView(c.x, c.y, camX!, camY!, viewW!, viewH!))) {
+            this.animateCamels(delta);
+        }
+
         const now = Date.now();
         if (now - this.lastDropTime >= DESERT_CARAVAN_DROP_INTERVAL_MS) {
             this.lastDropTime = now;

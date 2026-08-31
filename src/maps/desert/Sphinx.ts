@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
+import { isBoxInView } from '../cullGate';
 
 /**
  * Sphinx — Wielki Sfinks z Gizy (top-down view, sphinx pose, głowa na N).
@@ -103,6 +104,8 @@ export class Sphinx implements ICollidable {
     private seed: number;
     
     private container: PIXI.Container;
+    /** v0.132.0 — bramka cullingu: czy w poprzedniej klatce prop byl poza kadrem. */
+    private culled = false;
     private gfxStatic: PIXI.Graphics;       // cień + sand (drawn once)
     private gfxBody: PIXI.Container;        // body layer (parallax 3%)
     private gfxHead: PIXI.Container;        // head layer (parallax 8%)
@@ -396,6 +399,17 @@ export class Sphinx implements ICollidable {
      * Per-frame redraw: parallax positions + eye glow/blink animation.
      */
     update(camX: number, camY: number, screenW: number, screenH: number): void {
+        // v0.132.0 — VIEWPORT CULLING. Sfinks przerysowywal twarz (glow + mrugniecie)
+        // i trzy skarabeusze w KAZDEJ klatce, niezaleznie od tego, gdzie na mapie
+        // 3000x3000 jest gracz. Bramka po AABB hitboxu, nie po srodku — sfinks jest
+        // dlugi i musi ozyc, zanim jego srodek wjedzie w kadr.
+        const visible = isBoxInView(this.x, this.y, this.w, this.h, camX, camY, screenW, screenH);
+        if (!visible) {
+            if (!this.culled) { this.culled = true; this.container.renderable = false; }
+            return;
+        }
+        if (this.culled) { this.culled = false; this.container.renderable = true; }
+
         const time = Date.now();
         const cameraCenterX = camX + screenW / 2;
         const cameraCenterY = camY + screenH / 2;

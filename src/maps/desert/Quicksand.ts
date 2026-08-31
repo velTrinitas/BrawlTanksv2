@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { isPointInView } from '../cullGate';
 
 /**
  * Quicksand — Ruchomy piasek (slowdown zone) na desert mapie (v0.18.1 FAZA 4b).
@@ -53,6 +54,8 @@ export class Quicksand {
     private seed: number;
     
     private container: PIXI.Container;
+    /** v0.132.0 — bramka cullingu: czy w poprzedniej klatce prop byl poza kadrem. */
+    private culled = false;
     private gfxStatic: PIXI.Graphics;       // ciemny owal tła + central depression (drawn raz)
     private gfxRim: PIXI.Graphics;          // żółtawa ramka ostrzegawcza (pulsing alpha)
     private gfxSwirl: PIXI.Graphics;        // wirujące cząstki (redraw per frame)
@@ -165,9 +168,26 @@ export class Quicksand {
     /**
      * Per-frame update — swirl + bubbles + pulsing warning rim.
      */
-    public update(): void {
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
+        // v0.132.0 — VIEWPORT CULLING. Rim + 12 czastek swirl + banki animowaly sie
+        // na kazdej z 5 stref jednoczesnie, na calej mapie. Parametry sa OPCJONALNE:
+        // brak kamery = zachowanie sprzed cullingu, wiec stara sciezka wywolania dziala.
+        //
+        // WAZNE: bramka dotyka WYLACZNIE grafiki. Spowolnienie czolgu liczy
+        // `isPointInside()` wolane osobno z petli gracza i wrogow w main.ts, wiec
+        // strefa dziala tak samo, gdy prop jest culowany.
+        if (camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined) {
+            const r = Math.max(this.radiusX, this.radiusY);
+            const visible = isPointInView(this.x, this.y, camX, camY, viewW, viewH, r);
+            if (!visible) {
+                if (!this.culled) { this.culled = true; this.container.renderable = false; }
+                return;
+            }
+            if (this.culled) { this.culled = false; this.container.renderable = true; }
+        }
+
         const time = Date.now();
-        
+
         this.drawWarningRim(time);
         this.drawSwirlParticles(time);
         this.updateBubbles(time);

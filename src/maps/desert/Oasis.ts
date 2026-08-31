@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { isPointInView } from '../cullGate';
 
 /**
  * v0.18.3 FAZA 4c — OASIS STEALTH ZONE
@@ -21,6 +22,8 @@ export class Oasis {
     private baseContainer: PIXI.Container;
     private pondGfx: PIXI.Graphics;
     private rippleGfx: PIXI.Graphics;
+    /** v0.132.0 — bramka cullingu: czy w poprzedniej klatce prop byl poza kadrem. */
+    private culled = false;
     private pondRX: number;
     private pondRY: number;
     private rippleTime: number = 0;
@@ -360,7 +363,23 @@ export class Oasis {
     /**
      * Per-frame: animowane ripples na sadzawce (2 expanding rings).
      */
-    public update(): void {
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
+        // v0.132.0 — VIEWPORT CULLING. Parametry OPCJONALNE (brak = zachowanie sprzed
+        // cullingu). Bramka dotyka wylacznie rysowania ripple; strefa stealth idzie
+        // przez `isPointInside()` wolane osobno w main.ts i nie zalezy od bramki.
+        //
+        // `rippleTime` NIE jest inkrementowany przy culowaniu i to jest zamierzone:
+        // po powrocie w kadr pierscienie ruszaja z fazy, w ktorej stanely, zamiast
+        // przeskoczyc o cala nieobecnosc. Poza kadrem i tak nikt tego nie widzi.
+        if (camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined) {
+            const visible = isPointInView(this.visualX, this.visualY, camX, camY, viewW, viewH, this.pondRX * 1.5);
+            if (!visible) {
+                if (!this.culled) { this.culled = true; this.rippleGfx.renderable = false; }
+                return;
+            }
+            if (this.culled) { this.culled = false; this.rippleGfx.renderable = true; }
+        }
+
         this.rippleTime += 1 / 60;
         
         this.rippleGfx.clear();

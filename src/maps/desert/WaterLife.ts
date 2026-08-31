@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { isPointInView } from '../cullGate';
 import type { RiverPathPoint, BridgeLayout } from './RiverNile';
 
 /**
@@ -631,32 +632,64 @@ export class WaterLife {
     // UPDATE — per frame animacje
     // ============================================
     
-    public update(): void {
+    /**
+     * v0.132.0 — VIEWPORT CULLING PER ELEMENT.
+     *
+     * To jest najwiekszy pojedynczy zysk calej Partii 1. Do v0.131.0 kazda klatka
+     * przeliczala ~130 trzcin (`sin()` + zapis `rotation`), 18 lotosow (`sin()` +
+     * `scale.set`), 6 ryb (pelny redraw Graphics) i 3 ptaki — na CALEJ mapie 3000x3000,
+     * podczas gdy widac ~7% powierzchni.
+     *
+     * Bramka musi byc PER ELEMENT, nie per prop: trzciny ciagna sie wzdluz calej rzeki,
+     * wiec pojedyncze on/off dla calego WaterLife nie odcieloby niczego.
+     *
+     * Parametry OPCJONALNE — brak kamery = zachowanie sprzed cullingu.
+     */
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
         const time = Date.now();
-        
-        // Papirus sway (delikatne kołysanie)
+        const cull = camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined;
+
+        // Papirus sway (delikatne kołysanie) — trzciny stoja w miejscu, wiec bramka
+        // po pozycji kontenera wystarcza. Margines domyslny (300) z zapasem pokrywa
+        // wysokosc trzciny.
         for (const reed of this.reeds) {
+            if (cull && !isPointInView(reed.container.x, reed.container.y, camX!, camY!, viewW!, viewH!)) continue;
             reed.container.rotation = Math.sin(time / 800 + reed.swayPhase) * reed.swayAmount;
         }
-        
+
         // Lotus bob (subtle bob + pulse)
         for (const lotus of this.lotuses) {
+            if (cull && !isPointInView(lotus.container.x, lotus.container.y, camX!, camY!, viewW!, viewH!)) continue;
             const bob = Math.sin(time * lotus.bobSpeed + lotus.bobPhase);
             const scale = lotus.baseScale * (1 + bob * 0.04);
             lotus.container.scale.set(scale);
         }
-        
-        // Fish swim
+
+        // Fish swim — `t` przesuwamy ZAWSZE, bramkujemy tylko rysowanie. Ryba, ktora
+        // zamarza poza kadrem, po powrocie gracza stoi w tym samym miejscu co minute
+        // temu; przesuwanie `t` jest tanie (trzy dodawania), a rysowanie nie.
+        //
+        // Bramka liczy pozycje z `t`, a NIE czyta `f.gfx.x/y`. To celowe: `gfx.x/y`
+        // ustawia dopiero `drawFish`, wiec u culowanej ryby zostaloby zamrozone na
+        // ostatniej narysowanej pozycji — ryba oplynelaby rzeke i nadal byla oceniana
+        // po starym punkcie, czyli zniknelaby na dobre. Szesc wywolan `getPointAt`
+        // to nadal duzo mniej niz szesc pelnych redrawow Graphics.
         for (const f of this.fish) {
             f.t += f.speed;
             if (f.t > 1) f.t -= 1;
             if (f.t < 0) f.t += 1;
+            if (cull) {
+                const p = this.getPointAt(f.t);
+                if (!isPointInView(p.x, p.y, camX!, camY!, viewW!, viewH!, this.riverWidth)) continue;
+            }
             this.drawFish(f, time);
         }
-        
-        // Birds fly
+
+        // Birds fly — ruch ZAWSZE (ptak ma wrapowac sie po swoich granicach niezaleznie
+        // od kamery), rysowanie bramkowane.
         for (const bird of this.birds) {
             this.updateBird(bird);
+            if (cull && !isPointInView(bird.container.x, bird.container.y, camX!, camY!, viewW!, viewH!)) continue;
             this.drawBird(bird, time);
         }
     }

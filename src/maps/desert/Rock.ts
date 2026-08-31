@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
+import { bakeToSprite } from '../propBaker';
 
 /**
  * Rock — Skała pustynna z 2 tiers (v0.18.0 FAZA 4a).
@@ -95,10 +96,16 @@ export class Rock implements ICollidable {
         this.draw();
     }
     
+    /**
+     * v0.133.0 — art rysowany jak dotad w `Graphics`, ale na koniec PIECZONY do
+     * tekstury (patrz `propBaker.ts`). Skala jest w calosci statyczna, a `update()`
+     * to no-op, wiec nie ma nic, co musialoby zostac zywe. Zysk podwojny: gladkie
+     * krawedzie mimo wylaczonego MSAA na dotyku oraz jeden quad zamiast teselacji
+     * osmiokata z pekniciami i mchem przy kazdym rysowaniu.
+     */
     private draw(): void {
         const g = new PIXI.Graphics();
-        this.container.addChild(g);
-        
+
         const s = this.size;
         const hS = s / 2;
         const rot = (this.seed * 0.37) % (Math.PI * 2);
@@ -194,6 +201,16 @@ export class Rock implements ICollidable {
                 g.drawCircle(-hS * 0.2, -hS * 0.25, 1.2);
                 g.endFill();
             }
+        }
+
+        // PIECZENIE. Gdy renderer nie jest dostepny, `bakeToSprite` zwraca null
+        // i zostajemy przy zywych Graphics — gorsza jakosc, ale prop dziala.
+        const baked = bakeToSprite(g);
+        if (baked) {
+            this.container.addChild(baked);
+            g.destroy();
+        } else {
+            this.container.addChild(g);
         }
     }
     

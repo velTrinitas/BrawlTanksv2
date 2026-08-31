@@ -129,6 +129,7 @@ import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
 import { WaterLife } from './maps/desert/WaterLife';
 import { Rock } from './maps/desert/Rock';
+import { setPropBakeRenderer } from './maps/propBaker'; // v0.133.0 — pieczenie statycznych propow
 import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { Quicksand } from './maps/desert/Quicksand';
 import { Oasis } from './maps/desert/Oasis';
@@ -483,10 +484,28 @@ const _prefersTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 // Desktop-only marker: endcard v2 skalowany 1.5x TYLKO na desktopie (CSS w index.html).
 // Mobile (touch) zostaje 1:1 — landscape/zoom-locked, nie ma zapasu ekranu na powiekszenie.
 document.body.classList.toggle('bt-desktop', !_prefersTouch);
-// F5 harness ?res=N: render w N-krotnej rozdzielczosci (0.5 = pol pikseli => test fill-rate/upscale GPU).
-// Domyslnie 1 = bez zmiany dla produkcji.
+// ── ROZDZIELCZOSC RENDERERA (v0.133.0) ──────────────────────────────────────
+// Do v0.132.0 domyslna byla 1, wiec na telefonie o DPR ~2.6 przegladarka rozciagala
+// caly obraz ~2.6x — stad zgloszona pikseloza. Playtest Mariusza na A54 z ?res=2:
+// „cala mapa nabrala nowego wymiaru wizualnego, wszystko super ostre".
+//
+// CAP 2 jest swiadomy: powyzej dwojki roznicy praktycznie nie widac, a koszt rosnie
+// KWADRATOWO (res 3 = 9x fragmentow wzgledem 1). Telefony DPR 3+ dostaja wiec 2.
+// Desktop ma zwykle DPR 1 => `resolution` 1 => dla obecnych graczy na PC zero zmiany.
+//
+// UWAGA na koszt: to jest 4x wiecej pikseli do wypelnienia na A54. Bilansuje go culling
+// z v0.132.0 i pieczenie propow. Gdyby na slabszym sprzecie uwieralo, `?res=1` przywraca
+// stare zachowanie BEZ rebuilda — flaga zostaje wlasnie jako sciezka odwrotu.
+//
+// Efekt uboczny (pozadany): `TankSpriteBaker` piecze w `app.renderer.resolution`, wiec
+// czolg gracza tez robi sie ostrzejszy. Kosztuje to ~22 MB VRAM wiecej (36 katow x 2
+// warstwy x 160^2), co przeszlo na A54 bez wysypania podczas testu z ?res=2.
+// Wrogowie CELOWO zostaja przy resolution=1 (EnemySpriteBaker: „wrogow duzo i sa mali").
+const RENDER_RES_CAP = 2;
 const _resParam = new URLSearchParams(window.location.search).get('res');
-const _renderRes = _resParam !== null && !isNaN(parseFloat(_resParam)) ? Math.max(0.25, Math.min(2, parseFloat(_resParam))) : 1;
+const _renderRes = _resParam !== null && !isNaN(parseFloat(_resParam))
+    ? Math.max(0.25, Math.min(RENDER_RES_CAP, parseFloat(_resParam)))
+    : Math.min(window.devicePixelRatio || 1, RENDER_RES_CAP);
 // F5 (ship-blocker): ?cap=N = TWARDY limiter klatek (nasz PIXI maxFPS nie trzyma — log pokazal
 // 130fps przy maxFPS 60 => oscylacja 21<->130 = judder). ?cap=1 => 60fps, ?cap=30/90 => wartosc.
 // Wlacza tez powerPreference:'high-performance' (szybsza sciezka present). Domyslnie OFF.
@@ -545,6 +564,10 @@ const worldContainer = new PIXI.Container();
 // kolejnosc STOI (stabilna, max 1 klatka opoznienia = niewidoczne). Zero migotania, perf zostaje.
 worldContainer.sortableChildren = false;
 app.stage.addChild(worldContainer);
+// v0.133.0 — renderer dla pieczenia statycznych propow (propBaker.ts). MUSI byc
+// ustawiony ZANIM powstana jakiekolwiek propy: bez niego `bakeToSprite` zwraca null
+// i propy zostaja przy zywych Graphics (dzialaja, ale bez wygladzenia krawedzi).
+setPropBakeRenderer(app.renderer);
 if (HARNESS_EMPTY) worldContainer.visible = false; // F5 harness: pusty present (test compositor/vsync/present)
 
 const hud = new HUD('hudCanvas');
@@ -3134,7 +3157,9 @@ app.ticker.add((rawDelta) => {
 
     let playerInQuicksand = false;
     for (const qs of quicksands) {
-        qs.update();
+        // v0.132.0 — kamera do bramki cullingu. `isPointInside` nizej dziala niezaleznie
+        // od bramki, wiec spowolnienie strefy zostaje nienaruszone.
+        qs.update(camera.x, camera.y, viewW, viewH);
         if (qs.isPointInside(player.x, player.y)) {
             playerInQuicksand = true;
         }
@@ -3198,7 +3223,8 @@ app.ticker.add((rawDelta) => {
 
     let playerInOasis = false;
     for (const oasis of oases) {
-        oasis.update();
+        // v0.132.0 — kamera do bramki cullingu; stealth dalej przez `isPointInside`.
+        oasis.update(camera.x, camera.y, viewW, viewH);
         if (oasis.isPointInside(player.x, player.y)) {
             playerInOasis = true;
         }
@@ -3304,9 +3330,9 @@ app.ticker.add((rawDelta) => {
         if (ctfResult.playerDied) { triggerGameOver(); return; }
     }
 
-    if (river) river.update();
-    if (waterLife) waterLife.update();
-    if (sandstormBorder) sandstormBorder.update();
+    if (river) river.update(camera.x, camera.y, viewW, viewH);
+    if (waterLife) waterLife.update(camera.x, camera.y, viewW, viewH);
+    if (sandstormBorder) sandstormBorder.update(camera.x, camera.y, viewW, viewH);
     if (tropicalBorder) tropicalBorder.update();
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     if (arcticBorder) arcticBorder.update(); // ARC-R1 (drobiny + smugi lodowe)
@@ -3372,7 +3398,7 @@ app.ticker.add((rawDelta) => {
     }
 
     if (caravan) {
-        const drop = caravan.update(delta);
+        const drop = caravan.update(delta, camera.x, camera.y, viewW, viewH);
         if (drop) {
             if (drop.type === 'gem') {
                 spawnGem(drop.x, drop.y);

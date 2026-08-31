@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
+import { isBoxInView } from '../cullGate';
 
 /**
  * Pyramid — True 2.5D Parallax (dynamic apex calculation + 12-step stepped pyramid).
@@ -41,7 +42,24 @@ export class Pyramid implements ICollidable {
     private container: PIXI.Container;
     private gfxStatic: PIXI.Graphics;
     private gfxDynamic: PIXI.Graphics;
-    
+    /**
+     * v0.132.0 — MIGOTANIE NA OSOBNEJ WARSTWIE. Do v0.131.0 refleks na czubku byl
+     * rysowany w `gfxDynamic` razem z cala bryla, wiec dwa kolka migoczace w rytmie
+     * `sin(time)` wymuszaly pelny redraw 4 scian + 12 schodkow + 4 krawedzi + pyramidionu
+     * w KAZDEJ klatce. Bryla zalezy wylacznie od kamery, migotanie wylacznie od czasu —
+     * rozdzielenie ich pozwala przerysowywac bryle tylko wtedy, gdy kamera realnie sie
+     * ruszyla.
+     */
+    private gfxSparkle: PIXI.Graphics;
+    /** Ostatnia pozycja kamery, dla ktorej przeliczono bryle (-1 = jeszcze nigdy). */
+    private lastCamCX = Number.NaN;
+    private lastCamCY = Number.NaN;
+    /** Apex z ostatniego przeliczenia — migotanie musi wiedziec, gdzie jest czubek. */
+    private apexX = 0;
+    private apexY = 0;
+    /** Bramka cullingu: czy w poprzedniej klatce prop byl poza kadrem. */
+    private culled = false;
+
     private size: number;
     private seed: number;
     
@@ -74,8 +92,10 @@ export class Pyramid implements ICollidable {
         
         this.gfxStatic = new PIXI.Graphics();
         this.gfxDynamic = new PIXI.Graphics();
+        this.gfxSparkle = new PIXI.Graphics();
         this.container.addChild(this.gfxStatic);
         this.container.addChild(this.gfxDynamic);
+        this.container.addChild(this.gfxSparkle);   // NAD bryla — refleks jest na czubku
         
         this.drawStaticBase();
     }
@@ -122,18 +142,51 @@ export class Pyramid implements ICollidable {
      * Zgodne z ICollidable.update sygnaturą (4 args).
      */
     update(camX: number, camY: number, screenW: number, screenH: number): void {
+        // v0.132.0 — VIEWPORT CULLING. Piramida przerysowywala cala bryle co klatke
+        // niezaleznie od tego, gdzie jest gracz; na mapie 3000x3000 przy zoomie 0.7
+        // widac ~7% powierzchni. Bramka po AABB hitboxu (this.x/y/w/h), nie po srodku,
+        // bo piramida ma realna rozpietosc i musi zaczac sie rysowac, zanim jej srodek
+        // wjedzie w kadr.
+        const visible = isBoxInView(this.x, this.y, this.w, this.h, camX, camY, screenW, screenH);
+        if (!visible) {
+            if (!this.culled) {                 // toggle TYLKO przy zmianie, nie co klatke
+                this.culled = true;
+                this.gfxDynamic.renderable = false;
+                this.gfxSparkle.renderable = false;
+            }
+            return;
+        }
+        if (this.culled) {
+            this.culled = false;
+            this.gfxDynamic.renderable = true;
+            this.gfxSparkle.renderable = true;
+            this.lastCamCX = Number.NaN;        // wymus redraw bryly po powrocie w kadr
+        }
+
         const time = Date.now();
-        const g = this.gfxDynamic;
-        g.clear();
-        
         const hs = this.size / 2;
         const cameraCenterX = camX + screenW / 2;
         const cameraCenterY = camY + screenH / 2;
-        
+
+        // MIGOTANIE osobno od bryly — patrz komentarz przy `gfxSparkle`.
+        // Bryla zalezy WYLACZNIE od kamery, wiec przy nieruchomej kamerze (gracz stoi,
+        // celuje, czyta HUD) nie ma czego przeliczac.
+        if (cameraCenterX === this.lastCamCX && cameraCenterY === this.lastCamCY) {
+            this.drawSparkle(time);
+            return;
+        }
+        this.lastCamCX = cameraCenterX;
+        this.lastCamCY = cameraCenterY;
+
+        const g = this.gfxDynamic;
+        g.clear();
+
         // 2.5D APEX — przesunięcie szczytu względem kamery (used visualX/Y, NIE this.x/y które są top-left hitboxu)
         const apexX = (this.visualX - cameraCenterX) * Pyramid.HEIGHT_FACTOR;
         const apexY = (this.visualY - cameraCenterY) * Pyramid.HEIGHT_FACTOR;
-        
+        this.apexX = apexX;
+        this.apexY = apexY;
+
         const tl = { x: -hs, y: -hs };
         const tr = { x: hs,  y: -hs };
         const br = { x: hs,  y: hs };
@@ -196,15 +249,26 @@ export class Pyramid implements ICollidable {
         g.drawPolygon([pBL.x, pBL.y, pBR.x, pBR.y, apex.x, apex.y]); // S (shadow)
         g.endFill();
         
-        // 5. MAGICZNY REFLEKS NA CZUBKU (migotający biały dot)
+        // 5. MAGICZNY REFLEKS NA CZUBKU — rysowany osobno (patrz `drawSparkle`).
+        this.drawSparkle(time);
+    }
+
+    /**
+     * Migotanie na czubku: dwa kolka w rytmie `sin(time)`. Wydzielone z `update()`,
+     * zeby samo migotanie nie ciagnelo za soba pelnego redrawu bryly — to byl caly
+     * powod, dla ktorego piramida przeliczala 12 schodkow w kazdej klatce.
+     */
+    private drawSparkle(time: number): void {
+        const s = this.gfxSparkle;
+        s.clear();
         const sparkle = 0.7 + Math.sin(time / 100 + this.seed) * 0.3;
-        g.beginFill(0xffffff, 0.85 * sparkle);
-        g.drawCircle(apex.x - 1, apex.y - 1, 2.5);
-        g.endFill();
-        
+        s.beginFill(0xffffff, 0.85 * sparkle);
+        s.drawCircle(this.apexX - 1, this.apexY - 1, 2.5);
+        s.endFill();
+
         // Subtle aureola wokół refleksu
-        g.beginFill(0xfff4a0, 0.25 * sparkle);
-        g.drawCircle(apex.x, apex.y, 6);
-        g.endFill();
+        s.beginFill(0xfff4a0, 0.25 * sparkle);
+        s.drawCircle(this.apexX, this.apexY, 6);
+        s.endFill();
     }
 }

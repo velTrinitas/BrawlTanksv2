@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { isPointInView } from '../cullGate';
 import type { ICollidable } from '../../types/MapType';
 
 /**
@@ -343,12 +344,30 @@ export class RiverNile {
         }
     }
     
-    public update(): void {
+    /**
+     * v0.132.0 — VIEWPORT CULLING PER ELEMENT.
+     *
+     * Rzeka przecina cala mape 3000x3000, wiec bramka „caly prop w kadrze / poza"
+     * nie odcielaby niczego — prawie zawsze widac JAKIS jej fragment. Bramkujemy
+     * poszczegolne elementy: ~46 refleksow, ripple i MGLE.
+     *
+     * Mgla jest tu najwazniejsza, bo jako jedyna tworzy i niszczy obiekty: do
+     * v0.131.0 spawnowala Sprite'y na CALEJ dlugosci rzeki (~6 create+destroy na
+     * sekunde), z czego gracz widzial ulamek. Teraz spawn odbywa sie tylko w poblizu
+     * kadru, wiec znika i praca, i presja na GC.
+     *
+     * Smugi nurtu (`drawFlowStreaks`) zostaja BEZ bramki — to cztery ciagle polilinie
+     * budowane przez moveTo/lineTo i przerywanie ich w polowie dawaloby widoczne
+     * dziury w nurcie. Kosztuja 28 wywolan `getPointAt` na klatke, czyli po odcieciu
+     * mgly i refleksow nie sa juz waskim gardlem.
+     */
+    public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
         const time = Date.now();
+        const cull = camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined;
         this.drawFlowStreaks(time);
-        this.drawReflexes(time);
-        this.updateRipples(time);
-        this.updateMist(time);
+        this.drawReflexes(time, cull, camX, camY, viewW, viewH);
+        this.updateRipples(time, cull, camX, camY, viewW, viewH);
+        this.updateMist(time, cull, camX, camY, viewW, viewH);
     }
     
     private drawFlowStreaks(time: number): void {
@@ -387,11 +406,16 @@ export class RiverNile {
         g.lineStyle(0);
     }
     
-    private drawReflexes(time: number): void {
+    private drawReflexes(
+        time: number,
+        cull = false, camX?: number, camY?: number, viewW?: number, viewH?: number,
+    ): void {
         const g = this.gfxReflexes;
         g.clear();
-        
+
         for (const spot of this.reflexSpots) {
+            // Refleksy stoja w miejscu, wiec bramka po ich wlasnej pozycji wystarcza.
+            if (cull && !isPointInView(spot.x, spot.y, camX!, camY!, viewW!, viewH!)) continue;
             const twinkle = Math.max(0, 0.35 + Math.sin(time / 350 + spot.phase) * 0.5);
             g.beginFill(0xfff8c0, 0.15 * twinkle);
             g.drawCircle(spot.x, spot.y, spot.size * 2.8);
@@ -405,7 +429,10 @@ export class RiverNile {
         }
     }
     
-    private updateRipples(time: number): void {
+    private updateRipples(
+        time: number,
+        cull = false, camX?: number, camY?: number, viewW?: number, viewH?: number,
+    ): void {
         const g = this.gfxRipples;
         g.clear();
         
@@ -425,6 +452,9 @@ export class RiverNile {
         this.activeRipples = this.activeRipples.filter(r => time - r.startTime < RIPPLE_DURATION);
         
         for (const ripple of this.activeRipples) {
+            // Wygasanie liczy filtr wyzej (po czasie), wiec bramka pomija samo
+            // rysowanie — ripple poza kadrem i tak zniknie w swoim terminie.
+            if (cull && !isPointInView(ripple.x, ripple.y, camX!, camY!, viewW!, viewH!)) continue;
             const age = (time - ripple.startTime) / RIPPLE_DURATION;
             const radius = ripple.maxRadius * age;
             const alpha = (1 - age) * 0.55;
@@ -439,14 +469,30 @@ export class RiverNile {
         g.lineStyle(0);
     }
     
-    private updateMist(time: number): void {
+    private updateMist(
+        time: number,
+        cull = false, camX?: number, camY?: number, viewW?: number, viewH?: number,
+    ): void {
         const MIST_MAX = 25;
         const MIST_SPAWN_RATE = 0.4;
         const MIST_LIFETIME = 4000;
-        
-        if (this.mistParticles.length < MIST_MAX && Math.random() < MIST_SPAWN_RATE) {
-            const t = Math.random();
-            const pt = this.getPointAt(t);
+
+        // v0.132.0 — NIE spawnujemy mgly poza kadrem. To jedyne miejsce w propach
+        // Pustyni, gdzie co klatke powstaja i gina obiekty (Sprite), wiec odciecie
+        // spawnu zdejmuje nie tylko rysowanie, ale i presje na GC. Losowanie `t`
+        // zostaje takie samo — trafienia poza kadrem sa po prostu odrzucane, wiec
+        // rozklad mgly w WIDOCZNYM fragmencie rzeki sie nie zmienia.
+        //
+        // Bramka pomija WYLACZNIE spawn, nigdy calej metody: nizej zyje petla, ktora
+        // przesuwa i KASUJE istniejace czastki. Wyjscie z `updateMist()` przed nia
+        // zamrozilo by mgle, ktora akurat wisi na ekranie, i nigdy jej nie sprzatnelo.
+        const spawnPt = this.mistParticles.length < MIST_MAX && Math.random() < MIST_SPAWN_RATE
+            ? this.getPointAt(Math.random())
+            : null;
+        const spawnOk = spawnPt !== null
+            && (!cull || isPointInView(spawnPt.x, spawnPt.y, camX!, camY!, viewW!, viewH!, this.width));
+        if (spawnPt && spawnOk) {
+            const pt = spawnPt;
             const sprite = new PIXI.Sprite(this.getMistTexture());
             sprite.anchor.set(0.5);
             sprite.x = pt.x + (Math.random() - 0.5) * this.width * 0.9;

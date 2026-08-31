@@ -276,6 +276,8 @@ export const en: typeof pl = {
     'hub.garage.type.nickColor': 'Nick colors',
     'hub.garage.type.frame': 'Avatar frames',
     'hub.garage.type.title': 'Titles',
+    'hub.garage.type.horn': 'Horns 🖥️ (key H)',
+    'hub.garage.type.voice': 'Commander voice',
     'crate.rarity.c': 'Common',
     'crate.rarity.r': 'Rare',
     'crate.rarity.e': 'Epic',

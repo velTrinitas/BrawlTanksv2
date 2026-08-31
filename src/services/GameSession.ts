@@ -105,6 +105,25 @@ const MULTI_KILL_BONUS_PCT = 0.50;
 const COLLISION_KILL_BONUS_PCT = 1.00;
 
 /**
+ * v0.136.0 — punkty za PRZEJECIE FLAGI (scenariusz ctf).
+ *
+ * Do v0.135.0 przejecie flagi nie dawalo ANI JEDNEGO punktu: wynik meczu CTF byl
+ * liczony ta sama formula co KTB (kille + gemy). Przy wlaczonym rankingu CTF
+ * (v0.136.0) oznaczaloby to board, na ktorym wygrywa ten, kto IGNORUJE flagi
+ * i farmi wrogow — czyli dokladne przeciwienstwo celu trybu.
+ *
+ * Skala: zwykly kill = 2, boss = 20, mega = 100, a CTF ma roamerCap 10. Przy 50 pkt
+ * za flage komplet 3 flag = 150 pkt, czyli mniej wiecej tyle, co cala czesc bojowa
+ * meczu. Flagi zaczynaja wazyc, walka dalej sie liczy.
+ *
+ * Stale (NIE skalowane przez difficulty) — tak jak PERFECT_RUN: liczba, ktora gracz
+ * widzi w notyfikacji, ma byc dokladnie ta, ktora dostaje.
+ *
+ * TUNABLE — wartosc startowa do playtestu.
+ */
+const CTF_FLAG_CAPTURE_BONUS = 50;
+
+/**
  * v0.50.0 Scoring v2.2 — PERFECT RUN bonus.
  *
  * Game-end achievement: gracz zwyciezyl bez ANI JEDNEGO trafienia.
@@ -187,6 +206,8 @@ export interface ScoreBreakdown {
     staticBonus: number;
     /** v0.50.0 v2.2 — Perfect Run bonus (50/75/100/125 per difficulty). 0 gdy nie zdobyty. */
     bonusPerfectRun: number;
+    /** v0.136.0 — suma punktow za przejete flagi (tylko ctf, 0 na innych scenariuszach). */
+    bonusFlagCapture: number;
     /** round(subtotal * multiplier) + staticBonus — finalny score do submit. */
     total: number;
 }
@@ -264,6 +285,9 @@ export class GameSession {
 
     /** Bonus Perfect Run (zwyciestwo bez damage). 0 gdy nie zdobyty albo zdobyty na innym trybie. */
     public bonusPerfectRun: number = 0;
+
+    /** v0.136.0 — suma punktow za przejete flagi (ctf). 0 na kazdym innym scenariuszu. */
+    public bonusFlagCapture: number = 0;
 
     /**
      * Flag — czy gracz dostal damage applied w tym matchu.
@@ -576,6 +600,27 @@ export class GameSession {
     }
 
     /**
+     * v0.136.0 — punkty za PRZEJECIE FLAGI (scenariusz ctf).
+     *
+     * Wolane z `onCaptureSfx` w main.ts, raz na kazda dostarczona flage. Bonus laduje
+     * w scoreFromStaticBonus (POST difficulty mult) — tak jak Perfect Run, zeby liczba
+     * w notyfikacji byla dokladnie ta, ktora gracz dostaje. Cel meczu nie ma byc tanszy
+     * na Easy ani drozszy na Nightmare; skalowanie zostaje po stronie walki.
+     *
+     * Nie ma guarda na scenariusz — CtfSystem istnieje wylacznie w ctf, wiec nie ma
+     * sciezki, ktora wywolalaby to gdzie indziej.
+     *
+     * @returns ile dodano (do notyfikacji HUD).
+     */
+    addFlagCaptureBonus(): { added: number } {
+        const bonus = CTF_FLAG_CAPTURE_BONUS;
+        this.scoreFromStaticBonus += bonus;
+        this.bonusFlagCapture += bonus;
+        this.recomputeScore();
+        return { added: bonus };
+    }
+
+    /**
      * v0.49.0 — przelicz score z sub-totali + difficulty multiplier.
      * Wolane automatycznie po addKillScore/addGemScore/addBonus*. Single point of truth dla score.
      *
@@ -615,6 +660,7 @@ export class GameSession {
             multiplier: diffMult,
             staticBonus: this.scoreFromStaticBonus,
             bonusPerfectRun: this.bonusPerfectRun,
+            bonusFlagCapture: this.bonusFlagCapture,
             total: Math.round(subtotal * diffMult) + this.scoreFromStaticBonus,
         };
     }

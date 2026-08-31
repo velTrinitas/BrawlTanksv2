@@ -215,10 +215,19 @@ export class CtfSystem {
             ctf.flagsCaptured++;
             ctf.escalation = Math.min(2, ctf.flagsCaptured);
             player.hp = player.maxHp; // full-heal (legacy 1:1) — petla ryzyko/nagroda
+            // v0.136.0: PUNKTY za dostawe. Do v0.135.0 flaga nie dawala ani jednego punktu —
+            // przy wlaczonym rankingu CTF wygrywalby ten, kto olewa flagi i farmi wrogow.
+            const flagBonus = this.opts.session.addFlagCaptureBonus();
             // F4.3 flex dostawy: duzy popup postepu, zielone iskry heala, mocny shake.
             // (Konfetti per-capture anulowane — endcard ma juz swoje; unikamy dublu.)
             hudNotif(t('ctf.flagCaptured', { name: flag.name }), this.cssColor(flag.color));
-            effects.spawnFloatingText(player.x, player.y - 80, `✅ ${flag.name}  ${ctf.flagsCaptured}/3`, flag.color);
+            // Punkty dopisane do TEGO SAMEGO popupu, nie osobna notyfikacja — kolejka HUD
+            // ma juz baner zdobycia; drugi wpis byłby szumem, a nie informacja.
+            effects.spawnFloatingText(
+                player.x, player.y - 80,
+                `✅ ${flag.name}  ${ctf.flagsCaptured}/3  +${flagBonus.added}`,
+                flag.color,
+            );
             effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71); // heal (zielony)
             effects.shake(20, 24);
             this.opts.onCaptureSfx();

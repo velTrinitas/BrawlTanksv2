@@ -13,16 +13,25 @@ import { t } from '../../i18n/i18n';
 import { ProgressionService } from '../../services/ProgressionService';
 import type { CosmeticState } from '../../services/ProgressionService';
 import {
-    cosmeticsByType, RARITY_COLOR, nickColorStyle, frameStyle,
+    cosmeticsByType, getCosmetic, RARITY_COLOR, nickColorStyle, frameStyle,
     type CosmeticDef, type CosmeticType,
 } from '../../config/cosmetics';
+import { AudioSys } from '../../audio/AudioSys';
 
 /** Etykiety grup per typ (literalowe klucze i18n). */
 const TYPE_LABEL_KEY = {
     nickColor: 'hub.garage.type.nickColor',
     frame: 'hub.garage.type.frame',
     title: 'hub.garage.type.title',
+    horn: 'hub.garage.type.horn',
+    voice: 'hub.garage.type.voice',
 } as const;
+
+/**
+ * v0.136.0 — typy, dla ktorych kropka rzadkosci nic nie mowi, bo def ma wlasne emoji
+ * (klaksony 📣/📢/🔊/🎺, paczka glosowa). Kolor rzadkosci zostaje na tle karty.
+ */
+const EMOJI_TYPES: ReadonlySet<CosmeticType> = new Set<CosmeticType>(['horn', 'voice', 'sticker']);
 
 /** Jedna karta kosmetyku (owned interaktywna / locked wyszarzona). */
 export function cosmeticChipHtml(
@@ -40,7 +49,9 @@ export function cosmeticChipHtml(
     const nmShimmer = isNick && owned && def.animated ? ' bt-cos-shimmer' : '';
     const dot = isFrame
         ? `<span class="dot dot--frame" style="${frameStyle(def)}" aria-hidden="true"></span>`
-        : `<span class="dot" style="background:${hexColor};" aria-hidden="true"></span>`;
+        : EMOJI_TYPES.has(def.type) && def.emoji
+            ? `<span class="dot dot--emoji" aria-hidden="true">${def.emoji}</span>`
+            : `<span class="dot" style="background:${hexColor};" aria-hidden="true"></span>`;
     return `
         <button class="bt-hub0-cos${owned ? '' : ' is-locked'}${equipped ? ' is-equipped' : ''}"
                 style="--rarity-color:${cardColor};"
@@ -69,6 +80,14 @@ export function wireCosmeticGrid(el: HTMLElement, pid: string, onEquipped: () =>
         if (!id) return; // locked
         btn.addEventListener('click', () => {
             ProgressionService.equipCosmetic(pid, id);
+            // v0.136.0: klakson MA zabrzmiec przy zalozeniu. Kolory i ramki widac od razu
+            // na karcie, dzwiek nie ma jak sie pokazac — kafel bez reakcji to blad
+            // Sensoryki. Tylko przy ZAKLADANIU (toggle off zostaje cichy).
+            const def = getCosmetic(id);
+            if (def?.type === 'horn' && def.sound
+                && ProgressionService.getCosmeticState(pid).equipped.horn === id) {
+                AudioSys.getInstance().playOwnedSound(def.sound);
+            }
             onEquipped();
         });
     });

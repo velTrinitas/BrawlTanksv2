@@ -285,6 +285,8 @@ export const pl = {
     'hub.garage.type.nickColor': 'Kolory nicku',
     'hub.garage.type.frame': 'Ramki avatara',
     'hub.garage.type.title': 'Tytuły',
+    'hub.garage.type.horn': 'Klaksony 🖥️ (klawisz H)',
+    'hub.garage.type.voice': 'Głos dowódcy',
     'crate.rarity.c': 'Zwykły',
     'crate.rarity.r': 'Rzadki',
     'crate.rarity.e': 'Epicki',

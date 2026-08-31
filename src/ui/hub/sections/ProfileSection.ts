@@ -365,10 +365,13 @@ export class ProfileSection implements HubSection {
         const pid = ProfileService.getActiveProfile()!.id;
         const cos = ProgressionService.getCosmeticState(pid);
         // Licznik i grid BEZ tytulow (wyciete z UI w PROFILE-1; dane zostaja).
+        // v0.136.0: doszly 'horn' i 'voice'. Do v0.135.0 nie mialy kafli NIGDZIE, wiec
+        // `equipped.horn` / `equipped.voice` nie dalo sie ustawic — kupiony klakson lezal
+        // w `owned`, a klawisz H (main.ts) nie mial czego odtworzyc.
         const ownedActive = cos.owned.filter(id => getCosmetic(id)?.type !== 'title').length;
         return `
             <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: ownedActive, total: ACTIVE_COSMETIC_COUNT })}</div>
-            ${cosmeticGroupsHtml(cos, ['nickColor', 'frame'])}`;
+            ${cosmeticGroupsHtml(cos, ['nickColor', 'frame', 'horn', 'voice'])}`;
     }
 
     // ── async ranking (token-guard — wzorzec StatsOverlay.loadBest) ─────────

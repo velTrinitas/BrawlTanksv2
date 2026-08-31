@@ -2848,10 +2848,10 @@ async function triggerGameOver(): Promise<void> {
 
     touchManager.hide();
 
-    if (currentSession && currentSession.config.scenario === 'ctf') {
-        // FAZA CTF F1 (D10): CTF MVP bez submitu do leaderboardu — endcard lokalny.
-        console.log('[Score] CTF: score submit skipped (local endcard only)');
-    } else if (currentSession) {
+    // v0.136.0: submit dla WSZYSTKICH scenariuszy. Do v0.135.0 stal tu jawny skip dla
+    // ctf (relikt CTF F1/D10 "MVP bez leaderboardu") — board 🚩 byl wlaczony w rejestrze,
+    // Edge Function mial ctf/fortified_ruins na whitelscie, a mimo to swiecil pustka.
+    if (currentSession) {
         try {
             await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
             console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
@@ -2929,16 +2929,12 @@ async function triggerVictory(): Promise<void> {
             hud.addNotif(t('hud.perfectRun', { bonus: perfectRun.bonus }), '#f1c40f');
         }
 
-        if (currentSession.config.scenario === 'ctf') {
-            // FAZA CTF F1 (D10): CTF MVP bez submitu do leaderboardu — endcard lokalny.
-            console.log('[Score] CTF: score submit skipped (local endcard only)');
-        } else {
-            try {
-                await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
-                console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
-            } catch (e) {
-                console.warn('[Score] Submit failed:', e);
-            }
+        // v0.136.0: submit dla WSZYSTKICH scenariuszy (patrz notka w triggerGameOver).
+        try {
+            await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
+        } catch (e) {
+            console.warn('[Score] Submit failed:', e);
         }
 
         // PROG-F1: progresja konta (po Perfect Run bonus, wiec score juz finalny).

@@ -182,6 +182,16 @@ export class ShopOverlay {
                         AudioSys.getInstance().preloadOwnedSound(voiceFile(def, 'start', i18n.getLanguage()));
                         AudioSys.getInstance().preloadOwnedSound(voiceFile(def, 'lowHp', i18n.getLanguage()));
                     }
+                    // v0.136.0 — PIERWSZY kupiony przedmiot tego typu zaklada sie sam.
+                    // Zglosenie z playtestu: "kupiony klakson nie dziala". Kupno wsadza
+                    // rzecz do `owned`, ale silnik czyta `equipped.<typ>` — gracz, ktory
+                    // kupil jeden jedyny klakson, nie ma czego wybierac, wiec kazanie mu
+                    // isc do Profilu jest pustym krokiem. Kolejne zakupy NIE podmieniaja
+                    // zalozonego: wybor gracza jest swiety (ta sama zasada co przy jezyku).
+                    if (def && (def.type === 'horn' || def.type === 'voice')
+                        && !ProgressionService.getCosmeticState(profileId).equipped[def.type]) {
+                        ProgressionService.equipCosmetic(profileId, def.id);
+                    }
                     this.onPurchased?.();
                     if (item.grant.kind === 'crates') this.onCratesBought?.(item.grant.count);
                 } else {

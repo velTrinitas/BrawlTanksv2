@@ -105,7 +105,11 @@
 .bt-shop-card:active { transform: translateY(4px); box-shadow: 0 0 0 var(--hub-steel-950); }
 @media (hover: hover) {
     .bt-shop-card:hover { border-color: color-mix(in srgb, var(--g) 50%, var(--hub-line)); }
-    .bt-shop-card:hover .sk-art img { transform: scale(1.08); }
+    /* Stos skrzynek wylaczony: jego warstwy niosa WLASNY transform (przesuniecie
+       + skala), wiec podmiana na `scale(1.08)` sklejalaby trzy skrzynki w jedna.
+       Powiekszenie na hover robi za niego caly kontener stosu. */
+    .bt-shop-card:hover .sk-art img:not(.bt-cratestack-i) { transform: scale(1.08); }
+    .bt-shop-card:hover .sk-art .bt-cratestack { transform: scale(1.06); transition: transform 0.18s; }
 }
 .bt-shop-card .sk-art {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: 10px;
@@ -115,7 +119,13 @@
         radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--g) 26%, transparent), transparent 72%),
         var(--hub-steel-850);
 }
-.bt-shop-card .sk-art img {
+/* `:not(.bt-cratestack-i)` — v0.131.0. Ta regula byla zbyt ogolna i przejmowala KAZDY
+   obrazek w kaflu, wliczajac warstwy stosu skrzynek, ktore musza byc `position: absolute`,
+   zeby lezec jedna na drugiej. Efekt: trzy skrzynki ustawialy sie PIONOWO jedna pod
+   druga, kafel rosl do 387 px, a paczka po trzy wygladala jak pojedyncza.
+   Zawezenie selektora jest tu wlasciwa naprawa — licytowanie sie specyficznoscia po
+   stronie stosu tylko przeniosloby problem na nastepny obrazek o innym przeznaczeniu. */
+.bt-shop-card .sk-art img:not(.bt-cratestack-i) {
     width: 76%; height: 76%; object-fit: contain; position: relative; z-index: 1;
     transition: transform var(--transition-base, 0.18s) cubic-bezier(0.16, 1, 0.32, 1);
 }

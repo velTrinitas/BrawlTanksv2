@@ -1,4 +1,5 @@
 import { t } from '../../../i18n/i18n';
+import { crateIcon, iconFromToken } from '../gameIcons';
 import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
@@ -78,7 +79,7 @@ export class QuestsSection implements HubSection {
                     ${board.daily.map(q => this.questCard(q)).join('')}
 
                     <div class="bt-hub0-cratebox bt-hub0-q-set">
-                        <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
+                        <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}</div>
                         <div class="bt-hub0-crate-info">
                             <b>${t('hub.quests.setTitle')} ${board.dailyDone}/${board.daily.length}</b>
                             <small>${t('hub.quests.setReward', { bolts: board.setBolts })}</small>
@@ -94,7 +95,7 @@ export class QuestsSection implements HubSection {
                     <!-- v0.126.0 — KOMPLET TYGODNIA. Kolumna tygodniowa miala pusto dokladnie
                          tam, gdzie dzienna ma swoje pudelko, wiec tydzien nie mial domkniecia. -->
                     <div class="bt-hub0-cratebox bt-hub0-q-set">
-                        <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
+                        <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}</div>
                         <div class="bt-hub0-crate-info">
                             <b>${t('hub.quests.weekSetTitle')} ${board.weeklyDone}/${board.weekly.length}</b>
                             <small>${t('hub.quests.weekSetReward', { bolts: board.weeklySetBolts, crates: board.weeklySetCrates })}</small>
@@ -136,7 +137,7 @@ export class QuestsSection implements HubSection {
         const max = questDisplayValue(q.def.metric, q.target);
         const pct = Math.min(100, Math.round((q.current / q.target) * 100));
         // v0.115.0: waluta = Sigma (moneta; wewnetrznie pole dalej 'bolts' — display-only).
-        const reward = `<img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${q.def.bolts}${q.def.crates ? ' · 📦' : ''}`;
+        const reward = `<img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${q.def.bolts}${q.def.crates ? ' · ' + crateIcon(15) : ''}`;
 
         const action = q.claimed
             ? `<span class="bt-hub0-q-claimed">${t('hub.quests.claimed')}</span>`
@@ -146,7 +147,7 @@ export class QuestsSection implements HubSection {
 
         return `
             <div class="bt-hub0-q bt-hub0-q--${q.def.tier}${q.done ? ' is-done' : ''}${q.claimed ? ' is-claimed' : ''}">
-                <span class="qi" aria-hidden="true">${q.def.icon}</span>
+                <span class="qi" aria-hidden="true">${iconFromToken(q.def.icon, 24) ?? q.def.icon}</span>
                 <div class="qbody">
                     <b>${label}</b>
                     <div class="qbar"><i style="width:${pct}%;"></i></div>

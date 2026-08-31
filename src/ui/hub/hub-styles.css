@@ -178,40 +178,89 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
 /* v0.126.0 — dok schudl do 4 sekcji + GRAJ (TROFEA i SKLEP maja wejscie przez pigulki
    gornej belki). Uklad: GARAZ · ROZKAZY · [BITWA] · RANKING · GRAJ — BITWA nadal
    dokladnie na srodku pieciu slotow. */
-/* SKLEP i TROFEA w nawigacji TYLKO na desktopie (decyzja Mariusza): pionowy rail ma
-   miejsce, dok telefonu nie — tam wejsciem zostaja pigulki gornej belki (sigmy i 🏆).
-   v0.128.0: TROFEA dolaczaja do SKLEPU, ktory wrocil do railu w v0.126.0. */
-body:not(.bt-desktop) .bt-hub0-nav [data-section="shop"],
-body:not(.bt-desktop) .bt-hub0-nav [data-section="trophies"] { display: none; }
+/* v0.130.0 — SKLEP i TROFEA WRACAJA DO DOKU (playtest A54: "jest tam miejsce").
+   W v0.126.0 wypadly z doku na rzecz pigulek gornej belki, ale pigulka to slabsze
+   wejscie niz przycisk z etykieta — na telefonie nikt jej nie czytal jako nawigacji.
+   Dok ma teraz SIEDEM slotow.
 
-body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"] { order: 1; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="quests"] { order: 2; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"] { order: 3; }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="rank"]   { order: 4; }
-body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn--play   { order: 5; }
+   WYSRODKOWANIE FAB-a: BITWA musi miec DOKLADNIE TYLE SAMO przyciskow przed soba
+   co za soba. Przy siedmiu slotach to pozycja 4 — stad trzy przed (GARAZ, ROZKAZY,
+   SKLEP) i trzy za (TROFEA, RANKING, GRAJ). Ta regula juz raz sie zemscila
+   (v0.125.0: shop=2 dawal tylko jeden przycisk przed BITWA bez flagi ?shop=1),
+   wiec licz sloty za kazdym razem, gdy cokolwiek tu dochodzi lub znika.
+   UWAGA: liczba zaklada SHOP_LIVE=true. Gdyby sklep kiedys wrocil za flage, sekcji
+   bedzie szesc i FAB wypadnie z osi — wtedy trzeba przenumerowac.
+     GARAZ · ROZKAZY · SKLEP · [BITWA] · TROFEA · RANKING · GRAJ */
+body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]   { order: 1; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="quests"]   { order: 2; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="shop"]     { order: 3; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"]   { order: 4; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="trophies"] { order: 5; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="rank"]     { order: 6; }
+body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn--play     { order: 7; }
+
+/* SEPARATORY „|" miedzy przyciskami doku (prosba Mariusza — przy siedmiu slotach
+   przyciski zlewaly sie w jedno pasmo).
+
+   Kreska jest PSEUDO-ELEMENTEM pozycjonowanym absolutnie przy lewej krawedzi kazdego
+   przycisku, a NIE `border-left` ani `+ *` — bo kolejnosc w doku robi `order`, czyli
+   kolejnosc WIZUALNA rozjezdza sie z kolejnoscia w DOM. Selektory rodzenstwa (`+`)
+   dzialaja po DOM, wiec rysowalyby kreski w zupelnie zlych miejscach.
+
+   Kreski NIE MA przy: GARAZU (wizualnie pierwszy, nie ma czego oddzielac), BITWIE
+   i TROFEACH (czyli po obu stronach FAB-a) — wyniesiony zloty krazek ma wokol siebie
+   oddech, a kreska doklejona do niego czytalaby sie jak usterka. */
+body:not(.bt-desktop) .bt-hub0-nav > *::before {
+    content: '';
+    position: absolute; left: -3px; top: 22%; bottom: 22%;
+    width: 1px; background: var(--hub-line);
+    pointer-events: none;
+}
+body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]::before,
+body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"]::before,
+body:not(.bt-desktop) .bt-hub0-nav [data-section="trophies"]::before { content: none; }
+
+/* Siedem slotow zamiast pieciu = ~30% mniej szerokosci na przycisk. Etykiety schodza
+   o stopien i traca luz miedzyliterowy, zeby dluzsze slowa („ROZKAZY", „RANKING")
+   nie lamaly sie na dwie linie. Ikony zostaja — to one niosa rozpoznanie. */
+body:not(.bt-desktop) .bt-hub0-navbtn small { font-size: 9px; letter-spacing: 0.2px; }
+body:not(.bt-desktop) .bt-hub0-navbtn .gi { font-size: 18px; }
 
 /* GRAJ w doku — DELIKATNE zloto (prosba Mariusza: „nie napastliwie, bez mocnego
    odciecia krecha"). Zamiast obramowania: gradient wygaszajacy sie w lewo, wiec
    przycisk wtapia sie w belke od strony RANKINGU, a nasyca dopiero przy krawedzi.
    Mocne zloto zostaje zarezerwowane dla FAB-a BITWY — dwa krzyczace zlota obok
    siebie znioslyby sie nawzajem. */
+/* v0.130.0 — MOCNIEJSZE ZLOTO (playtest A54: „wzmocnij gradację, żeby pole było
+   wyraźniejsze"). Gradient dalej WYGASA w lewo, wiec zasada z v0.126.0 zostaje
+   nienaruszona — GRAJ wtapia sie w belke od strony RANKINGU i nasyca dopiero przy
+   krawedzi ekranu. Podniesione sa same wartosci (0.10/0.26 -> 0.18/0.46) plus
+   delikatna poswiata od dolu, zeby pole czytalo sie jako POWIERZCHNIA, a nie jako
+   sam napis. Pelne zloto zostaje zarezerwowane dla FAB-a BITWY. */
 .bt-hub0-navbtn--play {
     flex-direction: row; gap: 3px;
-    color: var(--hub-accent);
+    color: #ffe066;
     background: linear-gradient(90deg,
         rgba(241, 196, 15, 0) 0%,
-        rgba(241, 196, 15, 0.10) 45%,
-        rgba(241, 196, 15, 0.26) 100%);
+        rgba(241, 196, 15, 0.18) 40%,
+        rgba(241, 196, 15, 0.46) 100%);
+    box-shadow: inset 0 -2px 0 rgba(241, 196, 15, 0.30);
 }
 /* v0.126.0 — wieksze i „mocniejsze" GRAJ (prosba Mariusza). CELOWO BEZ `font-weight`:
    Titan One jest JEDNOWAGOWY, wiec `bold` daje faux-bold — rozmyty i cienszy w odbiorze,
    dokladnie ten defekt, ktory HUD unika swiadomie od v0.46.0 i ktory audyt typografii
-   wypunktowal jako P1-9. Masy dokladamy stopniem (15px) i cieniem podbijajacym krawedz. */
+   wypunktowal jako P1-9. Masy dokladamy stopniem i cieniem podbijajacym krawedz.
+   v0.130.0: 15px -> 18px (playtest A54). Regula o wadze obowiazuje dalej — masy
+   dokladamy WYLACZNIE stopniem i cieniem, nigdy `font-weight`. */
 .bt-hub0-navbtn--play .np-label {
     font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
-    font-size: 15px; letter-spacing: 0.6px; line-height: 1;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+    font-size: 18px; letter-spacing: 0.6px; line-height: 1;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
 }
+/* GRAJ dostaje wiecej miejsca niz zwykly slot doku — przy siedmiu przyciskach rowny
+   podzial scisnalby go do szerokosci ikony, a to jest druga najwazniejsza akcja
+   na ekranie zaraz po FAB-ie BITWY. */
+body:not(.bt-desktop) .bt-hub0-navbtn--play { flex: 1.5 1 0; }
 /* Strzalki ciemniejsze od slowa — prowadza wzrok w prawo, ale nie konkuruja z napisem. */
 .bt-hub0-navbtn--play .np-arrow { font-size: 12px; opacity: 0.55; line-height: 1; }
 .bt-hub0-navbtn--play:active { transform: translateY(2px); }
@@ -571,9 +620,33 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     pointer-events: none;
 }
 @keyframes bt-hub0-glow-spin { to { transform: rotate(360deg); } }
+/* v0.131.0 — prawdziwa skrzynka zamiast emoji (emoji systemowe sa bitmapowe i przy
+   powiekszeniu pikseluja; ten kafel byl maly, ale ma byc spojny z popupem). */
 .bt-hub0-crate-art {
-    font-size: 34px; flex: 0 0 auto; position: relative; z-index: 1;
+    width: 44px; height: 44px; flex: 0 0 auto; position: relative; z-index: 1;
     filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.5));
+}
+.bt-hub0-crate-art img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* v0.131.0 — IKONY Z ASSETOW GRY (gameIcons.ts). Hub pokazywal emoji systemowe tam,
+   gdzie gra ma wlasna grafike: inny gem w rozkazach niz na mapie, inna skrzynka niz
+   ta z Garazu. Rozmiar nadaje wolajacy (inline style), tu tylko wspolne zachowanie. */
+.bt-gameicon {
+    display: inline-block; object-fit: contain; vertical-align: -0.18em;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+/* Gem ma w pliku szeroka poswiate — sam krysztal to ~55% kadru, wiec obok emoji tej
+   samej wysokosci wygladal jak drobinka. Transform nie rusza layoutu, wiec staly
+   slot ikony w karcie rozkazu zostaje nienaruszony. */
+.bt-gameicon--gem { transform: scale(1.35); }
+/* STOS SKRZYNEK w sklepie — liczba sztuk = zawartosc paczki (do trzech; wyzej plama).
+   Warstwy sa pozycjonowane absolutnie wzgledem kwadratu stosu, wiec kafel nie zmienia
+   wysokosci niezaleznie od tego, czy pokazuje jedna skrzynke czy trzy. */
+.bt-cratestack { position: relative; display: block; width: 100%; aspect-ratio: 1; }
+.bt-cratestack .bt-cratestack-i {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; display: block;
+    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
 }
 .bt-hub0-cratebox.is-ready .bt-hub0-crate-art { animation: bt-hub0-crate-float 2s ease-in-out infinite; }
 @keyframes bt-hub0-crate-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
@@ -638,7 +711,14 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* ---------- F2a: CrateOverlay (v0.109.0 redesign: zrzut z gory + kurz + burst) ---------- */
+/* v0.131.0 — modal 380 -> 640 px NA DESKTOPIE (prosba Mariusza o wieksze pole).
+   Na telefonie zostaje waski i to jest TWARDE ograniczenie, nie niedoróbka: przy
+   667x375 modal ma sufit 345 px, a tytul + scena + podpowiedz + przycisk + padding
+   zjadaja juz ~322 px. Powiekszenie sceny na mobile = scroll w popupie, czyli
+   dokladnie to, czego zgloszenie mialo sie pozbyc. Na telefonie rosnie liczba
+   efektow, nie rozmiar. */
 .bt-hub0-crate-modal { max-width: 380px; text-align: center; overflow: hidden; }
+body.bt-desktop .bt-hub0-crate-modal { max-width: 640px; }
 .bt-hub0-crate-modal.thud { animation: bt-crate-thud 0.28s ease; }
 @keyframes bt-crate-thud {
     0%, 100% { transform: translateY(0); }
@@ -649,12 +729,34 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     position: relative; height: 190px; display: flex; flex-direction: column;
     align-items: center; justify-content: flex-end; margin: 6px 0 4px;
 }
-/* v0.109.0: skrzynia +100% (64->128px), BEZ spadochroniarza — sama SPADA z gory.
+body.bt-desktop .bt-hub0-crate-scene { height: 260px; }
+/* Telefon w poziomie: zmierzone przy 667x375 — tresc wystawala o DOKLADNIE 16 px,
+   czyli o dolny padding pod przyciskiem „Co moze wypasc?". Modal ma `overflow: hidden`,
+   wiec to nie byl scroll, tylko ciche przyciecie. Scena schodzi o 22 px i skrzynia
+   o 14 px — razem daje to zapas zamiast stykania sie z krawiedzia. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-hub0-crate-scene { height: 168px; margin: 2px 0 2px; }
+    .bt-hub0-crate-box { width: 116px; height: 116px; }
+    .bt-hub0-crate-hint { margin-bottom: 6px; }
+}
+/* WSTRZAS SCENY przy ladowaniu — osobny od `thud` modala. Sam modal dawal ruch calego
+   okna, co czytalo sie jak usterka layoutu; scena drga krocej i mocniej, wiec uderzenie
+   dostaje mase, a rama okna stoi. */
+.bt-hub0-crate-scene.quake { animation: bt-crate-quake 0.24s ease-out; }
+@keyframes bt-crate-quake {
+    0%, 100% { transform: translate(0, 0); }
+    20%      { transform: translate(-3px, 2px); }
+    45%      { transform: translate(3px, -1px); }
+    70%      { transform: translate(-2px, 1px); }
+}
+/* v0.131.0: skrzynia to PNG 512x512 (assety Mariusza), nie emoji — emoji systemowe sa
+   bitmapowe (mastery ~128 px) i przy skalowaniu tapami do ~257 px widac piksele.
+   200 px CSS przy pliku 512 daje zapas na DPR 2 az do skali 1.28.
    Fix "niebieskiego kwadratu" przy tapie: tap-highlight/select/outline OFF (to game
    button, nie formularz). --tapscale rosnie z kazdym tapem (napiecie). */
 .bt-hub0-crate-box {
-    font-size: 128px; border: 0; background: transparent; cursor: pointer; line-height: 1;
-    padding: 0;
+    width: 130px; height: 130px; border: 0; background: transparent; cursor: pointer;
+    line-height: 1; padding: 0;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
     -webkit-user-select: none;
@@ -662,8 +764,15 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     touch-action: manipulation;
     outline: none;
     transform: scale(var(--tapscale, 1));
-    filter: drop-shadow(0 0 calc(6px + var(--glow, 0) * 26px) rgba(241, 196, 15, calc(0.2 + var(--glow, 0) * 0.7)));
+    /* v0.131.0 — poswiata mocniejsza (26->40px, 0.7->0.85): przy prawdziwej grafice
+       stara wartosc gubila sie na drewnie, a to ona niesie narastanie napiecia. */
+    filter: drop-shadow(0 0 calc(6px + var(--glow, 0) * 40px) rgba(241, 196, 15, calc(0.2 + var(--glow, 0) * 0.85)));
     transition: filter 0.15s, transform 0.15s;
+}
+body.bt-desktop .bt-hub0-crate-box { width: 200px; height: 200px; }
+.bt-hub0-crate-box img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    pointer-events: none; /* klik ma trafiac w <button>, nie w obrazek */
 }
 .bt-hub0-crate-box.is-dropping {
     animation: bt-crate-drop 0.55s cubic-bezier(0.45, 0, 0.85, 0.6) both;
@@ -682,8 +791,12 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     75% { transform: scale(var(--tapscale, 1)) translateX(6px) rotate(4deg); }
 }
 /* 3. tap: skrzynia rosnie i znika w blysku */
+/* v0.131.0 — OPOZNIENIE 0.22 s: korpus zaczyna gasnac DOPIERO gdy wieko jest juz
+   w powietrzu. Bez tego skrzynia znikala rownolegle z odlotem wieka i wieko
+   odrywalo sie od pustego miejsca. Koniec: 0.22 + 0.4 = 0.62 s, wieko 0.55 s,
+   reveal 0.70 s — kolejnosc: wieko wylatuje, korpus gasnie, wchodzi nagroda. */
 .bt-hub0-crate-box.is-bursting {
-    animation: bt-crate-burst 0.4s ease-in forwards;
+    animation: bt-crate-burst 0.4s ease-in 0.22s forwards;
     pointer-events: none;
 }
 @keyframes bt-crate-burst {
@@ -711,6 +824,43 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     from { transform: translate(0, 0) scale(0.5); opacity: 1; }
     to   { transform: translate(var(--dx, 0), var(--dy, -30px)) scale(1.7); opacity: 0; }
 }
+/* v0.131.0 — ISKRY w kolorze rzadkosci przy wybuchu. Kolor jest znany dopiero tutaj:
+   `openCrate()` wolane jest przy TRZECIM tapie, wiec wczesniejsze fazy musza zostac
+   zlote (neutralne) — inaczej zdradzalyby lup przed czasem. Podluzna smuga zamiast
+   kola, bo przy 14 sztukach kierunek czyta sie lepiej niz jasnosc. */
+.bt-hub0-crate-dust i.spark {
+    position: absolute; left: 0; top: 0;
+    width: 18px; height: 3px; margin: -1.5px 0 0 0; border-radius: 2px;
+    background: linear-gradient(90deg, var(--rc, #ffd75e), transparent);
+    transform-origin: 0 50%;
+    animation: bt-crate-spark 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+@keyframes bt-crate-spark {
+    from { transform: rotate(var(--rot, 0deg)) translateX(0) scaleX(0.4); opacity: 1; }
+    to   { transform: rotate(var(--rot, 0deg)) translateX(var(--dist, 110px)) scaleX(1.4); opacity: 0; }
+}
+
+/* WIEKO ODLATUJE (v0.131.0). Wieko NIE jest wyrownane 1:1 do zamknietej skrzyni —
+   w pliku jest narysowane jako samodzielny obiekt na srodku kadru. Dlatego pozycje
+   startowa nadaje TU CSS: `bottom` sadza je na krawedzi otworu w `crate_body`,
+   a nie w geometrycznym srodku sceny. */
+.bt-hub0-crate-lid {
+    position: absolute; left: 50%; bottom: 0;
+    width: 130px; height: 130px; margin-left: -65px;
+    object-fit: contain; pointer-events: none; z-index: 2;
+    animation: bt-crate-lid-fly 0.55s cubic-bezier(0.2, 0.9, 0.4, 1) forwards;
+}
+body.bt-desktop .bt-hub0-crate-lid { width: 200px; height: 200px; margin-left: -100px; }
+/* Przesuniecia w PROCENTACH wlasnej wysokosci, nie w px — ten sam keyframe obsluguje
+   wtedy skrzynie 130 px na telefonie i 200 px na desktopie bez drugiego wariantu.
+   Start -14% to zmierzona pozycja wieka na zamknietej skrzyni: przy podmianie obrazka
+   na `crate_body` wieko ma ruszyc z miejsca, w ktorym przed chwila lezalo. */
+@keyframes bt-crate-lid-fly {
+    0%   { transform: translate(0, -14%) rotate(0deg) scale(1); opacity: 1; }
+    35%  { transform: translate(5%, -49%) rotate(-18deg) scale(1.04); opacity: 1; }
+    100% { transform: translate(13%, -90%) rotate(-52deg) scale(0.86); opacity: 0; }
+}
+
 /* Blysk otwarcia (bialy rozblysk od srodka skrzyni) */
 .bt-hub0-crate-flash {
     position: absolute; left: 50%; bottom: 56px; width: 22px; height: 22px;
@@ -749,6 +899,15 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-reveal-cos { margin: 8px 0; font-size: 13px; color: var(--hub-ink-dim); display: flex; flex-direction: column; gap: 4px; }
 .bt-hub0-reveal-cos b { font-size: 16px; color: var(--hub-ink); }
 .bt-hub0-reveal-bolts { font-weight: 800; font-size: 14px; color: var(--hub-accent); margin-bottom: 4px; }
+/* v0.131.0 — w modalu 640 px reveal skalowany pod mobile gubil sie na srodku wielkiej
+   plaszczyzny: nagroda to najwazniejszy moment calej petli, wiec na desktopie dostaje
+   wlasne stopnie. Promienie tez rosna, inaczej konczyly sie w polowie karty. */
+body.bt-desktop .bt-hub0-reveal { padding: 30px 16px 14px; }
+body.bt-desktop .bt-hub0-reveal-rays { width: 560px; height: 560px; margin: -280px 0 0 -280px; }
+body.bt-desktop .bt-hub0-reveal-rarity { font-size: 17px; letter-spacing: 1.6px; }
+body.bt-desktop .bt-hub0-reveal-cos { margin: 14px 0; font-size: 15px; }
+body.bt-desktop .bt-hub0-reveal-cos b { font-size: 24px; }
+body.bt-desktop .bt-hub0-reveal-bolts { font-size: 20px; margin-bottom: 10px; }
 
 /* ── LOADOUT SUPER MOCY (HUB-2 / PROG-F7a) ──────────────────────────────── */
 /* 2 sloty (tap = uzbroj, zloty ring) + siatka mocy z rejestru. Wzorzec chipow
@@ -1219,7 +1378,12 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     .bt-hub0-play--go, .bt-hub0-crate-modal.thud, .bt-hub0-crate-dust span,
     .bt-hub0-crate-flash, .bt-hub0-reveal-rays,
     .bt-hub0-crate-glow, .bt-hub0-cratebox.is-ready .bt-hub0-crate-art,
+    /* v0.131.0 — nowe efekty skrzynki */
+    .bt-hub0-crate-scene.quake, .bt-hub0-crate-dust i.spark,
     .bt-hub0-lslot.is-armed::after { animation: none; }
+    /* Wieko NIE dostaje `animation: none` — bez animacji zostaloby zawieszone nad
+       skrzynia na stale. Zamiast tego znika natychmiast. */
+    .bt-hub0-crate-lid { display: none; }
     /* zrzut skonczony natychmiast (animationend i tak odpala — 'both' trzyma stan koncowy) */
     .bt-hub0-crate-box.is-dropping { animation-duration: 0.01s; }
     .bt-hub0-crate-box.is-bursting { animation-duration: 0.01s; }

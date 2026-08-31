@@ -1,4 +1,5 @@
 import { t } from '../../../i18n/i18n';
+import { crateIcon } from '../gameIcons';
 import type { HubSection } from './HubSection';
 import { getCurrentSeason, isSeasonActive, seasonDaysLeft } from '../../../config/season';
 import { getSeasonContent } from '../../../config/seasonContent';
@@ -119,7 +120,7 @@ export class SeasonSection implements HubSection {
             const done = claimed.has(`pts:${th.points}`) || points >= th.points;
             return `<div class="ps-th${done ? ' is-done' : ''}">
                         <span>${done ? '✓' : '○'} ${th.points} pkt</span>
-                        <span class="ps-th-rew">📦${th.crates > 1 ? `×${th.crates}` : ''}</span>
+                        <span class="ps-th-rew">${crateIcon(18)}${th.crates > 1 ? ` ×${th.crates}` : ''}</span>
                     </div>`;
         }).join('');
 
@@ -145,12 +146,12 @@ export class SeasonSection implements HubSection {
                 <div class="bt-hub0-subhead">🎒 ${t('season.findThemAll')}</div>
                 <div class="ps-items">${tiles}</div>
 
-                <div class="bt-hub0-subhead">📦 ${t('hub.profile.season.pointTrack')}</div>
+                <div class="bt-hub0-subhead">${crateIcon(16)} ${t('hub.profile.season.pointTrack')}</div>
                 <div class="ps-ths">${ptRows}</div>
 
                 <div class="bt-hub0-subhead">🏅 ${t('hub.profile.season.setTrack')}</div>
                 <div class="ps-ths">
-                    ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), '📦')}
+                    ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), crateIcon(18))}
                     ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), '🏅')}
                     ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), '👑')}
                 </div>

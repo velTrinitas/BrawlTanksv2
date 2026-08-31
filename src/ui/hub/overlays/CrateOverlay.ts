@@ -1,7 +1,25 @@
 import { t } from '../../../i18n/i18n';
+import { crateIcon } from '../gameIcons';
 import { ProgressionService } from '../../../services/ProgressionService';
+import { AudioSys } from '../../../audio/AudioSys';
 import { getCosmetic, RARITY_COLOR, RARITY_LABEL_KEY, type Rarity } from '../../../config/cosmetics';
 import { CRATE_RARITY_WEIGHTS, type CrateOpenResult } from '../../../config/progression';
+
+/**
+ * Art skrzynki (assety Mariusza, v0.131.0). Emoji 📦 bylo bitmapowe (mastery ~128 px)
+ * i przy skalowaniu tapami do ~257 px widac bylo piksele.
+ *
+ * Wieko `crate_lid_512.png` jest w swoim pliku narysowane jako samodzielny obiekt na
+ * srodku kadru, a NIE w pozycji, ktora zajmuje na zamknietej skrzyni. Offset startowy
+ * nadaje wiec CSS (`.bt-hub0-crate-lid`, translateY -14%) — wartosc zmierzona
+ * porownaniem zlozenia body+lid z gotowa `crate_closed`, zeby przy podmianie w
+ * momencie wybuchu wieko nie podskoczylo.
+ */
+const CRATE_ART = {
+    closed: `${import.meta.env.BASE_URL}assets/items/crate_closed_512.png`,
+    body: `${import.meta.env.BASE_URL}assets/items/crate_body_512.png`,
+    lid: `${import.meta.env.BASE_URL}assets/items/crate_lid_512.png`,
+} as const;
 
 /**
  * CrateOverlay (F2a §4, redesign v0.109.0 wg feedbacku Mariusza) — skrzynia (2x wieksza,
@@ -34,9 +52,11 @@ export class CrateOverlay {
             <div class="bt-hub0-modal bt-hub0-crate-modal" role="dialog" aria-modal="true">
                 <button class="bt-hub0-modal-close" data-action="done" type="button"
                         aria-label="${t('common.close')}">✕</button>
-                <h3 class="bt-hub0-modal-title">📦 ${t('crate.title')}</h3>
+                <h3 class="bt-hub0-modal-title">${crateIcon(20)} ${t('crate.title')}</h3>
                 <div class="bt-hub0-crate-scene">
-                    <button class="bt-hub0-crate-box is-dropping" data-action="tap" type="button" aria-label="${t('crate.tap')}">📦</button>
+                    <button class="bt-hub0-crate-box is-dropping" data-action="tap" type="button" aria-label="${t('crate.tap')}">
+                        <img src="${CRATE_ART.closed}" alt="" draggable="false">
+                    </button>
                     <div class="bt-hub0-crate-dust" aria-hidden="true"></div>
                 </div>
                 <div class="bt-hub0-crate-hint">${t('crate.tap')} (${this.tapsLeft}/3)</div>
@@ -62,12 +82,26 @@ export class CrateOverlay {
             box.classList.remove('is-dropping');
             const modal = el.querySelector<HTMLElement>('.bt-hub0-crate-modal');
             modal?.classList.add('thud');
+            // v0.131.0 — scena drga WLASNYM, krotszym wstrzasem niz modal: sam modal
+            // dawal ruch calego okna, przez co uderzenie czytalo sie jako blad layoutu,
+            // a nie jako masa spadajacej skrzyni.
+            const scene = el.querySelector<HTMLElement>('.bt-hub0-crate-scene');
+            scene?.classList.add('quake');
+            setTimeout(() => scene?.classList.remove('quake'), 260);
+            AudioSys.getInstance().playCrateDrop();
             this.spawnDust(false);
         }, { once: true });
     }
 
-    /** Rozprysk kurzu przy ziemi (10 klebow; gold=true dla finalowego otwarcia). */
-    private spawnDust(gold: boolean): void {
+    /**
+     * Rozprysk przy ziemi. `gold` = finalowe otwarcie (zlote kleby zamiast szarych),
+     * `sparkColor` = dodatkowe ISKRY w kolorze rzadkosci (tylko przy wybuchu — rzadkosc
+     * jest znana dopiero po `openCrate()`, czyli przy trzecim tapie).
+     *
+     * LIMITY sa twarde i celowe (mobile-first): 10 klebow + max 14 iskier, czyste
+     * CSS transform/opacity, sprzatane po 750 ms. Zero PIXI, zero overdraw.
+     */
+    private spawnDust(gold: boolean, sparkColor?: string): void {
         const dust = this.el?.querySelector<HTMLElement>('.bt-hub0-crate-dust');
         if (!dust) return;
         for (let i = 0; i < 10; i++) {
@@ -80,6 +114,19 @@ export class CrateOverlay {
             s.style.setProperty('--s', String(0.8 + Math.random() * 1.1));
             dust.appendChild(s);
         }
+        if (sparkColor) {
+            for (let i = 0; i < 14; i++) {
+                const s = document.createElement('i');
+                s.className = 'spark';
+                // Wspolrzedne BIEGUNOWE, nie x/y: iskra ma byc obrocona ZGODNIE
+                // z kierunkiem lotu, wiec kat steruje i obrotem, i przesunieciem.
+                const ang = (Math.PI * 2 * i) / 14 + Math.random() * 0.4; // pelny okrag, lekko rozstrojony
+                s.style.setProperty('--rot', `${(ang * 180) / Math.PI}deg`);
+                s.style.setProperty('--dist', `${60 + Math.random() * 70}px`);
+                s.style.setProperty('--rc', sparkColor);
+                dust.appendChild(s);
+            }
+        }
         setTimeout(() => { dust.innerHTML = ''; }, 750);
     }
 
@@ -91,6 +138,8 @@ export class CrateOverlay {
         box?.style.setProperty('--glow', String((3 - this.tapsLeft) / 3));
         // v0.109.0 — kazdy tap POWIEKSZA skrzynie (napiecie rosnie: 1.0 -> 1.09 -> 1.18)
         box?.style.setProperty('--tapscale', String(1 + (3 - this.tapsLeft) * 0.09));
+        // Pitch rosnie z kazdym tapem (0 -> 1 -> 2) — napiecie ma narastac.
+        AudioSys.getInstance().playCrateTap(3 - this.tapsLeft - 1);
         const hint = this.el.querySelector('.bt-hub0-crate-hint');
         if (this.tapsLeft > 0) {
             if (hint) hint.textContent = `${t('crate.tap')} (${this.tapsLeft}/3)`;
@@ -98,17 +147,38 @@ export class CrateOverlay {
         }
         const result = ProgressionService.openCrate(profileId);
         if (!result) { this.close(); this.onDone?.(); return; } // brak skrzynek (nie powinno)
-        // v0.109.0 — FINAL: skrzynia rosnie i znika w blysku + zloty kurz, POTEM reveal
-        // (opoznienie = eksplozja zdazy wybrzmiec; wzorzec skrzynek mobile).
-        box?.classList.add('is-bursting');
+
+        // v0.131.0 — WIEKO ODLATUJE. Do v0.130.0 skrzynia po prostu rosla i gasla,
+        // czyli otwarcie nie bylo w ogole pokazane. Teraz: obrazek podmienia sie na
+        // skrzynie BEZ wieka, a samo wieko wylatuje w gore z obrotem jako osobny
+        // element. Wieko nie jest wyrownane 1:1 do zamknietej skrzyni (narysowane jako
+        // samodzielny obiekt na srodku swojego kadru), wiec pozycje startowa nadaje
+        // CSS `.bt-hub0-crate-lid`, dopasowana do krawedzi otworu w `crate_body`.
+        const img = box?.querySelector('img');
+        if (img) img.src = CRATE_ART.body;
         const scene = this.el.querySelector<HTMLElement>('.bt-hub0-crate-scene');
         if (scene) {
+            const lid = document.createElement('img');
+            lid.className = 'bt-hub0-crate-lid';
+            lid.src = CRATE_ART.lid;
+            lid.alt = '';
+            scene.appendChild(lid);
             const flash = document.createElement('div');
             flash.className = 'bt-hub0-crate-flash';
             scene.appendChild(flash);
         }
-        this.spawnDust(true);
-        setTimeout(() => this.renderReveal(result), 430);
+        // Korpus gasnie DOPIERO po odlocie wieka (opoznienie 0.22 s w CSS) — inaczej
+        // wieko odrywaloby sie od czegos, czego juz nie ma.
+        box?.classList.add('is-bursting');
+        // Podpowiedz „Tapnij (1/3)" MUSI zniknac razem ze skrzynia: przez ~700 ms do
+        // revealu scena jest pusta, a instrukcja do tapania nadal wisiala pod spodem
+        // i kazala klikac w cos, czego juz nie ma.
+        if (hint) hint.textContent = '';
+
+        AudioSys.getInstance().playCrateOpen();
+        if (result.rarity === 'l') AudioSys.getInstance().playCrateLegendary();
+        this.spawnDust(true, RARITY_COLOR[result.rarity]);
+        setTimeout(() => this.renderReveal(result), 700);
     }
 
     private renderReveal(r: CrateOpenResult): void {

@@ -143,6 +143,12 @@ const SOUND_LIST: SoundDef[] = [
 
     // UI feedback (FAZA 6d)
     { key: 'menu_click', file: 'menu_click.mp3', volume: 0.35 },
+    // v0.131.0 — SKRZYNKI (assety Mariusza). Do v0.130.0 CALA sekwencja skrzynki byla
+    // NIEMA: spadanie, huk, trzy tapniecia, wybuch i reveal szly w ciszy, mimo ze to
+    // glowny hak petli nagrody. `design-values.md`: brak reakcji na interakcje = bug.
+    { key: 'crate_drop', file: 'crates/crate_drop.mp3', volume: VOLUMES.explosion * 0.8 },
+    { key: 'crate_tap',  file: 'crates/crate_tap.mp3',  volume: VOLUMES.pickup },
+    { key: 'crate_open', file: 'crates/crate_open.mp3', volume: VOLUMES.superActivate },
     // v0.128.0 — KA-CHING przy potwierdzeniu zakupu w sklepie (asset Mariusza).
     // Idzie do SOUND_LIST, a NIE do leniwego rejestru kupowanych dzwiekow: to dzwiek
     // systemowy UI, jeden dla wszystkich graczy, a nie towar. Podkatalog przechodzi
@@ -758,6 +764,45 @@ export class AudioSys {
      */
     playShopPurchase(): void {
         this.safePlay('shop_purchase');
+    }
+
+    // ── v0.131.0: SKRZYNKI ──────────────────────────────────────────────────
+
+    /** Huk ladowania skrzynki (koniec animacji spadania). */
+    playCrateDrop(): void {
+        this.safePlay('crate_drop');
+    }
+
+    /**
+     * Tapniecie w skrzynke. `step` 0..2 podnosi pitch: 1.00 -> 1.12 -> 1.25.
+     *
+     * CELOWO NIE `safePlayVaried`: tamto robi LOSOWY jitter (anty-zmeczenie przy
+     * dzwiekach powtarzanych setki razy w meczu). Tu sa trzy tapniecia pod rzad
+     * i pitch ma ROSNAC deterministycznie — losowy skok w dol przy trzecim tapie
+     * zabilby narastanie napiecia, czyli caly sens tej sekwencji.
+     */
+    playCrateTap(step: number): void {
+        const sound = this.sounds.get('crate_tap');
+        if (!sound) return;
+        try {
+            const id = sound.play();
+            sound.rate(1 + Math.max(0, Math.min(2, step)) * 0.125, id);
+        } catch (e) {
+            console.warn('[AudioSys] Play failed for crate_tap', e);
+        }
+    }
+
+    /** Wybuch otwarcia skrzynki (trzeci tap). */
+    playCrateOpen(): void {
+        this.safePlay('crate_open');
+    }
+
+    /**
+     * Fanfara legendarnego lupu. Brak dedykowanego assetu, wiec reuse `rank_fanfare`
+     * z RANKS-1 — ta sama rola (celebracja rzadkiego zdarzenia), zero nowego pliku.
+     */
+    playCrateLegendary(): void {
+        this.safePlay('rank_fanfare');
     }
 
     // ==========================================

@@ -127,7 +127,7 @@ export const MAP_LABEL_KEY: Record<string, TranslationKey> = {
 // ── PULA ŁATWA (domyka sie sama przy normalnej grze) ────────────────────────
 export const EASY_QUESTS: readonly QuestDef[] = [
     { id: 'e_kill',      tier: 'easy', metric: 'kill',        mode: 'sum', target: 40,  icon: '💀', labelKey: 'quest.e_kill',      bolts: QUEST_BOLTS.easy },
-    { id: 'e_gem',       tier: 'easy', metric: 'gem',         mode: 'sum', target: 32,  icon: '💎', labelKey: 'quest.e_gem',       bolts: QUEST_BOLTS.easy },
+    { id: 'e_gem',       tier: 'easy', metric: 'gem',         mode: 'sum', target: 32,  icon: 'img:gem', labelKey: 'quest.e_gem',       bolts: QUEST_BOLTS.easy },
     { id: 'e_heart',     tier: 'easy', metric: 'heart',       mode: 'sum', target: 5,   icon: '❤️', labelKey: 'quest.e_heart',     bolts: QUEST_BOLTS.easy },
     { id: 'e_supershot', tier: 'easy', metric: 'super_shot',  mode: 'sum', target: 8,   icon: '🔫', labelKey: 'quest.e_supershot', bolts: QUEST_BOLTS.easy },
     { id: 'e_superpwr',  tier: 'easy', metric: 'super_power', mode: 'sum', target: 7,   icon: '⚡', labelKey: 'quest.e_superpwr',  bolts: QUEST_BOLTS.easy },
@@ -140,14 +140,14 @@ export const MEDIUM_QUESTS: readonly QuestDef[] = [
     { id: 'm_kill',     tier: 'medium', metric: 'kill',         mode: 'sum', target: 90,  icon: '💀', labelKey: 'quest.m_kill',     bolts: QUEST_BOLTS.medium },
     { id: 'm_boss',     tier: 'medium', metric: 'boss_kill',    mode: 'sum', target: 5,   icon: '👹', labelKey: 'quest.m_boss',     bolts: QUEST_BOLTS.medium },
     { id: 'm_magnet',   tier: 'medium', metric: 'magnet',       mode: 'sum', target: 3,   icon: '🧲', labelKey: 'quest.m_magnet',   bolts: QUEST_BOLTS.medium },
-    { id: 'm_cube',     tier: 'medium', metric: 'cube',         mode: 'sum', target: 7,   icon: '📦', labelKey: 'quest.m_cube',     bolts: QUEST_BOLTS.medium },
+    { id: 'm_cube',     tier: 'medium', metric: 'cube',         mode: 'sum', target: 7,   icon: 'img:cube', labelKey: 'quest.m_cube',     bolts: QUEST_BOLTS.medium },
     { id: 'm_combo',    tier: 'medium', metric: 'combo',        mode: 'max', target: 5,   icon: '🔥', labelKey: 'quest.m_combo',    bolts: QUEST_BOLTS.medium },
     // TROFEA zamiast surowego score: skala punktow rozni sie miedzy mapami ~5x (p90 city 55
     // vs arctic 264), wiec "150 pkt w meczu" bylo trywialne na Arktyce i prawie nieosiagalne
     // na Pustyni. Trofea sa juz znormalizowane per mapa (F1), wiec rozkaz jest MAPOWO UCZCIWY.
     { id: 'm_trophies', tier: 'medium', metric: 'run_trophies', mode: 'max', target: 30,  icon: '🏆', labelKey: 'quest.m_trophies', bolts: QUEST_BOLTS.medium },
     { id: 'm_runtime',  tier: 'medium', metric: 'run_seconds',  mode: 'max', target: 240, icon: '⏱️', labelKey: 'quest.m_runtime',  bolts: QUEST_BOLTS.medium },
-    { id: 'm_rungems',  tier: 'medium', metric: 'run_gems',     mode: 'max', target: 45,  icon: '💎', labelKey: 'quest.m_rungems',  bolts: QUEST_BOLTS.medium },
+    { id: 'm_rungems',  tier: 'medium', metric: 'run_gems',     mode: 'max', target: 45,  icon: 'img:gem', labelKey: 'quest.m_rungems',  bolts: QUEST_BOLTS.medium },
 ];
 
 // ── PULA KIERUNKOWA (cichy tutor — uczy mechanik, ktorych gracz sam nie tknie) ──

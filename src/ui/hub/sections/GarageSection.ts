@@ -1,4 +1,5 @@
 import { t, type TranslationKey } from '../../../i18n/i18n';
+import { crateIcon } from '../gameIcons';
 import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
@@ -66,7 +67,7 @@ export class GarageSection implements HubSection {
         const crateBox = `
             <div class="bt-hub0-cratebox${hasCrates ? ' is-ready' : ''}">
                 ${hasCrates ? '<div class="bt-hub0-crate-glow" aria-hidden="true"></div>' : ''}
-                <div class="bt-hub0-crate-art" aria-hidden="true">📦</div>
+                <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}</div>
                 <div class="bt-hub0-crate-info">
                     <b>${t('hub.garage.crates', { n: cos.crateCount })}</b>
                     <small>${t('hub.garage.pity', { n: pityLeft })}</small>
@@ -91,7 +92,7 @@ export class GarageSection implements HubSection {
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.garage')}</h2>
             ${crateBox}
-            <small class="bt-hub0-lhint">📦 ${t('hub.garage.cratesFrom')}</small>
+            <small class="bt-hub0-lhint">${crateIcon(15)} ${t('hub.garage.cratesFrom')}</small>
             <small class="bt-hub0-lhint">🪖 ${t('hub.garage.cosmeticsMoved')}</small>
             ${this.loadoutHtml(pid)}
         `;

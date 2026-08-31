@@ -1,4 +1,5 @@
 import { t } from '../../../i18n/i18n';
+import { crateIcon } from '../gameIcons';
 import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
@@ -97,7 +98,7 @@ export class TrophyRoadSection implements HubSection {
                     <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
                     <div class="info">
                         <b>${m.threshold} 🏆</b>
-                        <span class="reward"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${m.bolts}${m.crates ? ` · 📦${m.crates > 1 ? ` x${m.crates}` : ''}` : ''}</span>
+                        <span class="reward"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${m.bolts}${m.crates ? ` · ${crateIcon(15)}${m.crates > 1 ? ` x${m.crates}` : ''}` : ''}</span>
                     </div>
                     ${isNext ? `<span class="tag">${t('hub.road.next')}</span>` : ''}
                 </div>`;

@@ -102,8 +102,17 @@ export class HubShell implements IScreen {
         };
         this.rank.onOpenLeaderboard = () => this.onOpenLeaderboard?.();
         // F2a — GARAŻ: OTWÓRZ skrzynkę => CrateOverlay; po zamknięciu re-render GARAŻU
+        // v0.130.0 FIX (zgloszenie z playtestu "sigmy ze skrzynek nie dodaja sie do puli"):
+        // sigmy DODAWALY sie poprawnie (`openCrate` robi `st.bolts += result.bolts` i zapisuje),
+        // ale ta jedna sciezka jako JEDYNA nie odswiezala gornej belki — licznik stal
+        // w miejscu do czasu przejscia miedzy sekcjami, wiec wygladalo to na zgubione
+        // sigmy. Wszystkie pozostale sciezki skrzynek (rozkazy, zakup w sklepie) mialy
+        // `refreshReadout()` od v0.126.0; garazowa, czyli ta pierwotna, zostala w tyle.
         this.garage.onOpenCrate = () => {
-            if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => this.renderMain());
+            if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => {
+                this.refreshReadout();
+                this.renderMain();
+            });
         };
         // PROFILE-1 — powrot ze strony profilu + refresh readoutu po zmianach
         // (awatar/nick/kosmetyk zmieniaja chip na zywo).

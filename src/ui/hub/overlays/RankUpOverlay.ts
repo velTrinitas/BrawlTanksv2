@@ -1,5 +1,6 @@
 import { t } from '../../../i18n/i18n';
 import { AudioSys } from '../../../audio/AudioSys';
+import { crateIcon } from '../gameIcons';
 import { rankBadgeHtml } from '../rankBadge';
 import type { RankDef } from '../../../config/ranks';
 
@@ -42,7 +43,7 @@ export class RankUpOverlay {
             const dx = (i - 2.5) * 34;
             smoke += `<b style="--sx:${dx}px;--d:${(0.15 + i * 0.12).toFixed(2)}s"></b>`;
         }
-        const reward = `<img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${rank.bolts}${rank.crates ? ` · 📦${rank.crates > 1 ? ` x${rank.crates}` : ''}` : ''}`;
+        const reward = `<img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${rank.bolts}${rank.crates ? ` · ${crateIcon(18)}${rank.crates > 1 ? ` x${rank.crates}` : ''}` : ''}`;
 
         this.el = document.createElement('div');
         this.el.className = 'bt-rankup';

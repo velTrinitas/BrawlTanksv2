@@ -13,6 +13,7 @@
  */
 
 import { t, i18n } from '../../../i18n/i18n';
+import { crateStack } from '../gameIcons';
 import { AudioSys } from '../../../audio/AudioSys';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { getShopItem, type ShopItemDef } from '../../../config/shop';
@@ -45,6 +46,10 @@ export class ShopOverlay {
      * placeholdera nie robi dziury w kaflu.
      */
     private artHtml(item: ShopItemDef, def: CosmeticDef | undefined, cls: string): string {
+        // v0.131.0 — paczka skrzynek dostaje ten sam STOS co kafel w siatce. Ekran
+        // szczegolow nie moze pokazywac czegos innego niz to, w co gracz przed chwila
+        // kliknal, a emoji 📦 bylo identyczne dla paczki po 1, 3 i 10 sztuk.
+        if (item.grant.kind === 'crates') return crateStack(item.grant.count);
         const src = item.art ?? def?.asset;
         const emoji = item.emoji ?? '🛒';
         if (!src) return `<span class="${cls}-emoji" aria-hidden="true">${emoji}</span>`;

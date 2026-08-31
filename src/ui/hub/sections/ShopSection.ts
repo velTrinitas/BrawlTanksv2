@@ -15,6 +15,7 @@ import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { getCosmetic, RARITY_COLOR } from '../../../config/cosmetics';
+import { crateStack } from '../gameIcons';
 import {
     SHOP_TABS, shopItemsOf, assertShopCatalog,
     type ShopCategory, type ShopItemDef,
@@ -100,10 +101,15 @@ export class ShopSection implements HubSection {
         const isOwned = item.grant.kind === 'cosmetic' && owned.includes(item.grant.id);
         const src = item.art ?? def?.asset;
         const emoji = item.emoji ?? '🛒';
-        const art = src
-            ? `<img src="${BASE}${src}" alt="" draggable="false" loading="lazy" onerror="this.remove()">
-               <span class="sk-emoji" aria-hidden="true">${emoji}</span>`
-            : `<span class="sk-emoji" aria-hidden="true">${emoji}</span>`;
+        // v0.131.0 (zgloszenie Mariusza): paczka skrzynek pokazuje TE SAMA skrzynke,
+        // ktora gracz otwiera w Garazu, i TYLE sztuk, ile kupuje — zamiast emoji 📦
+        // identycznego dla paczki po 1, 3 i 10.
+        const art = item.grant.kind === 'crates'
+            ? crateStack(item.grant.count)
+            : src
+                ? `<img src="${BASE}${src}" alt="" draggable="false" loading="lazy" onerror="this.remove()">
+                   <span class="sk-emoji" aria-hidden="true">${emoji}</span>`
+                : `<span class="sk-emoji" aria-hidden="true">${emoji}</span>`;
 
         // Trzy wykluczajace sie stany kafla; "za drogo" NIE blokuje wejscia w szczegoly —
         // gracz ma prawo obejrzec, na co zbiera.

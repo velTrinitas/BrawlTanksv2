@@ -14,6 +14,7 @@
 
 import { t, i18n } from '../../../i18n/i18n';
 import { crateStack } from '../gameIcons';
+import { crosshairCanvasHtml, paintCrosshairPreviews, stopCrosshairPreviews } from '../crosshairPreview'; // SHOP-2
 import { AudioSys } from '../../../audio/AudioSys';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { getShopItem, type ShopItemDef } from '../../../config/shop';
@@ -22,6 +23,9 @@ import {
 } from '../../../config/cosmetics';
 
 const BASE = import.meta.env.BASE_URL;
+
+/** SHOP-2: podglad w modalu jest wiekszy niz kafel — to ekran decyzji o zakupie. */
+const DETAIL_PREVIEW_PX = 112;
 
 export class ShopOverlay {
     private el: HTMLElement | null = null;
@@ -50,6 +54,11 @@ export class ShopOverlay {
         // szczegolow nie moze pokazywac czegos innego niz to, w co gracz przed chwila
         // kliknal, a emoji 📦 bylo identyczne dla paczki po 1, 3 i 10 sztuk.
         if (item.grant.kind === 'crates') return crateStack(item.grant.count);
+        // SHOP-2 — celownik rysowany prawdziwa funkcja z rejestru, tu ANIMOWANY.
+        // To jedyne miejsce w hubie z ruchoma podgladem: obrot jest jedyna rzecza
+        // odrozniajaca Sigme (3200 sigm) od tanszych wariantow, wiec statyczna klatka
+        // sprzedawalaby ja nieuczciwie. Petla zyje tylko dopoki modal jest otwarty.
+        if (def?.type === 'crosshair') return crosshairCanvasHtml(def.id, DETAIL_PREVIEW_PX, true);
         const src = item.art ?? def?.asset;
         const emoji = item.emoji ?? '🛒';
         if (!src) return `<span class="${cls}-emoji" aria-hidden="true">${emoji}</span>`;
@@ -123,6 +132,7 @@ export class ShopOverlay {
                 </div>
             </div>`;
         parent.appendChild(this.el);
+        paintCrosshairPreviews(this.el);   // SHOP-2 — canvas istnieje dopiero po wstawieniu
 
         this.el.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
@@ -188,8 +198,14 @@ export class ShopOverlay {
                     // kupil jeden jedyny klakson, nie ma czego wybierac, wiec kazanie mu
                     // isc do Profilu jest pustym krokiem. Kolejne zakupy NIE podmieniaja
                     // zalozonego: wybor gracza jest swiety (ta sama zasada co przy jezyku).
-                    if (def && (def.type === 'horn' || def.type === 'voice')
-                        && !ProgressionService.getCosmeticState(profileId).equipped[def.type]) {
+                    //
+                    // v0.138.0 — regula rozszerzona z listy typow ('horn'|'voice') na KAZDY
+                    // kosmetyk. Powod: celowniki wpadly dokladnie w te sama pulapke jeden
+                    // wersje pozniej — gracz placil 3200 sigm i wracal do meczu ze starym
+                    // czerwonym krzyzem. Lista typow wymagala pamietania o dopisaniu sie
+                    // przy KAZDEJ nowej kategorii, wiec byla bledem czekajacym na powtorke.
+                    // Warunek "slot tego typu pusty" i tak chroni wybor gracza.
+                    if (def && !ProgressionService.getCosmeticState(profileId).equipped[def.type]) {
                         ProgressionService.equipCosmetic(profileId, def.id);
                     }
                     this.onPurchased?.();
@@ -202,6 +218,11 @@ export class ShopOverlay {
     }
 
     close(): void {
+        // SHOP-2: rAF podgladu Sigmy MUSI zginac razem z modalem. Petla ma wprawdzie
+        // wlasny strazak (`cv.isConnected`), ale poleglaby jeszcze jedna klatke po
+        // zamknieciu — a zostawianie zywego rAF w zamknietym oknie to wzorzec, ktory
+        // przy kolejnym animowanym podgladzie zamieni sie w wyciek.
+        if (this.el) stopCrosshairPreviews(this.el);
         this.el?.remove();
         this.el = null;
     }

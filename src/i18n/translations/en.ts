@@ -277,6 +277,8 @@ export const en: typeof pl = {
     'hub.garage.type.title': 'Titles',
     'hub.garage.type.horn': 'Horns 🖥️ (key H)',
     'hub.garage.type.voice': 'Commander voice',
+    'hub.garage.type.sticker': 'Stickers',
+    'hub.garage.type.crosshair': 'Crosshairs 🎯 (seen in game)',
     'crate.rarity.c': 'Common',
     'crate.rarity.r': 'Rare',
     'crate.rarity.e': 'Epic',
@@ -346,6 +348,14 @@ export const en: typeof pl = {
     'cosmetic.hn_4': 'Horn 4',
     'cosmetic.hn_5': 'Horn 5',
     'cosmetic.hn_6': 'Horn 6',
+
+    // SHOP-2 (v0.138.0) — crosshairs.
+    'cosmetic.ch_sniper': 'Sniper',
+    'cosmetic.ch_brackets': 'Brackets',
+    'cosmetic.ch_ring': 'Ring',
+    'cosmetic.ch_fangs': 'Fangs',
+    'cosmetic.ch_laser': 'Laser',
+    'cosmetic.ch_sigma': 'Sigma',
     'cosmetic.vo_commander': 'Commander',
 
     // ── SHOP ──
@@ -369,6 +379,7 @@ export const en: typeof pl = {
     'shop.sandbox': 'SANDBOX — purchases are not saved',
     'shop.sandboxReset': 'RESET',
     'shop.tab.crates': 'CRATES',
+    'shop.tab.crosshairs': 'CROSSHAIRS',
     'shop.tab.stickers': 'STICKERS',
     'shop.tab.horns': 'HORNS',
     'shop.tab.voice': 'VOICE',
@@ -381,6 +392,7 @@ export const en: typeof pl = {
     'shop.item.crate10.desc': 'Big pack. Best discount in the shop.',
     'shop.item.sticker.desc': 'A sticker next to your profile photo.',
     'shop.item.horn.desc': 'Press H in game to honk. It does nothing else.',
+    'shop.item.crosshair.desc': 'Your crosshair in every match. Changes the look, not your aim.',
     'shop.item.vo_commander.name': 'Voice: Commander',
     'shop.item.vo_commander.desc': 'Fires you up at the start and warns you when you are losing armor.',
     'shop.item.soon_avatar.name': 'New avatars',

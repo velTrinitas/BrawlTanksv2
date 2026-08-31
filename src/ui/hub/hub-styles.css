@@ -696,6 +696,15 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 .bt-hub0-cos .dot--frame { width: 16px; height: 16px; background: var(--hub-steel-900); box-shadow: none; }
 /* v0.136.0: klaksony/glos maja wlasne emoji — kropka rzadkosci nic by o nich nie mowila.
    Emoji potrzebuje font-size, nie width/height, wiec oba wymiary ida na auto. */
+/* SHOP-2 (v0.138.0) — mini-canvas podgladu celownika. Wymiary w px CSS nadaje TS
+   (bufor skaluje sie osobno pod DPR), wiec tutaj tylko blokujemy interakcje i pilnujemy,
+   zeby canvas nie rozpychal kafla. Tlo zostaje przezroczyste: celownik ma byc widziany
+   na tle karty rzadkosci, tak jak w grze widac go na tle mapy. */
+.bt-chprev { display: block; flex: 0 0 auto; pointer-events: none; max-width: 100%; }
+.bt-hub0-cos .bt-chprev { margin: 0 auto; }
+.bt-shop-card .sk-art .bt-chprev,
+.bt-shop-detail .sd-art .bt-chprev { margin: 0 auto; }
+
 .bt-hub0-cos .dot--emoji {
     width: auto; height: auto; border-radius: 0; box-shadow: none;
     font-size: 20px; line-height: 1;

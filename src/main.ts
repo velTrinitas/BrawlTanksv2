@@ -3,6 +3,7 @@ import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
 import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
+import { DEFAULT_CROSSHAIR, type CrosshairId } from './rendering/crosshairs'; // SHOP-2
 import { TankSpriteBaker } from './rendering/TankSpriteBaker';
 import { BulletSpriteBaker } from './rendering/BulletSpriteBaker'; // FAZA P2
 import { EnemySpriteBaker } from './rendering/EnemySpriteBaker'; // FAZA P4
@@ -2352,6 +2353,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         const eq = ProgressionService.getCosmeticState(voPid).equipped;
         if (eq.horn) audio.preloadOwnedSound(getCosmetic(eq.horn)?.sound);
         if (eq.voice) audio.preloadOwnedSound(voiceFile(getCosmetic(eq.voice), 'lowHp', i18n.getLanguage()));
+        // SHOP-2 (v0.138.0) — celownik. Odczyt siedzi TUTAJ, a nie przy showCrosshair/
+        // crosshairScale w inicjalizacji modulu, z dwoch powodow: tamten kod wykonuje sie
+        // RAZ na starcie aplikacji (zanim istnieje aktywny profil) i tylko w galezi
+        // `touchManager.isActive`, wiec desktop nigdy by go nie wykonal. Tu odczyt leci
+        // przy KAZDYM starcie meczu i na obu platformach — zmiana w hubie dziala od razu.
+        hud.crosshairStyle = (eq.crosshair as CrosshairId | undefined) ?? DEFAULT_CROSSHAIR;
     }
     playVoiceLine('start');
 

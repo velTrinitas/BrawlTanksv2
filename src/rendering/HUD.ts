@@ -5,6 +5,7 @@ import type { PowerSystem } from '../systems/PowerSystem';
 import { SPAWN_CONFIG } from '../config/enemies';
 import { POWERS, DICE_EMOJI } from '../config/powers';
 import { t as tr } from '../i18n/i18n';
+import { crosshairStyle, DEFAULT_CROSSHAIR, type CrosshairId } from './crosshairs';
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_TINT_HEX = '#c850ff';
@@ -83,6 +84,12 @@ export class HUD {
     public showCrosshair: boolean = true;
     /** v0.23.1 hotfix: skala crosshair (1.5 na mobile dla lepszej czytelnosci). */
     public crosshairScale: number = 1.0;
+    /**
+     * SHOP-2 (v0.138.0): ktory wyglad celownika z rejestru `CROSSHAIR_STYLES`.
+     * Ustawiane przy KAZDYM starcie meczu w `startGame()` z `equipped.crosshair`,
+     * wiec zmiana w hubie wchodzi od nastepnego wejscia do gry.
+     */
+    public crosshairStyle: CrosshairId = DEFAULT_CROSSHAIR;
     /** Czy rysowac dolny SuperPowerBar (centered 3-icon bar). False na mobile (SuperButton zastepuje). */
     public showPowerBar: boolean = true;
 
@@ -1106,37 +1113,24 @@ export class HUD {
         }
     }
 
+    /**
+     * SHOP-2 (v0.138.0): rysowanie DELEGOWANE do rejestru `CROSSHAIR_STYLES`.
+     *
+     * Do v0.137.0 caly krzyz byl tu zapieczony na sztywno (czerwony, ramie 16*s).
+     * Ta geometria nie zniknela — przeniosla sie 1:1 jako wpis `ch_default`, wiec
+     * gracz bez zakupu widzi dokladnie to samo co wczoraj.
+     *
+     * `crosshairScale` (1.0 desktop / 1.5 dotyk) i OBIE sciezki wywolania zostaja
+     * nietkniete — rejestr dostaje skale jako parametr, nie zna platformy.
+     *
+     * Czas w sekundach z `Date.now()` — idiom uzywany juz w kilkunastu miejscach
+     * tego pliku (pulsy pilli), wiec zero nowej instalacji. Uzywa go WYLACZNIE
+     * `ch_sigma`; pozostale warianty ignoruja parametr.
+     */
     private drawCrosshair(mouse: MouseState): void {
-        const c = this.ctx;
-        // v0.23.1 hotfix: scale crosshair (mobile dostaje 1.5x dla lepszej widocznosci)
-        const s = this.crosshairScale;
-        const _mx = mouse.screenX, _my = mouse.screenY;
-        const _cl = 16 * s;   // total arm length
-        const _cg = 5 * s;    // center gap
-        const _dot = 2.5 * s; // center dot radius
-        const outerW = 3.5 * s;
-        const innerW = 2 * s;
-        c.strokeStyle = '#111';
-        c.lineWidth = outerW;
-        c.lineCap = 'round';
-        c.beginPath();
-        c.moveTo(_mx - _cl, _my); c.lineTo(_mx - _cg, _my);
-        c.moveTo(_mx + _cg, _my); c.lineTo(_mx + _cl, _my);
-        c.moveTo(_mx, _my - _cl); c.lineTo(_mx, _my - _cg);
-        c.moveTo(_mx, _my + _cg); c.lineTo(_mx, _my + _cl);
-        c.stroke();
-        c.strokeStyle = '#e74c3c';
-        c.lineWidth = innerW;
-        c.beginPath();
-        c.moveTo(_mx - _cl, _my); c.lineTo(_mx - _cg, _my);
-        c.moveTo(_mx + _cg, _my); c.lineTo(_mx + _cl, _my);
-        c.moveTo(_mx, _my - _cl); c.lineTo(_mx, _my - _cg);
-        c.moveTo(_mx, _my + _cg); c.lineTo(_mx, _my + _cl);
-        c.stroke();
-        c.fillStyle = '#e74c3c';
-        c.beginPath();
-        c.arc(_mx, _my, _dot, 0, Math.PI * 2);
-        c.fill();
+        crosshairStyle(this.crosshairStyle).draw(
+            this.ctx, mouse.screenX, mouse.screenY, this.crosshairScale, Date.now() / 1000,
+        );
     }
     
     /**

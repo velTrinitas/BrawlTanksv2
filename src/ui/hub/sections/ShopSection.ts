@@ -16,6 +16,7 @@ import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { getCosmetic, RARITY_COLOR } from '../../../config/cosmetics';
 import { crateStack } from '../gameIcons';
+import { crosshairCanvasHtml, paintCrosshairPreviews } from '../crosshairPreview'; // SHOP-2
 import {
     SHOP_TABS, shopItemsOf, assertShopCatalog,
     type ShopCategory, type ShopItemDef,
@@ -51,6 +52,10 @@ export class ShopSection implements HubSection {
             <div class="bt-shop-tabs">${this.tabsHtml()}</div>
             <div class="bt-shop-grid">${this.gridHtml(pid)}</div>
         `;
+        // SHOP-2: kafle to stringi HTML, wiec canvasy podgladu istnieja dopiero TERAZ.
+        // Jedno przejscie po wstawieniu do DOM; wolane takze przy zmianie zakladki,
+        // bo `render()` przebudowuje siatke od zera.
+        paintCrosshairPreviews(el);
         this.wire(el, pid);
     }
 
@@ -104,12 +109,17 @@ export class ShopSection implements HubSection {
         // v0.131.0 (zgloszenie Mariusza): paczka skrzynek pokazuje TE SAMA skrzynke,
         // ktora gracz otwiera w Garazu, i TYLE sztuk, ile kupuje — zamiast emoji 📦
         // identycznego dla paczki po 1, 3 i 10.
+        // SHOP-2: celownik pokazuje sie PRAWDZIWA funkcja rysujaca z rejestru. Emoji
+        // zastepcze wygladaloby identycznie dla wszystkich szesciu wariantow, czyli
+        // gracz nie widzialby, za co placi (a to najdrozsza kategoria w sklepie).
         const art = item.grant.kind === 'crates'
             ? crateStack(item.grant.count)
-            : src
-                ? `<img src="${BASE}${src}" alt="" draggable="false" loading="lazy" onerror="this.remove()">
-                   <span class="sk-emoji" aria-hidden="true">${emoji}</span>`
-                : `<span class="sk-emoji" aria-hidden="true">${emoji}</span>`;
+            : def?.type === 'crosshair'
+                ? crosshairCanvasHtml(def.id)
+                : src
+                    ? `<img src="${BASE}${src}" alt="" draggable="false" loading="lazy" onerror="this.remove()">
+                       <span class="sk-emoji" aria-hidden="true">${emoji}</span>`
+                    : `<span class="sk-emoji" aria-hidden="true">${emoji}</span>`;
 
         // Trzy wykluczajace sie stany kafla; "za drogo" NIE blokuje wejscia w szczegoly —
         // gracz ma prawo obejrzec, na co zbiera.

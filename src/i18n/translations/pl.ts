@@ -286,6 +286,8 @@ export const pl = {
     'hub.garage.type.title': 'Tytuły',
     'hub.garage.type.horn': 'Klaksony 🖥️ (klawisz H)',
     'hub.garage.type.voice': 'Głos dowódcy',
+    'hub.garage.type.sticker': 'Naklejki',
+    'hub.garage.type.crosshair': 'Celowniki 🎯 (widoczne w grze)',
     'crate.rarity.c': 'Zwykły',
     'crate.rarity.r': 'Rzadki',
     'crate.rarity.e': 'Epicki',
@@ -356,6 +358,15 @@ export const pl = {
     'cosmetic.hn_4': 'Klakson 4',
     'cosmetic.hn_5': 'Klakson 5',
     'cosmetic.hn_6': 'Klakson 6',
+
+    // SHOP-2 (v0.138.0) — celowniki. Nazwy opisuja SYLWETKE, nie rzadkosc: gracz ma
+    // skojarzyc kafel z tym, co zobaczy w meczu.
+    'cosmetic.ch_sniper': 'Snajper',
+    'cosmetic.ch_brackets': 'Nawiasy',
+    'cosmetic.ch_ring': 'Pierścień',
+    'cosmetic.ch_fangs': 'Kły',
+    'cosmetic.ch_laser': 'Laser',
+    'cosmetic.ch_sigma': 'Sigma',
     'cosmetic.vo_commander': 'Dowódca',
 
     // ── SKLEP ──
@@ -379,6 +390,7 @@ export const pl = {
     'shop.sandbox': 'PIASKOWNICA — zakupy nie są zapisywane',
     'shop.sandboxReset': 'RESET',
     'shop.tab.crates': 'SKRZYNKI',
+    'shop.tab.crosshairs': 'CELOWNIKI',
     'shop.tab.stickers': 'NAKLEJKI',
     'shop.tab.horns': 'KLAKSONY',
     'shop.tab.voice': 'GŁOS',
@@ -391,6 +403,7 @@ export const pl = {
     'shop.item.crate10.desc': 'Duża paczka. Największy rabat w sklepie.',
     'shop.item.sticker.desc': 'Naklejka przy Twoim zdjęciu w profilu.',
     'shop.item.horn.desc': 'Wciśnij H w grze, żeby zatrąbić. Nic więcej nie robi.',
+    'shop.item.crosshair.desc': 'Twój celownik w każdym meczu. Zmienia wygląd, nie celność.',
     'shop.item.vo_commander.name': 'Głos: Dowódca',
     'shop.item.vo_commander.desc': 'Zagrzewa Cię na starcie i ostrzega, gdy tracisz życie.',
     'shop.item.soon_avatar.name': 'Nowe awatary',

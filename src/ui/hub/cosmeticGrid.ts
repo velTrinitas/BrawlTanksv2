@@ -17,6 +17,10 @@ import {
     type CosmeticDef, type CosmeticType,
 } from '../../config/cosmetics';
 import { AudioSys } from '../../audio/AudioSys';
+import { crosshairCanvasHtml } from './crosshairPreview'; // SHOP-2
+
+/** Kafel kolekcji jest maly — podglad celownika dostaje bok karty, nie 64 px. */
+const GRID_PREVIEW_PX = 44;
 
 /** Etykiety grup per typ (literalowe klucze i18n). */
 const TYPE_LABEL_KEY = {
@@ -25,6 +29,11 @@ const TYPE_LABEL_KEY = {
     title: 'hub.garage.type.title',
     horn: 'hub.garage.type.horn',
     voice: 'hub.garage.type.voice',
+    // v0.138.0: 'sticker' brakowalo tu od poczatku (naklejki maja wlasny picker pod hero,
+    // wiec luka nigdy nie wybuchla) — dolozone, zeby `cosmeticGroupsHtml` przyjmowalo
+    // KAZDY typ z rejestru, a nie podzbior, o ktorym trzeba pamietac.
+    sticker: 'hub.garage.type.sticker',
+    crosshair: 'hub.garage.type.crosshair',
 } as const;
 
 /**
@@ -47,11 +56,16 @@ export function cosmeticChipHtml(
     const cardColor = isNick && def.color && !def.gradient ? `${def.color}66` : `${hexColor}80`;
     const nmStyle = isNick && owned ? nickColorStyle(def) : '';
     const nmShimmer = isNick && owned && def.animated ? ' bt-cos-shimmer' : '';
+    // v0.138.0: celownik pokazuje sie MINI-CANVASEM rysowanym ta sama funkcja, ktora
+    // rysuje go w meczu. Zablokowany tez — gracz ma widziec, na co zbiera; kropka
+    // rzadkosci nie powiedzialaby o nim absolutnie nic.
     const dot = isFrame
         ? `<span class="dot dot--frame" style="${frameStyle(def)}" aria-hidden="true"></span>`
-        : EMOJI_TYPES.has(def.type) && def.emoji
-            ? `<span class="dot dot--emoji" aria-hidden="true">${def.emoji}</span>`
-            : `<span class="dot" style="background:${hexColor};" aria-hidden="true"></span>`;
+        : def.type === 'crosshair'
+            ? crosshairCanvasHtml(def.id, GRID_PREVIEW_PX)
+            : EMOJI_TYPES.has(def.type) && def.emoji
+                ? `<span class="dot dot--emoji" aria-hidden="true">${def.emoji}</span>`
+                : `<span class="dot" style="background:${hexColor};" aria-hidden="true"></span>`;
     return `
         <button class="bt-hub0-cos${owned ? '' : ' is-locked'}${equipped ? ' is-equipped' : ''}"
                 style="--rarity-color:${cardColor};"

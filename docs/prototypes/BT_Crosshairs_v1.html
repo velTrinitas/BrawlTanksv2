@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Brawl Tanks — Celowniki v1 (SHOP-2)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0e1218; color:#e6edf3; font:14px/1.45 system-ui,Segoe UI,sans-serif; padding:20px 24px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; letter-spacing:.5px; }
+  .sub { color:#8ba3b6; margin:0 0 18px; max-width:900px; }
+  .bar { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:18px;
+         background:#161d26; border:1px solid #263241; border-radius:10px; padding:10px 14px; }
+  .bar label { color:#8ba3b6; }
+  h2 { font-size:15px; margin:26px 0 8px; color:#cfe0ee; }
+  table { border-collapse:collapse; width:100%; max-width:1180px; }
+  th { text-align:left; font-weight:600; color:#8ba3b6; font-size:12px; text-transform:uppercase;
+       letter-spacing:.6px; padding:0 8px 8px; }
+  td { padding:6px 8px; border-top:1px solid #1e2833; vertical-align:middle; }
+  .nm { font-weight:700; font-size:15px; }
+  .meta { color:#8ba3b6; font-size:12px; }
+  .price { font-weight:700; color:#ffe066; white-space:nowrap; }
+  .rar { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:1px; }
+  canvas { display:block; border-radius:8px; image-rendering:auto; }
+  .cells { display:flex; gap:8px; }
+  .cell { text-align:center; }
+  .cell span { display:block; color:#5f7488; font-size:11px; margin-top:3px; }
+  .note { max-width:900px; color:#8ba3b6; border-left:3px solid #3aa0e0; padding:8px 14px; margin:26px 0 0;
+          background:#131a22; border-radius:0 8px 8px 0; }
+  .note b { color:#e6edf3; }
+  code { background:#1b232d; padding:1px 5px; border-radius:4px; color:#9fd0f0; }
+</style>
+</head>
+<body>
+
+<h1>CELOWNIKI — 6 sztuk do SKLEPU (SHOP-2)</h1>
+<p class="sub">
+  Spec WYGLĄDU, nie wzorzec architektury. Każdy celownik to czysty Canvas 2D w idiomie
+  <code>HUD.drawCrosshair()</code>: ciemny kontur <code>#111</code> pod kolorem, <code>lineCap:'round'</code>,
+  przerwa w środku, kropka celu. Zero assetów. Funkcje z tego pliku idą 1:1 do
+  <code>src/rendering/crosshairs.ts</code>.
+</p>
+
+<div class="bar">
+  <label>Tło mapy:</label>
+  <span id="bgSwatches"></span>
+  <label style="margin-left:12px"><input type="checkbox" id="chkTank" checked> pokaż cel (wróg)</label>
+  <label style="margin-left:6px"><input type="checkbox" id="chkAnim" checked> animacja</label>
+</div>
+
+<table>
+  <thead>
+    <tr><th style="width:210px">Celownik</th><th style="width:110px">Cena</th><th>Podgląd — desktop (s=1.0) / mobile (s=1.5) / duży (s=3.0)</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div class="note">
+  <b>Bramka czytelności (wartość #1).</b> Każdy wariant trzyma ten sam kontrakt: ciemny kontur pod kolorem,
+  wolna przerwa w środku, koperta rozmiaru ≤ 20·s promienia. Na mobile celownik rysuje się w skali 1.5
+  przy zoomie 0.7 — kolumna <i>s=1.5</i> to realny rozmiar na telefonie i to ona jest bramką, nie desktop.
+  <br><br>
+  <b>Budżet mobilny (klasa S).</b> Zero <code>shadowBlur</code>, zero gradientów tworzonych per-frame,
+  zero <code>Math.random()</code>. Maksymalnie jeden element animowany (tylko Sigma — jeden
+  <code>ctx.rotate</code>, koszt zerowy).
+</div>
+
+<script>
+// ── paleta teł: realne kolory dominujące na mapach ───────────────────────────
+const BGS = [
+  { id:'desert',  label:'Pustynia', c:'#d9b477' },
+  { id:'arctic',  label:'Arktyka',  c:'#dfe9f0' },
+  { id:'city',    label:'City',     c:'#1b1533' },
+  { id:'tropics', label:'Tropiki',  c:'#4a8a3d' },
+  { id:'mars',    label:'Mars',     c:'#8c4a34' },
+];
+let bg = BGS[0];
+
+// ── helpery rysujące (idiom HUD.drawCrosshair) ───────────────────────────────
+function twoPass(c, color, outerW, innerW, path) {
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  c.strokeStyle = '#111'; c.lineWidth = outerW; c.beginPath(); path(c); c.stroke();
+  c.strokeStyle = color; c.lineWidth = innerW; c.beginPath(); path(c); c.stroke();
+}
+function centerDot(c, x, y, r, color) {
+  c.fillStyle = '#111'; c.beginPath(); c.arc(x, y, r + 1, 0, Math.PI * 2); c.fill();
+  c.fillStyle = color;  c.beginPath(); c.arc(x, y, r,     0, Math.PI * 2); c.fill();
+}
+
+// ── REJESTR: id -> { color, rarity, name, draw(ctx, x, y, s, tSec) } ─────────
+const CROSSHAIRS = [
+{
+  id:'ch_sniper', rarity:'c', color:'#eaf2f8', name:'Snajper', nameEn:'Sniper',
+  desc:'Cienki, długi krzyż z szeroką przerwą. Nie zasłania nic.',
+  draw(c, x, y, s, t) {
+    const L = 20*s, G = 8*s;
+    twoPass(c, this.color, 3*s, 1.4*s, cc => {
+      cc.moveTo(x-L, y); cc.lineTo(x-G, y); cc.moveTo(x+G, y); cc.lineTo(x+L, y);
+      cc.moveTo(x, y-L); cc.lineTo(x, y-G); cc.moveTo(x, y+G); cc.lineTo(x, y+L);
+    });
+    centerDot(c, x, y, 1.4*s, this.color);
+  }
+},
+{
+  id:'ch_brackets', rarity:'c', color:'#f1c40f', name:'Nawiasy', nameEn:'Brackets',
+  desc:'Cztery narożne klamry — kadr wokół celu, środek zupełnie czysty.',
+  draw(c, x, y, s, t) {
+    const R = 12*s, A = 7*s;
+    twoPass(c, this.color, 4*s, 2.2*s, cc => {
+      for (const [sx, sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+        cc.moveTo(x + sx*R, y + sy*(R-A));
+        cc.lineTo(x + sx*R, y + sy*R);
+        cc.lineTo(x + sx*(R-A), y + sy*R);
+      }
+    });
+    centerDot(c, x, y, 2*s, this.color);
+  }
+},
+{
+  id:'ch_ring', rarity:'r', color:'#3aa0e0', name:'Pierścień', nameEn:'Ring',
+  desc:'Okrąg z czterema znacznikami na zewnątrz. Klasyczna optyka.',
+  draw(c, x, y, s, t) {
+    twoPass(c, this.color, 3.5*s, 2*s, cc => {
+      cc.moveTo(x + 10*s, y); cc.arc(x, y, 10*s, 0, Math.PI * 2);
+      for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+        cc.moveTo(x + dx*13*s, y + dy*13*s);
+        cc.lineTo(x + dx*17*s, y + dy*17*s);
+      }
+    });
+    centerDot(c, x, y, 2*s, this.color);
+  }
+},
+{
+  id:'ch_fangs', rarity:'r', color:'#ff6b35', name:'Kły', nameEn:'Fangs',
+  desc:'Cztery ostrza wskazujące punkt trafienia. Sylwetka po skosach — nie myli się z krzyżem.',
+  draw(c, x, y, s, t) {
+    const TIP = 8*s, ARM = 7.5*s, SPREAD = 0.62; // rad od osi radialnej
+    twoPass(c, this.color, 4*s, 2.2*s, cc => {
+      for (let k = 0; k < 4; k++) {
+        const a = Math.PI/4 + k * Math.PI/2;          // 45°, 135°, 225°, 315°
+        const tx = x + Math.cos(a)*TIP, ty = y + Math.sin(a)*TIP;
+        const a1 = a + SPREAD, a2 = a - SPREAD;
+        cc.moveTo(tx + Math.cos(a1)*ARM, ty + Math.sin(a1)*ARM);
+        cc.lineTo(tx, ty);
+        cc.lineTo(tx + Math.cos(a2)*ARM, ty + Math.sin(a2)*ARM);
+      }
+    });
+    centerDot(c, x, y, 1.8*s, this.color);
+  }
+},
+{
+  id:'ch_laser', rarity:'e', color:'#ff2d2d', name:'Laser', nameEn:'Laser',
+  desc:'Ciasny pierścień celu + przerywany krąg zasięgu i dwie belki. Wygląda jak sprzęt bojowy.',
+  draw(c, x, y, s, t) {
+    twoPass(c, this.color, 3.2*s, 1.5*s, cc => {
+      cc.moveTo(x + 5.5*s, y); cc.arc(x, y, 5.5*s, 0, Math.PI * 2);
+      cc.moveTo(x - 20*s, y); cc.lineTo(x - 15*s, y);
+      cc.moveTo(x + 15*s, y); cc.lineTo(x + 20*s, y);
+    });
+    c.save();
+    c.setLineDash([4*s, 5*s]);
+    twoPass(c, this.color, 3*s, 1.4*s, cc => { cc.moveTo(x + 13*s, y); cc.arc(x, y, 13*s, 0, Math.PI * 2); });
+    c.restore();
+    centerDot(c, x, y, 2.6*s, this.color);
+  }
+},
+{
+  id:'ch_sigma', rarity:'l', color:'#b07ef7', accent:'#f1c40f', name:'Sigma', nameEn:'Sigma',
+  desc:'Wolno obracający się trójkątny ring + złota kropka. Jedyny animowany — 12°/s, jeden rotate.',
+  draw(c, x, y, s, t) {
+    twoPass(c, this.color, 3.4*s, 1.9*s, cc => {
+      for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+        cc.moveTo(x + dx*5*s, y + dy*5*s);
+        cc.lineTo(x + dx*8.5*s, y + dy*8.5*s);
+      }
+    });
+    c.save();
+    c.translate(x, y);
+    c.rotate((t * 12 * Math.PI) / 180);              // 12 stopni/s
+    twoPass(c, this.color, 4*s, 2.2*s, cc => {
+      const R = 13*s;
+      for (let k = 0; k < 3; k++) {
+        const a = -Math.PI/2 + k * (2*Math.PI/3);
+        const px = Math.cos(a)*R, py = Math.sin(a)*R;
+        if (k === 0) cc.moveTo(px, py); else cc.lineTo(px, py);
+      }
+      cc.closePath();
+    });
+    c.restore();
+    centerDot(c, x, y, 2.2*s, this.accent);
+  }
+},
+];
+
+const RARITY_COLOR = { c:'#8ba3b6', r:'#3aa0e0', e:'#9b59b6', l:'#f1c40f' };
+const PRICE        = { c:800, r:1400, e:2200, l:3200 };
+
+// ── budowa tabeli ────────────────────────────────────────────────────────────
+const SCALES = [1.0, 1.5, 3.0];
+const SIZE   = { 1: 76, 1.5: 100, 3: 180 };
+const canvases = [];
+
+const rows = document.getElementById('rows');
+for (const ch of CROSSHAIRS) {
+  const tr = document.createElement('tr');
+  const cells = SCALES.map(s => {
+    const box = SIZE[s];
+    return `<div class="cell"><canvas data-ch="${ch.id}" data-s="${s}" width="${box}" height="${box}"></canvas><span>s=${s.toFixed(1)}</span></div>`;
+  }).join('');
+  tr.innerHTML = `
+    <td>
+      <div class="nm"><span class="rar" style="background:${RARITY_COLOR[ch.rarity]}"></span>${ch.name}</div>
+      <div class="meta">${ch.id} · ${ch.nameEn}</div>
+      <div class="meta" style="margin-top:4px;max-width:230px">${ch.desc}</div>
+    </td>
+    <td class="price">${PRICE[ch.rarity]} σ</td>
+    <td><div class="cells">${cells}</div></td>`;
+  rows.appendChild(tr);
+}
+document.querySelectorAll('canvas[data-ch]').forEach(cv => {
+  canvases.push({ cv, ctx: cv.getContext('2d'),
+                  def: CROSSHAIRS.find(c => c.id === cv.dataset.ch),
+                  s: parseFloat(cv.dataset.s) });
+});
+
+// ── przełączniki tła ─────────────────────────────────────────────────────────
+const sw = document.getElementById('bgSwatches');
+BGS.forEach(b => {
+  const btn = document.createElement('button');
+  btn.textContent = b.label;
+  btn.style.cssText = `background:${b.c};color:${b.id==='city'?'#fff':'#111'};border:2px solid #263241;
+                       border-radius:6px;padding:5px 10px;font:600 12px system-ui;cursor:pointer;margin-right:6px`;
+  btn.onclick = () => { bg = b; document.querySelectorAll('#bgSwatches button')
+    .forEach(x => x.style.borderColor = '#263241'); btn.style.borderColor = '#fff'; };
+  if (b === bg) btn.style.borderColor = '#fff';
+  sw.appendChild(btn);
+});
+
+// ── pętla ────────────────────────────────────────────────────────────────────
+const chkTank = document.getElementById('chkTank');
+const chkAnim = document.getElementById('chkAnim');
+let frozenT = 0;
+
+function drawTarget(c, x, y, s) {
+  // atrapa wroga pod celownikiem — sprawdzian, czy celownik go nie zjada
+  c.save();
+  c.fillStyle = 'rgba(20,26,34,0.9)'; c.strokeStyle = '#c0392b'; c.lineWidth = 2*s;
+  c.beginPath(); c.roundRect(x - 11*s, y - 8*s, 22*s, 16*s, 3*s); c.fill(); c.stroke();
+  c.fillStyle = '#c0392b'; c.fillRect(x - 1.5*s, y - 14*s, 3*s, 8*s);
+  c.restore();
+}
+
+function frame(now) {
+  const t = chkAnim.checked ? now / 1000 : frozenT;
+  if (chkAnim.checked) frozenT = t;
+  for (const { cv, ctx, def, s } of canvases) {
+    const w = cv.width, h = cv.height, cx = w / 2, cy = h / 2;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = bg.c; ctx.fillRect(0, 0, w, h);
+    if (chkTank.checked) drawTarget(ctx, cx, cy, s);
+    def.draw(ctx, cx, cy, s, t);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@
 
 import type { TranslationKey } from '../i18n/i18n';
 
-export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice';
+export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair';
 export type Rarity = 'c' | 'r' | 'e' | 'l';
 
 /**
@@ -22,7 +22,7 @@ export type Rarity = 'c' | 'r' | 'e' | 'l';
  * 'title' bylo tu juz wczesniej (kolizja z Rangami Zalog, v0.118.0) — ODWRACALNE.
  */
 export const SHOP_ONLY_TYPES: ReadonlySet<CosmeticType> =
-    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice']);
+    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice', 'crosshair']);
 
 export interface CosmeticDef {
     readonly id: string;
@@ -141,6 +141,17 @@ export const COSMETICS: readonly CosmeticDef[] = [
     // Docelowo 'voice/cmdr_{lang}_start.ogg' — AudioSys podmienia {lang} na aktywny jezyk.
     { id: 'vo_commander', type: 'voice', rarity: 'e', labelKey: 'cosmetic.vo_commander',
       voice: { start: 'rank_fanfare.wav', lowHp: 'yeti.mp3' } },
+    // SHOP-2 (v0.138.0) — CELOWNIKI. Jedyna kosmetyka widoczna W GRZE: pozostale 32
+    // pozycje widac wylacznie w hubie, a klakson dziala tylko z klawiatura. Dlatego
+    // ida za deterministyczny zakup, nie za losowanie (takze czysciej pod PEGI).
+    // Wyglad NIE jest opisany tutaj — `id` JEST kluczem rejestru CROSSHAIR_STYLES
+    // (rendering/crosshairs.ts). Osobne pole dublowaloby te sama prawde w dwoch miejscach.
+    { id: 'ch_sniper',   type: 'crosshair', rarity: 'c', labelKey: 'cosmetic.ch_sniper' },
+    { id: 'ch_brackets', type: 'crosshair', rarity: 'c', labelKey: 'cosmetic.ch_brackets' },
+    { id: 'ch_ring',     type: 'crosshair', rarity: 'r', labelKey: 'cosmetic.ch_ring' },
+    { id: 'ch_fangs',    type: 'crosshair', rarity: 'r', labelKey: 'cosmetic.ch_fangs' },
+    { id: 'ch_laser',    type: 'crosshair', rarity: 'e', labelKey: 'cosmetic.ch_laser' },
+    { id: 'ch_sigma',    type: 'crosshair', rarity: 'l', labelKey: 'cosmetic.ch_sigma' },
 ];
 
 const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));

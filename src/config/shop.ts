@@ -44,7 +44,7 @@ export function isShopSandbox(): boolean {
     return !SHOP_LIVE;
 }
 
-export type ShopCategory = 'crates' | 'stickers' | 'horns' | 'voice' | 'soon';
+export type ShopCategory = 'crates' | 'crosshairs' | 'stickers' | 'horns' | 'voice' | 'soon';
 
 /** Dzis wylacznie 'sigma'. 'real' zarezerwowane — patrz naglowek pliku (PEGI). */
 export type ShopCurrency = 'sigma';
@@ -84,6 +84,18 @@ export interface ShopItemDef {
  */
 const STICKER_PRICE: Record<Rarity, number> = { c: 600, r: 1000, e: 1600, l: 2400 };
 const HORN_PRICE: Record<Rarity, number> = { c: 600, r: 1000, e: 1600, l: 2400 };
+/**
+ * SHOP-2 — celowniki, ~1.33x stawki naklejek i klaksonow. Powod roznicy: naklejka
+ * zdobi profil, klakson dziala tylko na komputerze, a CELOWNIK WIDAC W AKCJI na obu
+ * platformach przez caly mecz. Wycena naklejkowa bylaby zanizeniem najbardziej
+ * pozadanej kategorii w sklepie.
+ *
+ * Przy przychodzie ~400-550 sigm/dobe: pierwszy celownik po ~2 dniach (i sa dwa takie,
+ * wiec kategoria nie zaczyna sie od sciany), komplet 9800 sigm ~ 3 tygodnie gry.
+ * Celowniki NIE zwracaja sigm, wiec nie tworza perpetuum mobile — twarda regula
+ * z komentarza przy SHOP_ITEMS ich nie dotyczy.
+ */
+const CROSSHAIR_PRICE: Record<Rarity, number> = { c: 800, r: 1400, e: 2200, l: 3200 };
 
 /**
  * Kafle naklejek i klaksonow prosto z rejestru kosmetyk. Nowa pozycja = jeden wiersz
@@ -122,6 +134,29 @@ function hornSkus(): ShopItemDef[] {
 }
 
 /**
+ * SHOP-2. Kopia `hornSkus()` BEZ `desktopOnly` — celownik dziala tez na dotyku
+ * (main.ts rysuje go przy kazdym celowaniu w skali 1.5), wiec plakietka „PC" byla
+ * by klamstwem.
+ *
+ * Brak `emoji` i `art` jest ZAMIERZONY: kafel rysuje podglad na canvasie prawdziwa
+ * funkcja z rejestru (ShopSection). Emoji-zastepnik przy szesciu wariantach
+ * wygladalby identycznie dla kazdego z nich — czyli gracz nie widzialby, co kupuje.
+ */
+function crosshairSkus(): ShopItemDef[] {
+    return cosmeticsByType('crosshair').map(def => ({
+        sku: def.id,
+        category: 'crosshairs' as const,
+        price: CROSSHAIR_PRICE[def.rarity],
+        currency: 'sigma' as const,
+        rarity: def.rarity,
+        nameKey: def.labelKey,
+        descKey: 'shop.item.crosshair.desc' as TranslationKey,
+        impactKey: 'shop.impact.none' as TranslationKey,
+        grant: { kind: 'cosmetic' as const, id: def.id },
+    }));
+}
+
+/**
  * CENY — po tuningu x2 z 2026-08-28. Realny przychod to ~400-550 sigm/dobe (mecze ~50
  * przy p90, rozkazy 135, skrzynka dzienna), wiec teraz skrzynka ~ 2 dni gry, a paczka
  * glosowa ~ 6 dni. UWAGA: obnizenie celow rozkazow (quests.ts, ten sam dzien) podnosi
@@ -142,6 +177,12 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
     { sku: 'crate_10', category: 'crates', price: 6400, currency: 'sigma', rarity: 'e',
       nameKey: 'shop.item.crate10.name', descKey: 'shop.item.crate10.desc',
       impactKey: 'shop.impact.none', grant: { kind: 'crates', count: 10 }, emoji: '📦' },
+
+    // ── celowniki (SHOP-2) ──────────────────────────────────────────────────
+    // Zakladka stoi ZARAZ ZA skrzynkami, przed naklejkami: to najmocniejszy towar
+    // w sklepie (jedyna kosmetyka widoczna w meczu), wiec ma byc widoczny od razu,
+    // a nie po przewinieciu do trzeciej kategorii.
+    ...crosshairSkus(),
 
     // ── stickery ────────────────────────────────────────────────────────────
     // Generowane z rejestru kosmetyk: 12 pozycji to bylo 12 niemal identycznych
@@ -187,7 +228,8 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
 
 /** Kolejnosc tabow + ich etykiety (literalne klucze — dynamiczny t(var) nie kompiluje). */
 export const SHOP_TABS: readonly { readonly id: ShopCategory; readonly labelKey: TranslationKey }[] = [
-    { id: 'crates',   labelKey: 'shop.tab.crates' },
+    { id: 'crates',     labelKey: 'shop.tab.crates' },
+    { id: 'crosshairs', labelKey: 'shop.tab.crosshairs' },
     { id: 'stickers', labelKey: 'shop.tab.stickers' },
     { id: 'horns',    labelKey: 'shop.tab.horns' },
     { id: 'voice',    labelKey: 'shop.tab.voice' },

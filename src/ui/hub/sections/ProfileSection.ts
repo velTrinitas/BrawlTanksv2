@@ -14,6 +14,7 @@ import { RANKS } from '../../../config/ranks';
 import { flagImgHtml } from '../../flagArt';
 import { rankBadgeHtml } from '../rankBadge';
 import { cosmeticGroupsHtml, wireCosmeticGrid } from '../cosmeticGrid';
+import { paintCrosshairPreviews } from '../crosshairPreview'; // SHOP-2
 import { ProfileEditView } from './ProfileEditView';
 import { playUiClick } from '../../uiSounds';
 import { getCurrentSeason } from '../../../config/season';          // SEASON KIT — zakladka SEZON
@@ -114,6 +115,10 @@ export class ProfileSection implements HubSection {
             ${this.tabsHtml()}
             <div class="bt-hub0-ptabcontent">${this.tabContentHtml()}</div>
         `;
+        // SHOP-2: karty kolekcji sa stringami HTML, wiec canvasy celownikow istnieja
+        // dopiero po tym przypisaniu. Wolane tu, a nie w `collectionHtml()`, bo
+        // przelaczenie zakladki przechodzi przez `render()` i przebudowuje cale drzewo.
+        paintCrosshairPreviews(el);
         this.wire();
         if (this.activeTab === 'overview') void this.loadRank(profile.id);
     }
@@ -371,7 +376,7 @@ export class ProfileSection implements HubSection {
         const ownedActive = cos.owned.filter(id => getCosmetic(id)?.type !== 'title').length;
         return `
             <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: ownedActive, total: ACTIVE_COSMETIC_COUNT })}</div>
-            ${cosmeticGroupsHtml(cos, ['nickColor', 'frame', 'horn', 'voice'])}`;
+            ${cosmeticGroupsHtml(cos, ['crosshair', 'nickColor', 'frame', 'horn', 'voice'])}`;
     }
 
     // ── async ranking (token-guard — wzorzec StatsOverlay.loadBest) ─────────

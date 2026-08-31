@@ -37,6 +37,32 @@
     const DEFAULT_LANGUAGE: Language = 'pl';
 
     /**
+     * v0.134.0 — JEZYK Z PRZEGLADARKI. Jedyne zrodlo tej reguly w calej grze.
+     *
+     * POWOD. Autodetekcja istniala juz wczesniej, ale WYLACZNIE w `IdentityScreen`,
+     * czyli odpalala sie dopiero przy zakladaniu konta. Skutek: gracz z zagranicy
+     * ogladal ekran startowy i CALY onboarding (nick, awatar, flaga) po polsku,
+     * a gra przelaczala sie na angielski dopiero po zatwierdzeniu profilu — czyli
+     * pierwsze wrazenie dostawal w jezyku, ktorego nie rozumie.
+     *
+     * CZYTAMY CALA LISTE `navigator.languages`, nie sam `navigator.language`.
+     * Telefon ustawiony na „angielski, potem polski" nalezy niemal zawsze do Polaka;
+     * odwrotny przypadek (anglojezyczne dziecko z polskim na liscie) praktycznie nie
+     * wystepuje. Przy grupie docelowej 9-12 lat z Polski to jest wlasciwa strona,
+     * po ktorej warto sie mylic.
+     *
+     * Fallback na polski takze przy braku API — grupa docelowa jest polska.
+     */
+    export function detectBrowserLanguage(): Language {
+        try {
+            const tags = navigator.languages?.length ? navigator.languages : [navigator.language];
+            return tags.some(l => l?.toLowerCase().startsWith('pl')) ? 'pl' : 'en';
+        } catch {
+            return DEFAULT_LANGUAGE;
+        }
+    }
+
+    /**
      * I18nService — singleton zarzadzajacy aktualnym jezykiem i tlumaczeniami.
      * Eksportowany jako `i18n` na koncu pliku.
      */
@@ -49,16 +75,34 @@
             this.loadPersistedLanguage();
         }
 
+        /**
+         * Kolejnosc pierwszenstwa (v0.134.0):
+         *   1. zapisany WYBOR gracza z Ustawien  — zawsze wygrywa,
+         *   2. jezyk PROFILU                     — dosypuje `main.ts` po boocie,
+         *   3. jezyk PRZEGLADARKI                — tutaj, gdy nie ma 1 ani 2,
+         *   4. polski                            — gdy nic nie zadziala.
+         *
+         * WYKRYTEGO JEZYKA CELOWO NIE ZAPISUJEMY do localStorage. Zapis oznaczalby
+         * „gracz wybral", a to tylko domysl: ma sie aktualizowac, gdy ktos zmieni
+         * ustawienia przegladarki, a nie zamarzac na pierwszym trafieniu. Zapisuje
+         * wylacznie `setLanguage()`, czyli swiadoma zmiana w Ustawieniach.
+         */
         private loadPersistedLanguage(): void {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved === 'pl' || saved === 'en') {
                     this.currentLang = saved;
                     this.translations = ALL_TRANSLATIONS[saved];
+                    return;
                 }
             } catch (e) {
                 console.warn('[i18n] Failed to load persisted language', e);
             }
+            // Brak zapisanego wyboru => pytamy przegladarke. Bez tego kroku gra
+            // startowala twardo po polsku dla calego swiata.
+            const detected = detectBrowserLanguage();
+            this.currentLang = detected;
+            this.translations = ALL_TRANSLATIONS[detected];
         }
 
         /**

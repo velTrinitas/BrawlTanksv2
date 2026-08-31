@@ -35,7 +35,7 @@
  */
 
 import type { IScreen } from './MainMenu';
-import { t } from '../i18n/i18n';
+import { t, detectBrowserLanguage } from '../i18n/i18n';
 import { AVATAR_SLOTS, AVATARS } from '../config/avatars';
 import { flagImgHtml, sortedFlagIds, FLAG_NAME_KEY } from './flagArt';
 // Onboarding renderuje kafle .bt-hub0-* — arkusz huba musi byc zaladowany nawet
@@ -360,8 +360,13 @@ export class IdentityScreen implements IScreen {
 
         playUiSelect();
 
-        // Auto-detect language from browser locale; fallback PL (target audience).
-        const lang: LanguageId = navigator.language.toLowerCase().startsWith('pl') ? 'pl' : 'en';
+        // v0.134.0 — jezyk bierzemy z JEDNEGO wspolnego zrodla (`detectBrowserLanguage`
+        // w i18n), a nie z wlasnej kopii reguly. Poprzednia wersja czytala tu sam
+        // `navigator.language`, czyli TYLKO pierwszy jezyk z listy — telefon ustawiony
+        // na „angielski, potem polski" dostawal angielski, choc nalezy niemal zawsze
+        // do Polaka. Dwie kopie tej samej reguly i tak by sie w koncu rozjechaly:
+        // gra mowilaby innym jezykiem przed zalozeniem konta i innym po nim.
+        const lang: LanguageId = detectBrowserLanguage();
 
         const profile = ProfileService.createProfile({
             avatarId: this.selectedAvatarId,

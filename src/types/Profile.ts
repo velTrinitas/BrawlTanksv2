@@ -72,4 +72,12 @@ export interface Profile {
     readonly totalGamesPlayed: number;
 }
 
+/**
+ * Awaryjny fallback dla `createProfile()` wywolanego BEZ jawnego jezyka.
+ *
+ * To NIE jest miejsce, w ktorym wykrywa sie jezyk gracza — wlasciwa detekcja siedzi
+ * w `detectBrowserLanguage()` w `src/i18n/i18n.ts` i to ona zasila onboarding.
+ * Tutaj zostaje polski, bo warstwa typow nie ma (i nie powinna miec) dostepu do
+ * `navigator`. Jedyna realna sciezka wywolania i tak podaje jezyk jawnie.
+ */
 export const DEFAULT_LANGUAGE: LanguageId = 'pl';

@@ -272,7 +272,13 @@ export class AudioSys {
                         loop: true,
                         // v0.24.0: apply musicVolMult przy creation
                         volume: VOLUMES.music * this.musicVolMult,
-                        preload: true,
+                        // v0.135.0 — LENIWIE. Do v0.134.0 bylo `preload: true`, przez co
+                        // ta petla ciagnela muzyke WSZYSTKICH SZESCIU map na boocie:
+                        // 31,5 MB, zeby zagrac jeden utwor. Teraz plik leci po sieci
+                        // dopiero, gdy gracz wybierze mape (`prefetchMapMusic`).
+                        // Howl bez preloadu i tak dociaga sie sam przy `play()`, wiec
+                        // brak prefetchu = pozniejsze wejscie muzyki, nie cisza na stale.
+                        preload: false,
                         onloaderror: (_id, err) => {
                             console.warn(`[AudioSys] Brak music ${mapId}: ${file}`, err);
                         },
@@ -290,7 +296,9 @@ export class AudioSys {
                 src: [BASE + 'sfx/ctf_flag_captured.ogg'],
                 loop: true,
                 volume: VOLUMES.music * this.musicVolMult,
-                preload: true,
+                // v0.135.0 — 2,3 MB potrzebne WYLACZNIE w CTF i dopiero z flaga w rekach.
+                // Dociagane razem z muzyka mapy `fortified_ruins` (patrz prefetchMapMusic).
+                preload: false,
                 onloaderror: (_id, err) => {
                     console.warn('[AudioSys] Brak carry music: ctf_flag_captured.ogg', err);
                 },
@@ -325,7 +333,10 @@ export class AudioSys {
                 src: [BASE + 'sfx/' + MENU_TRACKS.hub],
                 loop: true,
                 volume: VOLUMES.music * this.musicVolMult,
-                preload: true,
+                // v0.135.0 — 3,7 MB. Nie blokuje bootu: dociagane w TLE zaraz po tym,
+                // jak intro jest juz na ekranie (`prefetchHubMusic`). Gracz i tak
+                // najpierw oglada splash, wiec ma sie zaladowac zanim wejdzie do hubu.
+                preload: false,
                 onloaderror: (_id, err) => {
                     console.warn(`[AudioSys] Brak hub music: ${MENU_TRACKS.hub}`, err);
                 },
@@ -333,6 +344,48 @@ export class AudioSys {
         } catch (e) {
             console.warn('[AudioSys] Hub music init failed', e);
         }
+    }
+
+    // ── v0.135.0: LENIWE POBIERANIE MUZYKI ──────────────────────────────────
+    //
+    // Do v0.134.0 boot ciagnal 41 MB, z czego 38,6 MB to muzyka WSZYSTKICH map —
+    // zeby zagrac jeden utwor. W trybie incognito (zimny cache) dawalo to 8-10 s
+    // czekania, zanim gracz zobaczyl cokolwiek; przez LTE na telefonie znacznie wiecej.
+    // Wzorzec 1:1 z `getOwnedSound` (dzwieki ze sklepu): `preload: false` + jawny `load()`.
+
+    /** `load()` tylko gdy Howl faktycznie nie jest jeszcze wczytany ani w trakcie. */
+    private loadOnce(howl: Howl | null, label: string): void {
+        if (!howl) return;
+        try {
+            if (howl.state() === 'unloaded') howl.load();
+        } catch (e) {
+            // GENTLE FAILURE — brak muzyki nie moze wywalic gry.
+            console.warn(`[AudioSys] prefetch nieudany: ${label}`, e);
+        }
+    }
+
+    /**
+     * Pobiera muzyke JEDNEJ mapy. Wolane z hubu w momencie WYBORU mapy, a nie przy
+     * starcie meczu — miedzy jednym a drugim gracz oglada karty czolgow, wiec plik
+     * zdazy sie sciagnac i nikt nie czeka.
+     *
+     * Gdy sie nie zdazy: Howler dociaga plik sam przy `play()`, wiec muzyka wejdzie
+     * z opoznieniem zamiast nie wejsc wcale.
+     */
+    prefetchMapMusic(mapId: MapId): void {
+        const howls = this.musicHowlsPerMap[mapId];
+        if (howls) howls.forEach((h, i) => this.loadOnce(h, `${mapId}[${i}]`));
+        // CTF ma drugi utwor na stan „nioslem flage" — ma sens tylko na tej mapie.
+        if (mapId === 'fortified_ruins') this.loadOnce(this.ctfCarryMusic, 'ctf carry');
+    }
+
+    /**
+     * Pobiera muzyke hubu (3,7 MB) w tle. Wolane PO pokazaniu intra: gracz oglada
+     * splash i musi go dotknac, zeby ruszyc dalej, wiec plik ma czas dojsc, zanim
+     * hub w ogole sie pojawi.
+     */
+    prefetchHubMusic(): void {
+        this.loadOnce(this.hubMusic, MENU_TRACKS.hub);
     }
 
     private safePlay(key: string): void {
@@ -817,6 +870,10 @@ export class AudioSys {
      * Stops gameplay music + hub music first (jeden track music na raz).
      */
     startIntroMusic(): void {
+        // v0.135.0 — intro jest na ekranie, wiec od TERAZ mamy czas na sciagniecie
+        // muzyki hubu w tle. Gracz musi jeszcze dotknac splasha, zeby ruszyc dalej.
+        this.prefetchHubMusic();
+
         if (!this.introMusic) {
             console.warn('[AudioSys] Intro music not loaded');
             return;

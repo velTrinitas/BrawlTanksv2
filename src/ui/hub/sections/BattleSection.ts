@@ -8,6 +8,7 @@ import type { Brawler } from '../../../types/Brawler';
 import { sessionService } from '../../../services/SessionService';
 import { renderScenarioPreview, type ScenarioPreviewId } from '../../ScenarioPreview';
 import { playUiClick } from '../../uiSounds'; // Sensoryka: wybor "klika"
+import { AudioSys } from '../../../audio/AudioSys'; // v0.135.0 — prefetch muzyki mapy
 import { getCurrentSeason } from '../../../config/season'; // SEASON-2 — baner biezacego sezonu
 
 /**
@@ -96,6 +97,14 @@ export class BattleSection implements HubSection {
 
     render(el: HTMLElement): void {
         this.el = el;
+        // v0.135.0 — pobieranie muzyki BIEZACEGO wyboru. Samo klikniecie w mape nie
+        // wystarczy: gracz, ktory nigdy nie otworzy popupu, gra na mapie domyslnej,
+        // a przy CTF mapa jest narzucona przez scenariusz. Ta linia pokrywa oba
+        // przypadki, bo `render()` leci przy kazdej zmianie wyboru. Powtorzone
+        // wywolania sa darmowe — `loadOnce` sprawdza stan Howla.
+        AudioSys.getInstance().prefetchMapMusic(
+            this.selectedScenario === 'ctf' ? 'fortified_ruins' : this.selectedMap,
+        );
         // v0.126.0 — ZACHOWAJ POZYCJE PRZEWIJANIA. Kazdy wybor czolgu/scenariusza/mapy
         // odtwarza cale DOM sekcji, wiec kontener scrolla ginie razem ze swoim scrollTop
         // i widok skakal na gore. Gracz wybieral mape na dole listy i ladowal przy
@@ -299,6 +308,10 @@ export class BattleSection implements HubSection {
                 // GDZIE to narysowac.
                 this.onOpenMapPicker?.(this.selectedMap, (mapId) => {
                     this.selectedMap = mapId;
+                    // v0.135.0 — muzyka mapy leci po sieci JUZ TERAZ, a nie przy starcie
+                    // meczu. Gracz po wyborze mapy oglada jeszcze karty czolgow i pigulki
+                    // trudnosci, wiec plik (2-9 MB) ma czas dojsc i nikt na niego nie czeka.
+                    AudioSys.getInstance().prefetchMapMusic(mapId);
                     this.bump = true;
                     this.render(el);
                 });

@@ -77,9 +77,9 @@ export const pl = {
     'howto.powerpad': '⚡ Power pad — TURBO ×2',
     // Leaderboard (ranking publiczny)
     'leaderboard.title': 'RANKING',
-    'leaderboard.tab.ktb': 'Kill the Boss',
-    'leaderboard.tab.ctf': 'Flag',
-    'leaderboard.tab.castle': 'Castle',
+    'leaderboard.tab.ktb': 'Ubij bossa',
+    'leaderboard.tab.ctf': 'Zabierz flagę',
+    'leaderboard.tab.castle': 'Obroń zamek',
     'leaderboard.window.all': 'Wszech czasów',
     'leaderboard.window.week': 'Tydzień',
     'leaderboard.window.day': 'Dziś',
@@ -281,7 +281,6 @@ export const pl = {
     'hub.garage.pity': 'Do gwarantowanego rzadkiego: {n}',
     'hub.garage.open': 'OTWÓRZ',
     'hub.garage.cosmetics': 'Styl {owned}/{total}',
-    'hub.garage.loadoutSoon': 'Loadout Super Mocy',
     'hub.garage.type.nickColor': 'Kolory nicku',
     'hub.garage.type.frame': 'Ramki avatara',
     'hub.garage.type.title': 'Tytuły',
@@ -380,7 +379,7 @@ export const pl = {
     'shop.sandbox': 'PIASKOWNICA — zakupy nie są zapisywane',
     'shop.sandboxReset': 'RESET',
     'shop.tab.crates': 'SKRZYNKI',
-    'shop.tab.stickers': 'STICKERY',
+    'shop.tab.stickers': 'NAKLEJKI',
     'shop.tab.horns': 'KLAKSONY',
     'shop.tab.voice': 'GŁOS',
     'shop.tab.soon': 'WKRÓTCE',
@@ -450,7 +449,7 @@ export const pl = {
     'hud.burpStart': '📢 BEEEEK!',
     // v0.119.0 — bogate karty mocy w GARAZU (odwzorowanie boxow ze strony www):
     // opisy 1:1 z sigmatanks.eu + naglowki sekcji + chipy Cooldown/Od.
-    'power.aura.desc': 'Tarcza blokująca całkowicie obrażenia przez 8 s.',
+    'power.aura.desc': 'Tarcza blokująca całkowicie obrażenia przez 6 s.',
     'power.megaBomb.desc': 'Natychmiastowe 800 dmg w promieniu 250 px.',
     'power.freeze.desc': 'Zamraża wszystkich wrogów na ekranie na 5 s.',
     'power.rockets.desc': '8 samosterujących rakiet, 300 dmg i eksplozja r=60.',
@@ -469,9 +468,9 @@ export const pl = {
     'power.granny.desc': 'Dreptaczka leczy 5% HP/s, a wrogowie w promieniu 360 px uciekają.',
     'power.burp.desc': 'Cztery fale dźwiękowe odrzucają i ogłuszają wrogów na sekundę.',
     'hub.garage.powersTitle': 'Super Moce ({n})',
-    'hub.garage.powersSub': '{n} mocy do loadoutu, odblokowywanych na Szlaku Trofeów.',
+    'hub.garage.powersSub': '{n} mocy do wyboru, odblokowywanych na Szlaku Trofeów.',
     'hub.garage.funSub': '{n} szalonych mocy ze slotu 🎲 — czysta zabawa.',
-    'power.chip.cooldown': 'Cooldown {n}s',
+    'power.chip.cooldown': '⏱ {n} s',
     'power.chip.fromStart': 'Od startu',
     'power.chip.fromTrophies': 'Od {n} 🏆',
     // v0.114.0 — slot 🎲 (Szalone Moce)
@@ -482,9 +481,9 @@ export const pl = {
     'hud.loadoutRemapped': '⚠️ Moc niedostępna w tym trybie — podmieniono!',
     'road.unlock.repair': '🔧 Moc: Naprawa!',
     'road.unlock.tower': '🎯 Moc: Wieża!',
-    'hub.garage.loadout': 'Loadout Super Mocy',
-    'hub.garage.loadoutHint': 'Tapnij slot, potem moc — z tym wjedziesz do bitwy!',
-    'hub.garage.slot': 'Slot {n}',
+    'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
+    'hub.garage.loadoutHint': 'Tapnij puste pole, potem moc z listy — z tym wjedziesz do bitwy!',
+    'hub.garage.slot': 'Moc {n}',
     'hub.garage.powerLocked': 'Od {n} 🏆',
     'hub.garage.funMode': 'Szalone Moce',
     'hub.garage.funModeHint': 'Trzeci przycisk 🎲 losuje szaloną moc przy każdym użyciu!',
@@ -579,24 +578,24 @@ export const pl = {
     'picker.step': 'Krok {current} z {total}',
 
     // Scenarios — name, description, CTA
-    'scenario.ktb.name': 'Kill the Boss',
+    'scenario.ktb.name': 'Ubij bossa',
     'scenario.ktb.desc': 'Zniszcz Mega Bossa',
     'scenario.ktb.cta.desert': 'GRAJ !',
     'scenario.ktb.cta.city': 'GRAJ !',
     'scenario.ktb.cta.tropics': 'GRAJ !',
     'scenario.ktb.cta.arctic': 'GRAJ !',
 
-    'scenario.ctf.name': 'Capture the Flag',
-    'scenario.ctf.desc': 'Zdobądź 3 flagi',
+    'scenario.ctf.name': 'Zabierz flagę',
+    'scenario.ctf.desc': 'Dowieź 3 flagi do bazy',
     'scenario.ctf.cta': 'GRAJ !',
     'scenario.ctf.mapBadge': 'Mapa: Fortified Ruins',
 
-    'scenario.castle.name': 'Defend the Castle',
+    'scenario.castle.name': 'Obroń zamek',
     'scenario.castle.desc': 'Broń zamku przez 6 fal',
     'scenario.castle.cta': 'GRAJ !',
     'scenario.castle.mapBadge': 'Mapa: Castle Grounds',
 
-    'scenario.save_king.name': 'Save the King',
+    'scenario.save_king.name': 'Uratuj króla',
     'scenario.save_king.desc': 'Wkrótce dostępne!',
     'scenario.save_king.cta': 'GRAJ !',
 
@@ -645,8 +644,8 @@ export const pl = {
     'brawler.sniper.name': 'SNAJPER',
     'brawler.plasma.name': 'TECH',
     'brawler.pyro.name': 'OGNIARZ',
-    'brawler.shadow.name': 'SHADOW',
-    'brawler.king.name': 'KING',
+    'brawler.shadow.name': 'CIEŃ',
+    'brawler.king.name': 'KRÓL',
 
     // ============================================================
     // Settings (v0.42.0 FAZA 8a finalize + v0.43.0 FAZA 8b: profile section)

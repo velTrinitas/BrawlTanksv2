@@ -41,11 +41,11 @@ const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle'];
 // Normalizacja paskow = maksima rosteru (heavy 700hp / sniper 300dmg / scout 7.5 speed).
 const STAT_MAX = { hp: 700, dmg: 300, speed: 7.5 } as const;
 
-// Badge roli per czolg — tokeny 1:1 ze strona sigmatanks.eu (miedzynarodowe, bez i18n).
-const ROLE_BADGE: Record<string, string> = {
-    twardy: 'STANDARD', heavy: 'TANK', scout: 'SCOUT', sniper: 'SNIPER',
-    plasma: 'PLASMA', pyro: 'SPREAD', shadow: 'ASSASSIN', king: 'ALL-AROUND',
-};
+// v0.137.0 — ROLE_BADGE (STANDARD/TANK/ASSASSIN/ALL-AROUND) USUNIETY. Tokeny byly
+// wziete 1:1 ze strony sigmatanks.eu i celowo nietlumaczone, ale playtest Michala
+// pokazal, ze dla gracza nic nie znacza i tylko wprowadzaja w zaklopotanie — a paski
+// HP/DMG/SPEED obok mowia to samo konkretniej. Klasa `.cd-badge` ZOSTAJE w CSS:
+// uzywa jej jeszcze plakietka „WKROTCE" na karcie Enigmy.
 
 export class BattleSection implements HubSection {
     public readonly id = 'battle';
@@ -154,7 +154,6 @@ export class BattleSection implements HubSection {
                 <span class="cd-body">
                     <span class="cd-top">
                         <b class="cd-name">${tankName(b)}</b>
-                        <i class="cd-badge">${ROLE_BADGE[b.id] ?? 'STANDARD'}</i>
                     </span>
                     ${this.statRow('HP', b.hp, STAT_MAX.hp)}
                     ${this.statRow('DMG', b.dmg, STAT_MAX.dmg)}

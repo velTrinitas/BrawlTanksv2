@@ -94,14 +94,31 @@ export class CrateOverlay {
     }
 
     /**
+     * v0.137.0 — ILE ISKIER leci przy otwarciu, per rzadkosc.
+     *
+     * Playtest Michala: „nie jestem w stanie rozroznic rarity skrzynek". Do v0.136.0
+     * rzadkosc zmieniala WYLACZNIE ODCIEN — a kolor sam z siebie nie niesie hierarchii
+     * (nikt nie wie, czy fiolet bije zloto). Roznica musi byc w ILOSCI i SILE, nie w barwie.
+     *
+     * Gorna granica 30 jest TWARDA i policzona pod mobile: to nadal jedna salwa
+     * krotkozyjacych <i> na transform/opacity, sprzatana po 1100 ms. Zero PIXI.
+     */
+    private static readonly SPARKS_BY_RARITY: Record<Rarity, number> = {
+        c: 14, r: 18, e: 24, l: 30,
+    };
+
+    /** Rzadkosci, ktore dostaja DRUGA, opozniona salwe — „petarda strzela, potem huk". */
+    private static readonly DOUBLE_VOLLEY: ReadonlySet<Rarity> = new Set<Rarity>(['e', 'l']);
+
+    /**
      * Rozprysk przy ziemi. `gold` = finalowe otwarcie (zlote kleby zamiast szarych),
      * `sparkColor` = dodatkowe ISKRY w kolorze rzadkosci (tylko przy wybuchu — rzadkosc
      * jest znana dopiero po `openCrate()`, czyli przy trzecim tapie).
      *
-     * LIMITY sa twarde i celowe (mobile-first): 10 klebow + max 14 iskier, czyste
-     * CSS transform/opacity, sprzatane po 750 ms. Zero PIXI, zero overdraw.
+     * LIMITY sa twarde i celowe (mobile-first): 10 klebow + max 30 iskier na salwe,
+     * czyste CSS transform/opacity, sprzatane po 1100 ms. Zero PIXI, zero overdraw.
      */
-    private spawnDust(gold: boolean, sparkColor?: string): void {
+    private spawnDust(gold: boolean, sparkColor?: string, rarity?: Rarity): void {
         const dust = this.el?.querySelector<HTMLElement>('.bt-hub0-crate-dust');
         if (!dust) return;
         for (let i = 0; i < 10; i++) {
@@ -115,19 +132,32 @@ export class CrateOverlay {
             dust.appendChild(s);
         }
         if (sparkColor) {
-            for (let i = 0; i < 14; i++) {
-                const s = document.createElement('i');
-                s.className = 'spark';
-                // Wspolrzedne BIEGUNOWE, nie x/y: iskra ma byc obrocona ZGODNIE
-                // z kierunkiem lotu, wiec kat steruje i obrotem, i przesunieciem.
-                const ang = (Math.PI * 2 * i) / 14 + Math.random() * 0.4; // pelny okrag, lekko rozstrojony
-                s.style.setProperty('--rot', `${(ang * 180) / Math.PI}deg`);
-                s.style.setProperty('--dist', `${60 + Math.random() * 70}px`);
-                s.style.setProperty('--rc', sparkColor);
-                dust.appendChild(s);
+            const rr = rarity ?? 'c';
+            const count = CrateOverlay.SPARKS_BY_RARITY[rr];
+            this.spawnSparkVolley(dust, sparkColor, count, 1);
+            // Druga salwa leci PO pierwszej i szerzej — dopiero to czyta sie jako
+            // „petarda", a nie jako jeden rozprysk. Wpiete przez setTimeout, bo ma
+            // byc slyszalna przerwa miedzy wystrzalem a rozblyskiem.
+            if (CrateOverlay.DOUBLE_VOLLEY.has(rr)) {
+                setTimeout(() => this.spawnSparkVolley(dust, sparkColor, count, 1.45), 220);
             }
         }
-        setTimeout(() => { dust.innerHTML = ''; }, 750);
+        setTimeout(() => { dust.innerHTML = ''; }, 1100);
+    }
+
+    /** Jedna salwa iskier rozchodzaca sie promieniscie. `reach` skaluje zasieg. */
+    private spawnSparkVolley(dust: HTMLElement, color: string, count: number, reach: number): void {
+        for (let i = 0; i < count; i++) {
+            const s = document.createElement('i');
+            s.className = 'spark';
+            // Wspolrzedne BIEGUNOWE, nie x/y: iskra ma byc obrocona ZGODNIE
+            // z kierunkiem lotu, wiec kat steruje i obrotem, i przesunieciem.
+            const ang = (Math.PI * 2 * i) / count + Math.random() * 0.4; // pelny okrag, lekko rozstrojony
+            s.style.setProperty('--rot', `${(ang * 180) / Math.PI}deg`);
+            s.style.setProperty('--dist', `${(60 + Math.random() * 70) * reach}px`);
+            s.style.setProperty('--rc', color);
+            dust.appendChild(s);
+        }
     }
 
     private onTap(profileId: string): void {
@@ -165,6 +195,8 @@ export class CrateOverlay {
             scene.appendChild(lid);
             const flash = document.createElement('div');
             flash.className = 'bt-hub0-crate-flash';
+            // v0.137.0: rozblysk skaluje sie z rzadkoscia (CSS czyta data-rarity).
+            flash.dataset.rarity = result.rarity;
             scene.appendChild(flash);
         }
         // Korpus gasnie DOPIERO po odlocie wieka (opoznienie 0.22 s w CSS) — inaczej
@@ -177,7 +209,7 @@ export class CrateOverlay {
 
         AudioSys.getInstance().playCrateOpen();
         if (result.rarity === 'l') AudioSys.getInstance().playCrateLegendary();
-        this.spawnDust(true, RARITY_COLOR[result.rarity]);
+        this.spawnDust(true, RARITY_COLOR[result.rarity], result.rarity);
         setTimeout(() => this.renderReveal(result), 700);
     }
 
@@ -190,7 +222,7 @@ export class CrateOverlay {
             : `<div class="bt-hub0-reveal-cos">${t('crate.dup')}</div>`;
         this.el.innerHTML = `
             <div class="bt-hub0-modal bt-hub0-crate-modal" role="dialog" aria-modal="true">
-                <div class="bt-hub0-reveal" style="--rc:${color};">
+                <div class="bt-hub0-reveal" data-rarity="${r.rarity}" style="--rc:${color};">
                     <div class="bt-hub0-reveal-rays" aria-hidden="true"></div>
                     <div class="bt-hub0-reveal-rarity" style="color:${color};">${t(RARITY_LABEL_KEY[r.rarity])}</div>
                     ${rewardLine}

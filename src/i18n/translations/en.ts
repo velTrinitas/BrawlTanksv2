@@ -272,7 +272,6 @@ export const en: typeof pl = {
     'hub.garage.pity': 'To guaranteed rare: {n}',
     'hub.garage.open': 'OPEN',
     'hub.garage.cosmetics': 'Style {owned}/{total}',
-    'hub.garage.loadoutSoon': 'Super Power Loadout',
     'hub.garage.type.nickColor': 'Nick colors',
     'hub.garage.type.frame': 'Avatar frames',
     'hub.garage.type.title': 'Titles',
@@ -438,7 +437,7 @@ export const en: typeof pl = {
     'hud.burpStart': '📢 BUUURP!',
     // v0.119.0 — rich power cards in GARAGE (website box style):
     // descriptions from sigmatanks.eu + section headers + Cooldown/From chips.
-    'power.aura.desc': 'A shield blocking all damage for 8 s.',
+    'power.aura.desc': 'A shield blocking all damage for 6 s.',
     'power.megaBomb.desc': 'Instant 800 dmg in a 250 px radius.',
     'power.freeze.desc': 'Freezes every enemy on screen for 5 s.',
     'power.rockets.desc': '8 homing rockets, 300 dmg with r=60 explosions.',
@@ -459,7 +458,7 @@ export const en: typeof pl = {
     'hub.garage.powersTitle': 'Super Powers ({n})',
     'hub.garage.powersSub': '{n} loadout powers, unlocked on the Trophy Road.',
     'hub.garage.funSub': '{n} crazy powers from the 🎲 slot — pure fun.',
-    'power.chip.cooldown': 'Cooldown {n}s',
+    'power.chip.cooldown': '⏱ {n} s',
     'power.chip.fromStart': 'From start',
     'power.chip.fromTrophies': 'From {n} 🏆',
     // v0.114.0 — dice slot (Crazy Powers)
@@ -470,9 +469,9 @@ export const en: typeof pl = {
     'hud.loadoutRemapped': '⚠️ Power not available in this mode — swapped!',
     'road.unlock.repair': '🔧 Power: Repair!',
     'road.unlock.tower': '🎯 Power: Tower!',
-    'hub.garage.loadout': 'Super Power Loadout',
-    'hub.garage.loadoutHint': 'Tap a slot, then a power — this is what you bring to battle!',
-    'hub.garage.slot': 'Slot {n}',
+    'hub.garage.loadout': 'PICK 3 SUPER POWERS',
+    'hub.garage.loadoutHint': 'Tap an empty field, then a power below — this is what you bring to battle!',
+    'hub.garage.slot': 'Power {n}',
     'hub.garage.powerLocked': 'From {n} 🏆',
     'hub.garage.funMode': 'Crazy Powers',
     'hub.garage.funModeHint': 'A third 🎲 button rolls a random crazy power every time!',

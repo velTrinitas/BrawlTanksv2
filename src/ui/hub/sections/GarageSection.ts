@@ -119,10 +119,14 @@ export class GarageSection implements HubSection {
                     <span class="pn">${t('power.dice')}</span>
                 </button>`;
             }
+            // v0.137.0: `is-empty` daje CSS haczyk na „to pole czeka na moc" — do v0.136.0
+            // pusty i wypelniony slot wygladaly tak samo, wiec nie bylo widac, ze cokolwiek
+            // trzeba zrobic (playtest Michala: nie rozpoznal, czym w ogole sa te trzy pola).
             return `
-                <button class="bt-hub0-lslot${armed ? ' is-armed' : ''}" data-lslot="${slot}" type="button">
+                <button class="bt-hub0-lslot${armed ? ' is-armed' : ''}${def ? '' : ' is-empty'}"
+                        data-lslot="${slot}" type="button">
                     <span class="num">${t('hub.garage.slot', { n: slot + 1 })}</span>
-                    <span class="pi" aria-hidden="true">${def?.emoji ?? '❔'}</span>
+                    <span class="pi" aria-hidden="true">${def?.emoji ?? '＋'}</span>
                     <span class="pn">${def ? t(def.labelKey) : '—'}</span>
                 </button>`;
         }).join('');
@@ -170,7 +174,7 @@ export class GarageSection implements HubSection {
         // PROFILE-1: teaser Rang Zalog przeniesiony na strone profilu (ProfileSection).
         return `
             <div class="bt-hub0-loadout">
-                <div class="bt-hub0-cos-grouptitle">⚡ ${t('hub.garage.loadout')}</div>
+                <div class="bt-hub0-loadout-title">⚡ ${t('hub.garage.loadout')}</div>
                 <div class="bt-hub0-lslots">${slots}</div>
                 <small class="bt-hub0-lhint">${t('hub.garage.loadoutHint')}</small>
             </div>

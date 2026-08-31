@@ -304,7 +304,12 @@ export const POWERS: Record<PowerId, PowerDef> = {
         emoji: '🛡️',
         color: 0xffdd00,
         cooldownMs: 30000,       // v4.48: 30s
-        durationFrames: 480,     // 8s (v4.48 mialo 5s — zachowujemy buff)
+        // v0.137.0: 480 (8s) -> 360 (6s). Playtest Michala: przy 8 s nietykalnosci
+        // tarcza przestawala byc ratunkiem, a stawala sie darmowym oknem na TARANOWANIE
+        // (kolizja z wrogiem to trade HP <-> score, a tarcza kasowala koszt tego trade'u).
+        // UWAGA przy kolejnym tuningu: liczba sekund siedzi TAKZE w `power.aura.desc`
+        // (pl.ts + en.ts) — zmiana tylko tutaj zostawia klamstwo na karcie mocy.
+        durationFrames: 360,     // 6s
         unlockAtTrophies: 0,
         activeLabelKey: 'hud.auraActive',
         onActivate: (ctx) => {

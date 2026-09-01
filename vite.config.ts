@@ -28,7 +28,13 @@ const perfLogPlugin = {
 export default defineConfig(({ command }) => ({
     // base: ścieżka dla GitHub Pages (repo: BrawlTanksv2)
     // → https://veltrinitas.github.io/BrawlTanksv2/
-    base: '/BrawlTanksv2/',
+    //
+    // TEST-1 (v0.142.0): sterowane env, ale z TYM SAMYM domyslnym. `deploy.yml` nie
+    // ustawia `VITE_BASE`, wiec produkcja dostaje dokladnie to, co dotad. Paczka
+    // testowa (`npm run build:test`) buduje sie z `VITE_BASE='./'`, bo na Cloudflare
+    // siedzi w roocie domeny — przy zaszytym `/BrawlTanksv2/` wszystkie assety
+    // (czolgi, fonty, sfx) daloby 404.
+    base: process.env.VITE_BASE ?? '/BrawlTanksv2/',
 
     plugins: [perfLogPlugin],
 

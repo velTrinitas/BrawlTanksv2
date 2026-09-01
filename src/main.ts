@@ -193,6 +193,15 @@ import { syncActiveProfileToCloud } from './services/profileSync';
 // === FAZA 8.5: Mobile touch controls ===
 import { TouchInputManager } from './input/TouchInputManager';
 
+// === TEST-1: data waznosci paczki testowej ===
+import { guardTestWindow } from './config/testWindow';
+
+// PIERWSZA instrukcja ciala modulu — PRZED PIXI, audio, flagami URL i czymkolwiek
+// innym. Gdy okno testow jest zamkniete, `guardTestWindow` rysuje ekran konca I RZUCA,
+// wiec nic ponizej sie nie wykona: zadnej petli gry, zadnego audio, zadnego submitu
+// wyniku. W buildzie produkcyjnym (brak `VITE_TEST_EXPIRES`) jest to no-op.
+guardTestWindow();
+
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_CHARGES_PER_TRIGGER = 3;
 const COMBO_WINDOW_MS = 2000;

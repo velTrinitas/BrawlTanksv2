@@ -204,6 +204,18 @@ export interface ProgressionStats {
     seasonRewards?: string[];
     seasonTrophies?: number;
     seasonClaimed?: number[];
+    /**
+     * SEASON-3 (v0.139.0) — MUZEUM: migawki ZAKONCZONYCH sezonow. Merge: UNIA po `id`.
+     * Jedyne pole sezonowe merge'owane NIEZALEZNIE od `seasonId` — reszta dotyczy
+     * biezacego sezonu i ginie przy rolloverze, a archiwum ma go wlasnie przezyc.
+     */
+    seasonArchive?: Array<{
+        id: string;
+        collected: number;
+        items: Record<number, number>;
+        trophies: number;
+        endedAt: number;
+    }>;
     /** RANKS-1 — ranga czolgisty: wins/rankShown MAX, rankClaimed UNION.
      *  Stemple backfilli (stats/ranks) CELOWO lokalne — nie syncowane. */
     wins?: number;

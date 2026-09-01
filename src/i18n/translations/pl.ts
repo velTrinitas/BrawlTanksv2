@@ -168,6 +168,8 @@ export const pl = {
     'hub.season.daysLeft': 'Do końca: {n} dni',
     'hub.season.ended': 'Sezon zakończony',
     'hub.season.whatsNew': 'Co wprowadza sezon',
+    'hub.season.itemsBox': 'Itemy sezonowe',
+    'hub.season.museum': 'Muzeum sezonów',
     'hub.season.viewTrack': 'ZOBACZ SEASON TRACK',
     // Roadmapa sezonow (SEASON-2) — nazwy + bullety popupu
     'season.s2.name': 'Sezon 2 — Arena',
@@ -177,19 +179,19 @@ export const pl = {
     'season.s2.b3': 'Finał 31.08 — zgarnij nagrody, zanim znikną!',
     'season.s3.name': 'Sezon 3 — Powrót do szkoły',
     'season.s3.short': 'Sezon 3',
-    'season.s3.b1': 'Świeży Season Track: sigmy i skrzynki do zdobycia',
-    'season.s3.b2': 'Szkolny klimat: kreda, plecaki i praca domowa z trofeów',
-    'season.s3.b3': 'Więcej niespodzianek wkrótce!',
+    'season.s3.b1': 'Nowy Season Track — zgarniaj sigmy i skrzynki na każdym progu',
+    'season.s3.b2': 'Szkolny klimat na arenie. Szkolne gadżety rozsiane po mapach.',
+    'season.s3.b3': 'Sezonowe znajdźki i wyjątkowy skin czołgu — już wkrótce!',
     // SEASON KIT: nazwa licznika znajdziek sezonu (HUD, ekran konca meczu).
     // SEZON 2 — znajdzki (art i nazwy wspolne z S3, patrz seasonContent.ts)
-    'season.s2.counter': 'książki',
+    'season.s2.counter': 'znajdźki',
     'season.s2.item1': 'Ołówek',
     'season.s2.item2': 'Książka',
     'season.s2.item3': 'Zeszyt',
     'season.s2.item4': 'Ekierka',
     'season.s2.item5': 'Plecak',
     'season.s2.item6': 'Globus',
-    'season.s3.counter': 'książki',
+    'season.s3.counter': 'znajdźki',
     // SEASON KIT — nazwy 6 znajdziek sezonu 3 (dec. A, 28.08.2026).
     'season.s3.item1': 'Ołówek',
     'season.s3.item2': 'Książka',
@@ -848,7 +850,7 @@ export const pl = {
     'hud.caravanMagnet':  '🐪 Karawana dropiła 🧲',
     'hud.roverGem':       '🛰️ Łazik zgubił 💎',
     // SEASON KIT — podpis chipa licznika w HUD.
-    'hud.books': 'Książki',
+    'hud.finds': 'Itemy',
     // SEASON KIT — legendarna znajdzka (1 na dobe).
     'hud.seasonLegendary': '📙 ZŁOTA ENCYKLOPEDIA!',
     // SEASON KIT — pierwsze zdobycie danego typu znajdzki.
@@ -872,7 +874,7 @@ export const pl = {
     'pad.repairing':      'NAPRAWA',
     'ctf.flagLabel':      'FLAGA {team}',
     'portrait.title':     'Obróć telefon do poziomu',
-    'portrait.subtitle':  'Brawl Tanks gra się najlepiej w trybie poziomym — szersze pole bitwy widać lepiej 🔄',
+    'portrait.subtitle':  'Sigma Tanks gra się najlepiej w trybie poziomym — szersze pole bitwy widać lepiej 🔄',
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

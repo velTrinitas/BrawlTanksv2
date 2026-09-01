@@ -293,7 +293,14 @@ for (const s of SEASONS) {
         if (!PL.has(k)) fail('G4', `${s.id}: brak klucza '${k}' w pl.ts`);
         if (!EN.has(k)) fail('G4', `${s.id}: brak klucza '${k}' w en.ts`);
     }
-    if (s.bulletKeys.length !== 3) fail('G4', `${s.id}: ${s.bulletKeys.length} bulletow zamiast 3 (popup ma staly slot)`);
+    // v0.139.0 — bylo "dokladnie 3 (popup ma staly slot)". Uzasadnienie sie
+    // ZDEZAKTUALIZOWALO: popup skasowano w v0.129.0, dzis sezon renderuje sie na
+    // PELNEJ STRONIE (SeasonSection), ktora stalego slotu nie ma. Zakres 3-4 zostaje
+    // JAWNY, a nie zniesiony — jeden bullet to za malo, zeby opisac sezon, a piaty
+    // zamienia liste w scianke tekstu. Realna ochrona 375px siedzi w G5 (BULLET_MAX).
+    if (s.bulletKeys.length < 3 || s.bulletKeys.length > 4) {
+        fail('G4', `${s.id}: ${s.bulletKeys.length} bulletow — dozwolone 3-4`);
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════

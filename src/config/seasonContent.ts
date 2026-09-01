@@ -41,8 +41,6 @@ export interface SeasonPointThreshold {
 
 export interface SeasonContentDef {
     readonly seasonId: string;
-    /** Nazwa licznika w HUD/endcardzie ("ksiazki"). */
-    readonly counterKey: TranslationKey;
     /** DOKLADNIE 6 pozycji — walidowane w runtime przez assertSeasonContent(). */
     readonly items: readonly SeasonItemDef[];
     /** Tor ILOSCI. Progi rosnace; nagroda w istniejacej ekonomii (skrzynki). */
@@ -121,10 +119,8 @@ const SEASON_CONTENT: readonly SeasonContentDef[] = [
         // Reguly celowo 1:1 z S3 — to, co gracz przetestuje teraz, ma byc dokladnie
         // tym mechanizmem, ktory wystartuje 01.09. Zadnych „testowych" wartosci.
         seasonId: 's2',
-        counterKey: 'season.s2.counter',
         items: S2_ITEMS,
         pointThresholds: [
-            { points: 25, crates: 1 },
             { points: 60, crates: 1 },
             { points: 120, crates: 1 },
             { points: 200, crates: 2 },
@@ -140,12 +136,10 @@ const SEASON_CONTENT: readonly SeasonContentDef[] = [
     },
     {
         seasonId: 's3',
-        counterKey: 'season.s3.counter',
         items: S3_ITEMS,
         // Progi rosnace, zestrojone tak, zeby nagrody padaly rytmicznie przez sezon,
         // a nie klebily sie na koncu. Wartosci startowe do kalibracji po playtescie.
         pointThresholds: [
-            { points: 25, crates: 1 },
             { points: 60, crates: 1 },
             { points: 120, crates: 1 },
             { points: 200, crates: 2 },

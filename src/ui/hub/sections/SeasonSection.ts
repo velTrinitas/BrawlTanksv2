@@ -1,7 +1,9 @@
 import { t } from '../../../i18n/i18n';
 import { crateIcon } from '../gameIcons';
 import type { HubSection } from './HubSection';
-import { getCurrentSeason, isSeasonActive, seasonDaysLeft } from '../../../config/season';
+import {
+    getCurrentSeason, isSeasonActive, seasonDaysLeft, seasonElapsedPct,
+} from '../../../config/season';
 import { getSeasonContent } from '../../../config/seasonContent';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
@@ -53,33 +55,66 @@ export class SeasonSection implements HubSection {
      * dawno przeszedl na katalogi — dlatego hero Sezonu 2 sie nie ladowal, choc
      * plik lezal na dysku.
      */
-    private infoHtml(): string {
+    private infoHtml(points: number | null): string {
         const season = getCurrentSeason();
         const active = isSeasonActive();
         const timeChip = active
             ? `⏳ ${t('hub.season.daysLeft', { n: seasonDaysLeft() })}`
             : t('hub.season.ended');
+        // v0.140.0 — MINI-PASEK DNI pod tytulem. Jezyk wizualny odtworzony ze skasowanego
+        // `SeasonOverlay` (`.so-collect-bar`, v0.129.0): cienki tor z wypelnieniem
+        // w gradiencie akcentu. Rozny jest tylko sens — tamten liczyl punkty do progu,
+        // ten uplyw sezonu.
+        //
+        // Pasek pokazuje CZAS, ktory uplynal, a chip obok mowi ile ZOSTALO — to ta sama
+        // informacja z dwoch stron i celowo: liczba jest konkretna, pasek daje wyczucie
+        // „ile jeszcze zdaze". Sezon zakonczony nie dostaje paska (pelny tor niczego juz
+        // nie komunikuje, a sugerowalby, ze cos trwa).
+        const daysBar = active
+            ? `<div class="so-daysbar" role="presentation">
+                   <i style="width:${Math.round(seasonElapsedPct() * 100)}%"></i>
+               </div>`
+            : '';
         const bullets = season.bulletKeys.map(key => `<li>${t(key)}</li>`).join('');
         const heroImg = `<img class="so-art" src="${import.meta.env.BASE_URL}seasons/${season.id}/hero.jpg"
             alt="" draggable="false" onerror="this.remove()"
             onload="this.parentElement.classList.add('has-art')">`;
 
+        // v0.140.0 — RZAD DZIELONY 5/6 + 1/6 (uklad wskazany przez Mariusza).
+        // Baner zostaje w swoim boksie, a licznik dostaje WLASNY, waski kafel obok:
+        // podpis w pierwszym wierszu, liczba w drugim. W v0.139.0 licznik byl chipem
+        // wewnatrz bloku info — gubil sie obok licznika dni, bo oba wygladaly tak samo.
+        // Sezon bez znajdziek (`points === null`) nie dostaje boksu i baner bierze
+        // caly rzad, wiec Arena nie pokazuje pustej ramki z zerem.
+        const countBox = points !== null
+            ? `<div class="bt-season-count" style="--season:${season.accentColor}">
+                   <span class="sc-label">${t('hub.season.itemsBox')}</span>
+                   <b class="sc-value">${points}</b>
+               </div>`
+            : '';
+
         return `
-            <div class="bt-season-info" style="--season:${season.accentColor}">
-                <div class="so-hero">
-                    ${heroImg}
-                    <span class="so-ghost" aria-hidden="true">${season.id.toUpperCase()}</span>
-                    <span class="so-emoji" aria-hidden="true">${season.emoji}</span>
+            <div class="bt-season-row${points !== null ? '' : ' is-solo'}">
+                <div class="bt-season-info" style="--season:${season.accentColor}">
+                    <div class="so-hero">
+                        ${heroImg}
+                        <span class="so-ghost" aria-hidden="true">${season.id.toUpperCase()}</span>
+                        <span class="so-emoji" aria-hidden="true">${season.emoji}</span>
+                    </div>
+                    <div class="bt-season-info-body">
+                        <h3 class="so-title">${t(season.nameKey)}</h3>
+                        <div class="so-meta">
+                            <div class="so-time${active ? '' : ' is-ended'}">${timeChip}</div>
+                        </div>
+                        ${daysBar}
+                        <div class="so-whatsnew">${t('hub.season.whatsNew')}</div>
+                        <ul class="so-bullets">${bullets}</ul>
+                        <button class="bt-hub0-pbtn bt-hub0-pbtn--gold so-cta" data-action="view-track" type="button">
+                            🏆 ${t('hub.season.viewTrack')}
+                        </button>
+                    </div>
                 </div>
-                <div class="bt-season-info-body">
-                    <h3 class="so-title">${t(season.nameKey)}</h3>
-                    <div class="so-time${active ? '' : ' is-ended'}">${timeChip}</div>
-                    <div class="so-whatsnew">${t('hub.season.whatsNew')}</div>
-                    <ul class="so-bullets">${bullets}</ul>
-                    <button class="bt-hub0-pbtn bt-hub0-pbtn--gold so-cta" data-action="view-track" type="button">
-                        🏆 ${t('hub.season.viewTrack')}
-                    </button>
-                </div>
+                ${countBox}
             </div>`;
     }
 
@@ -91,7 +126,7 @@ export class SeasonSection implements HubSection {
 
         // Sezon bez znajdziek (Arena w roadmapie 2027, sezony fabularne) dostaje sam
         // blok info — pusta kolekcja i tory z zerami byly by szumem, nie informacja.
-        if (!content || !profile) return head + this.infoHtml();
+        if (!content || !profile) return head + this.infoHtml(null);
 
         const owned = ProgressionService.getSeasonItemsOwned(profile.id);
         const points = ProgressionService.getSeasonCollected(profile.id);
@@ -134,29 +169,30 @@ export class SeasonSection implements HubSection {
                     </div>`;
         };
 
+        // v0.139.0 (pkt 7): dwa tory OBOK SIEBIE. Kazdy ma po 3-4 krotkie wiersze,
+        // wiec ustawione pod soba zjadaly pol ekranu na powietrze. Podzial na kolumny
+        // jest w CSS (`.ps-tracks`), na waskim ekranie wraca do jednej kolumny.
         return `
             ${head}
-            ${this.infoHtml()}
+            ${this.infoHtml(points)}
             <div class="ps-season">
-                <div class="ps-season-sum">
-                    <span>${t(content.counterKey)}</span>
-                    <b>${points}</b>
-                </div>
-
                 <div class="bt-hub0-subhead">🎒 ${t('season.findThemAll')}</div>
                 <div class="ps-items">${tiles}</div>
 
-                <div class="bt-hub0-subhead">${crateIcon(16)} ${t('hub.profile.season.pointTrack')}</div>
-                <div class="ps-ths">${ptRows}</div>
-
-                <div class="bt-hub0-subhead">🏅 ${t('hub.profile.season.setTrack')}</div>
-                <div class="ps-ths">
-                    ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), crateIcon(18))}
-                    ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), '🏅')}
-                    ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), '👑')}
+                <div class="ps-tracks">
+                    <div class="ps-track">
+                        <div class="bt-hub0-subhead">${crateIcon(16)} ${t('hub.profile.season.pointTrack')}</div>
+                        <div class="ps-ths">${ptRows}</div>
+                    </div>
+                    <div class="ps-track">
+                        <div class="bt-hub0-subhead">🏅 ${t('hub.profile.season.setTrack')}</div>
+                        <div class="ps-ths">
+                            ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), crateIcon(18))}
+                            ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), '🏅')}
+                            ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), '👑')}
+                        </div>
+                    </div>
                 </div>
-
-                <p class="ps-season-note">${t('hub.profile.season.museumSoon')}</p>
             </div>`;
     }
 

@@ -1846,11 +1846,75 @@ body.bt-desktop .bt-hub0-s2 small { font-size: 12px; }
    przeplywie sekcji, a nie w oknie nad trescia. Kolumna z artem ma STALA szerokosc
    zamiast procentu z modalu — strona bywa szeroka na 1200 px i plakat rozciagniety
    na 46% wygladalby jak baner, a nie jak plakat. */
+/* v0.140.0 — RZAD SEZONU dzielony 5/6 (baner) : 1/6 (licznik itemow), uklad wskazany
+   przez Mariusza. `margin-bottom` przeniesiony tu z `.bt-season-info`, bo to rzad jest
+   teraz elementem ukladu strony, a nie sam baner.
+   `is-solo` = sezon bez znajdziek (Arena): boksu nie ma, baner bierze caly rzad. */
+.bt-season-row {
+    display: grid; grid-template-columns: 5fr 1fr; gap: 10px;
+    align-items: stretch; margin-bottom: 14px;
+}
+.bt-season-row.is-solo { grid-template-columns: 1fr; }
+/* UWAGA na przyszlosc: ta regula NIE dotyczy telefonow. Gra jest ZABLOKOWANA
+   W POZIOMIE (ekran „Obroc telefon"), wiec telefon zglasza sie tu jako ~873x393 —
+   szeroki, nie waski. Warunek szerokosci lapie tylko zwezone okno przegladarki
+   i tablet w pionie. Mobilnym breakpointem tej gry jest WYSOKOSC (blok nizej). */
+@media (max-width: 700px) {
+    .bt-season-row { grid-template-columns: 1fr; }
+}
+
+/* ── TELEFON W POZIOMIE (zmierzone na A54: 873x393 CSS px) ────────────────────
+   Bez tego bloku rzad sezonu miał 284 px przy 393 px ekranu, czyli ZJADAL 72%
+   pierwszego widoku — gracz otwieral strone sezonu i widzial niemal wylacznie
+   baner, a kolekcja (po ktora przyszedl) zaczynala sie ponizej zgiecia.
+   Skladowe zmierzone: tytul 63 px (28 px font lamany na dwie linie), bullety 76,
+   CTA 44. Tu wszystkie trzy sa sciskane; tresc zostaje ta sama, maleje tylko oprawa. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .bt-season-info-body { padding: 8px 12px; }
+    .bt-season-info-body .so-title { font-size: 18px; margin-top: 4px; }
+    .bt-season-info-body .so-whatsnew { margin-top: 4px; }
+    .bt-season-info-body .so-bullets { margin: 4px 0; line-height: 1.25; }
+    .bt-season-info-body .so-bullets li { margin: 1px 0; }
+    /* CTA CELOWO NIETKNIETY: `.bt-hub0-pbtn` ma min-height 44 px jako cel dotykowy.
+       Zmniejszanie paddingu i tak nie skraca przycisku (min-height wygrywa), a obniza
+       czytelnosc napisu — sprawdzone pomiarem: przy padding 7px wysokosc dalej 44 px. */
+    .bt-season-count { padding: 8px; }
+    .bt-season-count .sc-value { font-size: 34px; }
+    .bt-season-count .sc-label { font-size: 10px; }
+}
+
+.bt-season-count {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; padding: 12px 10px; text-align: center;
+    background: var(--hub-steel-850);
+    border: 1px solid color-mix(in srgb, var(--season, #f1c40f) 45%, var(--hub-line));
+    border-radius: var(--radius-lg, 16px);
+}
+.bt-season-count .sc-label {
+    font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--hub-ink-dim); line-height: 1.2;
+}
+/* Liczba w DRUGIM wierszu i DUZA — to ona jest trescia kafla, podpis tylko ja nazywa.
+   48 px, bo kafel ma ~200 px szerokosci i rozciaga sie na wysokosc banera: przy 32 px
+   liczba gubila sie w pustce zamiast byc pierwsza rzecza, ktora widac.
+   Cztery cyfry mieszcza sie z zapasem (Titan One, ~26 px na cyfre przy 48 px). */
+.bt-season-count .sc-value {
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
+    font-size: 48px; line-height: 1; color: var(--hub-gold);
+    font-variant-numeric: tabular-nums;
+}
+/* Po zwinieciu kolumn (telefon) kafel jest szeroki i NISKI — 48 px rozpychaloby go
+   na wysokosc, ktorej na telefonie brakuje najbardziej. */
+@media (max-width: 700px) {
+    .bt-season-count { flex-direction: row; justify-content: center; gap: 10px; padding: 10px; }
+    .bt-season-count .sc-value { font-size: 30px; }
+}
+
 .bt-season-info {
     display: flex; align-items: stretch; gap: 0;
     background: var(--hub-steel-900); border: 1px solid var(--hub-line);
     border-radius: var(--radius-lg, 16px); overflow: hidden;
-    margin-bottom: 14px;
+    min-width: 0;
 }
 .bt-season-info .so-hero {
     flex: 0 0 auto; align-self: stretch; width: 240px; min-width: 0;
@@ -1867,12 +1931,36 @@ body.bt-desktop .bt-hub0-s2 small { font-size: 12px; }
 
 /* Telefon w poziomie i waskie ekrany: kolumny staczaja sie pod siebie, a art
    przechodzi w panorame — pionowy plakat na 240 px zjadlby caly kadr wysokosci. */
-@media (max-width: 700px), (orientation: landscape) and (max-height: 560px) {
+/* ── v0.139.0 (pkt 2) — HERO NA TELEFONIE ────────────────────────────────────
+   ZMIERZONA PRZYCZYNA: plakat sezonu jest PIONOWY (`hero.jpg` = 286x512, proporcja
+   0.56). Stary blok mobilny rozkladal kolumny pod siebie i wymuszal na artcie
+   PANORAME (`aspect-ratio: 16/6`) — czyli z pionowego plakatu `cover` wycinal
+   waziutki poziomy pasek i powiekszal go kilkukrotnie. Stad zgloszenie „rozwala
+   cale UI": z grafiki zostawalo wielkie logo, ktore spychalo bullety i CTA pod dock.
+   `contain` tego NIE naprawia — wpisuje pionowy plakat w szeroki kadr i zostawia
+   ogromne puste boki.
+
+   WLASCIWA POPRAWKA: na telefonie w POZIOMIE (szeroko, ale nisko — a wysokosci
+   brakuje najbardziej) kolumny ZOSTAJA OBOK SIEBIE, tylko kolumna artu kurczy sie
+   z 240 do 120 px. Pionowy plakat w pionowej kolumnie to jego naturalny kadr:
+   zero powiekszania, zero pustych bokow, zero zjedzonej wysokosci. */
+@media (orientation: landscape) and (max-height: 900px) and (min-width: 481px) {
+    .bt-season-info .so-hero { width: 120px; }
+    .bt-season-info-body { padding: 12px 14px; }
+    .bt-season-info-body .so-bullets { margin: 6px 0; }
+}
+/* Bardzo waskie okno (<=480px). NIE jest to „telefon w pionie" — gra ma blokade
+   orientacji, wiec tej sciezki telefon nie zobaczy; to zabezpieczenie dla zwezonego
+   okna przegladarki. Kolumny staczaja sie pod siebie, kadr dostaje twardy sufit 150 px
+   i `cover` od SRODKA (nie od gory) — przy pionowym plakacie kadrowanie gorna
+   krawedzia pokazywalo samo logo. */
+@media (max-width: 480px) {
     .bt-season-info { flex-direction: column; }
     .bt-season-info .so-hero {
-        width: 100%; aspect-ratio: 16 / 6; align-self: auto;
+        width: 100%; align-self: auto; max-height: 150px; min-height: 0;
         border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
     }
+    .bt-season-info .so-hero .so-art { object-position: center; }
     .bt-season-info-body { padding: 12px 14px; }
 }
 .so-hero {
@@ -1947,17 +2035,25 @@ body.bt-desktop .so-title { font-size: 28px; }
 }
 .so-time.is-ended { color: var(--hub-ink-faint); }
 
-/* SEASON KIT — zakladka SEZON w profilu (pelny widok; popup ma wersje skrocona) */
-.ps-season-sum {
-    display: flex; justify-content: space-between; align-items: baseline;
+/* v0.139.0 — pasek `.ps-season-sum` na cala szerokosc usuniety (zajmowal caly rzad,
+   zeby pokazac jedna liczbe). v0.140.0 — chip `.so-score` z tego rzedu tez usuniety:
+   licznik ma teraz WLASNY boks 1/6 obok banera (`.bt-season-count`). Trzymanie obu
+   znaczyloby te sama liczbe w dwoch miejscach o metr od siebie. */
+.so-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* v0.140.0 — MINI-PASEK DNI pod tytulem sezonu. Wyglad odtworzony ze skasowanego
+   `SeasonOverlay` (`.so-collect-bar`), o ktory prosil Mariusz („wczesniej byl taki
+   paseczek"): niski tor, pelne zaokraglenie, wypelnienie w gradiencie akcentu.
+   6 px zamiast tamtych 10 — tamten pasek byl glownym elementem sekcji zbierania,
+   a ten ma byc podkreśleniem pod tytulem: subtelny, ale czytelny.
+   `min-width: 2px` na wypelnieniu, zeby pierwszy dzien sezonu nie wygladal jak pusty tor. */
+.so-daysbar {
+    height: 6px; border-radius: 999px; overflow: hidden; margin: 6px 0 2px;
     background: var(--hub-steel-850); border: 1px solid var(--hub-line);
-    border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
-    font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
-    color: var(--hub-ink-dim);
 }
-.ps-season-sum b {
-    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
-    font-size: 22px; color: var(--hub-gold); text-transform: none;
+.so-daysbar > i {
+    display: block; height: 100%; min-width: 2px;
+    background: linear-gradient(90deg, var(--hub-accent-dim), var(--hub-gold));
 }
 .ps-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
@@ -1977,6 +2073,13 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
         var(--hub-steel-850);
 }
 .ps-item.is-owned .ps-item-n { color: var(--hub-gold); }
+/* v0.139.0 (pkt 7) — tory ZA PUNKTY i ZA KOMPLETY obok siebie. Kazdy ma po 3 krotkie
+   wiersze, wiec ustawione pod soba zjadaly pol ekranu na powietrze i spychaly muzeum
+   poza kadr. Ponizej 700 px wracaja pod siebie — dwa waskie tory z tekstem
+   „Piec przedmiotow 0/5" nie zmieszczilyby sie obok siebie na telefonie. */
+.ps-tracks { display: grid; grid-template-columns: 1fr; gap: 0 18px; }
+@media (min-width: 701px) { .ps-tracks { grid-template-columns: 1fr 1fr; } }
+
 .ps-ths { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .ps-th {
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -1989,11 +2092,6 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 .ps-th-rew { font-size: 15px; }
 .ps-season-note { font-size: 11.5px; color: var(--hub-ink-faint); margin: 4px 2px 0; }
 
-
-.so-whatsnew {
-    margin: 16px 18px 8px; font-size: 11px; font-weight: 800;
-    letter-spacing: 0.5px; text-transform: uppercase; color: var(--hub-ink-dim);
-}
 .so-bullets {
     margin: 0 16px 14px; padding: 0 0 0 20px;
     display: flex; flex-direction: column; gap: 7px;

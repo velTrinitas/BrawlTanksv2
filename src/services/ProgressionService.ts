@@ -58,6 +58,26 @@ const DEV_ALL_POWERS: boolean = (() => {
     catch { return false; }
 })();
 
+/**
+ * SEASON-3 (v0.139.0) — jedna gablota muzeum: migawka ZAKONCZONEGO sezonu.
+ *
+ * Trzyma tylko to, co muzeum realnie pokazuje. Swiadomie NIE kopiujemy `claimed`
+ * ani `rewardsClaimed` — nagrody sa wyplacone i nieodwracalne, wiec ich historia
+ * niczego graczowi nie mowi, a puchlaby dokument synca z kazdym sezonem.
+ */
+export interface SeasonArchiveEntry {
+    /** Id sezonu z manifestu (`s2`, `s3`, ...) — klucz deduplikacji przy merdze. */
+    readonly id: string;
+    /** Suma punktow ze znajdziek w tamtym sezonie. */
+    readonly collected: number;
+    /** Ile sztuk kazdego przedmiotu (klucz = `value` 1..6) — z tego liczy sie N/6. */
+    readonly items: Record<number, number>;
+    /** Trofea SEZONOWE zdobyte w tamtym sezonie. */
+    readonly trophies: number;
+    /** ms zamkniecia (moment rolloveru u tego gracza) — sortowanie gablot. */
+    readonly endedAt: number;
+}
+
 /** Stan progresji jednego profilu (localStorage). */
 interface ProgressionState {
     profileId: string;
@@ -134,6 +154,20 @@ interface ProgressionState {
         /** Dzien (YYYY-MM-DD), w ktorym zebrano legendarna znajdzke — bramka 1/dobe. */
         legendaryDay?: string;
     };
+
+    /**
+     * SEASON-3 (v0.139.0) — MUZEUM SEZONOW. Migawki ZAKONCZONYCH sezonow.
+     *
+     * MUSI lezec POZA `st.season`. `ensureSeason()` podmienia tamten obiekt W CALOSCI
+     * przy kazdej zmianie sezonu, wiec archiwum wlozone do srodka skasowalby ten sam
+     * kod, ktory je tworzy — dokladnie przed tym ostrzega bramka G7 straznika.
+     *
+     * Do v0.138.0 archiwum NIE ISTNIALO: dane Sezonu 2 przepadly bezpowrotnie przy
+     * rolloverze 01.09, a strona sezonu obiecywala muzeum bez pokrycia w kodzie.
+     *
+     * Merge z chmury: UNIA PO `id` (archiwum tylko rosnie, nigdy nie maleje).
+     */
+    seasonArchive?: SeasonArchiveEntry[];
 
     // ── RANKS-1: RANGA CZOLGISTY (per gracz) ──
     /** Zwyciestwa gracza (dowolny czolg, mecz >= RANK_MIN_SECONDS). Merge: MAX. */
@@ -401,16 +435,73 @@ class ProgressionServiceImpl {
     private ensureSeason(st: ProgressionState): void {
         const cur = getCurrentSeason();
         if (st.season.id !== cur.id) {
+            // v0.139.0 — MIGAWKA DO MUZEUM, ZANIM cokolwiek skasujemy. Do v0.138.0
+            // konczacy sie sezon znikal bez sladu i tak wlasnie przepadl Sezon 2
+            // przy rolloverze 01.09; strona sezonu obiecywala muzeum bez pokrycia.
+            this.archiveSeason(st);
             // Podmiana W CALOSCI: licznik znajdziek i dzienna bramka MAJA zginac
             // razem z sezonem. Stan TRWALY (gablota swiadectw, Akt 2) nie moze tu
-            // mieszkac — pilnuje tego bramka G7 straznika.
+            // mieszkac — pilnuje tego bramka G7 straznika. `seasonArchive` lezy
+            // POZA tym obiektem wlasnie z tego powodu.
             st.season = { id: cur.id, trophies: 0, claimed: [], collected: 0, items: {}, rewardsClaimed: [] };
         }
+    }
+
+    /**
+     * Zapisuje konczacy sie sezon do `st.seasonArchive`. Wolane WYLACZNIE z
+     * `ensureSeason`, tuz przed wyczyszczeniem stanu.
+     *
+     * Trzy warunki pominiecia, kazdy celowy:
+     *  - sezon bez zawartosci (`getSeasonContent` = brak) — Arena i sezony fabularne
+     *    nie maja znajdziek, wiec gablota bylaby pusta ramka,
+     *  - sezon, ktory nic nie zebral — gracz go nie gral, nie ma czego wystawiac,
+     *  - id juz obecne w archiwum — rollover moze odpalic sie kilka razy (kilka
+     *    urzadzen, przywrocenie z chmury), a gablota ma byc JEDNA na sezon.
+     */
+    private archiveSeason(st: ProgressionState): void {
+        const old = st.season;
+        if (!old?.id) return;
+        if (!getSeasonContent(old.id)) return;
+        const collected = old.collected ?? 0;
+        const items = old.items ?? {};
+        if (collected <= 0 && Object.keys(items).length === 0) return;
+
+        st.seasonArchive ??= [];
+        if (st.seasonArchive.some(e => e.id === old.id)) return;
+
+        st.seasonArchive.push({
+            id: old.id,
+            collected,
+            items: { ...items },
+            trophies: old.trophies ?? 0,
+            endedAt: Date.now(),
+        });
+        console.log(`[Progression] sezon ${old.id} zarchiwizowany do muzeum (${collected} pkt)`);
     }
 
     // ══════════════════════════════════════════════════════════════════
     // SEASON KIT — licznik znajdziek + dzienna bramka legendarnej
     // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * MUZEUM (v0.139.0) — zakonczone sezony, NAJNOWSZY PIERWSZY.
+     *
+     * ⚠️ WIDOK muzeum ZOSTAL USUNIETY ze strony sezonu w v0.141.0 (decyzja Mariusza:
+     * pusta gablota nic nie wnosila i wprawiala w konsternacje), wiec ta metoda nie ma
+     * dzis wolajacego. ZAPIS ARCHIWUM ZOSTAJE CELOWO i NIE WOLNO go usuwac razem
+     * z widokiem: to on ma termin. Bez niego Sezon 3 przepadnie przy rolloverze 01.11
+     * dokladnie tak, jak przepadl Sezon 2 — a wtedy przywrocona gablota znowu nie
+     * bedzie miala czego pokazac. Dane zbieraja sie dalej, w tle.
+     *
+     * `ensureSeason` wolane najpierw, zeby wejscie na strone sezonu tuz po rolloverze
+     * od razu pokazalo swiezo zamknieta gablote, a nie dopiero po pierwszym meczu.
+     */
+    getSeasonArchive(profileId: string): readonly SeasonArchiveEntry[] {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        return [...(st.seasonArchive ?? [])].sort((a, b) => b.endedAt - a.endedAt);
+    }
 
     /** Suma zebranych znajdziek w BIEZACYM sezonie (0 gdy sezon ich nie ma). */
     getSeasonCollected(profileId: string): number {
@@ -782,6 +873,11 @@ class ProgressionServiceImpl {
                     rankShown: st.rankShown,
                     boltsSpent: st.boltsSpent,              // SHOP-1 — ledger waluty
                     purchases: st.purchases,
+                    // SEASON-3 (v0.139.0) — MUZEUM. Jedyny stan sezonowy, ktory PRZEZYWA
+                    // rollover, wiec musi jechac do chmury osobno od `season*` wyzej
+                    // (tamte pola dotycza WYLACZNIE biezacego sezonu i sa kasowane).
+                    // Bez SQL — `stats` to bezschematowy JSONB.
+                    seasonArchive: st.seasonArchive ?? [],
                 },
             })
             .catch((e) => console.warn('[Progression] syncPush failed (offline?):', (e as Error).message));
@@ -1169,6 +1265,20 @@ class ProgressionServiceImpl {
                 ]);
                 st.season.claimed = [...union].sort((a, b) => a - b);
             }
+        }
+        // SEASON-3 (v0.139.0) — MUZEUM: unia po `id`, POZA warunkiem zgodnosci sezonu
+        // wyzej. To jedyny stan sezonowy, ktory ma przezyc rollover, wiec wiazanie go
+        // z biezacym `seasonId` skasowaloby cale archiwum przy pierwszym syncu
+        // po zmianie sezonu — czyli dokladnie wtedy, gdy jest najswiezsze.
+        // Lokalne wpisy WYGRYWAJA przy tym samym id (to ten sam sezon tego samego
+        // gracza; rozstrzyganie po polach dawaloby tylko szanse na przeklamanie).
+        if (Array.isArray(remote.seasonArchive)) {
+            const byId = new Map<string, SeasonArchiveEntry>();
+            for (const e of remote.seasonArchive) {
+                if (e && typeof e.id === 'string') byId.set(e.id, e);
+            }
+            for (const e of st.seasonArchive ?? []) byId.set(e.id, e);
+            st.seasonArchive = [...byId.values()];
         }
         // SHOP-1 — ledger waluty. boltsSpent MAX (monotoniczny, jak cratesOpened),
         // purchases UNION. Bez tego pierwszy syncPull po zakupie oddalby wydane sigmy.

@@ -200,6 +200,25 @@ export function seasonDaysLeft(now: number = seasonNow()): number {
 }
 
 /**
+ * v0.140.0 — ile sezonu JUZ MINELO, 0..1. Zasila pasek dni pod tytulem na stronie sezonu.
+ *
+ * Liczone TUTAJ, a nie w UI, z jednego powodu: `seasonNow()` honoruje podglad `?season=`
+ * (devNowOverride). Gdyby sekcja liczyla to sama z `Date.now()`, pasek klamalby dokladnie
+ * w trybie, ktory sluzy do ogladania przyszlych sezonow — a tam sprawdza sie go najczesciej.
+ *
+ * Sezon jeszcze nierozpoczety => 0, zakonczony => 1. Zerowa albo ujemna dlugosc
+ * (blad w manifescie, ktory i tak zlapie bramka G1) nie dzieli przez zero.
+ */
+export function seasonElapsedPct(now: number = seasonNow()): number {
+    const s = getCurrentSeason(now);
+    const start = Date.parse(s.start);
+    const end = Date.parse(s.end);
+    const span = end - start;
+    if (!(span > 0)) return now >= end ? 1 : 0;
+    return Math.max(0, Math.min(1, (now - start) / span));
+}
+
+/**
  * Klucz krotkiej nazwy do pillu na belce ("Sezon 2"). Zwraca KLUCZ, nie tekst —
  * `t()` kompiluje sie tylko z literalem, wiec tlumaczenie robi wolajacy.
  *

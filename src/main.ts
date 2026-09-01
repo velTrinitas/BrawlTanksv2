@@ -3610,7 +3610,8 @@ app.ticker.add((rawDelta) => {
         // rezerwuje wiersza (magnes/turbo zostaja na swoich miejscach).
         hud.seasonCount = content ? currentSession.seasonPickupsCollected : null;
         if (content) {
-            hud.seasonIcon = '📕';
+            // v0.139.0: `hud.seasonIcon` usuniete — chip pokazuje sama liczbe pod
+            // podpisem „ZNAJDŹKI", bez emoji 📕 (ktore i tak dublowalo zle znaczenie).
             const nowMs = Date.now();
             // JEDEN zegar spawnu na cala pule (nie po jednym na rzadkosc): przedmiot
             // wybiera losowanie wazone z manifestu, wiec rzadkosc wynika z wagi,

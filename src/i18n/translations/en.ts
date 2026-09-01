@@ -159,6 +159,8 @@ export const en: typeof pl = {
     'hub.season.daysLeft': '{n} days left',
     'hub.season.ended': 'Season ended',
     'hub.season.whatsNew': 'What this season brings',
+    'hub.season.itemsBox': 'Seasonal items',
+    'hub.season.museum': 'Season museum',
     'hub.season.viewTrack': 'VIEW SEASON TRACK',
     // Season roadmap (SEASON-2) — names + popup bullets
     'season.s2.name': 'Season 2 — Arena',
@@ -168,11 +170,11 @@ export const en: typeof pl = {
     'season.s2.b3': 'Finale Aug 31 — grab rewards before they vanish!',
     'season.s3.name': 'Season 3 — Back to School',
     'season.s3.short': 'Season 3',
-    'season.s3.b1': 'Fresh Season Track: sigma and crates to earn',
-    'season.s3.b2': 'School vibes: chalk, backpacks and trophy homework',
-    'season.s3.b3': 'More surprises coming soon!',
+    'season.s3.b1': 'New Season Track — grab sigma and crates at every step',
+    'season.s3.b2': 'School vibes on the arena. School gear all over the maps.',
+    'season.s3.b3': 'Seasonal finds and a unique tank skin — coming soon!',
     // SEASON KIT: name of the season collectible counter (HUD, end-of-run screen).    // SEASON 2 — collectibles (art and names shared with S3)
-    'season.s2.counter': 'books',
+    'season.s2.counter': 'finds',
     'season.s2.item1': 'Pencil',
     'season.s2.item2': 'Book',
     'season.s2.item3': 'Notebook',
@@ -180,7 +182,7 @@ export const en: typeof pl = {
     'season.s2.item5': 'Backpack',
     'season.s2.item6': 'Globe',
 
-    'season.s3.counter': 'books',
+    'season.s3.counter': 'finds',
     // SEASON KIT — names of the 6 season-3 collectibles.
     'season.s3.item1': 'Pencil',
     'season.s3.item2': 'Book',
@@ -829,7 +831,7 @@ export const en: typeof pl = {
     'hud.caravanMagnet':  '🐪 Caravan dropped 🧲',
     'hud.roverGem':       '🛰️ Rover dropped 💎',
     // SEASON KIT — HUD counter chip label.
-    'hud.books': 'Books',
+    'hud.finds': 'Items',
     // SEASON KIT — legendary collectible (1 per day).
     'hud.seasonLegendary': '📙 GOLDEN ENCYCLOPEDIA!',
     // SEASON KIT — first time this collectible type is picked up.
@@ -854,7 +856,7 @@ export const en: typeof pl = {
     'pad.repairing':      'REPAIRING',
     'ctf.flagLabel':      'FLAG {team}',
     'portrait.title':     'Turn your phone sideways',
-    'portrait.subtitle':  'Brawl Tanks plays best in landscape — you see more of the battlefield 🔄',
+    'portrait.subtitle':  'Sigma Tanks plays best in landscape — you see more of the battlefield 🔄',
 
     'hud.mediPadHeal':    '🔧 +{hp} HP',
     'hud.heartHeal':      '❤️ +{hp} HP',

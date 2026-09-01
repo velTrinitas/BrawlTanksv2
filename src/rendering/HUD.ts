@@ -26,6 +26,13 @@ const FONT_FAMILY = 'Titan One';
  */
 const HUD_LABEL_PX = 26;
 
+/**
+ * v0.140.0 — podpis chipu sezonowego. WLASNA stala, celowo mniejsza od HUD_LABEL_PX.
+ * Chip ma 34 px wysokosci (pille HP/WYNIK/ZABICI maja 54), wiec ten sam podpis
+ * co u sasiadow zjadal go w calosci i wygrywal z liczba, ktora jest tu trescia.
+ */
+const SEASON_LABEL_PX = 18;
+
 interface HudNotif {
     text: string;
     color: string;
@@ -100,8 +107,6 @@ export class HUD {
      * pustym sezonie, magnes i turbo byly by zepchniete bez powodu.
      */
     public seasonCount: number | null = null;
-    /** Emoji znajdzki (📕) — z konfiguracji sezonu, nie zahardkodowane w HUD. */
-    public seasonIcon: string = '';
 
     /** FAZA CTF F3 — dane CTF (null poza scenariuszem ctf). Ustawiane per klatke z main.ts. */
     public ctfInfo: HudCtfInfo | null = null;
@@ -679,8 +684,15 @@ export class HUD {
         const GAP = 8;                      // minimalny odstep podpis <-> wartosc
         const budget = PW - PAD * 2 - GAP;
 
-        const label = tr('hud.books');
-        const val = `${this.seasonIcon} ${this.seasonCount ?? 0}`;
+        // v0.139.0 (pkt 3): podpis „Książki" -> „Znajdźki". Playtest: slowo „ksiazki"
+        // nic graczowi nie mowilo, bo znajdzki sezonu to nie tylko ksiazki, a nazwa
+        // musialaby sie zmieniac z kazdym sezonem. „Znajdźki" jest sezono-niezalezne
+        // i pokrywa sie ze slowem, ktorego uzywa juz strona sezonu (season.findThemAll).
+        //
+        // EMOJI USUNIETE — sama liczba. Ikonka 📕 dublowala to samo (zle) znaczenie,
+        // a po jej wycieciu wartosc miesci sie bez kurczenia.
+        const label = tr('hud.finds');
+        const val = String(this.seasonCount ?? 0);
 
         // Wartosc jest wazniejsza od podpisu (podpis stoi obok ikony 📕, wiec i tak
         // sie domysli), dlatego przy ciasnocie kurczy sie NAJPIERW podpis.
@@ -693,9 +705,14 @@ export class HUD {
             valW = c.measureText(val).width;
         }
 
-        let labelPx = HUD_LABEL_PX;
+        // v0.140.0: podpis startuje od WLASNEJ, mniejszej stalej, a nie od wspoldzielonego
+        // HUD_LABEL_PX (26 px). Zgloszenie Mariusza: „slowo dominuje" — i slusznie, bo
+        // 26 px w kafelku wysokim na 34 px zajmowalo prawie cala jego wysokosc
+        // i przykrywalo to, co naprawde niesie informacje, czyli LICZBE.
+        // HUD_LABEL_PX zostaje NIETKNIETY — dziela go HP / WYNIK / ZABICI.
+        let labelPx = SEASON_LABEL_PX;
         c.font = `${labelPx}px "${FONT_FAMILY}",cursive`;
-        while (c.measureText(label).width > budget - valW && labelPx > 14) {
+        while (c.measureText(label).width > budget - valW && labelPx > 12) {
             labelPx -= 1;
             c.font = `${labelPx}px "${FONT_FAMILY}",cursive`;
         }

@@ -635,6 +635,15 @@ export const pl = {
     'map.range.name': 'POLIGON',
     'map.range.tagline': 'Wojskowy tor przeszkód',
 
+    // Mapy CTF (v0.143.0). Do teraz nazwa mapy CTF byla wpisana na sztywno w
+    // BattleSection jako 'FORTIFIED RUINS' — bez i18n, wiec po angielsku takze w PL.
+    'map.fortifiedRuins.name': 'RUINY FORTECY',
+    'map.fortifiedRuins.tagline': 'Trzy flagi w gruzach twierdzy',
+    'map.destroyedCity.name': 'ZNISZCZONE MIASTO',
+    'map.destroyedCity.tagline': 'Walka o flagi wśród ruin metropolii',
+    'map.conquerMoon.name': 'PODBÓJ KSIĘŻYCA',
+    'map.conquerMoon.tagline': 'Flagi w niskiej grawitacji',
+
     // ============================================================
     // Difficulty levels
     // ============================================================
@@ -840,6 +849,8 @@ export const pl = {
     'ctf.bossRespawn':    '⚠️ BOSS RESPAWN!',
     'ctf.enemiesEnraged': '⚔️ WROGOWIE WŚCIEKLI!',
     'ctf.carryBanner':    '🚩 WRACAJ DO BAZY!',
+    'ctf.baseShield':     '🛡️ TARCZA BAZY',
+    'ctf.baseBreached':   '🚨 WROGOWIE WCHODZĄ!',
     'end.flags':          'Flagi',
     'hud.stealthSpotted':   '👁️ ZOSTAŁEŚ ZAUWAŻONY!',
     'hud.shotRevealed':     '🔫 STRZAŁ ZDRADZIŁ POZYCJĘ!',

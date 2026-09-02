@@ -84,7 +84,10 @@ export interface ICollidable {
  * MenuMapCardId == MapId. Gdy w przyszlosci dojdzie LOCKED mapa z id spoza MapId,
  * rozszerz ten union (np. `MapId | 'volcano'`).
  */
-export type MenuMapCardId = MapId | 'range';   // 'range' = LOCKED zapowiedz (M5d)
+// 'range' = LOCKED zapowiedz KTB (M5d); 'destroyed_city'/'conquer_moon' = LOCKED
+// zapowiedzi CTF (v0.143.0). Zadne z nich NIE jest MapId, wiec kompilator pilnuje,
+// ze nie trafia do GameConfig — kliknac da sie wylacznie mape grywalna.
+export type MenuMapCardId = MapId | 'range' | 'destroyed_city' | 'conquer_moon';
 
 export interface MenuMapCard {
     id: MenuMapCardId;
@@ -105,7 +108,8 @@ export interface MenuMapCard {
     /** Translation key dla badge gdy locked (np. 'common.soon'). */
     comingSoonKey?: TranslationKey;
     /** Typ MapPreview component (FAZA 6b). */
-    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range';
+    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range'
+        | 'ruins' | 'destroyed_city' | 'moon';
 }
 
 /**
@@ -182,6 +186,53 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
         available: false,
         comingSoonKey: 'common.soon',
         previewType: 'range',
+    },
+];
+
+/**
+ * v0.143.0 — karty mapy dla scenariusza CTF (prosba Michala z playtestu: ten sam grid,
+ * ktory dziala w KTB, zamiast zaszytej na sztywno jednej mapy).
+ *
+ * Dzis grywalna jest jedna mapa — `fortified_ruins`. Dwa pozostale sloty to ZAPOWIEDZI
+ * z pelnym animowanym podgladem i plakietka WKROTCE: siatka 3-kolumnowa zostaje pelna,
+ * a gracz widzi, co jest w drodze (ta sama filozofia co kafel POLIGON w KTB).
+ * Kolejnosc = display order: grywalna pierwsza, locked na koncu.
+ */
+export const CTF_MAP_CARDS: MenuMapCard[] = [
+    {
+        id: 'fortified_ruins',
+        nameKey: 'map.fortifiedRuins.name',
+        taglineKey: 'map.fortifiedRuins.tagline',
+        emoji: '🏰',
+        accentColor: '#8c8577',
+        accentDarker: '#4a473f',
+        bgGradient: 'linear-gradient(160deg, #b9c3cc 0%, #8c8577 50%, #565348 100%)',
+        available: true,
+        previewType: 'ruins',
+    },
+    {
+        id: 'destroyed_city',
+        nameKey: 'map.destroyedCity.name',
+        taglineKey: 'map.destroyedCity.tagline',
+        emoji: '🏚️',
+        accentColor: '#c47a44',
+        accentDarker: '#5a3b2e',
+        bgGradient: 'linear-gradient(160deg, #8a5a45 0%, #4a3b46 55%, #2f2a33 100%)',
+        available: false,
+        comingSoonKey: 'common.soon',
+        previewType: 'destroyed_city',
+    },
+    {
+        id: 'conquer_moon',
+        nameKey: 'map.conquerMoon.name',
+        taglineKey: 'map.conquerMoon.tagline',
+        emoji: '🌙',
+        accentColor: '#b8b6b0',
+        accentDarker: '#4a4f5e',
+        bgGradient: 'linear-gradient(160deg, #b8b6b0 0%, #7d7b76 50%, #141a2b 100%)',
+        available: false,
+        comingSoonKey: 'common.soon',
+        previewType: 'moon',
     },
 ];
 

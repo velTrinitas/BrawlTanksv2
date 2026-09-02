@@ -97,8 +97,8 @@ export class HubShell implements IScreen {
             this.onPlay?.(scenario, map, brawlerId, difficulty);
         // v0.127.0 — sekcja prosi o popup mapy, shell montuje go w swoim roocie
         // (ta sama sciezka co CrateOverlay / SeasonOverlay).
-        this.battle.onOpenMapPicker = (selected, pick) => {
-            if (this.rootEl) this.mapPicker.open(this.rootEl, selected, pick);
+        this.battle.onOpenMapPicker = (selected, pick, cards) => {
+            if (this.rootEl) this.mapPicker.open(this.rootEl, selected, pick, cards);
         };
         this.rank.onOpenLeaderboard = () => this.onOpenLeaderboard?.();
         // F2a — GARAŻ: OTWÓRZ skrzynkę => CrateOverlay; po zamknięciu re-render GARAŻU

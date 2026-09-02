@@ -29,6 +29,19 @@ import {
 const WALL_H = 34;
 const MAST_H = 89; // F4.1b: +20% dluzsze maszty w bazie
 
+/**
+ * v0.143.0 — proporce zdobytych flag. Geometria policzona z masztow:
+ * baza masztu y=1650, slup rysowany od y=1650-89=1561 (kula na szczycie).
+ * Proporzec 26x18 wjezdza z y=1628 (dol slupa) do y=1567 (tuz pod kula).
+ * Szerokosc 26 px przy rozstawie masztow 60 px => 30 px luzu, zero nachodzenia.
+ * Prawa krawedz najdalszego proporca: 220+2+26 = 248 < 530 (obrys hangaru).
+ */
+const PENNANT_TOP_Y = 1567;
+const PENNANT_BASE_Y = 1628;
+const PENNANT_RAISE_MS = 400;
+/** Kolor tafli sanktuarium — niebieski, zeby nie mylil sie z zoltym beaconem dostawy. */
+const SHIELD_NUM = 0x3498db;
+
 const P = {
     apronA:    '#7a7668',
     apronB:    '#6e6a5c',
@@ -69,6 +82,12 @@ export class RuinsHangar {
     private buildingContainer: PIXI.Container;
     private mastsContainer: PIXI.Container;
     private gfxBeacon: PIXI.Graphics;
+    /** v0.143.0: tafla sanktuarium — JEDEN prostokat, zero gradientu (fill-rate). */
+    private gfxShield: PIXI.Graphics;
+    /** v0.143.0: proporce zdobytych flag (3 szt., domyslnie niewidoczne). */
+    private pennants: PIXI.Graphics[];
+    /** Timestamp startu wciagania proporca (0 = jeszcze nie zdobyta). */
+    private pennantRaisedAt: number[] = [0, 0, 0];
 
     private collisionRects: ICollidable[];
 
@@ -99,10 +118,34 @@ export class RuinsHangar {
         this.mastsContainer.zIndex = FORTIFIED_FLAG_MASTS[0].y + 5;
         worldContainer.addChild(this.mastsContainer);
 
+        this.gfxShield = new PIXI.Graphics();
+        this.gfxShield.visible = false;
+        this.gfxBeacon = new PIXI.Graphics();
+
+        // Proporce: rysowane RAZ w konstruktorze (geometria stala), pozniej tylko
+        // przesuwane po slupie. NIE dotykamy wypiekanej tekstury masztow — jest
+        // cachowana module-level i HMR jej nie odswieza (regula: static-baked art).
+        this.pennants = FORTIFIED_FLAG_MASTS.map((m) => {
+            const g = new PIXI.Graphics();
+            g.beginFill(m.color);
+            g.moveTo(0, 0);
+            g.lineTo(26, 9);
+            g.lineTo(0, 18);
+            g.closePath();
+            g.endFill();
+            g.lineStyle(1.5, 0x000000, 0.35);
+            g.moveTo(0, 0);
+            g.lineTo(0, 18);
+            g.lineStyle(0);
+            g.x = m.x + 2;
+            g.y = PENNANT_BASE_Y;
+            g.visible = false;
+            return g;
+        });
+
         const floorSpr = new PIXI.Sprite(tex.floor);
         this.floorContainer.addChild(floorSpr);
-
-        this.gfxBeacon = new PIXI.Graphics();
+        this.floorContainer.addChild(this.gfxShield);
         this.floorContainer.addChild(this.gfxBeacon);
 
         const buildingSpr = new PIXI.Sprite(tex.building);
@@ -114,6 +157,8 @@ export class RuinsHangar {
         mastsSpr.x = tex.mastsX;   // canvas(0,0) == world(mastsX, mastsY)
         mastsSpr.y = tex.mastsY;
         this.mastsContainer.addChild(mastsSpr);
+        // Proporce NAD slupami — inaczej wypieczona tekstura masztow zaslonilaby je.
+        for (const p of this.pennants) this.mastsContainer.addChild(p);
 
         // SOLID: bryla budynku blokuje czolgi i pociski
         this.collisionRects = [{ x: B.x, y: B.y, w: B.w, h: B.h, update: () => {} }];
@@ -130,10 +175,49 @@ export class RuinsHangar {
     }
 
     /**
-     * Pulsujacy beacon dostawy (Sensoryka). carrying=true => DRAMATYCZNY tryb.
+     * v0.143.0 — capture flagi `idx`: proporzec wjezdza po maszcie (flex, TODO z F1.1).
+     * Idempotentne: powtorne wywolanie dla tej samej flagi nic nie zmienia.
      */
-    public update(carrying: boolean = false): void {
+    public raiseFlag(idx: number): void {
+        if (idx < 0 || idx >= this.pennants.length) return;
+        if (this.pennantRaisedAt[idx] !== 0) return;
+        this.pennantRaisedAt[idx] = Date.now();
+        this.pennants[idx].visible = true;
+    }
+
+    /**
+     * Pulsujacy beacon dostawy (Sensoryka). carrying=true => DRAMATYCZNY tryb.
+     * shieldActive (v0.143.0) => tafla sanktuarium nad podloga hangaru.
+     */
+    public update(carrying: boolean = false, shieldActive: boolean = false): void {
         const time = Date.now();
+
+        // ── Proporce: wciaganie po maszcie w 400 ms, ease-out ──
+        for (let i = 0; i < this.pennants.length; i++) {
+            const startedAt = this.pennantRaisedAt[i];
+            if (startedAt === 0) continue;
+            const p = this.pennants[i];
+            const raw = Math.min(1, (time - startedAt) / PENNANT_RAISE_MS);
+            if (raw >= 1 && p.y === PENNANT_TOP_Y) continue; // ustabilizowany — nic nie licz
+            const eased = 1 - (1 - raw) * (1 - raw);
+            p.y = PENNANT_BASE_Y + (PENNANT_TOP_Y - PENNANT_BASE_Y) * eased;
+        }
+
+        // ── Tafla sanktuarium: JEDEN prostokat + puls obrysu. Bez gradientu, bez glow —
+        //    500x500 world = 300x300 px przy zoom 0.6, wiec fill-rate zostaje tani. ──
+        if (shieldActive !== this.gfxShield.visible) this.gfxShield.visible = shieldActive;
+        if (shieldActive) {
+            const sg = this.gfxShield;
+            const pulse = 0.5 + 0.5 * Math.sin(time / 220);
+            sg.clear();
+            sg.beginFill(SHIELD_NUM, 0.14);
+            sg.drawRect(0, 0, this.w, this.h);
+            sg.endFill();
+            sg.lineStyle(5, SHIELD_NUM, 0.45 + 0.35 * pulse);
+            sg.drawRect(2.5, 2.5, this.w - 5, this.h - 5);
+            sg.lineStyle(0);
+        }
+
         const g = this.gfxBeacon;
         g.clear();
         const cx = this.w / 2 + 60; // nad strefa "H"

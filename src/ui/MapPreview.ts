@@ -18,7 +18,9 @@
  * - prefers-reduced-motion respected (w menu-styles.css)
  */
 
-export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range';
+export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range'
+    // v0.143.0 — kafle wyboru mapy dla CTF: mapa grywalna + dwie zapowiedzi.
+    | 'ruins' | 'destroyed_city' | 'moon';
 
 /**
  * Map z generators per type.
@@ -31,6 +33,9 @@ export const MapPreviews: Record<PreviewType, () => string> = {
     arctic:    renderArctic,
     mars:      renderMars,
     range:     renderRange,
+    ruins:          renderRuins,
+    destroyed_city: renderDestroyedCity,
+    moon:           renderMoon,
 };
 
 /**
@@ -661,6 +666,255 @@ function renderRange(): string {
     <rect class="mpc-antenna-light" x="-13" y="2" width="26" height="20" rx="4" fill="#e8d9a8"/>
     <circle cx="0" cy="11" r="3" fill="#5a4a30"/>
     <rect x="-1.4" y="11" width="2.8" height="6" fill="#5a4a30"/>
+  </g>
+</svg>`.trim();
+}
+
+// =============================================================
+// RUINS — Ufortyfikowane Ruiny (mapa CTF, v0.143.0)
+// =============================================================
+// Skladniki: mur fortecy + wojskowy hangar w moro (baza gracza) + trzy maszty
+// z proporcami w kolorach flag (ALFA niebieski / BRAVO czerwony / CHARLIE zolty)
+// + pulsujacy beacon dostawy + kurz. Paleta 1:1 z mapa (RuinsHangar/FortifiedRuinsMap),
+// zeby kafel w menu obiecywal to, co gracz realnie zobaczy.
+// Reuse keyframes: .mpc-antenna-light (beacon), .mpc-window (okna), .mpd-particle (kurz).
+// =============================================================
+function renderRuins(): string {
+    return `
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-ruins" aria-hidden="true">
+  <defs>
+    <linearGradient id="bt-ru-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#b9c3cc"/>
+      <stop offset="55%"  stop-color="#95a2ac"/>
+      <stop offset="100%" stop-color="#6e7a83"/>
+    </linearGradient>
+    <linearGradient id="bt-ru-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#7a7668"/>
+      <stop offset="100%" stop-color="#565348"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="240" height="140" fill="url(#bt-ru-sky)"/>
+
+  <!-- Mur fortecy w tle: blanki + wyrwa (ruiny, nie zamek) -->
+  <g fill="#8c8577">
+    <rect x="0" y="58" width="240" height="26"/>
+    <rect x="6"   y="50" width="13" height="9"/>
+    <rect x="30"  y="50" width="13" height="9"/>
+    <rect x="54"  y="50" width="13" height="9"/>
+    <rect x="122" y="50" width="13" height="9"/>
+    <rect x="146" y="50" width="13" height="9"/>
+    <rect x="196" y="50" width="13" height="9"/>
+    <rect x="220" y="50" width="13" height="9"/>
+  </g>
+  <path d="M78,58 L96,84 L112,58 Z" fill="#95a2ac"/>
+  <g fill="#6f695c" opacity="0.8">
+    <rect x="0" y="80" width="240" height="5"/>
+    <rect x="168" y="62" width="7" height="7"/>
+    <rect x="40"  y="66" width="6" height="6"/>
+  </g>
+
+  <!-- Klepisko poligonu -->
+  <path d="M0,84 Q60,80 120,85 T240,83 L240,140 L0,140 Z" fill="url(#bt-ru-ground)"/>
+  <g stroke="#4a473f" stroke-width="1.4" opacity="0.55">
+    <path d="M0,104 L240,101"/>
+    <path d="M96,84 L96,140"/>
+  </g>
+
+  <!-- Hangar w moro (baza gracza) -->
+  <g>
+    <ellipse cx="52" cy="122" rx="42" ry="4" fill="#3a382f" opacity="0.35"/>
+    <rect x="16" y="92" width="72" height="30" rx="3" fill="#55663e"/>
+    <path d="M16,92 L52,78 L88,92 Z" fill="#39422c"/>
+    <rect x="24" y="100" width="16" height="12" rx="2" fill="#6b5a38"/>
+    <rect x="62" y="98" width="18" height="24" rx="2" fill="#2e3628"/>
+    <g fill="#d4b048">
+      <rect class="mpc-window mpc-w2" x="66" y="102" width="10" height="3"/>
+      <rect class="mpc-window mpc-w4" x="66" y="108" width="10" height="3"/>
+    </g>
+    <path d="M46,82 L52,76 L58,82 L52,86 Z" fill="#d4b048"/>
+  </g>
+
+  <!-- Strefa dostawy "H" + beacon -->
+  <g transform="translate(140,104)">
+    <rect x="-26" y="-13" width="52" height="26" rx="3" fill="#6e6a5c" opacity="0.9"/>
+    <g fill="#d4b048">
+      <rect x="-13" y="-8" width="5" height="16"/>
+      <rect x="8"   y="-8" width="5" height="16"/>
+      <rect x="-13" y="-2" width="26" height="4"/>
+    </g>
+    <circle class="mpc-antenna-light" cx="0" cy="0" r="19" fill="none" stroke="#f1c40f" stroke-width="2.5" opacity="0.9"/>
+  </g>
+
+  <!-- Trzy maszty z proporcami (kolory flag CTF) -->
+  <g>
+    <rect x="188" y="70" width="2.6" height="34" fill="#8a8a82"/>
+    <path d="M190.6,71 L206,76 L190.6,81 Z" fill="#3498db"/>
+    <rect x="206" y="74" width="2.6" height="30" fill="#8a8a82"/>
+    <path d="M208.6,75 L222,79.5 L208.6,84 Z" fill="#e74c3c"/>
+    <rect x="222" y="78" width="2.6" height="26" fill="#8a8a82"/>
+    <path d="M224.6,79 L236,83 L224.6,87 Z" fill="#f1c40f"/>
+  </g>
+
+  <!-- Kurz -->
+  <g fill="#cdc6b4" opacity="0.75">
+    <circle class="mpd-particle" cx="70" cy="126" r="2"/>
+    <circle class="mpd-particle mpd-p2" cx="150" cy="132" r="1.6"/>
+    <circle class="mpd-particle mpd-p3" cx="200" cy="120" r="1.4"/>
+  </g>
+</svg>`.trim();
+}
+
+// =============================================================
+// DESTROYED CITY — Zniszczone Miasto (LOCKED zapowiedz CTF, v0.143.0)
+// =============================================================
+// Post-apo: wypalone wiezowce z wyrwami, przechylony blok, dym, tlace sie ognie.
+// Reuse keyframes: .mpc-window (migoczace okna + ogien), .mpd-particle (dym),
+// .mpc-antenna-light (lune pozaru). Zero nowych regul CSS.
+// =============================================================
+function renderDestroyedCity(): string {
+    return `
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-dcity" aria-hidden="true">
+  <defs>
+    <linearGradient id="bt-dc-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4a3b46"/>
+      <stop offset="55%"  stop-color="#8a5a45"/>
+      <stop offset="100%" stop-color="#c47a44"/>
+    </linearGradient>
+    <linearGradient id="bt-dc-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5a5148"/>
+      <stop offset="100%" stop-color="#3a352f"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="240" height="140" fill="url(#bt-dc-sky)"/>
+  <circle class="mpc-antenna-light" cx="196" cy="44" r="26" fill="#e8863a" opacity="0.22"/>
+
+  <!-- Sylwetki wiezowcow: polamane szczyty -->
+  <g fill="#2f2a33">
+    <path d="M10,120 L10,44 L34,44 L34,30 L48,30 L48,120 Z"/>
+    <path d="M58,120 L58,58 L74,52 L88,58 L88,120 Z"/>
+    <path d="M150,120 L150,38 L164,38 L164,26 L176,26 L176,120 Z"/>
+    <path d="M186,120 L186,60 L214,60 L214,120 Z"/>
+  </g>
+  <g transform="translate(112,120) rotate(-13)" fill="#38313c">
+    <rect x="-14" y="-66" width="28" height="66"/>
+  </g>
+  <g fill="#8a5a45" opacity="0.55">
+    <path d="M20,70 L30,64 L34,78 L22,82 Z"/>
+    <path d="M160,74 L172,68 L174,84 L162,86 Z"/>
+    <path d="M194,86 L206,82 L208,96 L196,96 Z"/>
+  </g>
+
+  <!-- Okna: nieliczne, migocza (prad ledwo zyje) -->
+  <g fill="#f2c14e">
+    <rect class="mpc-window"        x="14"  y="52" width="5" height="4"/>
+    <rect class="mpc-window mpc-w3" x="26"  y="88" width="5" height="4"/>
+    <rect class="mpc-window mpc-w5" x="64"  y="70" width="5" height="4"/>
+    <rect class="mpc-window mpc-w2" x="156" y="52" width="5" height="4"/>
+    <rect class="mpc-window mpc-w6" x="200" y="70" width="5" height="4"/>
+  </g>
+
+  <!-- Ulica + gruz + lej -->
+  <path d="M0,108 Q60,104 120,110 T240,106 L240,140 L0,140 Z" fill="url(#bt-dc-ground)"/>
+  <ellipse cx="128" cy="126" rx="26" ry="7" fill="#2b2721" opacity="0.8"/>
+  <g fill="#6b6157">
+    <path d="M40,126 L52,118 L60,128 Z"/>
+    <path d="M170,130 L182,122 L192,132 Z"/>
+    <rect x="86" y="126" width="18" height="5" rx="2"/>
+  </g>
+
+  <!-- Ogien + dym -->
+  <path class="mpc-window mpc-w4" d="M212,120 q-5,-11 0,-16 q5,7 9,-1 q5,10 -1,17 Z" fill="#e8632a"/>
+  <g fill="#b9b0a4" opacity="0.5">
+    <circle class="mpd-particle" cx="212" cy="104" r="6"/>
+    <circle class="mpd-particle mpd-p2" cx="120" cy="92" r="7"/>
+    <circle class="mpd-particle mpd-p3" cx="70" cy="84" r="5"/>
+  </g>
+</svg>`.trim();
+}
+
+// =============================================================
+// MOON — Podboj Ksiezyca (LOCKED zapowiedz CTF, v0.143.0)
+// =============================================================
+// Szary regolit + kratery + Ziemia na czarnym niebie + ladownik z antena
+// + satelita przelatujaca nad horyzontem + pyl.
+// Reuse keyframes: .mpc-drone (satelita), .mpc-antenna-light (beacon ladownika),
+// .mpc-window (migot gwiazd), .mpd-particle (pyl).
+// =============================================================
+function renderMoon(): string {
+    return `
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-moon" aria-hidden="true">
+  <defs>
+    <linearGradient id="bt-mo-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#05060d"/>
+      <stop offset="100%" stop-color="#141a2b"/>
+    </linearGradient>
+    <linearGradient id="bt-mo-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#b8b6b0"/>
+      <stop offset="100%" stop-color="#7d7b76"/>
+    </linearGradient>
+    <linearGradient id="bt-mo-earth" x1="0.2" y1="0" x2="0.9" y2="1">
+      <stop offset="0%"   stop-color="#5aa9e6"/>
+      <stop offset="100%" stop-color="#1c4f80"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="240" height="140" fill="url(#bt-mo-sky)"/>
+
+  <!-- Gwiazdy (migocza) -->
+  <g fill="#ffffff">
+    <circle class="mpc-window"        cx="26"  cy="20" r="1.5"/>
+    <circle class="mpc-window mpc-w2" cx="72"  cy="12" r="1.2"/>
+    <circle class="mpc-window mpc-w3" cx="118" cy="26" r="1.6"/>
+    <circle class="mpc-window mpc-w5" cx="186" cy="14" r="1.3"/>
+    <circle class="mpc-window mpc-w6" cx="222" cy="34" r="1.5"/>
+    <circle cx="52"  cy="38" r="1" opacity="0.7"/>
+    <circle cx="150" cy="8"  r="1" opacity="0.7"/>
+  </g>
+
+  <!-- Ziemia nad horyzontem -->
+  <g transform="translate(46,44)">
+    <circle r="21" fill="url(#bt-mo-earth)"/>
+    <path d="M-15,-6 q7,-6 14,-1 q6,4 12,0 q-4,9 -13,10 q-9,1 -13,-9 Z" fill="#3f9350" opacity="0.9"/>
+    <path d="M-6,10 q8,-3 15,2 q-7,5 -15,-2 Z" fill="#3f9350" opacity="0.75"/>
+    <circle r="21" fill="none" stroke="#9fd4ff" stroke-width="1.2" opacity="0.45"/>
+  </g>
+
+  <!-- Satelita (przelot) -->
+  <g class="mpc-drone">
+    <rect x="-5"  y="-2" width="10" height="4" rx="1" fill="#d7dfe5"/>
+    <rect x="-13" y="-3" width="7"  height="6" fill="#2f6fb0"/>
+    <rect x="6"   y="-3" width="7"  height="6" fill="#2f6fb0"/>
+  </g>
+
+  <!-- Regolit + kratery -->
+  <path d="M0,84 Q40,74 80,82 T160,78 T240,86 L240,140 L0,140 Z" fill="url(#bt-mo-ground)"/>
+  <g fill="#9c9a94">
+    <ellipse cx="52"  cy="104" rx="22" ry="7"/>
+    <ellipse cx="150" cy="120" rx="30" ry="9"/>
+    <ellipse cx="216" cy="98"  rx="14" ry="5"/>
+  </g>
+  <g fill="#cfcdc7" opacity="0.7">
+    <ellipse cx="52"  cy="102" rx="22" ry="6"/>
+    <ellipse cx="150" cy="118" rx="30" ry="8"/>
+  </g>
+
+  <!-- Ladownik z beaconem + flaga -->
+  <g transform="translate(190,96)">
+    <path d="M-14,0 L-9,-14 L9,-14 L14,0 Z" fill="#d7dfe5"/>
+    <rect x="-10" y="-20" width="20" height="7" rx="2" fill="#a8b4bd"/>
+    <path d="M-12,0 L-17,10 M12,0 L17,10" stroke="#8a949c" stroke-width="2.6"/>
+    <circle class="mpc-antenna-light" cx="0" cy="-24" r="3.2" fill="#f1c40f"/>
+    <rect x="20" y="-22" width="1.8" height="22" fill="#8a949c"/>
+    <path d="M21.8,-22 L34,-18 L21.8,-14 Z" fill="#e74c3c"/>
+  </g>
+
+  <!-- Pyl -->
+  <g fill="#e8e6df" opacity="0.6">
+    <circle class="mpd-particle" cx="96" cy="126" r="2"/>
+    <circle class="mpd-particle mpd-p2" cx="40" cy="132" r="1.6"/>
+    <circle class="mpd-particle mpd-p3" cx="170" cy="134" r="1.4"/>
   </g>
 </svg>`.trim();
 }

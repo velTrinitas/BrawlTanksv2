@@ -36,8 +36,21 @@ import type { DifficultyModifiers } from '../../config/difficulty';
  * (hp/dmg/bulletDmg * mult); predkosc guarda: formula D2 * enemySpeedMult.
  */
 
-const SAFE_ZONE_BULLET_X = 450;   // pociski wroga gina na zachod od tej linii (legacy 1:1)
-const GUARD_CLAMP_MARGIN = 5;     // clampMinX = hangar.x + hangar.w + margin = 535
+/**
+ * v0.143.0 — SANKTUARIUM ZAMIAST MAGICZNYCH LINII.
+ *
+ * Bylo: `SAFE_ZONE_BULLET_X = 450` (pociski wroga gina na zachod od tej linii) oraz
+ * `GUARD_CLAMP_MARGIN = 5` (straznik nie jedzie ponizej x=535). Obie linie ciagnely sie
+ * przez CALA wysokosc mapy (3000 px), a hangar to prostokat 500x500 na y=1250..1750.
+ * Dawalo to dwa bugi zgloszone z playtestu Michala:
+ *   1. PAS SMIERCI W GARAZU x=[450,530]: wizualnie w bazie, dla kodu poza strefa.
+ *      Straznik stal za bariera na x=535 i z zasiegiem 500 px przestrzeliwal garaz.
+ *   2. KORYTARZ KAMPINGOWY x<450 na calej wysokosci: pociski parowaly w powietrzu,
+ *      roamerzy kumulowali sie przy barierze i ginęli za darmo.
+ * Teraz jest JEDNA regula: sanktuarium = prostokat hangaru AND tarcza aktywna.
+ * Straznikow zatrzymuja `ctfEnemyBarriers` (main.ts) — czyli TO SAMO zrodlo prawdy.
+ */
+const BASE_SHIELD_MS = 5000;      // 5 s tarczy: start meczu + po kazdej dostawie flagi
 const GUARD_ORBIT_R = 180;        // D4 (legacy 160 — przenikalo mury o 4 px)
 const FLAG_PICKUP_R = 80;
 const FLAG_RESET_MS = 10000;
@@ -64,6 +77,10 @@ export interface CtfSystemOpts {
     onCaptureSfx: () => void;
     onBombExplosionSfx: () => void;
     onEnrage: () => void; // FAZA F4.3 — baner eskalacji (2. flaga)
+    /** v0.143.0 — dostarczono flage o tym indeksie (proporzec na maszt w hangarze). */
+    onCapture: (flagIdx: number) => void;
+    /** v0.143.0 — tarcza bazy wlasnie wygasla (baner + zdjecie barier w main.ts). */
+    onShieldExpired: () => void;
 }
 
 export class CtfSystem {
@@ -77,12 +94,30 @@ export class CtfSystem {
     private lastBombTime: number[] = [0, 0, 0];
     private lastAnyBombTime = 0;   // v0.73.7 desync (B): czas ostatniej DOWOLNEJ bomby (dowolnego bossa)
     private bombGraceUntil = 0;    // v0.73.7: bomby wstrzymane do tego czasu (ustawiane przy podniesieniu flagi)
+    /** v0.143.0: stan tarczy z POPRZEDNIEJ klatki — do wykrycia momentu wygasniecia (raz). */
+    private shieldWasActive = true;
 
     constructor(opts: CtfSystemOpts) {
         this.opts = opts;
 
+        // Tarcza startowa: gracz ma 5 s na ogarniecie sie, zanim wrogowie wjada do bazy.
+        if (opts.session.ctf) opts.session.ctf.baseShieldUntil = Date.now() + BASE_SHIELD_MS;
+
         this.flags = FORTIFIED_FLAG_POSITIONS.map((f, i) =>
             new CtfFlag(i, f.id.toUpperCase(), f.x, f.y, f.color, opts.worldContainer));
+    }
+
+    /**
+     * v0.143.0 — restart 5 s tarczy. Potrzebne przy przejsciu z samouczka do prawdziwego
+     * meczu: CtfSystem powstaje na starcie, ale w tutorialu wrogowie NIE spawnuja sie
+     * (spawnCtfMatchForces jest odlozone). Bez tego tarcza wygasalaby w pustce i gracz
+     * dostawalby baner "WROGOWIE WCHODZA!" przy zerowej liczbie wrogow.
+     */
+    public resetBaseShield(): void {
+        const ctf = this.opts.session.ctf;
+        if (!ctf) return;
+        ctf.baseShieldUntil = Date.now() + BASE_SHIELD_MS;
+        this.shieldWasActive = true;
     }
 
     /** Skala difficulty jak SpawnSystem.scaleConfig (hp/dmg/bulletDmg/speed). */
@@ -121,7 +156,6 @@ export class CtfSystem {
                     orbitX: f.x,
                     orbitY: f.y,
                     orbitR: GUARD_ORBIT_R,
-                    clampMinX: this.hangarRect.x + this.hangarRect.w + GUARD_CLAMP_MARGIN,
                     state: 'patrol',
                     patrolAngle: Math.random() * Math.PI * 2,
                     chaseSpeed: 2.2,
@@ -182,6 +216,15 @@ export class CtfSystem {
         const { effects, hudNotif } = this.opts;
         const now = Date.now();
 
+        // ── 0. Tarcza bazy: wykryj MOMENT wygasniecia (dokladnie raz). main.ts zdejmuje
+        //    wtedy bariery, a HUD odpala baner — inaczej wrogowie wjezdzaliby po cichu,
+        //    czyli dokladnie ta "smierc znikad", ktora naprawiamy. ──
+        const shieldNow = now < ctf.baseShieldUntil;
+        if (this.shieldWasActive && !shieldNow) {
+            this.shieldWasActive = false;
+            this.opts.onShieldExpired();
+        }
+
         // ── 1. Flagi (follow/reset/anim) ──
         for (const flag of this.flags) {
             flag.update(delta, player.x, player.y, player.hullAngle);
@@ -215,6 +258,11 @@ export class CtfSystem {
             ctf.flagsCaptured++;
             ctf.escalation = Math.min(2, ctf.flagsCaptured);
             player.hp = player.maxHp; // full-heal (legacy 1:1) — petla ryzyko/nagroda
+            // v0.143.0: dostawa ODNAWIA tarcze bazy (5 s oddechu przed kolejnym wypadem)
+            // i wciaga proporzec na maszt tej flagi.
+            ctf.baseShieldUntil = now + BASE_SHIELD_MS;
+            this.shieldWasActive = true;
+            this.opts.onCapture(flag.id);
             // v0.136.0: PUNKTY za dostawe. Do v0.135.0 flaga nie dawala ani jednego punktu —
             // przy wlaczonym rankingu CTF wygrywalby ten, kto olewa flagi i farmi wrogow.
             const flagBonus = this.opts.session.addFlagCaptureBonus();
@@ -252,15 +300,19 @@ export class CtfSystem {
             const flag = this.flags[g.flagId];
             const dist = Math.hypot(player.x - guard.x, player.y - guard.y);
 
+            // v0.143.0: "gracz nietykalny" = gracz w SANKTUARIUM (hangar + tarcza),
+            // nie "gracz na zachod od x=450". Po wygasnieciu tarczy straznik sciga
+            // gracza takze do garazu — to jest wlasnie "wrogowie wjezdzaja do bazy".
+            const playerSafe = this.isInHomeSanctuary(player.x, player.y);
             if (flag.state === 'carried') {
                 g.state = 'alert'; // zlodziej! (alert ignoruje stealth — alarm jawny)
-            } else if (dist < detRadius && !guard.playerStealthed && player.x >= SAFE_ZONE_BULLET_X) {
+            } else if (dist < detRadius && !guard.playerStealthed && !playerSafe) {
                 g.state = 'chase';
             } else if (g.state !== 'patrol' && (dist > detRadius + 80 || guard.playerStealthed)) {
                 g.state = 'patrol';
             }
-            if (player.x < SAFE_ZONE_BULLET_X && g.state === 'chase') {
-                g.state = 'patrol'; // gracz w bazie — CHASE odpuszcza (legacy 2003)
+            if (playerSafe && g.state === 'chase') {
+                g.state = 'patrol'; // gracz w sanktuarium — CHASE odpuszcza (legacy 2003)
             }
 
             // D2: predkosc liczona per klatke — zero kumulacji.
@@ -327,8 +379,11 @@ export class CtfSystem {
                 if (dist < BOSS_BOMB_BLAST_R) {
                     const dmg = dist < BOSS_BOMB_BLAST_R * 0.33 ? 300
                         : dist < BOSS_BOMB_BLAST_R * 0.66 ? 200 : 100;
-                    const died = player.takeDamage(dmg, isInvulnerable);
-                    if (!isInvulnerable) {
+                    // v0.143.0: bomba tez respektuje sanktuarium. Bez tego "bezpieczna baza"
+                    // bylaby klamstwem — bomba leci z 400 px i ma promien razenia 250 px.
+                    const shielded = isInvulnerable || this.isInHomeSanctuary(player.x, player.y);
+                    const died = player.takeDamage(dmg, shielded);
+                    if (!shielded) {
                         this.opts.session.markDamageTaken();
                         effects.shake(28, 30);
                         effects.spawnFloatingText(player.x, player.y - 65, `💥 -${dmg} HP!`, 0xff5500);
@@ -363,6 +418,31 @@ export class CtfSystem {
             if (dx * dx + dy * dy < R2) return true;
         }
         return false;
+    }
+
+    /**
+     * v0.143.0 — SANKTUARIUM: prostokat hangaru ORAZ aktywna tarcza. Jedno zrodlo prawdy
+     * dla: kasowania pociskow wroga (main.ts), odpuszczania pogoni przez straznikow,
+     * nietykalnosci gracza (pocisk / taran / bomba bossa).
+     * Po wygasnieciu tarczy zwraca false => baza staje sie sporna i wrogowie wjezdzaja.
+     */
+    public isInHomeSanctuary(px: number, py: number): boolean {
+        const ctf = this.opts.session.ctf;
+        if (!ctf || Date.now() >= ctf.baseShieldUntil) return false;
+        return this.containsHangar(px, py);
+    }
+
+    /** Czy punkt lezy w obrysie hangaru — BEZ warunku tarczy (spawn wrogow, HUD). */
+    public isInHangarRect(px: number, py: number): boolean {
+        return this.containsHangar(px, py);
+    }
+
+    /** Ile pelnych sekund tarczy zostalo (0 = tarcza nieaktywna). Dla licznika na HUD. */
+    public getShieldSecondsLeft(): number {
+        const ctf = this.opts.session.ctf;
+        if (!ctf) return 0;
+        const left = ctf.baseShieldUntil - Date.now();
+        return left > 0 ? Math.ceil(left / 1000) : 0;
     }
 
     /** Legacy Hangar.containsWorld — prostokat strefy domowej. */

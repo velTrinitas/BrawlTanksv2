@@ -372,6 +372,7 @@ const ctfHudInfo: HudCtfInfo = {
     ],
     hangarX: 0, hangarY: 0, carrying: false, carryColor: 0xf1c40f,
     flagsCaptured: 0, cameraX: 0, cameraY: 0, zoom: 1,
+    shieldSecondsLeft: 0,
 };
 let farmFields: IFarmField[] = [];
 let caravan: Caravan | null = null;
@@ -680,6 +681,11 @@ const spawnBlocked = (x: number, y: number): boolean => {
     for (const sp of sludgePools) if (sp.isPointInside(x, y)) return true;
     if (ruinsFosa && ruinsFosa.isPointInside(x, y)) return true;
     for (const ih of iceHoles) if (ih.isPointInside(x, y)) return true; // ARC-R2: nie spawnuj w wodzie
+    // v0.143.0 (CTF): NIGDY nie spawnuj w obrysie bazy gracza. Do teraz findSafeSpawnPos
+    // dostawal `buildings`, a strefa hangaru siedzi wylacznie w `ctfEnemyBuildings` —
+    // roamer potrafil zmaterializowac sie w garazu. Wrog ma do bazy WJECHAC, gdy tarcza
+    // opadnie, a nie pojawic sie w srodku.
+    if (ctfSystem && ctfSystem.isInHangarRect(x, y)) return true;
     return false;
 };
 
@@ -1394,6 +1400,10 @@ function attachEnemyCubeStolenCallback(enemy: Enemy): void {
  */
 function spawnCtfMatchForces(): void {
     if (!ctfSystem || !spawnSystem || !player) return;
+    // v0.143.0: 5 s tarczy liczy sie od pojawienia sie WROGOW, a nie od utworzenia
+    // systemu. W samouczku te dwa momenty dzieli kilka minut (FAZA A odklada spawn),
+    // wiec bez tego resetu gracz dostawalby "WROGOWIE WCHODZA!" przy pustej mapie.
+    ctfSystem.resetBaseShield();
     ctfSystem.spawnInitialForces();
     enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings, spawnBlocked));
     for (const e of enemies) attachEnemyCubeStolenCallback(e);
@@ -2333,6 +2343,21 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             },
             onBombExplosionSfx: () => audio.playExplosion(),
             onEnrage: () => hud.triggerCtfEnrage(), // F4.3: baner eskalacji
+            // v0.143.0: proporzec zdobytej flagi wjezdza na swoj maszt w bazie (flex).
+            onCapture: (flagIdx) => {
+                if (ruinsHangar) ruinsHangar.raiseFlag(flagIdx);
+                // Tarcza odnowiona => bariery wracaja na swoje miejsce.
+                ctfEnemyBuildings = ctfEnemyBarriers.length > 0
+                    ? [...buildings, ...ctfEnemyBarriers]
+                    : buildings;
+            },
+            // v0.143.0: tarcza wygasla => wrogowie DOSLOWNIE wjezdzaja do bazy (bariery
+            // znikaja z tablicy kolizji wrogow) + glosny baner, zeby to nie bylo po cichu.
+            onShieldExpired: () => {
+                ctfEnemyBuildings = buildings;
+                hud.triggerCtfBreach();
+                audio.playExplosion();
+            },
         });
         // F3 perf: zbuduj RAZ tablice kolizji wrogow (buildings statyczne w CTF po tym
         // punkcie — spawnInitialForces dodaje tylko do enemies, nie do buildings).
@@ -3351,7 +3376,12 @@ app.ticker.add((rawDelta) => {
     if (marsBorder) marsBorder.update(); // FAZA MARS M2 (drobiny + smugi pylu)
     if (ruinsBorder) ruinsBorder.update();     // FAZA CTF F1 (no-op, spojnosc interfejsu)
     // FAZA CTF F3 — beacon dostawy: dramatyczny tryb gdy gracz niesie flage
-    if (ruinsHangar) ruinsHangar.update(ctfSystem ? ctfSystem.getCarriedFlag() !== null : false);
+    if (ruinsHangar) {
+        ruinsHangar.update(
+            ctfSystem ? ctfSystem.getCarriedFlag() !== null : false,
+            ctfSystem ? ctfSystem.getShieldSecondsLeft() > 0 : false,
+        );
+    }
     // v0.52.0: cyberpunk billboards (pulse + content rotation + flicker + parallax)
     for (const bb of cityBillboards) bb.update(delta, camera.x, camera.y, viewW, viewH);
     // v0.52.0 phase 2: sludge reactors — proximity excited state + bullet hit detection
@@ -3816,16 +3846,25 @@ app.ticker.add((rawDelta) => {
         if (!b.active) { bullets.splice(i, 1); bulletPool.push(b); } // POOLING: zwrot do puli
     }
 
+    // v0.143.0 — czy gracz stoi w sanktuarium (hangar CTF + aktywna tarcza). Liczone RAZ
+    // na klatke i uzywane w OBU sciezkach obrazen ponizej (pocisk + taran); trzecia
+    // sciezka (bomba bossa) sprawdza to sama w CtfSystem. Bez taranu i bomb "bezpieczna
+    // baza" bylaby klamstwem — Michal zginal wlasnie w garazu.
+    const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(player.x, player.y) : false;
+
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         // FREEZE: pociski wroga stoja w miejscu i NIE trafiaja (wznawiaja lot po mrozie).
         if (powerSystem.isFreezeActive) continue;
         eb.update(delta, solidBuildings, effects);
         if (!eb.active) { enemyBullets.splice(i, 1); enemyBulletPool.push(eb); continue; } // POOLING
-        // FAZA CTF F2 — strefa domowa: pociski wroga gina na x<450 (legacy 4456 1:1).
+        // v0.143.0 — SANKTUARIUM zamiast linii x<450. Stara linia biegla przez cala
+        // wysokosc mapy (korytarz kampingowy) i konczyla sie 80 px PRZED wschodnia
+        // krawedzia hangaru (pas smierci w garazu). Teraz: dokladnie obrys hangaru,
+        // i tylko dopoki trwa tarcza.
         // F3 (playtest): + "swiete altary" — pociski gina takze w kieszeni flagi
         // (100 px), zeby boss nie zestrzeliwal gracza podczas podnoszenia flagi.
-        if (ctfSystem && (eb.x < 450 || ctfSystem.isInFlagSafePocket(eb.x, eb.y))) {
+        if (ctfSystem && (ctfSystem.isInHomeSanctuary(eb.x, eb.y) || ctfSystem.isInFlagSafePocket(eb.x, eb.y))) {
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING
@@ -3864,9 +3903,9 @@ app.ticker.add((rawDelta) => {
         if (dx * dx + dy * dy < 25 * 25) {
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
-            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive);
+            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary);
 
-            if (powerSystem.isInvulnerable) {
+            if (powerSystem.isInvulnerable || ctfSanctuary) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
@@ -3950,11 +3989,11 @@ app.ticker.add((rawDelta) => {
             const collDmg = powerSystem.isDiscoTired(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
                 : enemy.collisionDmg;
-            const playerDied = player.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive); // tutorial => niesmiertelny
+            const playerDied = player.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary); // tutorial/sanktuarium => niesmiertelny
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.
-            if (!powerSystem.isInvulnerable) {
+            if (!powerSystem.isInvulnerable && !ctfSanctuary) {
                 currentSession.markDamageTaken();
             }
 
@@ -4127,6 +4166,7 @@ app.ticker.add((rawDelta) => {
         ctfHudInfo.cameraX = camera.x;
         ctfHudInfo.cameraY = camera.y;
         ctfHudInfo.zoom = ZOOM;
+        ctfHudInfo.shieldSecondsLeft = ctfSystem.getShieldSecondsLeft(); // v0.143.0
         hud.ctfInfo = ctfHudInfo;
     } else {
         hud.ctfInfo = null;

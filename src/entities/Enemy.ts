@@ -29,7 +29,10 @@ export interface GuardConfig {
     orbitX: number;          // srodek orbity = pozycja startowa flagi
     orbitY: number;
     orbitR: number;          // 180 (D4; legacy 160)
-    clampMinX: number;       // 535 — pas strefy domowej (hangar.x + hangar.w + margin)
+    // v0.143.0: clampMinX USUNIETY. Byl pasem na CALEJ wysokosci mapy (x>=535), przez co
+    // wzdluz zachodniej krawedzi ciagnal sie korytarz wolny od straznikow — jeden z dwoch
+    // skladnikow kampingu. Strefe domowa domykaja teraz WYLACZNIE `ctfEnemyBarriers`
+    // (main.ts), czyli dokladnie obrys hangaru — i tylko dopoki trwa tarcza.
     state: GuardState;
     patrolAngle: number;
     chaseSpeed: number;      // per klatke z CtfSystem (D2, zero kumulacji legacy-buga)
@@ -331,8 +334,9 @@ export class Enemy {
      * PATROL: orbita wokol flagi (patrolAngle += 0.008), dojazd do punktu orbity
      *         z predkoscia chaseSpeed*0.7 gdy dist>8.
      * CHASE/ALERT: prosto na gracza (chaseSpeed ma juz w sobie mnoznik ALERT z D2),
-     *         stop gdy dist<=30 LUB (guard przy pasie domowym i gracz w bazie).
-     * Clampy: x>=clampMinX (535), world 30..W-30 / 30..H-30. ZERO kolizji env (D4).
+     *         stop gdy dist<=30.
+     * Clampy: krawedzie swiata 30..W-30 / 30..H-30 (v0.143.0: clamp strefy domowej
+     *         usuniety — patrz komentarz przy GuardConfig).
      * Strzal: tylko CHASE/ALERT, dist<500, cooldown fireIntervalMs (z CtfSystem).
      */
     private updateGuard(delta: number, playerX: number, playerY: number, buildings: ICollidable[]): EnemyShotInfo | null {
@@ -371,14 +375,13 @@ export class Enemy {
             const dy = playerY - this.y;
             const dist = Math.hypot(dx, dy);
             const spd = g.chaseSpeed * this.speedModifier * delta;
-            if (dist > 30 && !(this.x < g.clampMinX && playerX < 530)) {
+            if (dist > 30) {
                 tryMove((dx / dist) * spd, (dy / dist) * spd);
             }
             facing = Math.atan2(dy, dx);
         }
 
-        // Clampy legacy 1:1: pas strefy domowej + krawedzie swiata
-        if (this.x < g.clampMinX) this.x = g.clampMinX;
+        // Clamp tylko krawedzie swiata (pas strefy domowej usuniety w v0.143.0)
         this.x = Math.max(30, Math.min(WORLD_W - 30, this.x));
         this.y = Math.max(30, Math.min(WORLD_H - 30, this.y));
 

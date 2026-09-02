@@ -2,7 +2,7 @@ import { t, type TranslationKey } from '../../../i18n/i18n';
 import type { HubSection } from './HubSection';
 import { SCENARIO_CONFIGS, type ScenarioId } from '../../../types/Scenario';
 import { DIFFICULTY_CONFIGS, type DifficultyId } from '../../../types/GameConfig';
-import { MENU_MAP_CARDS, type MapId } from '../../../types/MapType';
+import { MENU_MAP_CARDS, CTF_MAP_CARDS, type MapId, type MenuMapCard } from '../../../types/MapType';
 import { BRAWLERS } from '../../../config/brawlers';
 import type { Brawler } from '../../../types/Brawler';
 import { sessionService } from '../../../services/SessionService';
@@ -59,10 +59,16 @@ export class BattleSection implements HubSection {
      * v0.127.0 — otwarcie popupu wyboru mapy. Overlaye w hubie montuje HubShell
      * w swoim `rootEl`, wiec sekcja tylko PROSI o popup i przyjmuje wynik.
      */
-    public onOpenMapPicker: ((selected: MapId, pick: (id: MapId) => void) => void) | null = null;
+    public onOpenMapPicker: ((selected: MapId, pick: (id: MapId) => void, cards?: MenuMapCard[]) => void) | null = null;
 
     private selectedScenario: ScenarioId = 'ktb';
     private selectedMap: MapId = (AVAILABLE_MAPS[0]?.id ?? 'desert') as MapId;
+    /**
+     * v0.143.0 — wybor mapy dla CTF trzymany OSOBNO od `selectedMap` (KTB). Dzis
+     * grywalna jest jedna, ale rozdzielenie znaczy, ze przelaczanie scenariusza nie
+     * kasuje wyboru mapy w drugim trybie — i nie trzeba tego prostowac przy 2. mapie CTF.
+     */
+    private selectedCtfMap: MapId = 'fortified_ruins';
     private selectedBrawlerId: string;
     private selectedDifficulty: DifficultyId;
     private el: HTMLElement | null = null;
@@ -90,9 +96,18 @@ export class BattleSection implements HubSection {
      * huba. Sekcja BITWA nie musi byc otwarta — wybor zyje w polach tej klasy, a przy
      * pierwszym uruchomieniu pochodzi z LastSession.
      */
+    /** v0.143.0 — mapa biezacego wyboru: CTF ma wlasna liste kart, reszta uzywa KTB. */
+    private currentMapId(): MapId {
+        return this.selectedScenario === 'ctf' ? this.selectedCtfMap : this.selectedMap;
+    }
+
+    /** v0.143.0 — lista kart mapy dla biezacego scenariusza (popup + podpis na karcie). */
+    private currentMapCards(): MenuMapCard[] {
+        return this.selectedScenario === 'ctf' ? CTF_MAP_CARDS : MENU_MAP_CARDS;
+    }
+
     public startCurrentMatch(): void {
-        const map: MapId = this.selectedScenario === 'ctf' ? 'fortified_ruins' : this.selectedMap;
-        this.onPlay?.(this.selectedScenario, map, this.selectedBrawlerId, this.selectedDifficulty);
+        this.onPlay?.(this.selectedScenario, this.currentMapId(), this.selectedBrawlerId, this.selectedDifficulty);
     }
 
     render(el: HTMLElement): void {
@@ -102,9 +117,7 @@ export class BattleSection implements HubSection {
         // a przy CTF mapa jest narzucona przez scenariusz. Ta linia pokrywa oba
         // przypadki, bo `render()` leci przy kazdej zmianie wyboru. Powtorzone
         // wywolania sa darmowe — `loadOnce` sprawdza stan Howla.
-        AudioSys.getInstance().prefetchMapMusic(
-            this.selectedScenario === 'ctf' ? 'fortified_ruins' : this.selectedMap,
-        );
+        AudioSys.getInstance().prefetchMapMusic(this.currentMapId());
         // v0.126.0 — ZACHOWAJ POZYCJE PRZEWIJANIA. Kazdy wybor czolgu/scenariusza/mapy
         // odtwarza cale DOM sekcji, wiec kontener scrolla ginie razem ze swoim scrollTop
         // i widok skakal na gore. Gracz wybieral mape na dole listy i ladowal przy
@@ -197,8 +210,13 @@ export class BattleSection implements HubSection {
                 ? renderScenarioPreview(id as ScenarioPreviewId)
                 : `<span class="cd-emoji" aria-hidden="true">${SCENARIO_EMOJI[id] ?? '🎮'}</span>`;
             let sub = `<span class="cd-sub">${t(c.descKey)}</span>`;
-            if (id === 'ktb' && !locked) {
-                const m = MENU_MAP_CARDS.find(x => x.id === this.selectedMap) ?? MENU_MAP_CARDS[0];
+            // v0.143.0: CTF dostaje ten sam podpis "mapa + Zmien mape ›" co KTB.
+            // Do v0.142.x CTF mial tu tylko opis, bo mape mial zaszyta — Michal na
+            // playtescie poprosil o ten sam grid, ktory dziala w KTB.
+            if ((id === 'ktb' || id === 'ctf') && !locked) {
+                const list = id === 'ctf' ? CTF_MAP_CARDS : MENU_MAP_CARDS;
+                const selMapId = id === 'ctf' ? this.selectedCtfMap : this.selectedMap;
+                const m = list.find(x => x.id === selMapId) ?? list[0];
                 sub = `
                     <span class="cd-sub cd-sub--map">${m.emoji} ${t(m.nameKey)}</span>
                     <span class="cd-maphint">${t('picker.mapChangeHint')}</span>`;
@@ -241,7 +259,10 @@ export class BattleSection implements HubSection {
             const m = AVAILABLE_MAPS.find(x => x.id === this.selectedMap);
             if (m) summaryParts.push(t(m.nameKey));
         } else if (this.selectedScenario === 'ctf') {
-            summaryParts.push('FORTIFIED RUINS');
+            // v0.143.0: bylo hardcoded 'FORTIFIED RUINS' — jedyny string w tym pasku
+            // poza i18n, wiec po polsku tez pokazywal sie po angielsku.
+            const m = CTF_MAP_CARDS.find(x => x.id === this.selectedCtfMap) ?? CTF_MAP_CARDS[0];
+            summaryParts.push(t(m.nameKey));
         }
         summaryParts.push(t(DIFFICULTY_CONFIGS[this.selectedDifficulty].labelKey));
         const summary = summaryParts.join(' · ');
@@ -300,20 +321,21 @@ export class BattleSection implements HubSection {
                 this.selectedScenario = id;
                 this.bump = true;
                 this.render(el);
-                if (id !== 'ktb') return;
+                if (id !== 'ktb' && id !== 'ctf') return; // v0.143.0: CTF tez ma wybor mapy
                 // Sekcja nie montuje overlaya sama: overlaye huba zyja w `HubShell.rootEl`
                 // (wzorzec CrateOverlay / SeasonOverlay), a sekcja nie zna roota. Stad
                 // callback — sekcja mowi CO wybrac i CO zrobic z wynikiem, shell decyduje
                 // GDZIE to narysowac.
-                this.onOpenMapPicker?.(this.selectedMap, (mapId) => {
-                    this.selectedMap = mapId;
+                this.onOpenMapPicker?.(this.currentMapId(), (mapId) => {
+                    if (this.selectedScenario === 'ctf') this.selectedCtfMap = mapId;
+                    else this.selectedMap = mapId;
                     // v0.135.0 — muzyka mapy leci po sieci JUZ TERAZ, a nie przy starcie
                     // meczu. Gracz po wyborze mapy oglada jeszcze karty czolgow i pigulki
                     // trudnosci, wiec plik (2-9 MB) ma czas dojsc i nikt na niego nie czeka.
                     AudioSys.getInstance().prefetchMapMusic(mapId);
                     this.bump = true;
                     this.render(el);
-                });
+                }, this.currentMapCards());
             });
         });
         el.querySelectorAll<HTMLElement>('[data-difficulty]').forEach(btn => {

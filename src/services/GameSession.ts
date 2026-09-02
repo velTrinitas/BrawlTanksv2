@@ -228,6 +228,12 @@ export interface CtfSessionState {
     bossRespawnAt: number[];
     /** Timestamp startu niesienia (na przyszle staty/telegraph F3). */
     startedCarryAt: number | null;
+    /**
+     * v0.143.0 — do kiedy hangar jest SANKTUARIUM (timestamp ms).
+     * Ustawiane na start meczu i po kazdej dostawie flagi. Po wygasnieciu baza
+     * przestaje chronic i wrogowie do niej wjezdzaja (decyzja Mariusza 01.09.2026).
+     */
+    baseShieldUntil: number;
 }
 
 export class GameSession {
@@ -389,6 +395,7 @@ export class GameSession {
                 carryingFlagId: null,
                 bossRespawnAt: [0, 0, 0],
                 startedCarryAt: null,
+                baseShieldUntil: 0, // ustawiane przez CtfSystem przy starcie meczu
             };
         }
     }

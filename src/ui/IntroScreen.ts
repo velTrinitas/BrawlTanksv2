@@ -51,6 +51,14 @@ export class IntroScreen implements IScreen {
     private slideEls: HTMLElement[] = [];
     private activeSlideIdx: number = 0;
     private rotationTimer: number | null = null;
+    /**
+     * v0.143.0 — timer wygaszania POPRZEDNIEGO slajdu (cross-fade). Musi byc polem,
+     * bo `unmount()` czysci `slideEls`, a ten timeout siega do nich 1200 ms pozniej.
+     * Bez tego klikniecie START w oknie miedzy zmiana slajdu a koncem przenikania
+     * rzucalo `TypeError: ... reading 'classList'` (uncaught, przy kazdym wejsciu do gry
+     * trafionym w to okno).
+     */
+    private fadeTimer: number | null = null;
 
     /**
      * Callback dla START button.
@@ -141,6 +149,12 @@ export class IntroScreen implements IScreen {
             clearInterval(this.rotationTimer);
             this.rotationTimer = null;
         }
+        // Anuluj takze wiszace wygaszanie poprzedniego slajdu — inaczej odpali sie
+        // JUZ PO `unmount()`, na wyczyszczonej tablicy `slideEls`.
+        if (this.fadeTimer !== null) {
+            clearTimeout(this.fadeTimer);
+            this.fadeTimer = null;
+        }
     }
 
     private advanceSlide(): void {
@@ -155,9 +169,12 @@ export class IntroScreen implements IScreen {
 
         // Cross-fade: next pojawia sie, prev znika
         this.slideEls[nextIdx].classList.add('is-active');
-        // Z opoznieniem usuwamy prev (po crossfade nadpisalibysmy z-index, ale opacity ok)
-        setTimeout(() => {
-            this.slideEls[prevIdx].classList.remove('is-active');
+        // Z opoznieniem usuwamy prev (po crossfade nadpisalibysmy z-index, ale opacity ok).
+        // Timer trzymany w polu + guard na element: dwie niezalezne oslony przed
+        // odpaleniem na juz zdemontowanym ekranie.
+        this.fadeTimer = window.setTimeout(() => {
+            this.fadeTimer = null;
+            this.slideEls[prevIdx]?.classList.remove('is-active');
         }, TRANSITION_MS);
 
         this.activeSlideIdx = nextIdx;

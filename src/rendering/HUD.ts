@@ -62,6 +62,8 @@ export interface HudCtfInfo {
     cameraX: number;
     cameraY: number;
     zoom: number;
+    /** v0.143.0 — ile sekund tarczy bazy zostalo (0 = tarcza nieaktywna). */
+    shieldSecondsLeft: number;
 }
 
 export interface MouseState {
@@ -80,6 +82,7 @@ export class HUD {
     public comboTextTimer: number = 0;
     public megaBossAlertTimer: number = 0;
     public ctfEnrageTimer: number = 0; // FAZA F4.3 — baner "WROGOWIE WSCIEKLI!" (2. flaga)
+    public ctfBreachTimer: number = 0; // v0.143.0 — baner "WROGOWIE WCHODZA!" (koniec tarczy bazy)
 
     // === v0.23.1: Mobile UI scaling + visibility flags ===
     /** Skala glownych pill HUD'a (gem, score, kills, HP). 0.7 = mobile, 1.0 = desktop. */
@@ -139,6 +142,15 @@ export class HUD {
     /** FAZA F4.3 — odpal baner eskalacji CTF (2. flaga, bomby nadchodza). */
     triggerCtfEnrage(): void {
         this.ctfEnrageTimer = 150;
+    }
+
+    /**
+     * v0.143.0 — tarcza bazy wygasla, wrogowie wjezdzaja do hangaru.
+     * Krotszy niz enrage (120 kl.): to ostrzezenie, nie ceremonia — gracz musi zdazyc
+     * zareagowac, a nie ogladac baner.
+     */
+    triggerCtfBreach(): void {
+        this.ctfBreachTimer = 120;
     }
     
     private drawNotifs(): void {
@@ -910,6 +922,84 @@ export class HUD {
     }
 
     /**
+     * v0.143.0 — baner konca tarczy bazy. Wzorzec drawCtfEnrageBanner (licznik klatek),
+     * kolor pomaranczowy: to nie jest to samo zdarzenie co "wrogowie wsciekli", wiec nie
+     * moze wygladac tak samo.
+     */
+    private drawCtfBreachBanner(): void {
+        if (this.ctfBreachTimer <= 0) return;
+        const c = this.ctx;
+        const t = this.ctfBreachTimer;
+        this.ctfBreachTimer--;
+
+        const alpha = t > 90 ? (120 - t) / 30 : t < 30 ? t / 30 : 1;
+
+        c.save();
+        c.globalAlpha = alpha;
+        c.translate(this.screenW / 2, this.screenH / 2 - 110);
+        const pulse = 1 + Math.sin(Date.now() / 80) * 0.07;
+        c.scale(pulse, pulse);
+
+        c.fillStyle = 'rgba(0,0,0,0.85)';
+        c.beginPath();
+        c.roundRect(-300, -44, 600, 88, 16);
+        c.fill();
+        c.strokeStyle = '#e67e22';
+        c.lineWidth = 4;
+        c.stroke();
+
+        c.font = `42px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.strokeStyle = '#000';
+        c.lineWidth = 6;
+        const txt = tr('ctf.baseBreached');
+        c.strokeText(txt, 0, 0);
+        c.fillStyle = '#f5a623';
+        c.fillText(txt, 0, 0);
+
+        c.restore();
+    }
+
+    /**
+     * v0.143.0 — licznik tarczy bazy nad hangarem (world->screen, jak edge arrows).
+     * Bez tego wygasniecie tarczy byloby niewidzialne, a wjazd wrogow czytalby sie jako
+     * "smierc znikad" — czyli dokladnie to, co ta faza naprawia (Czytelnosc > reszta).
+     */
+    private drawCtfShieldCountdown(): void {
+        const info = this.ctfInfo;
+        if (!info || info.shieldSecondsLeft <= 0) return;
+        const c = this.ctx;
+
+        const sx = (info.hangarX - info.cameraX) * info.zoom;
+        const sy = (info.hangarY - info.cameraY) * info.zoom;
+        // Poza ekranem => nie rysuj. Gracz i tak jest wtedy daleko od bazy, a strzalka
+        // bazy (edge arrows) prowadzi go z powrotem.
+        if (sx < -80 || sx > this.screenW + 80 || sy < -80 || sy > this.screenH + 80) return;
+
+        const txt = String(info.shieldSecondsLeft);
+        c.save();
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+
+        c.font = `18px "${FONT_FAMILY}",cursive`;
+        c.strokeStyle = '#000';
+        c.lineWidth = 5;
+        const label = tr('ctf.baseShield');
+        c.strokeText(label, sx, sy - 52);
+        c.fillStyle = '#5dade2';
+        c.fillText(label, sx, sy - 52);
+
+        c.font = `54px "${FONT_FAMILY}",cursive`;
+        c.lineWidth = 8;
+        c.strokeText(txt, sx, sy - 8);
+        c.fillStyle = '#ffffff';
+        c.fillText(txt, sx, sy - 8);
+
+        c.restore();
+    }
+
+    /**
      * FAZA CTF F3 — panel flag (lewa kolumna, pod SUPER pill).
      * 3 sloty A/B/C: kolo w kolorze flagi; IDLE = pelne, CARRIED = pulsujacy ring,
      * CAPTURED = pelne + ✓. Po prawej licznik n/3.
@@ -1256,6 +1346,8 @@ export class HUD {
 
         // FAZA CTF F3 — strzalki krawedziowe (full-screen space, po restore)
         this.drawCtfEdgeArrows();
+        // v0.143.0 — licznik tarczy bazy (world-space, ta sama projekcja co strzalki)
+        this.drawCtfShieldCountdown();
 
         // Crosshair — hidden on mobile (no mouse, joystick zastepuje)
         if (this.showCrosshair) {
@@ -1279,6 +1371,7 @@ export class HUD {
 
         this.drawMegaBossAlert();
         this.drawCtfEnrageBanner();
+        this.drawCtfBreachBanner();
     }
     
     clear(): void {

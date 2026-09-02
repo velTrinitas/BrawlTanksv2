@@ -378,7 +378,13 @@
 
 /* MARS reuses the desert dust drift (M5d: animations were map-scoped, so
    .bt-mp-mars never matched and the preview sat still). */
+/* v0.143.0: dopisany GENERYCZNY selektor `.bt-map-preview-svg` (root kazdego podgladu
+   mapy). Powod: scoping per-mapa juz DWA razy dal cicha regresje — najpierw .bt-mp-mars
+   (patrz komentarz wyzej), potem .bt-mp-range, ktorego nikt nie dopisal i kafel POLIGON
+   stoi nieruchomo od M5d. Kazdy nowy podglad mapy animuje sie teraz z automatu.
+   Selektory scenariuszy (.bt-sp-*) zostaja — maja inny root. */
 .bt-mp-desert .mpd-particle,
+.bt-map-preview-svg .mpd-particle,
 .bt-sp-ktb .mpd-particle,
 .bt-sp-castle .mpd-particle,
 .bt-mp-mars .mpd-particle {
@@ -398,9 +404,16 @@
 
 /* --- Cyberpunk --- */
 .bt-mp-cyberpunk .mpc-window,
+.bt-map-preview-svg .mpc-window,
 .bt-mp-mars .mpc-window {
     animation: bt-window-flicker 4s ease-in-out infinite;
 }
+/* Warianty czasow dzialaja dla WSZYSTKICH podgladow, nie tylko cyberpunku (v0.143.0). */
+.bt-map-preview-svg .mpc-w2 { animation-duration: 5.5s; animation-delay: -0.6s; }
+.bt-map-preview-svg .mpc-w3 { animation-duration: 3.2s; animation-delay: -1.4s; }
+.bt-map-preview-svg .mpc-w4 { animation-duration: 6s;   animation-delay: -2.2s; }
+.bt-map-preview-svg .mpc-w5 { animation-duration: 4.5s; animation-delay: -3s; }
+.bt-map-preview-svg .mpc-w6 { animation-duration: 3.8s; animation-delay: -0.9s; }
 .bt-mp-cyberpunk .mpc-w2 { animation-duration: 5.5s; animation-delay: -0.6s; }
 .bt-mp-cyberpunk .mpc-w3 { animation-duration: 3.2s; animation-delay: -1.4s; }
 .bt-mp-cyberpunk .mpc-w4 { animation-duration: 6s;   animation-delay: -2.2s; }
@@ -415,6 +428,7 @@
 }
 
 .bt-mp-cyberpunk .mpc-drone,
+.bt-map-preview-svg .mpc-drone,
 .bt-sp-ctf .mpc-drone,
 .bt-mp-mars .mpc-drone {
     animation: bt-drone-fly 9s linear infinite;
@@ -427,6 +441,7 @@
 }
 
 .bt-mp-cyberpunk .mpc-antenna-light,
+.bt-map-preview-svg .mpc-antenna-light,
 .bt-sp-ktb .mpc-antenna-light,
 .bt-sp-castle .mpc-antenna-light,
 .bt-mp-mars .mpc-antenna-light {
@@ -671,6 +686,10 @@
     .bt-mp-tropics .mpt-fall,
     .bt-mp-tropics .mpt-palm,
     .bt-mp-arctic .mpa-snow,
+    .bt-map-preview-svg .mpd-particle,
+    .bt-map-preview-svg .mpc-window,
+    .bt-map-preview-svg .mpc-drone,
+    .bt-map-preview-svg .mpc-antenna-light,
     .bt-sp-ktb .mpd-particle,
     .bt-sp-ktb .mpk-boss,
     .bt-sp-ktb .mpk-flash,

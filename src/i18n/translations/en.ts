@@ -621,6 +621,14 @@ export const en: typeof pl = {
     'map.range.name': 'FIRING RANGE',
     'map.range.tagline': 'Military obstacle course',
 
+    // CTF maps (v0.143.0)
+    'map.fortifiedRuins.name': 'FORTIFIED RUINS',
+    'map.fortifiedRuins.tagline': 'Three flags in a ruined stronghold',
+    'map.destroyedCity.name': 'DESTROYED CITY',
+    'map.destroyedCity.tagline': 'Flag war in a shattered metropolis',
+    'map.conquerMoon.name': 'CONQUER THE MOON',
+    'map.conquerMoon.tagline': 'Flags in low gravity',
+
     // ============================================================
     // Difficulty
     // ============================================================
@@ -821,6 +829,8 @@ export const en: typeof pl = {
     'ctf.bossRespawn':    '⚠️ BOSS RESPAWN!',
     'ctf.enemiesEnraged': '⚔️ ENEMIES ENRAGED!',
     'ctf.carryBanner':    '🚩 RETURN TO BASE!',
+    'ctf.baseShield':     '🛡️ BASE SHIELD',
+    'ctf.baseBreached':   '🚨 ENEMIES BREACHING!',
     'end.flags':          'Flags',
     'hud.stealthSpotted':   '👁️ YOU HAVE BEEN SPOTTED!',
     'hud.shotRevealed':     '🔫 SHOT REVEALED YOUR POSITION!',

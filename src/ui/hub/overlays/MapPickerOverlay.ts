@@ -1,5 +1,5 @@
 import { t } from '../../../i18n/i18n';
-import { MENU_MAP_CARDS, type MapId } from '../../../types/MapType';
+import { MENU_MAP_CARDS, type MapId, type MenuMapCard } from '../../../types/MapType';
 import { renderMapPreview } from '../../MapPreview';
 import { playUiClick } from '../../uiSounds';
 
@@ -30,10 +30,19 @@ import { playUiClick } from '../../uiSounds';
 export class MapPickerOverlay {
     private el: HTMLElement | null = null;
 
-    open(parent: HTMLElement, selected: MapId, onPick: (id: MapId) => void): void {
+    /**
+     * v0.143.0: `cardList` z domyslna wartoscia — KTB dostaje dokladnie to co dotad,
+     * CTF podaje wlasna liste (CTF_MAP_CARDS). Jeden parametr zamiast drugiego overlaya.
+     */
+    open(
+        parent: HTMLElement,
+        selected: MapId,
+        onPick: (id: MapId) => void,
+        cardList: MenuMapCard[] = MENU_MAP_CARDS,
+    ): void {
         this.close(); // pojedyncza instancja
 
-        const cards = MENU_MAP_CARDS.map(m => {
+        const cards = cardList.map(m => {
             const media = `<span class="mp-media">${renderMapPreview(m.previewType)}</span>`;
             const name = `<span class="mp-name">${m.emoji} ${t(m.nameKey)}</span>`;
             if (!m.available) {

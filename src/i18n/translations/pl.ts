@@ -291,6 +291,7 @@ export const pl = {
     'hub.garage.type.sticker': 'Naklejki',
     'hub.garage.type.crosshair': 'Celowniki 🎯 (widoczne w grze)',
     'hub.garage.type.avatarBg': 'Tła pod zdjęcie',
+    'hub.garage.type.profileSkin': 'Skiny profilu', // v0.147.0
     'crate.rarity.c': 'Zwykły',
     'crate.rarity.r': 'Rzadki',
     'crate.rarity.e': 'Epicki',
@@ -352,6 +353,13 @@ export const pl = {
     'cosmetic.st_target': 'Cel',
     'cosmetic.st_medal': 'Medal',
     'cosmetic.st_bolt': 'Śruba',
+    // v0.147.0 — paczka MINY CZOŁGISTY
+    'cosmetic.st_cool': 'Luzak',
+    'cosmetic.st_steam': 'Zawzięty',
+    'cosmetic.st_devil': 'Diabełek',
+    'cosmetic.st_party': 'Zwycięzca',
+    'cosmetic.st_rage': 'Wściekły',
+    'cosmetic.st_mindblown': 'Rozwałka',
     // klaksony — nazwy ROBOCZE: nie znam brzmienia plików, więc ponumerowałem.
     // Zmiana nazwy to sześć stringów tutaj i sześć w en.ts.
     'cosmetic.hn_1': 'Klakson 1',
@@ -383,6 +391,26 @@ export const pl = {
     'cosmetic.bg_rays': 'Promienie',
     'cosmetic.bg_gold': 'Złoto',
     'cosmetic.bg_holo': 'Hologram',
+    // v0.147.0 — skiny profilu (baner hero)
+    'cosmetic.ps_pixel': 'Piksel',
+    'cosmetic.ps_angles': 'Kanty',
+    'cosmetic.ps_jackal': 'Szakal',
+    'cosmetic.ps_mirage': 'Miraż',
+    'cosmetic.ps_gale': 'Wichura',
+    'cosmetic.ps_stones': 'Kamienie',
+    'cosmetic.ps_deep': 'Głębina',
+    'cosmetic.ps_blaze': 'Pożar',
+    // v0.147.0 — nazwy kategorii w LICZBIE POJEDYNCZEJ (prefiks nagrody ze skrzynki).
+    // Osobne od 'hub.garage.type.*', które są w mnogiej, bo tamte tytułują grupy.
+    'cosmetic.cat.nickColor': 'Kolor nicku',
+    'cosmetic.cat.frame': 'Ramka awatara',
+    'cosmetic.cat.title': 'Tytuł',
+    'cosmetic.cat.sticker': 'Naklejka',
+    'cosmetic.cat.horn': 'Klakson',
+    'cosmetic.cat.voice': 'Głos dowódcy',
+    'cosmetic.cat.crosshair': 'Celownik',
+    'cosmetic.cat.avatarBg': 'Tło pod zdjęcie',
+    'cosmetic.cat.profileSkin': 'Skin profilu',
     'cosmetic.vo_commander': 'Dowódca',
 
     // ── SKLEP ──
@@ -409,7 +437,8 @@ export const pl = {
     'shop.tab.crosshairs': 'CELOWNIKI',
     'shop.tab.stickers': 'NAKLEJKI',
     'shop.tab.horns': 'KLAKSONY',
-    'shop.tab.voice': 'GŁOS',
+    'shop.tab.profileSkins': 'SKINY PROFILU',
+    'shop.tab.avatars': 'AWATARY',
     'shop.tab.soon': 'WKRÓTCE',
     'shop.item.crate1.name': 'Skrzynka',
     'shop.item.crate1.desc': 'Jedna skrzynka z kosmetyką i sigmami.',
@@ -418,6 +447,11 @@ export const pl = {
     'shop.item.crate10.name': 'Dziesięć skrzynek',
     'shop.item.crate10.desc': 'Duża paczka. Największy rabat w sklepie.',
     'shop.item.sticker.desc': 'Naklejka przy Twoim zdjęciu w profilu.',
+    'shop.item.profileSkin.desc': 'Tło całego paska Twojego profilu — widzi je każdy, kto na Ciebie zajrzy.',
+    'shop.item.soon_ps.name': 'Skin ?',
+    'shop.item.soon_ps.desc': 'Kolejny skin profilu. Jeszcze go szykujemy.',
+    'shop.item.avatarSlot.name': 'Awatar ?',
+    'shop.item.avatarSlot.desc': 'Nowa twarz do profilu. Jeszcze ją szykujemy.',
     'shop.item.horn.desc': 'Wciśnij H w grze, żeby zatrąbić. Nic więcej nie robi.',
     'shop.item.crosshair.desc': 'Twój celownik w każdym meczu. Zmienia wygląd, nie celność.',
     'shop.item.vo_commander.name': 'Głos: Dowódca',

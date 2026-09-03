@@ -20,6 +20,7 @@ import { crosshairCanvasHtml, paintCrosshairPreviews } from '../crosshairPreview
 import {
     SHOP_TABS, shopItemsOf, assertShopCatalog,
     type ShopCategory, type ShopItemDef,
+    WIDE_GRID_CATEGORIES,
 } from '../../../config/shop';
 
 const BASE = import.meta.env.BASE_URL;
@@ -50,7 +51,7 @@ export class ShopSection implements HubSection {
             ${this.heroHtml(balance)}
             ${this.sandboxHtml(pid)}
             <div class="bt-shop-tabs">${this.tabsHtml()}</div>
-            <div class="bt-shop-grid">${this.gridHtml(pid)}</div>
+            <div class="bt-shop-grid${WIDE_GRID_CATEGORIES.has(this.tab) ? ' bt-shop-grid--wide' : ''}">${this.gridHtml(pid)}</div>
         `;
         // SHOP-2: kafle to stringi HTML, wiec canvasy podgladu istnieja dopiero TERAZ.
         // Jedno przejscie po wstawieniu do DOM; wolane takze przy zmianie zakladki,

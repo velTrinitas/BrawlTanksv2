@@ -830,6 +830,15 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     width: auto; height: auto; border-radius: 0; box-shadow: none;
     font-size: 20px; line-height: 1;
 }
+/* v0.147.0 — podglad skinu profilu: baner pelna szerokoscia kafla, w proporcji zrodla.
+   Kropka 12 px nie powiedzialaby o kamuflazu absolutnie nic. */
+.bt-hub0-cos .dot--banner {
+    width: 100%; height: auto; aspect-ratio: 1024 / 167; border-radius: 6px;
+    background-size: cover; background-position: center; box-shadow: none;
+}
+/* Grupa skinow: dwie kolumny, na waskim ekranie jedna — ta sama zasada co w sklepie. */
+.bt-hub0-cos-grid--wide { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 560px) { .bt-hub0-cos-grid--wide { grid-template-columns: 1fr; } }
 .bt-hub0-cos .nm { font-size: 11px; text-align: center; line-height: 1.1; }
 .bt-hub0-cos.is-locked {
     filter: grayscale(100%); opacity: 0.5; cursor: not-allowed;
@@ -1685,8 +1694,15 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     border: 1px solid rgba(241, 196, 15, 0.35);
     border-radius: var(--radius-md, 14px);
-    background: linear-gradient(110deg, #2a2412, #1a2530 60%, #241a10);
+    /* v0.147.0: background-color OSOBNO od background-image. Skin profilu wchodzi
+       inline stylem jako `background-image`, wiec skrot `background` w tej regule
+       zostaje rozbity — inaczej zdjecie skinu zabieraloby ze soba takze domyslny
+       gradient i hero zostawaloby przezroczyste. */
+    background-color: #1a2530;
+    background-image: linear-gradient(110deg, #2a2412, #1a2530 60%, #241a10);
+    background-size: cover; background-position: center;
     padding: 18px 16px; margin-bottom: 12px; min-height: 132px; box-sizing: border-box;
+    overflow: hidden;
 }
 .bt-hub0-phero .ph-portrait {
     width: 112px; height: 112px; flex: 0 0 auto; border-radius: 16px; overflow: hidden;

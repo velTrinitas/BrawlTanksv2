@@ -93,6 +93,26 @@
 @media (max-width: 700px) { .bt-shop-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 460px) { .bt-shop-grid { grid-template-columns: repeat(2, 1fr); } }
 
+/* ── v0.147.0: SKINY PROFILU — siatka 2x1 (prosba Mariusza) ─────────────────
+   Baner ma 1024x167, czyli 6:1. W kwadratowym kaflu 168 px zostalby z niego pasek
+   27 px wysokosci — nierozpoznawalna kreska zamiast kamuflazu. Dlatego wlasna siatka
+   i wlasna proporcja kafla.
+
+   Na waskim ekranie schodzimy do JEDNEJ kolumny: dwa banery przy 375 px to 26 px
+   wysokosci kazdy, czyli ten sam problem od drugiej strony. Czytelnosc wygrywa
+   z „dwa w rzedzie" — to jest bramka 375 px, nie preferencja. */
+.bt-shop-grid--wide { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 700px) { .bt-shop-grid--wide { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 460px) { .bt-shop-grid--wide { grid-template-columns: 1fr; } }
+
+/* Kafel skinu pokazuje CALY baner, bez marginesu i bez przyciecia: cover przy
+   zgodnej proporcji nie ma czego uciac, a contain zostawialoby pasy tla. */
+.bt-shop-grid--wide .bt-shop-card .sk-art { aspect-ratio: 1024 / 167; border-radius: 8px; }
+.bt-shop-grid--wide .bt-shop-card .sk-art img:not(.bt-cratestack-i) {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.bt-shop-grid--wide .bt-shop-card .sk-emoji { font-size: 34px; }
+
 .bt-shop-card {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     padding: 10px 8px; cursor: pointer; text-align: center;
@@ -165,6 +185,16 @@
 }
 .bt-shop-detail .sd-img { width: 68%; max-width: 200px; object-fit: contain; position: relative; z-index: 1; }
 .bt-shop-detail .sd-emoji { position: absolute; font-size: 72px; line-height: 1; }
+/* v0.147.0 — modal skinu profilu. Domyslny uklad to wiersz z artem na 40% szerokosci
+   i max-width 200px; baner 6:1 zszedlby tam do 33 px wysokosci, czyli gracz
+   podejmowalby decyzje o zakupie na podstawie paska, ktorego nie widac. Tu art idzie
+   pelna szerokoscia NAD trescia, w swojej proporcji. */
+.bt-shop-detail--wide { flex-direction: column; }
+.bt-shop-detail--wide .sd-art {
+    flex: 0 0 auto; min-height: 0; width: 100%; aspect-ratio: 1024 / 167;
+    border-right: none; border-bottom: 1px solid var(--hub-line);
+}
+.bt-shop-detail--wide .sd-img { width: 100%; max-width: none; height: 100%; object-fit: cover; }
 .bt-shop-detail .sd-body {
     flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;
     padding: 18px 18px 16px; overflow-y: auto;

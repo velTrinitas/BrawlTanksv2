@@ -14,6 +14,7 @@ import { ProgressionService } from '../../services/ProgressionService';
 import type { CosmeticState } from '../../services/ProgressionService';
 import {
     cosmeticsByType, getCosmetic, RARITY_COLOR, nickColorStyle, frameStyle, avatarBgStyle,
+    profileSkinStyle,
     type CosmeticDef, type CosmeticType,
 } from '../../config/cosmetics';
 import { AudioSys } from '../../audio/AudioSys';
@@ -21,6 +22,9 @@ import { crosshairCanvasHtml } from './crosshairPreview'; // SHOP-2
 
 /** Kafel kolekcji jest maly — podglad celownika dostaje bok karty, nie 64 px. */
 const GRID_PREVIEW_PX = 44;
+
+/** v0.147.0 — prefiks assetow (skiny profilu sa plikami, nie CSS-em). */
+const COS_BASE = import.meta.env.BASE_URL;
 
 /** Etykiety grup per typ (literalowe klucze i18n). */
 const TYPE_LABEL_KEY = {
@@ -35,6 +39,7 @@ const TYPE_LABEL_KEY = {
     sticker: 'hub.garage.type.sticker',
     crosshair: 'hub.garage.type.crosshair',
     avatarBg: 'hub.garage.type.avatarBg', // v0.144.0
+    profileSkin: 'hub.garage.type.profileSkin', // v0.147.0
 } as const;
 
 /**
@@ -63,12 +68,22 @@ export function cosmeticChipHtml(
     // v0.138.0: celownik pokazuje sie MINI-CANVASEM rysowanym ta sama funkcja, ktora
     // rysuje go w meczu. Zablokowany tez — gracz ma widziec, na co zbiera; kropka
     // rzadkosci nie powiedzialaby o nim absolutnie nic.
-    const dot = isFrame
+    // v0.147.0 (zgloszenie Mariusza: „usun te niebieska kropke") — przy kolorze nicku
+    // kropka pokazywala RZADKOSC, nie kolor, wiec przy zlotym nicku swiecila na
+    // niebiesko. Sama kolorowa nazwa JEST probka, a rzadkosc niesie juz tlo karty
+    // (--rarity-color) — kropka tylko konkurowala z tym, po co gracz tu patrzy.
+    const dot = isNick
+        ? ''
+        : isFrame
         ? `<span class="dot dot--frame" style="${frameStyle(def)}" aria-hidden="true"></span>`
         // v0.144.0: tlo awatara pokazuje SIEBIE — kropka rzadkosci nie powiedzialaby
         // nic o tym, jak wyglada; ta sama zasada co przy celownikach i ramkach.
         : def.type === 'avatarBg'
             ? `<span class="dot dot--frame" style="${avatarBgStyle(def)}" aria-hidden="true"></span>`
+        // v0.147.0: skin profilu pokazuje SIEBIE, pelna szerokoscia kafla — ta sama
+        // zasada co ramki i tla, tylko material jest plikiem, nie gradientem.
+        : def.type === 'profileSkin'
+            ? `<span class="dot dot--banner" style="${profileSkinStyle(def, COS_BASE)}" aria-hidden="true"></span>`
         : def.type === 'crosshair'
             ? crosshairCanvasHtml(def.id, GRID_PREVIEW_PX)
             : EMOJI_TYPES.has(def.type) && def.emoji
@@ -98,11 +113,19 @@ export function cosmeticChipHtml(
  */
 const SINGLE_ROW_TYPES: ReadonlySet<CosmeticType> = new Set<CosmeticType>(['nickColor', 'avatarBg']);
 
+/**
+ * v0.147.0 — typy w siatce DWUKOLUMNOWEJ. Baner 1024:167 w kaflu 44 px bylby kreska;
+ * potrzebuje polowy szerokosci kolumny, zeby dalo sie rozpoznac kamuflaz od zywiolu.
+ */
+const WIDE_ROW_TYPES: ReadonlySet<CosmeticType> = new Set<CosmeticType>(['profileSkin']);
+
 /** Grupy kosmetykow (naglowek typu + grid kart) dla podanych typow. */
 export function cosmeticGroupsHtml(cos: CosmeticState, types: readonly CosmeticType[]): string {
     return types.map(type => {
         const items = cosmeticsByType(type).map(def => cosmeticChipHtml(def, cos)).join('');
-        const rowCls = SINGLE_ROW_TYPES.has(type) ? ' bt-hub0-cos-grid--row' : '';
+        const rowCls = SINGLE_ROW_TYPES.has(type)
+            ? ' bt-hub0-cos-grid--row'
+            : WIDE_ROW_TYPES.has(type) ? ' bt-hub0-cos-grid--wide' : '';
         return `<div class="bt-hub0-cos-group">
             <div class="bt-hub0-cos-grouptitle">${t(TYPE_LABEL_KEY[type])}</div>
             <div class="bt-hub0-cos-grid${rowCls}">${items}</div>

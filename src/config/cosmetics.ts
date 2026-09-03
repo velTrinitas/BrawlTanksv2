@@ -15,7 +15,10 @@ import type { TranslationKey } from '../i18n/i18n';
 // v0.144.0: 'avatarBg' — TLO POD ZDJECIEM czolgisty (prosba z playtestu). Awatary to
 // PNG RGBA z ~45% pikseli w pelni przezroczystych i ~34% miekkich krawedzi (zmierzone
 // na Ash_200/Jack_200), wiec warstwa pod nimi jest realnie widoczna.
-export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg';
+// v0.147.0: 'profileSkin' — BANER pod calym paskiem hero na stronie PROFIL (1024x167).
+// To pierwszy kosmetyk oparty na PLIKU, a nie na CSS: kamuflazu ani zywiolu nie da sie
+// zapisac gradientem, a proba skonczylaby sie karykatura moro w trzech kolorach.
+export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg' | 'profileSkin';
 export type Rarity = 'c' | 'r' | 'e' | 'l';
 
 /**
@@ -25,7 +28,11 @@ export type Rarity = 'c' | 'r' | 'e' | 'l';
  * 'title' bylo tu juz wczesniej (kolizja z Rangami Zalog, v0.118.0) — ODWRACALNE.
  */
 export const SHOP_ONLY_TYPES: ReadonlySet<CosmeticType> =
-    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice', 'crosshair']);
+    // v0.147.0: 'profileSkin' MUSI tu byc. Ten zbior jest jedynym filtrem puli skrzynek
+    // (patrz cosmeticIdsOfRarity) — bez wpisu skiny wypadalyby ze skrzynek i jednoczesnie
+    // stalyby na sprzedaz, czyli sklep kanibalizowalby sam siebie, a pula losowania
+    // rozjechalaby sie o 8 pozycji.
+    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice', 'crosshair', 'profileSkin']);
 
 export interface CosmeticDef {
     readonly id: string;
@@ -49,6 +56,12 @@ export interface CosmeticDef {
     readonly bg?: string;
     /** sticker: sciezka obrazka wzgledem BASE_URL (kulka na profilu + kafel sklepu). */
     readonly asset?: string;
+    /**
+     * profileSkin (v0.147.0): sciezka baneru wzgledem BASE_URL. Osobne pole od `asset`,
+     * bo `asset` jest artem KAFLA w sklepie, a to jest tresc samego kosmetyku — te dwie
+     * rzeczy tylko przypadkiem sa dzis tym samym plikiem.
+     */
+    readonly bgImage?: string;
     /**
      * sticker: emoji zamiast pliku. Zero assetow, zero wagi bundla, dziala od razu
      * w obu jezykach — dla naklejek to lepszy material niz PNG, bo caly zestaw da sie
@@ -75,8 +88,8 @@ export const RARITY_LABEL_KEY: Record<Rarity, TranslationKey> = {
 // ── Rejestr (F2a: ~14 kosmetykow profilowych CSS) ────────────────────────────
 export const COSMETICS: readonly CosmeticDef[] = [
     // kolory nicku
-    { id: 'nc_gold',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_gold',    color: '#f1c40f' },
-    { id: 'nc_lime',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_lime',    color: '#a3e635' },
+    { id: 'nc_gold',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_gold',    color: '#ffcc00' },
+    { id: 'nc_lime',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_lime',    color: '#a7f320' },
     { id: 'nc_fire',    type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_fire',    color: 'linear-gradient(90deg,#ff6b35,#f7c948)', gradient: true },
     { id: 'nc_ocean',   type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_ocean',   color: 'linear-gradient(90deg,#37a0e0,#7ef0a8)', gradient: true },
     { id: 'nc_shimmer', type: 'nickColor', rarity: 'l', labelKey: 'cosmetic.nc_shimmer', color: 'linear-gradient(90deg,#ffe066,#f1c40f,#fff6c2,#f1c40f)', gradient: true, animated: true },
@@ -95,11 +108,11 @@ export const COSMETICS: readonly CosmeticDef[] = [
     //    2 commony z F2a robily dublet-city od pierwszych skrzynek). Nowe id
     //    dolaczaja do puli bez migracji (owned=union, losowanie po rarity). ──
     // kolory nicku (+7)
-    { id: 'nc_mint',    type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_mint',    color: '#7ef0c8' },
-    { id: 'nc_rose',    type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_rose',    color: '#ff8fa3' },
-    { id: 'nc_sky',     type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_sky',     color: '#7ec8f7' },
-    { id: 'nc_crimson', type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_crimson', color: '#e74c3c' },
-    { id: 'nc_violet',  type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_violet',  color: '#b07ef7' },
+    { id: 'nc_mint',    type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_mint',    color: '#5ff5c8' },
+    { id: 'nc_rose',    type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_rose',    color: '#ff7591' },
+    { id: 'nc_sky',     type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_sky',     color: '#5cbcff' },
+    { id: 'nc_crimson', type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_crimson', color: '#ff4b39' },
+    { id: 'nc_violet',  type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_violet',  color: '#b96bff' },
     { id: 'nc_toxic',   type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_toxic',   color: 'linear-gradient(90deg,#a3e635,#2edcb0)', gradient: true },
     { id: 'nc_rainbow', type: 'nickColor', rarity: 'l', labelKey: 'cosmetic.nc_rainbow', color: 'linear-gradient(90deg,#ff6b6b,#f7c948,#7ef0a8,#37a0e0,#b07ef7)', gradient: true, animated: true },
     // ramki avatara (+5)
@@ -135,6 +148,15 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'st_target',  type: 'sticker', rarity: 'e', labelKey: 'cosmetic.st_target',  emoji: '🎯' },
     { id: 'st_medal',   type: 'sticker', rarity: 'l', labelKey: 'cosmetic.st_medal',   emoji: '🎖️' },
     { id: 'st_bolt',    type: 'sticker', rarity: 'l', labelKey: 'cosmetic.st_bolt',    emoji: '🔩' },
+    // v0.147.0 — paczka MINY CZOLGISTY (6 szt., propozycja Mariusza z 04.09). Pierwszy
+    // zestaw naklejek, ktory niesie EMOCJE, a nie przedmiot: dziesiec z dwunastu
+    // dotychczasowych to biceps/pieszc/helm/tarcza. Rzadkosci wprost z opisow w zgloszeniu.
+    { id: 'st_cool',      type: 'sticker', rarity: 'c', labelKey: 'cosmetic.st_cool',      emoji: '😎' },
+    { id: 'st_steam',     type: 'sticker', rarity: 'c', labelKey: 'cosmetic.st_steam',     emoji: '😤' },
+    { id: 'st_devil',     type: 'sticker', rarity: 'r', labelKey: 'cosmetic.st_devil',     emoji: '😈' },
+    { id: 'st_party',     type: 'sticker', rarity: 'r', labelKey: 'cosmetic.st_party',     emoji: '🥳' },
+    { id: 'st_rage',      type: 'sticker', rarity: 'e', labelKey: 'cosmetic.st_rage',      emoji: '😡' },
+    { id: 'st_mindblown', type: 'sticker', rarity: 'l', labelKey: 'cosmetic.st_mindblown', emoji: '🤯' },
     // klaksony — klawisz H (desktop; kafle ukryte na dotyku, patrz shop.ts desktopOnly).
     // Pliki Mariusza z public/sfx/honks/. Ladowane LENIWIE (AudioSys.ownedSounds), wiec
     // gracz sciaga tylko to, co kupil — te szesc nie jest w SOUND_LIST.
@@ -183,7 +205,48 @@ export const COSMETICS: readonly CosmeticDef[] = [
 
     { id: 'bg_gold',     type: 'avatarBg', rarity: 'l', labelKey: 'cosmetic.bg_gold',     bg: 'linear-gradient(150deg, #f7e08a 0%, #e0a92c 38%, #8a5f12 72%, #3a2a08 100%)' },
     { id: 'bg_holo',     type: 'avatarBg', rarity: 'l', labelKey: 'cosmetic.bg_holo',     bg: 'conic-gradient(from 200deg at 50% 40%, #ff5f6d, #ffc371, #47e5bc, #4d7cff, #b06ab3, #ff5f6d)' },
+
+    // ── v0.147.0: SKINY PROFILU (8 z docelowych 12) ──────────────────────────
+    // Baner 1024x167 pod calym paskiem hero na stronie PROFIL. Towar WYLACZNIE sklepowy
+    // (SHOP_ONLY_TYPES) — patrz komentarz przy tym zbiorze.
+    //
+    // Zasada doboru rzadkosci: kamuflaze nizej, zywioly wyzej. Cztery moro to warianty
+    // tego samego pomyslu (gracz kupi jeden i ma temat zalatwiony), a ogien czy glebina
+    // zmieniaja caly klimat profilu i to one maja byc celem zbierania.
+    //
+    // Brakujace cztery pozycje stoja w sklepie jako kafle WKROTCE (shop.ts). Dolozenie
+    // pliku = jeden wiersz TUTAJ; sklep podlapie go sam przez profileSkinSkus().
+    { id: 'ps_pixel',  type: 'profileSkin', rarity: 'c', labelKey: 'cosmetic.ps_pixel',  bgImage: 'profileBG/CADPAT_mini.jpg' },
+    { id: 'ps_angles', type: 'profileSkin', rarity: 'c', labelKey: 'cosmetic.ps_angles', bgImage: 'profileBG/M90_mini.jpg' },
+    { id: 'ps_jackal', type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_jackal', bgImage: 'profileBG/Jackali_mini.jpg' },
+    { id: 'ps_mirage', type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_mirage', bgImage: 'profileBG/Mirage_mini.jpg' },
+    { id: 'ps_gale',   type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_gale',   bgImage: 'profileBG/AIr_mini.jpg' },
+    { id: 'ps_stones', type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_stones', bgImage: 'profileBG/Earth_mini.jpg' },
+    { id: 'ps_deep',   type: 'profileSkin', rarity: 'l', labelKey: 'cosmetic.ps_deep',   bgImage: 'profileBG/Water_mini.jpg' },
+    { id: 'ps_blaze',  type: 'profileSkin', rarity: 'l', labelKey: 'cosmetic.ps_blaze',  bgImage: 'profileBG/Fire_mini.jpg' },
 ];
+
+/**
+ * v0.147.0 — etykiety kategorii w LICZBIE POJEDYNCZEJ.
+ *
+ * Zgloszenie Mariusza: popup skrzynki pisal „Nowy kosmetyk: Piasek", co nie mowilo,
+ * CZY to tlo, ramka, czy kolor. Nagroda potrzebuje prefiksu kategorii.
+ *
+ * Dlaczego osobna mapa, a nie TYPE_LABEL_KEY z cosmeticGrid.ts: tamta jest w liczbie
+ * MNOGIEJ, bo sluzy naglowkom grup („Tla pod zdjecie"). Jako prefiks nagrody czytaloby
+ * sie to bledem. Dwa rozne zastosowania, nie duplikat.
+ */
+export const CATEGORY_LABEL_ONE: Record<CosmeticType, TranslationKey> = {
+    nickColor: 'cosmetic.cat.nickColor',
+    frame: 'cosmetic.cat.frame',
+    title: 'cosmetic.cat.title',
+    sticker: 'cosmetic.cat.sticker',
+    horn: 'cosmetic.cat.horn',
+    voice: 'cosmetic.cat.voice',
+    crosshair: 'cosmetic.cat.crosshair',
+    avatarBg: 'cosmetic.cat.avatarBg',
+    profileSkin: 'cosmetic.cat.profileSkin',
+};
 
 const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));
 
@@ -240,6 +303,32 @@ export function nickColorStyle(def: CosmeticDef | undefined): string {
 export function avatarBgStyle(def: CosmeticDef | undefined): string {
     if (!def || def.type !== 'avatarBg' || !def.bg) return '';
     return `background:${def.bg};`;
+}
+
+/**
+ * v0.147.0 — inline-style BANERU hero wg equipped profileSkin.
+ *
+ * Welon (ciemny gradient nad obrazem) nie jest ozdoba, tylko warunkiem czytelnosci:
+ * pas hero niesie nick, pigulki i range, a nick na moro przestaje byc czytelny.
+ * Dlatego gradient i obraz ida w JEDNEJ deklaracji `background-image` — nie da sie
+ * wtedy zalozyc skinu bez welonu.
+ *
+ * Prefiks BASE_URL wchodzi parametrem, bo ten plik jest configiem i nie ma prawa
+ * czytac `import.meta.env` (jest importowany takze poza kontekstem Vite w narzedziach).
+ */
+export function profileSkinStyle(def: CosmeticDef | undefined, base: string): string {
+    if (!def || def.type !== 'profileSkin' || !def.bgImage) return '';
+    // Welon ma DWIE osie i obie sa potrzebne — sprawdzone na zywym hero:
+    //  - poziomo: najciemniej po lewej, gdzie stoi nick i pigulki (uklad szeroki),
+    //  - pionowo: dociemnienie ku dolowi, bo przy waskim ekranie hero ZAWIJA SIE
+    //    i ranga z przyciskiem EDYTUJ ladują w drugim/trzecim rzedzie, czyli tam,
+    //    gdzie sam gradient poziomy juz nie chroni.
+    // Prawy gorny rog zostaje najjasniejszy — tam nie ma zadnej tresci, wiec to
+    // jedyne miejsce, gdzie skin moze byc soba w pelni.
+    const veil = 'linear-gradient(180deg,rgba(12,16,22,0) 0%,rgba(12,16,22,0.10) 45%,rgba(12,16,22,0.45) 100%),'
+        + 'linear-gradient(90deg,rgba(12,16,22,0.92) 0%,rgba(12,16,22,0.74) 45%,rgba(12,16,22,0.58) 100%)';
+    return `background-image:${veil},url('${base}${def.bgImage}');`
+        + 'background-size:cover;background-position:center;';
 }
 
 /** Inline-style dla ramki avatara wg equipped frame. */

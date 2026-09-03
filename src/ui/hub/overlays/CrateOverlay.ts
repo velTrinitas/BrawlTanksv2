@@ -2,7 +2,9 @@ import { t } from '../../../i18n/i18n';
 import { crateIcon } from '../gameIcons';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { AudioSys } from '../../../audio/AudioSys';
-import { getCosmetic, RARITY_COLOR, RARITY_LABEL_KEY, type Rarity } from '../../../config/cosmetics';
+import {
+    getCosmetic, RARITY_COLOR, RARITY_LABEL_KEY, CATEGORY_LABEL_ONE, type Rarity,
+} from '../../../config/cosmetics';
 import { CRATE_RARITY_WEIGHTS, type CrateOpenResult } from '../../../config/progression';
 
 /**
@@ -231,7 +233,10 @@ export class CrateOverlay {
         const color = RARITY_COLOR[r.rarity];
         const cosDef = r.cosmeticId ? getCosmetic(r.cosmeticId) : undefined;
         const rewardLine = cosDef
-            ? `<div class="bt-hub0-reveal-cos">${t('crate.newCosmetic')}<b>${t(cosDef.labelKey)}</b></div>`
+            // v0.147.0 (zgloszenie Mariusza): samo „Piasek" nie mowilo, czy to tlo,
+            // ramka, czy kolor — gracz dostawal nagrode i nie wiedzial, co dostal.
+            // Prefiks kategorii w liczbie pojedynczej rozstrzyga to w jednym slowie.
+            ? `<div class="bt-hub0-reveal-cos">${t('crate.newCosmetic')}<b>${t(CATEGORY_LABEL_ONE[cosDef.type])} — ${t(cosDef.labelKey)}</b></div>`
             : `<div class="bt-hub0-reveal-cos">${t('crate.dup')}</div>`;
         this.el.innerHTML = `
             <div class="bt-hub0-modal bt-hub0-crate-modal" role="dialog" aria-modal="true">

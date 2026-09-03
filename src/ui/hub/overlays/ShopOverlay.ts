@@ -107,11 +107,15 @@ export class ShopOverlay {
             : '';
         const hornNote = item.desktopOnly
             ? `<p class="sd-note">${t('shop.hornDesktopNote')}</p>` : '';
+        // v0.147.0 — skin profilu to baner 1024x167. Domyslny modal daje artowi 40%
+        // szerokosci i `max-width: 200px`, czyli pasek 33 px wysokosci; wariant `--wide`
+        // klade go pelna szerokoscia nad trescia. Gracz musi widziec, za co placi.
+        const wide = item.category === 'profileSkins' ? ' bt-shop-detail--wide' : '';
 
         this.el = document.createElement('div');
         this.el.className = 'bt-hub0-overlay';
         this.el.innerHTML = `
-            <div class="bt-hub0-modal bt-shop-detail" role="dialog" aria-modal="true"
+            <div class="bt-hub0-modal bt-shop-detail${wide}" role="dialog" aria-modal="true"
                  style="--g:${RARITY_COLOR[item.rarity]}">
                 <button class="bt-hub0-modal-close" data-action="close" type="button"
                         aria-label="${t('common.close')}">✕</button>

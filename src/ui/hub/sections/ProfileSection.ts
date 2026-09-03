@@ -10,6 +10,8 @@ import {
     type CosmeticType,
 } from '../../../config/cosmetics';
 import { AVATARS } from '../../../config/avatars';
+import { renderStatArt, STAT_ACCENT, type StatArtId } from '../statArt';   // v0.145.0
+import { gemIcon, sigmaIcon } from '../gameIcons';                          // v0.145.0 — koniec lokalnych kopii
 import { RANKS } from '../../../config/ranks';
 import { flagImgHtml } from '../../flagArt';
 import { rankBadgeHtml } from '../rankBadge';
@@ -287,24 +289,49 @@ export class ProfileSection implements HubSection {
         }
     }
 
-    /** Kafel statystyki (gramatyka StatsOverlay/HUB-5 — CSS .bt-hub0-stat reuse). */
     /**
-     * v0.128.0 (zgloszenie Mariusza) — emoji 💎 to systemowy niebieski brylant, czyli
-     * INNY ksztalt i kolor niz gem, ktory gracz realnie zbiera na mapie. Kafel ma
-     * pokazywac te sama rzecz co gra. Wzorzec 1:1 z `sigmaImg` w `overviewHtml`;
-     * metoda, bo ikona jest potrzebna w DWOCH zakladkach (Przeglad i Rekordy).
+     * v0.145.0 — KAFEL Z ILUSTRACJA (makieta Mariusza).
+     *
+     * Bylo: emoji nad mala liczba, uklad w kolumnie. Emoji jest systemowe (inny ksztalt
+     * na kazdym urzadzeniu), bitmapowe (pikseluje przy powiekszeniu) i nie da sie go
+     * pokolorowac. Teraz: ilustracja SVG po lewej, powiekszona liczba w kolorze akcentu
+     * po prawej — art w `statArt.ts`.
+     *
+     * `--art` niesie kolor akcentu do liczby I do poswiaty pod ikona, zeby kafel czytal
+     * sie jako jedna calosc, a nie jako ikona doklejona do cyfry.
      */
-    private gemIcon(): string {
-        return `<img class="bt-sigma bt-sigma--gem" src="${import.meta.env.BASE_URL}assets/gem.png" alt="">`;
+    private tileHtml(artHtml: string, accent: string, value: string | number, label: string): string {
+        // DLUGOSC WARTOSCI STERUJE SKALA LICZBY. Kafle niosa od 1 do 7 znakow: „7",
+        // „19x", „89%", „1h 58m", „—". Pierwsza wersja skalowala font przez `clamp(vw)`,
+        // ale `vw` mierzy OKNO, a nie kafel — przy trzech kolumnach na waskim ekranie
+        // „12h 45m" wychodzilo poza pole i lapal je wielokropek (zmierzone: przepelnienie
+        // przy kaflu 155 px). Dlugosc stringa znamy tutaj, wiec skala jest deterministyczna
+        // i niezalezna od szerokosci okna.
+        const plain = String(value).replace(/<[^>]*>/g, '');   // slot rangi niesie HTML
+        return `
+            <div class="bt-hub0-stat bt-hub0-stat--art" style="--art:${accent}" data-vlen="${Math.min(9, plain.length)}">
+                <span class="art" aria-hidden="true">${artHtml}</span>
+                <span class="val"><b>${value}</b><small>${label}</small></span>
+            </div>`;
     }
 
-    private tile(icon: string, value: string | number, label: string): string {
-        return `
-            <div class="bt-hub0-stat">
-                <span class="i" aria-hidden="true">${icon}</span>
-                <b>${value}</b>
-                <small>${label}</small>
-            </div>`;
+    /** Kafel z ikona rysowana kodem (statArt). */
+    private tile(art: StatArtId, value: string | number, label: string): string {
+        return this.tileHtml(renderStatArt(art), STAT_ACCENT[art], value, label);
+    }
+
+    /**
+     * Kafel z ikona ASSETOWA gry (sigma, gem). Te dwie MUSZA zostac plikami: pokazuja
+     * przedmiot, ktory gracz zbiera na mapie, i maja wygladac dokladnie tak samo jak
+     * on. To decyzja z v0.128.0 — emoji 💎 (systemowy niebieski brylant) zostalo wtedy
+     * wymienione na prawdziwego gema wlasnie dlatego, ze pokazywalo inny ksztalt.
+     *
+     * v0.145.0: zrodlem jest teraz wspolny rejestr `gameIcons`, a nie lokalna kopia
+     * `<img>` — nagłowek tamtego pliku ostrzega wprost, ze kopie w `ProfileSection`
+     * to droga, na ktorej rozmiary i sciezki sie rozjezdzaja.
+     */
+    private tileAsset(imgHtml: string, accent: string, value: string | number, label: string): string {
+        return this.tileHtml(`<span class="sa-asset">${imgHtml}</span>`, accent, value, label);
     }
 
     /** Czas gry dla dziecka: "3h 24m" / "24m" / "45s". */
@@ -325,8 +352,8 @@ export class ProfileSection implements HubSection {
         // slowem to gotowe poczucie, ze gra sie myli. Jedno slowo = jedna liczba.
         const bolts = ProgressionService.getBoltsBalance(pid);
         const milestones = TROPHY_MILESTONES.filter(m => trophies >= m.threshold).length;
-        const sigmaImg = `<img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">`;
-        const gemImg = this.gemIcon();
+        const sigmaImg = sigmaIcon(34);
+        const gemImg = gemIcon(38);
         // 9. kafel (iteracja 2: pelny grid 3x3 na desktopie): CELNOSC OGOLNA
         // lifetime — clamp 100 (fragi/breakup zawyzaja trafienia, fix przy L2b).
         const lifeAcc = stats.lifetime.shotsFired > 0
@@ -335,15 +362,15 @@ export class ProfileSection implements HubSection {
         // "Najlepsze na mapach" WYCIETE (iteracja 2, decyzja Mariusza: nic nie wnosi).
         return `
             <div class="bt-hub0-stats bt-hub0-stats--9">
-                ${this.tile('🏆', trophies, t('hub.nav.trophies'))}
-                ${this.tile(sigmaImg, bolts, t('hub.stats.bolts'))}
-                ${this.tile('🎮', stats.totalRuns, t('hub.stats.games'))}
-                ${this.tile('⭐', milestones, t('hub.stats.milestones'))}
-                ${this.tile('💀', stats.lifetime.kills, t('hub.profile.kills'))}
-                ${this.tile(gemImg, stats.lifetime.gems, t('hub.profile.gems'))}
-                ${this.tile('⏱️', this.formatPlaytime(stats.lifetime.seconds), t('hub.profile.time'))}
-                ${this.tile('🎯', lifeAcc, t('hub.profile.accuracy'))}
-                ${this.tile('🏅', '<span data-rank>…</span>', t('hub.profile.rank'))}
+                ${this.tile('trophy', trophies, t('hub.nav.trophies'))}
+                ${this.tileAsset(sigmaImg, '#f5b731', bolts, t('hub.stats.bolts'))}
+                ${this.tile('games', stats.totalRuns, t('hub.stats.games'))}
+                ${this.tile('milestone', milestones, t('hub.stats.milestones'))}
+                ${this.tile('skull', stats.lifetime.kills, t('hub.profile.kills'))}
+                ${this.tileAsset(gemImg, '#39d98a', stats.lifetime.gems, t('hub.profile.gems'))}
+                ${this.tile('clock', this.formatPlaytime(stats.lifetime.seconds), t('hub.profile.time'))}
+                ${this.tile('target', lifeAcc, t('hub.profile.accuracy'))}
+                ${this.tile('rank', '<span data-rank>…</span>', t('hub.profile.rank'))}
             </div>`;
     }
 
@@ -357,12 +384,12 @@ export class ProfileSection implements HubSection {
         const bestScore = Math.max(0, ...Object.values(perMapBest));
         return `
             <div class="bt-hub0-stats bt-hub0-stats--9">
-                ${this.tile('🥇', bestScore || dash, t('hub.stats.best'))}
-                ${this.tile('💀', records.maxKills || dash, t('hub.profile.rec.kills'))}
-                ${this.tile(this.gemIcon(), records.maxGems || dash, t('hub.profile.rec.gems'))}
-                ${this.tile('⏱️', records.maxSeconds > 0 ? this.formatPlaytime(records.maxSeconds) : dash, t('hub.profile.rec.time'))}
-                ${this.tile('🎯', acc, t('hub.profile.rec.accuracy'))}
-                ${this.tile('🔥', combo, t('hub.profile.rec.combo'))}
+                ${this.tile('best', bestScore || dash, t('hub.stats.best'))}
+                ${this.tile('skull', records.maxKills || dash, t('hub.profile.rec.kills'))}
+                ${this.tileAsset(gemIcon(38), '#39d98a', records.maxGems || dash, t('hub.profile.rec.gems'))}
+                ${this.tile('clock', records.maxSeconds > 0 ? this.formatPlaytime(records.maxSeconds) : dash, t('hub.profile.rec.time'))}
+                ${this.tile('target', acc, t('hub.profile.rec.accuracy'))}
+                ${this.tile('flame', combo, t('hub.profile.rec.combo'))}
             </div>
             <small class="bt-hub0-phint">${t('hub.profile.accHint', { n: ACCURACY_MIN_SHOTS })} · ${t('hub.profile.recHint')}</small>`;
     }

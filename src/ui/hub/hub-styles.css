@@ -593,6 +593,94 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
     color: var(--hub-ink-faint);
 }
 
+/* ===========================================================================
+   v0.145.0 — KAFEL Z ILUSTRACJA (makieta Mariusza, ocena Art Dira).
+   Wariant OBOK bazowej `.bt-hub0-stat`, ktora zostaje nietknieta.
+
+   Do v0.144.0 kafel byl plaski: `background: #1f2c39`, 1px ramka, emoji 20 px nad
+   liczba 17 px. Zero gradientu, zero tekstury, zero `position`/`overflow`.
+
+   Intencje Art Dira przetlumaczone z warstwy silnika na DOM:
+     watermark z alpha 0.1-0.15   -> `.sa-wm` (opacity na grupie w SVG)
+     "zamrozone" czasteczki       -> statyczne `<circle>` w SVG, rasteryzowane raz
+     wypieczony cien wewnetrzny   -> `box-shadow: inset` (tansze niz filtr GPU)
+     gradienty radialne           -> `<radialGradient>` w SVG + poswiata `::before`
+   =========================================================================== */
+.bt-hub0-stat--art {
+    flex-direction: row; align-items: center; gap: 10px; text-align: left;
+    padding: 10px 11px; position: relative; overflow: hidden;
+    background: linear-gradient(158deg, #2b3b4c 0%, #1e2b38 55%, #16202a 100%);
+    /* Wciśniety panel: jasna krawedz u gory + ciemnienie ku dolowi. */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -14px 26px rgba(0, 0, 0, 0.38);
+}
+/* Poswiata w kolorze akcentu pod ikona — spina ikone z liczba w jedna calosc. */
+.bt-hub0-stat--art::before {
+    content: ''; position: absolute; left: -6%; top: 50%; width: 62%; padding-bottom: 62%;
+    transform: translateY(-50%); border-radius: 50%; pointer-events: none;
+    background: radial-gradient(closest-side, var(--art, #f1c40f) 0%, transparent 72%);
+    opacity: 0.16;
+}
+/* Ziarno — jeden powtarzalny gradient przy bardzo niskiej alfie. Tanie, a odbiera
+   plaskosc; bez tego gradient tla czyta sie jak plama. */
+.bt-hub0-stat--art::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+    background: repeating-radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px);
+}
+.bt-hub0-stat--art > * { position: relative; z-index: 1; }
+.bt-hub0-stat--art .art {
+    flex: 0 0 auto; width: 50px; height: 50px; display: grid; place-items: center;
+}
+.bt-hub0-stat--art .art .sa-svg { width: 100%; height: 100%; display: block; }
+/* Warstwa "watermark" — pelny ksztalt, lekko przygaszony, zeby liczba wygrywala. */
+.bt-hub0-stat--art .art .sa-wm { opacity: 0.92; }
+.bt-hub0-stat--art .art .sa-asset { display: grid; place-items: center; }
+/* Kolumna wartosci. `min-width: 0` jest KONIECZNE — bez niego dlugi czas („3h 24m")
+   rozepchnalby kafel zamiast sie zmniejszyc.
+   v0.145.0 (poprawka Mariusza): liczba i podpis WYSRODKOWANE w pozostalej szerokosci
+   kafla — ikona zostaje kotwica po lewej, a para liczba+opis czyta sie jako jeden blok. */
+.bt-hub0-stat--art .val {
+    display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto;
+    align-items: center; text-align: center;
+}
+/* Liczba niesie od 1 do 7 znakow („7", „85%", „2x", „3h 24m", „—"). `clamp` + `nowrap`
+   pilnuje, zeby najdluzsza wartosc zjechala rozmiarem, a nie uciekla za krawedz. */
+/* SKALA LICZBY STERUJE DLUGOSC WARTOSCI, nie szerokosc okna. Pierwsza wersja miala
+   `clamp(19px, 3.4vw, 30px)`, ale `vw` mierzy OKNO — przy trzech kolumnach na waskim
+   ekranie „12h 45m" wychodzilo poza pole i lapal je wielokropek (zmierzone: kafel
+   155 px). `data-vlen` przychodzi z `ProfileSection.tileHtml` i zna faktyczna liczbe
+   znakow, wiec skala jest deterministyczna na kazdej szerokosci. */
+.bt-hub0-stat--art .val b {
+    font-size: 30px; line-height: 1.05; color: var(--art, var(--hub-accent));
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+.bt-hub0-stat--art[data-vlen="5"] .val b { font-size: 26px; }
+.bt-hub0-stat--art[data-vlen="6"] .val b { font-size: 23px; }
+.bt-hub0-stat--art[data-vlen="7"] .val b { font-size: 20px; }
+.bt-hub0-stat--art[data-vlen="8"] .val b,
+.bt-hub0-stat--art[data-vlen="9"] .val b { font-size: 18px; }
+.bt-hub0-stat--art .val small { font-size: 9.5px; line-height: 1.15; color: var(--hub-ink-dim); }
+/* Iskry — mrugaja leniwie. To jedyny ruch w kaflu; wylaczany w reduced-motion nizej. */
+.bt-hub0-stat--art .sa-spark { animation: sa-twinkle 3.2s ease-in-out infinite; transform-origin: center; }
+.bt-hub0-stat--art .sa-skull .sa-spark { animation-duration: 2.4s; }
+.bt-hub0-stat--art .sa-flame .sa-spark { animation-duration: 1.9s; }
+@keyframes sa-twinkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* Telefon w poziomie: siatka jest wymuszona na 3 kolumny takze na mobile
+   (`.bt-hub0-stats--9`), wiec kafel dostaje ~1/3 szerokosci. Ikona i liczba schodza,
+   ale zostaja czytelne — to jest tu bramka, nie estetyka. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-hub0-stat--art { padding: 8px; gap: 7px; }
+    .bt-hub0-stat--art .art { width: 38px; height: 38px; }
+    .bt-hub0-stat--art .val b { font-size: 22px; }
+    .bt-hub0-stat--art[data-vlen="5"] .val b { font-size: 20px; }
+    .bt-hub0-stat--art[data-vlen="6"] .val b { font-size: 18px; }
+    .bt-hub0-stat--art[data-vlen="7"] .val b { font-size: 16px; }
+    .bt-hub0-stat--art[data-vlen="8"] .val b,
+    .bt-hub0-stat--art[data-vlen="9"] .val b { font-size: 15px; }
+    .bt-hub0-stat--art .val small { font-size: 8.5px; letter-spacing: 0.3px; }
+}
+
 /* ---------- F2a: readout kosmetyki (PROFILE-1: tytul wyciety — rangi go zastapia) ---------- */
 .bt-cos-shimmer { background-size: 200% auto; animation: bt-cos-shine 2.4s linear infinite; }
 @keyframes bt-cos-shine { to { background-position: 200% center; } }
@@ -2429,6 +2517,9 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-hub0-av-tile, .bt-hub0-flag-tile, .bt-hub0-s2, .bt-hub0-powcard { transition: none; }
     .mp7-cloud, .mp7-neon, .mp7-bird, .mp7-aurora { animation: none; }
     .mp7-bird { opacity: 0; } /* ptak bez animacji wisialby w miejscu spawn */
+    /* v0.145.0 — iskry w kaflach statystyk. Bez animacji zostaja WIDOCZNE (w
+       przeciwienstwie do ptaka): to czesc rysunku, nie efekt. */
+    .bt-hub0-stat--art .sa-spark { animation: none; opacity: 1; }
     .bt-rankup, .bt-rankup-rays, .bt-rankup-glow, .bt-rankup-badge,
     .bt-rankup-smoke b, .bt-rankup-confetti i { animation: none; }
     .bt-rankup-confetti { display: none; }

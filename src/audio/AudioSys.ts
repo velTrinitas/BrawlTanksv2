@@ -128,7 +128,10 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'super_locker', file: 'super_locker.wav', volume: VOLUMES.superActivate * 0.9 },  // dzwonek dostawy + serwo
     { key: 'super_disco',  file: 'super_disco.wav',  volume: VOLUMES.superActivate },        // funky sting (stopa+hat+bas)
     { key: 'disco_groove', file: 'disco_groove.wav', volume: VOLUMES.superActivate * 0.8 },  // v2: 6s groove 125BPM w TLE imprezy (syntezowany = zero praw autorskich)
-    { key: 'super_granny', file: 'super_granny.wav', volume: VOLUMES.superActivate * 0.9 },  // boing-boing + klap walka
+    // v0.146.0: generowany `super_granny.wav` zastapiony assetem Mariusza. Plik trwa
+    // 4,06 s, a moc 300 klatek = 5,0 s, wiec miesci sie w JEDNYM odtworzeniu — petla
+    // nie jest potrzebna (inaczej niz przy kaczce, ktora zyje 7 s przy probce 3,05 s).
+    { key: 'super_granny', file: 'super_powers/granny.mp3', volume: VOLUMES.superActivate * 0.9 },
     { key: 'super_burp',   file: 'SP_burp.mp3',      volume: VOLUMES.superActivate * 1.1 },  // MEGA BEK — asset Mariusza (v0.119.0, zastapil generowany)
     // F7b-3 Salwa Rakiet — oba generowane proceduralnie (scratchpad gen_rocket_sfx.js)
     { key: 'rocket_launch', file: 'SP_missile.mp3',    volume: VOLUMES.superActivate * 0.7 }, // asset Mariusza (zastapil generowany); grany 8x co ~80ms = rytm tuk-tuk
@@ -185,6 +188,15 @@ export class AudioSys {
     // NIESIE flage; track mapy (ctf.ogg) jest wtedy zapauzowany i wznawiany po dostawie.
     private ctfCarryMusic: Howl | null = null;
     private ctfCarrying: boolean = false;
+
+    /**
+     * v0.146.0 — PIERWSZY ZAPETLONY SFX W GRZE. Do tej pory `loop: true` wystepowalo
+     * WYLACZNIE w muzyce. Kaczka zyje 7 s, a probka trwa 3,05 s, wiec jedno odtworzenie
+     * urwaloby sie w polowie lotu. Wzorzec 1:1 z `ctfCarryMusic`: osobny Howl + flaga
+     * idempotencji + jawny stop, bo dzwiek MUSI zamilknac razem ze zniknieciem kaczki.
+     */
+    private duckLoop: Howl | null = null;
+    private duckLooping: boolean = false;
 
     // v0.42.0: Menu music howls (intro + hub)
     private introMusic: Howl | null = null;
@@ -305,6 +317,54 @@ export class AudioSys {
             });
         } catch (e) {
             console.warn('[AudioSys] Carry music init failed', e);
+        }
+
+        // v0.146.0: petla kaczki. `preload: false` — 73 KB potrzebne WYLACZNIE po
+        // aktywacji mocy odblokowanej na 6000 trofeow, wiec nie ma powodu wozic tego
+        // przy starcie gry (ta sama zasada co muzyka map od v0.135.0).
+        // Glosnosc idzie z kanalu SFX, nie muzyki — to efekt, nie podklad.
+        try {
+            this.duckLoop = new Howl({
+                src: [BASE + 'sfx/super_powers/duck.mp3'],
+                loop: true,
+                volume: VOLUMES.superActivate * 0.85 * this.sfxVolMult,
+                preload: false,
+                onloaderror: (_id, err) => {
+                    console.warn('[AudioSys] Brak petli kaczki: super_powers/duck.mp3', err);
+                },
+            });
+        } catch (e) {
+            console.warn('[AudioSys] Duck loop init failed', e);
+        }
+    }
+
+    /**
+     * v0.146.0 — start/stop petli kaczki. Idempotentne w obie strony (flaga
+     * `duckLooping`), bo `duckLaunch` moze wpasc przy juz lecacej kaczce, a stop leci
+     * i z despawnu, i z teardownu meczu.
+     */
+    startDuckLoop(): void {
+        if (this.duckLooping) return;
+        this.duckLooping = true;
+        try {
+            const h = this.duckLoop;
+            if (!h) return;
+            this.loadOnce(h, 'duck loop');
+            h.seek(0);
+            h.play();
+        } catch (e) {
+            console.warn('[AudioSys] startDuckLoop failed', e);
+            this.duckLooping = false;
+        }
+    }
+
+    stopDuckLoop(): void {
+        if (!this.duckLooping) return;
+        this.duckLooping = false;
+        try {
+            if (this.duckLoop?.playing()) this.duckLoop.stop();
+        } catch (e) {
+            console.warn('[AudioSys] stopDuckLoop failed', e);
         }
     }
 
@@ -535,6 +595,12 @@ export class AudioSys {
             // localStorage blocked — runtime change still works
         }
 
+        // v0.146.0: petla kaczki zyje POZA `this.sounds` (osobny Howl, jak muzyka), wiec
+        // petla nizej by jej nie objela — bez tej linii suwak SFX by jej nie sciszal.
+        try {
+            this.duckLoop?.volume(VOLUMES.superActivate * 0.85 * this.sfxVolMult);
+        } catch { /* gentle-fail jak reszta */ }
+
         // Apply do wszystkich SFX howls — kazdy ma original baseline volume × multiplier
         for (const [key, howl] of this.sounds) {
             const def = SOUND_LIST.find(d => d.key === key);
@@ -723,7 +789,31 @@ export class AudioSys {
         this.safePlay('super_pong');
     }
 
+    /**
+     * v0.146.1 — KONIEC Ping-Ponga: ten sam ping, ale wyraznie NIZEJ (rate 0.62).
+     * Opadajaca wysokosc czyta sie jako „wylaczenie" i nie wymaga nowego assetu.
+     * Throttle odbic jest tu celowo pominiety — koniec mocy nie moze zostac polkniety
+     * przez ping z ostatniego odbitego pocisku.
+     */
+    playPongEnd(): void {
+        const sound = this.sounds.get('super_pong');
+        if (!sound) return;
+        try {
+            const id = sound.play();
+            sound.rate(0.62, id);
+        } catch (e) {
+            console.warn('[AudioSys] Play failed for super_pong (end)', e);
+        }
+    }
+
+    // v0.146.0 — THROTTLE 70 ms. Zapalnik min zjechal z 5,0 s na 2,5 s, wiec do 14
+    // detonacji zbiega sie teraz gesciej. Bez progu 14 nakladajacych sie boomow daje
+    // kasze zamiast serii; 70 ms zostawia slyszalna kaskade i ucina zlepianie.
+    private mineBoomTimer = 0;
     playMineExplosion(): void {
+        const now = Date.now();
+        if (now - this.mineBoomTimer < 70) return;
+        this.mineBoomTimer = now;
         this.safePlay('mine_boom');
     }
 
@@ -950,6 +1040,7 @@ export class AudioSys {
 
         // FAZA CTF F4: nowy mecz — zresetuj carry-state (gdyby zostal z poprzedniego)
         this.ctfCarrying = false;
+        this.stopDuckLoop();   // v0.146.0 — petla kaczki nie moze przezyc konca meczu
         if (this.ctfCarryMusic) {
             try { if (this.ctfCarryMusic.playing()) this.ctfCarryMusic.stop(); } catch { /* silent */ }
         }
@@ -984,6 +1075,7 @@ export class AudioSys {
     stopMusic(): void {
         // FAZA CTF F4: stopMusic konczy tez carry-state (gameover / victory / teardown)
         this.ctfCarrying = false;
+        this.stopDuckLoop();   // v0.146.0 — petla kaczki nie moze przezyc konca meczu
         if (this.ctfCarryMusic) {
             try { if (this.ctfCarryMusic.playing()) this.ctfCarryMusic.stop(); } catch { /* silent */ }
         }
@@ -1017,6 +1109,7 @@ export class AudioSys {
     stopFlagCarryMusic(): void {
         if (!this.ctfCarrying) return;
         this.ctfCarrying = false;
+        this.stopDuckLoop();   // v0.146.0 — petla kaczki nie moze przezyc konca meczu
         try {
             if (this.ctfCarryMusic && this.ctfCarryMusic.playing()) this.ctfCarryMusic.stop();
             if (this.currentMusicTrack) this.currentMusicTrack.play(); // wznowienie od pauzy

@@ -155,13 +155,21 @@ export const MINES_CONFIG = {
     windowFrames: 420,      // 7s okna zostawiania (sim 1:1) — "moc jazdy", nie instant
     dropEveryPx: 75,        // mina co 75px przejechanej drogi (sim 1:1)
     dropBehindPx: 24,       // mina laduje ZA czolgiem (sim 1:1) — nie pod lufa
-    fuseFrames: 300,        // zegar 5s per mina (sim 1:1; BEZ proximity — czysty timer)
+    // v0.146.0 (playtest): 300 -> 150. Zgloszenie brzmialo „musisz postawic WSZYSTKIE
+    // miny, dopiero wtedy wybuchaja" — technicznie nieprawda, bo kazda ma wlasny zapalnik
+    // od chwili zrzutu. Winna byla arytmetyka: set 14 min schodzi co 75 px DROGI, czyli
+    // 3,5 s (Twardy, speed 5) do 4,4 s (Pancerny, speed 4), a zapalnik mial 5,0 s —
+    // pierwszy wybuch padal PO ostatnim zrzucie. Przy 2,5 s pierwsze miny detonuja
+    // w polowie stawiania setu i robi sie kaskada, o ktora chodzilo.
+    fuseFrames: 150,        // zegar 2.5s per mina (BEZ proximity — czysty timer)
     explosionRadius: 110,   // sim 1:1 ("swietna eksplozja", wiekszy niz rakieta r60)
     explosionDmg: 500,      // flat x100 — 1-shot zwykly wrog, powazny kes bossa
     // JEDEN set na aktywacje (fix z playtestu: cap ROWNOCZESNY + odometr rosnacy w tle
     // wysypywal DRUGI set, gdy pierwsze miny wybuchly i zwolnily sloty). Budzet LACZNY:
     maxPerActivation: 14,   // 12+2 (decyzja Mariusza) — po wyczerpaniu okno sie zamyka
-    blinkFastFuseFrames: 90, // ostatnie 1.5s: dioda miga szybko (sim: freq 26 vs 10)
+    // Skalowane razem z zapalnikiem: przy 90 na zapalniku 150 „szybkie miganie" objelo by
+    // 60% zycia miny i przestaloby cokolwiek zapowiadac.
+    blinkFastFuseFrames: 45, // ostatnie 0.75s: dioda miga szybko
 };
 
 // ── F7b-6: BUILDER (spec: sim v6 146-148/291-299/527-536 — "zapora", mur z workow) ──
@@ -220,12 +228,17 @@ export const LASER_CONFIG = {
     tickDmg: 60,            // 600 dmg/s — topi grunt w ~sekunde, boss musi uciekac
 };
 
-// ── PING-PONG 🏓 — pulsujaca aura odbijajaca pociski wroga ──
+// ── PING-PONG 🏓 — wirujace paletki odbijajace pociski wroga ──
 export const PONG_CONFIG = {
     durationFrames: 300,    // 5s (sim 1:1)
     deflectRadius: 70,      // zasieg odbicia wokol gracza (sim 1:1)
     reflectDmg: 250,        // dmg odbitego pocisku (flat x100; sim: 50% HP wroga)
     reflectSpeedMult: 1.8,  // odbity pocisk przyspiesza (sim 1:1)
+    // v0.146.1 — TELEGRAF KONCA. Zgloszenie Mariusza: „nie wiemy, kiedy sie aktywuje,
+    // a szczegolnie kiedy konczy". Ostatnia sekunda miga (wzorzec: TOWER_CONFIG.blinkFrames).
+    blinkFrames: 60,
+    color: 0xff7a1a,        // POMARANCZ pileczki — celowo daleko od zlota Aury (0xffdd00)
+    colorLight: 0xffd9a0,
 };
 
 // ═══ TIER 3 SZALONE (v0.112.0, spec: sim v6 177-208/358-392/412-417) ═══
@@ -234,10 +247,23 @@ export const PONG_CONFIG = {
 
 export const DUCK_CONFIG = {
     lifeFrames: 420,        // 7s (v2 Mariusz: +100% vs sim 3.5s)
-    speedX: 4.3,            // px/klatka (sim 260 px/s)
-    speedY: 3.3,            // px/klatka (sim 200 px/s)
+    speedX: 4.73,           // v0.146.0: +10% (bylo 4.3) — prosba z playtestu
+    speedY: 3.63,           // v0.146.0: +10% (bylo 3.3)
     edgeMargin: 60,         // odbicia od granic planszy (safety)
     turnEveryFrames: 120,   // v3 (Mariusz): SKRET 90 stopni co 2s — kaczka zygzakuje po mapie
+    /**
+     * v0.146.0 — KACZKA NAMIERZA (prosba z playtestu). Do v0.145.0 lot byl CALKOWICIE
+     * losowy: skret 90 stopni co `turnEveryFrames` + odbicia od krawedzi, zero celowania.
+     *
+     * Naprowadzanie przez `lerpAngle` — ten sam helper co rakiety (ROCKETS_CONFIG
+     * .steerLerpPerFrame 0.09), ale CELOWO DWA RAZY WOLNIEJ. Kaczka ma `crushDmg: 9999`
+     * i kasuje wszystko, czego dotknie; dzis ratuje wrogow tylko to, ze lata na oslep.
+     * Przy szybkim naprowadzaniu 7 s lotu zamienia sie w kasowanie mapy. Ta stala jest
+     * jedynym pokretlem, gdyby playtest pokazal, ze dalej za mocna.
+     */
+    steerLerpPerFrame: 0.045,
+    /** Poza tym dystansem kaczka nie szuka celu i leci jak dotad (zygzak + odbicia). */
+    seekRange: 900,
     crushRadius: 55,        // kontakt = miazga (sim 1:1)
     crushDmg: 9999,         // insta (sim killEnemy) — boss tez oberwie konkretnie? NIE: patrz mult
     bossDmgMult: 0.1,       // boss dostaje 999/kontakt (nie insta — bossfight zostaje)
@@ -268,8 +294,8 @@ export const GRANNY_CONFIG = {
     followLerpPerFrame: 0.05, // babcia drepcze za graczem (sim 3/s)
     sideOffset: 44,         // trzyma sie boku czolgu (sim 1:1)
     healPerSecPct: 0.05,    // 5% maxHp/s (sim: 5hp/s przy 100hp)
-    fearRadius: 360,        // +20% (Mariusz; sim 300) — wrogowie w tym promieniu UCIEKAJA
-    fearBoostPerFrame: 3.2, // v2: dodatkowy odrzut uciekajacych (musza byc SZYBSI od gracza —
+    fearRadius: 460,        // v0.146.0: 360 -> 460 (prosba o wiekszy efekt razenia)
+    fearBoostPerFrame: 4.0, // v0.146.0: 3.2 -> 4.0. Dodatkowy odrzut uciekajacych (musza byc SZYBSI od gracza —
                             //     inaczej taran w plecy = niechciana strata HP)
     fearFadeFrames: 120,    // v3 (Mariusz): strach GASNIE 2s po odejsciu babci — bez tego
                             //     wrogowie w te pedy zawracaja na gracza i karza go za moc
@@ -283,6 +309,66 @@ export const BURP_CONFIG = {
     knockDecay: 0.92,       // tlumienie odrzutu per klatka (sim -5x/s)
     stunMs: 1000,           // 1s ogluszenia (reuse enemy.freeze — mechanicznie identyczne)
     ringRadii: [90, 160, 240, 320] as readonly number[], // 4 fale (sim 1:1)
+    /**
+     * v0.146.0 — BEK ZADAJE OBRAZENIA (prosba z playtestu; do v0.145.0 byl czystym
+     * odrzutem + ogluszeniem).
+     *
+     * DLACZEGO 250, A NIE 500 JAK MINA: mina ma promien 110 px i jednym trafieniem
+     * kasuje zwyklego wroga. Bek ma 320 px, czyli obszar prawie DZIEWIEC RAZY wiekszy —
+     * ta sama wartosc zamienilaby go w kasowanie calego ekranu jednym przyciskiem.
+     * 250 zmieksza tlum i dobija rannych, a robote nadal robi odrzut i strach.
+     */
+    blastDmg: 250,
+    /** Strach po becie — wrogowie odjezdzaja i przez ten czas nie wracaja. */
+    fearMs: 2000,
+    /**
+     * Chmura „nieswiezego oddechu".
+     *
+     * v0.146.2 (Mariusz): chmura ma byc INTENSYWNIEJSZA i zyc DLUZEJ. Cykl jest teraz
+     * trzyczesciowy, zamiast jednego zaniku rozciagnietego na cale zycie:
+     *   0,0-1,6 s  `cloudExpandMs`  — kleby wychodza ze srodka i pecznieja,
+     *   do 5,0 s   `cloudMs`        — chmura STOI w pelnej sile,
+     *   ostatnie 3,0 s `cloudFadeMs` — stopniowe rozwianie (nachodzi na faze stania).
+     * Czyli: pelna sila przez 2 s, potem 3 s gasniecia; lacznie 5 s widocznosci.
+     */
+    cloudMs: 5000,
+    cloudFadeMs: 3000,
+    cloudExpandMs: 1600,
+    /** Parametr ROZRZUTU klebow, nie widoczna krawedz (v0.146.3: 320 -> 400 = +25%). */
+    cloudRadius: 400,
+    /** v0.146.2: bylo 0x9ae66e (blada zielen) — teraz nasycony, „chemiczny" odcien. */
+    cloudColor: 0x74e03c,
+    /** Krycie pojedynczego kleba u szczytu (v0.146.2: bylo 0.52). */
+    cloudAlpha: 0.72,
+
+    /*
+     * v0.146.3 — CHMURA ZADAJE OBRAZENIA (prosba Mariusza: „powoduje obrazenia, jak
+     * wrog tam wjedzie"). Tylko WROGOWIE — gracz nie obrywa od wlasnego beku.
+     *
+     * STREFA JEST ELIPSA, NIE KOLEM. Kleby maja splaszczenie 0.78 i dryfuja w pionie
+     * tylko na 0.72 dystansu (widok z gory), wiec narysowana chmura jest szersza niz
+     * wyzsza. Ponizsze polosie ZMIERZYLEM z faktycznego artu (prog alpha 0.10, wiek
+     * 1,6-2,5 s): poziomo ~215 px, pionowo ~150 px przy cloudRadius 400. Kolo bylo by
+     * klamstwem w jedna albo w druga strone — a Czytelnosc mowi: hitbox = wizual.
+     */
+    cloudHitX: 215,
+    cloudHitY: 150,
+    /** Tick co 0,5 s — chmura to teren skazony, nie druga eksplozja. */
+    cloudTickFrames: 30,
+    /**
+     * 60 dmg/tick = 120 dmg/s. Zwykly wrog (300 HP) ginie po ~2,5 s stania w srodku;
+     * boss (3000 HP) zbiera przez cale zycie chmury ~500, czyli chip, nie egzekucja.
+     * UWAGA BALANS: sam wybuch daje juz 250, wiec zwykly wrog, ktory zostanie w srodku,
+     * dobija sie pierwszym tickiem. Ratuje go odrzut — fala wyrzuca go na 320 px, czyli
+     * POZA elipse chmury. Karane jest wracanie, nie samo oberwanie bekiem.
+     */
+    cloudTickDmg: 60,
+    /**
+     * Ponizej tego krycia chmura przestaje razic. Bez tego wrogowie ginelyby od gazu,
+     * ktorego juz praktycznie nie widac — a to jest dokladnie ten rodzaj „zginal
+     * z niczego", ktory ta gra ma zakazany.
+     */
+    cloudDmgMinAlpha: 0.2,
 };
 
 // ── F7b-4: CZOLG WIDMO (spec: sim v6 140-142/389-392/456/551-554 + design §18.2 #8) ──
@@ -575,14 +661,20 @@ export const POWERS: Record<PowerId, PowerDef> = {
         name: 'Ping-Pong',
         labelKey: 'power.pong',
         emoji: '🏓',
-        color: 0xffe066,
+        // v0.146.1: bylo 0xffe066 — 4 stopnie hue od Aury (0xffdd00). Dwa zlote pierscienie
+        // na czolgu to jedna moc dla oka gracza. Pomarancz pileczki rozdziela je od razu.
+        color: PONG_CONFIG.color,
         cooldownMs: 30000,       // sim 14s = demo
         durationFrames: 0,
         unlockAtTrophies: 8500,  // PROWIZORYCZNE — docelowo slot 🎲
         onActivate: (ctx) => {
             ctx.system.pongActivate();
-            ctx.hud.addNotif(t('hud.pongStart'), '#ffe066');
+            ctx.hud.addNotif(t('hud.pongStart'), '#ff7a1a');
             ctx.audio.playSuperActivate('pong');
+            // v0.146.1 — SERW: fala + wstrzas. Aura ma sam wstrzas, wiec rozchodzacy sie
+            // pierscien jest tym, co odroznia start Ping-Ponga juz w pierwszej klatce.
+            ctx.effects.spawnShockwaveRing(ctx.player.x, ctx.player.y, PONG_CONFIG.deflectRadius * 2.4, PONG_CONFIG.color);
+            ctx.effects.shake(5, 7);
             return { activated: true, powerId: 'pong' };
         },
     },
@@ -662,8 +754,11 @@ export const POWERS: Record<PowerId, PowerDef> = {
         onActivate: (ctx) => {
             ctx.system.burpBlast(ctx.player.x, ctx.player.y, ctx.enemies);
             // 4 rozchodzace sie fale (sim 1:1) — sensoryka MEGA beki
+            // v0.146.0: kolor podany JAWNIE. `spawnShockwaveRing` ma domyslny fiolet
+            // (0x9b59d0), wiec fale beku byly fioletowe mimo zielonego koloru mocy —
+            // gracz nie mial jak powiazac efektu z ikona.
             for (const r of BURP_CONFIG.ringRadii) {
-                ctx.effects.spawnShockwaveRing(ctx.player.x, ctx.player.y, r);
+                ctx.effects.spawnShockwaveRing(ctx.player.x, ctx.player.y, r, BURP_CONFIG.cloudColor);
             }
             ctx.hud.addNotif(t('hud.burpStart'), '#9ae66e');
             ctx.audio.playSuperActivate('burp');

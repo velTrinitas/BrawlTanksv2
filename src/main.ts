@@ -3909,7 +3909,7 @@ app.ticker.add((rawDelta) => {
             rb.maxDist = 900;
             bullets.push(rb);
             audio.playPongDeflect();
-            effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffe066);
+            effects.spawnEnemyHitSparks(eb.x, eb.y, PONG_CONFIG.color); // v0.146.1 — pomarancz mocy
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING
@@ -3962,6 +3962,10 @@ app.ticker.add((rawDelta) => {
 
     powerSystem.update(delta, player, enemies, worldContainer, effects);
 
+    // v0.146.1 — koniec Ping-Ponga musi byc WIDOCZNY (zgloszenie: „nie wiemy, kiedy sie
+    // konczy"). PowerSystem nie zna HUD, wiec zdaje flage, a petla ja konsumuje.
+    if (powerSystem.consumePongEnded()) hud.addNotif(t('hud.pongEnd'), '#ff7a1a');
+
     // ARC-R1: kostki lodu — tick respawnu (jak crates)
     for (const cube of iceCubes) {
         cube.update(0, 0, 0, 0);
@@ -3999,7 +4003,12 @@ app.ticker.add((rawDelta) => {
             if (enemy.container.rotation !== 0) enemy.container.rotation = 0; // koniec imprezy
             // TIER 3 BABCIA (strach — wrog UCIEKA) > F7b-4 WIDMO (taunt) > gracz.
             // Oba wzorce = iniekcja wspolrzednych do enemy.update (zero zmian w AI).
-            const steer = powerSystem.grannyFearFor(enemy) ?? powerSystem.ghostTauntFor(enemy);
+            // v0.146.0: bek dopisany do lancucha PRZED babcia — jest krotki (2 s) i ma
+            // wygrywac, gdy obie moce zadzialaja naraz. Zero zmian w AI wroga: to dalej
+            // ta sama iniekcja wspolrzednych, tylko z trzema zrodlami zamiast dwoch.
+            const steer = powerSystem.burpFearFor(enemy)
+                ?? powerSystem.grannyFearFor(enemy)
+                ?? powerSystem.ghostTauntFor(enemy);
             shotInfo = enemy.update(delta, steer ? steer.x : player.x, steer ? steer.y : player.y, enemyBuildings, powerCubes);
         }
         // TIER 3 DISCO v2: zmeczony tancerz bije 20% slabiej do konca meczu.

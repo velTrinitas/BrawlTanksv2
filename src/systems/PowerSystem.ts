@@ -11,6 +11,7 @@ import {
 } from '../config/powers';
 import {
     bakeDuck, bakeLocker, bakeLockerLed, bakeParcel, bakeGranny, bakeDiscoBall, bakeSoftShadow,
+    bakeSmokePuff,
 } from '../rendering/Tier3Baker'; // v0.112.0 — pieczony art z gradientami (Canvas 2D)
 import { t } from '../i18n/i18n'; // v0.112.0 — kwestie Babci (literal keys)
 import { WORLD_W, WORLD_H } from '../config/constants'; // v0.112.0 — kaczka odbija sie od granic PLANSZY
@@ -206,14 +207,16 @@ export class PowerSystem {
     private laserFramesLeft = 0;
     private laserTickT = 0;
     // PING-PONG: pulsujaca aura odbijajaca pociski (check pongDeflects wola main.ts).
-    // v2 (feedback Mariusza): 3 PALETKI orbitujace + wiazki-trojkat miedzy nimi
-    // + kontr-rotujacy zewnetrzny ring segmentowy + iskry z poola co ~12 klatek.
+    // v0.146.1 (feedback Mariusza — „myli sie z Aura"): 3 PALETKI z raczkami + kreskowana
+    // granica + pileczka w srodku; ostatnia sekunda miga, koniec jest zdarzeniem.
     private pongGfx: PIXI.Graphics | null = null;
     private pongFramesLeft = 0;
     private pongPlayerX = 0;
     private pongPlayerY = 0;
     private pongSparkT = 0;
     private pongSparkIdx = 0;
+    /** Ustawiana w `pongFinish`, zdejmowana przez `consumePongEnded` w petli gry. */
+    private pongEnded = false;
 
     // ═══ TIER 3 SZALONE (v0.112.0) — art z Tier3Baker (baked Canvas 2D + transformy) ═══
     // KACZKA: sprite + cien na gruncie (2.5D — kaczka LECI, cien zostaje na ziemi).
@@ -223,7 +226,8 @@ export class PowerSystem {
     private duckVx = 0; private duckVy = 0;
     private duckLife = 0;
     private duckWob = 0;
-    private duckQuackT = 0; // v2: kwacze CALY CZAS (interwal)
+    // v0.146.0: okresowe kwakanie zdjete — kaczka gra `duck.mp3` w petli, wiec licznik
+    // kwakniec przestal byc do czegokolwiek potrzebny i zostal usuniety.
     private duckTurnT = 0;  // v3: skret 90 stopni co 2s (zygzak po mapie)
     // PACZKOMAT: szafa + blinkujacy LED + paczki w LUKU (kazda z wlasnym cieniem).
     private lockerC: PIXI.Container | null = null;
@@ -250,8 +254,33 @@ export class PowerSystem {
     private grannySayT = 0;
     private grannySayAlt = false;
     private readonly grannyFearPoint = { x: 0, y: 0 };
+    /**
+     * v0.146.0 — stan strachu per wrog: ZAPAMIETANY kierunek ucieczki + znacznik wygasniecia.
+     * `WeakMap`, zeby martwy wrog nie trzymal wpisu przy zyciu (tablica `enemies` jest
+     * przebudowywana co mecz, a wrogowie sa usuwani w trakcie).
+     * Powod istnienia: patrz komentarz w `grannyFearFor` — bez tego kierunek przeliczany
+     * co klatke przerzucal sie o 180 stopni na granicy promienia.
+     */
+    private grannyFear = new WeakMap<Enemy, { until: number; dx: number; dy: number }>();
     // MEGA BEKA: odrzut tikowany per wrog (decay), stun przez enemy.freeze.
     private burpPushes: Array<{ e: Enemy; kx: number; ky: number }> = [];
+    /** v0.146.0 — strach po becie: ten sam mechanizm co babcia, wlasny znacznik czasu. */
+    private burpFear = new WeakMap<Enemy, { until: number; dx: number; dy: number }>();
+    /**
+     * v0.146.1 — chmura „nieswiezego oddechu" jako KLEBY DYMU (pieczone sprity).
+     * Kazdy kleb ma wlasny kierunek dryfu, obrot i opoznienie startu — chmura ROSNIE
+     * i rozwiewa sie, zamiast byc zbiorem kolek zmieniajacych promien.
+     */
+    private burpCloud: {
+        cont: PIXI.Container;
+        puffs: Array<{ s: PIXI.Sprite; dx: number; dy: number; spin: number; size: number; delay: number }>;
+        born: number;
+        /** v0.146.3 — pozycja strefy razenia (chmura nie jedzie za graczem). */
+        x: number;
+        y: number;
+        /** v0.146.3 — odliczanie do nastepnego ticku obrazen. */
+        tick: number;
+    } | null = null;
 
     private readonly worldContainer: PIXI.Container;
     /**
@@ -509,7 +538,7 @@ export class PowerSystem {
         this.lockerUpdate(delta, enemies, effects);
         this.discoUpdate(delta, player, enemies, effects);
         this.grannyUpdate(delta, player, enemies, effects);
-        this.burpUpdate(delta);
+        this.burpUpdate(delta, enemies, effects);
 
         // Generyczny tick efektu czasowego — zachowanie per-moc w PowerDef.onTick/onEnd.
         // F7b: onTick dostaje DELTE (efekty narastajace w czasie, np. heal, musza byc
@@ -1058,7 +1087,11 @@ export class PowerSystem {
     minesActivate(player: Player): void {
         this.minesWindowLeft = MINES_CONFIG.windowFrames;
         this.minesBudget = MINES_CONFIG.maxPerActivation;
-        this.mineOdo = 0;
+        // v0.146.0: PIERWSZA MINA LECI OD RAZU. Odometr startowal od zera, wiec trzeba
+        // bylo najpierw przejechac 75 px — przy krotszym zapalniku (150) to zjadalo
+        // znaczaca czesc okna. Builder robi dokladnie to samo od poczatku (buildOdo
+        // = dropEveryPx), wiec to nie nowy wzorzec, tylko wyrownanie do niego.
+        this.mineOdo = MINES_CONFIG.dropEveryPx;
         this.mineLastX = player.x;
         this.mineLastY = player.y;
     }
@@ -1284,6 +1317,7 @@ export class PowerSystem {
         this.laserFramesLeft = 0;
         if (this.laserGfx) { if (this.laserGfx.parent) this.laserGfx.parent.removeChild(this.laserGfx); this.laserGfx.destroy(); this.laserGfx = null; }
         this.pongFramesLeft = 0;
+        this.pongEnded = false;  // v0.146.1 — flaga nie moze przezyc teardownu (notif po smierci)
         if (this.pongGfx) { if (this.pongGfx.parent) this.pongGfx.parent.removeChild(this.pongGfx); this.pongGfx.destroy(); this.pongGfx = null; }
     }
 
@@ -1603,7 +1637,7 @@ export class PowerSystem {
 
     // ── PING-PONG 🏓 ─────────────────────────────────────────────────────────
 
-    /** Pulsujaca aura odbijania — check pociskow robi main.ts (pongDeflects). */
+    /** Wirujace paletki — check pociskow robi main.ts (pongDeflects). */
     pongActivate(): void {
         this.pongFramesLeft = PONG_CONFIG.durationFrames;
         if (!this.pongGfx) {
@@ -1631,53 +1665,61 @@ export class PowerSystem {
         const g = this.pongGfx;
         if (!g) return;
         if (this.pongFramesLeft <= 0) {
-            g.visible = false;
-            g.clear();
+            this.pongFinish(player, effects);
             return;
         }
-        // Aura v2 (redraw jak aura gracza — 1 Graphics, akceptowalny koszt):
-        // ring + kontr-rotujacy ring segmentowy + 3 PALETKI + wiazki-trojkat.
+        /*
+         * v0.146.1 — WIZUAL PRZEBUDOWANY.
+         *
+         * Zgloszenie: „ta moc myli sie z Aura". Powod byl strukturalny, nie kosmetyczny:
+         * oba efekty to byl GLADKI PULSUJACY PIERSCIEN na czolgu, w tym samym zlocie
+         * (0xffdd00 vs 0xffe066 — 4 stopnie hue) i na tym samym zIndeksie 400. Zmiana
+         * samego koloru by nie wystarczyla, bo oko czyta najpierw SYLWETKE.
+         *
+         * Dlatego Ping-Pong przestaje byc pierscieniem:
+         *  - granica to KRESKOWANY okrag (12 krotkich lukow) — bariera, nie tarcza,
+         *  - dominanta wizualna to 3 DUZE PALETKI z raczkami, obracajace sie po orbicie,
+         *  - w srodku lata PILECZKA (odbija sie miedzy czolgiem a granica).
+         * Promien jest STALY i rowny `deflectRadius` — Czytelnosc: wizual = hitbox.
+         */
         const t = Date.now() / 110;
-        const pulse = 0.5 + 0.35 * Math.sin(t);
-        const r = PONG_CONFIG.deflectRadius * (0.94 + 0.06 * Math.sin(t * 1.6));
+        const r = PONG_CONFIG.deflectRadius;
+        // TELEGRAF KONCA: ostatnia sekunda miga szybko i przechodzi w jasny odcien.
+        const ending = this.pongFramesLeft <= PONG_CONFIG.blinkFrames;
+        const blink = ending ? (Math.sin(Date.now() / 45) > -0.2 ? 1 : 0.22) : 1;
+        const mainCol = ending ? PONG_CONFIG.colorLight : PONG_CONFIG.color;
+        const pulse = (0.62 + 0.28 * Math.sin(t)) * blink;
         g.x = player.x;
         g.y = player.y;
         g.clear();
-        // ring glowny (granica odbicia = Czytelnosc: hitbox zgodny z wizualem)
-        g.lineStyle(4, 0xffe066, pulse);
-        g.drawCircle(0, 0, r);
-        // zewnetrzny ring segmentowy — KONTR-rotacja (dynamika bez particles)
-        g.lineStyle(2, 0xfff6c2, pulse * 0.55);
-        for (let i = 0; i < 6; i++) {
-            const a0 = -t * 0.55 + (i / 6) * Math.PI * 2;
-            g.moveTo(Math.cos(a0) * (r + 9), Math.sin(a0) * (r + 9));
-            g.arc(0, 0, r + 9, a0, a0 + 0.55);
+        // GRANICA: kreskowany okrag (12 lukow), obrot zgodny z paletkami.
+        g.lineStyle({ width: 5, color: mainCol, alpha: pulse, cap: PIXI.LINE_CAP.ROUND });
+        for (let i = 0; i < 12; i++) {
+            const a0 = t * 0.35 + (i / 12) * Math.PI * 2;
+            g.moveTo(Math.cos(a0) * r, Math.sin(a0) * r);
+            g.arc(0, 0, r, a0, a0 + 0.26);
         }
-        // pozycje paletek (orbitujace)
+        // PALETKI: blat (kolo) + raczka do srodka. To one niosa rozpoznanie mocy.
         const px: number[] = [], py: number[] = [];
         for (let i = 0; i < 3; i++) {
             const a = t * 0.9 + (i / 3) * Math.PI * 2;
-            px.push(Math.cos(a) * r);
-            py.push(Math.sin(a) * r);
-        }
-        // WIAZKI: trojkat energii miedzy paletkami (pole sily — "wiazka laserowa")
-        g.lineStyle(1.5, 0xffe066, 0.16 + 0.14 * Math.sin(t * 2.3));
-        for (let i = 0; i < 3; i++) {
-            g.moveTo(px[i], py[i]);
-            g.lineTo(px[(i + 1) % 3], py[(i + 1) % 3]);
-        }
-        // PALETKI: prostokaciki styczne do orbity (raketki pingpongowe, nie kropki)
-        for (let i = 0; i < 3; i++) {
-            const a = t * 0.9 + (i / 3) * Math.PI * 2;
-            const tx = -Math.sin(a), ty = Math.cos(a); // wektor styczny
-            g.lineStyle({ width: 6, color: 0xffe066, alpha: Math.min(1, pulse + 0.3), cap: PIXI.LINE_CAP.ROUND });
-            g.moveTo(px[i] - tx * 9, py[i] - ty * 9);
-            g.lineTo(px[i] + tx * 9, py[i] + ty * 9);
-            g.lineStyle({ width: 2, color: 0xfff6c2, alpha: pulse, cap: PIXI.LINE_CAP.ROUND });
-            g.moveTo(px[i] - tx * 5, py[i] - ty * 5);
-            g.lineTo(px[i] + tx * 5, py[i] + ty * 5);
+            const cx = Math.cos(a) * r, cy = Math.sin(a) * r;
+            px.push(cx); py.push(cy);
+            g.lineStyle({ width: 5, color: mainCol, alpha: pulse, cap: PIXI.LINE_CAP.ROUND });
+            g.moveTo(cx * 0.72, cy * 0.72);           // raczka
+            g.lineTo(cx * 0.96, cy * 0.96);
+            g.lineStyle(2, PONG_CONFIG.colorLight, pulse);
+            g.beginFill(mainCol, 0.85 * blink);       // blat paletki
+            g.drawCircle(cx, cy, 11);
+            g.endFill();
         }
         g.lineStyle(0);
+        // PILECZKA: odbija sie w tam i z powrotem miedzy czolgiem a granica.
+        const bounce = Math.abs(Math.sin(t * 1.7));
+        const ba = -t * 1.25;
+        g.beginFill(0xffffff, blink);
+        g.drawCircle(Math.cos(ba) * r * (0.2 + 0.75 * bounce), Math.sin(ba) * r * (0.2 + 0.75 * bounce), 5);
+        g.endFill();
         // ISKRY: smuga za kolejna paletka co ~12 klatek (pooled — dymek/energia orbit)
         this.pongSparkT -= delta;
         if (this.pongSparkT <= 0) {
@@ -1686,9 +1728,39 @@ export class PowerSystem {
             effects.spawnEnemyHitSparks(
                 player.x + px[this.pongSparkIdx],
                 player.y + py[this.pongSparkIdx],
-                0xffe066,
+                PONG_CONFIG.color,
             );
         }
+    }
+
+    /**
+     * v0.146.1 — KONIEC PING-PONGA.
+     *
+     * Do v0.146.0 moc konczyla sie linijka `g.visible = false` — pierscien znikal
+     * w jednej klatce, bez dzwieku i bez sladu. Gracz nie mial jak zauwazyc, ze wlasnie
+     * przestal odbijac pociski (a to jest moment, w ktorym zaczyna obrywac).
+     * Teraz koniec jest zdarzeniem: zapadajaca sie fala + iskry + wstrzas + dzwiek
+     * (opadajaca wysokosc = „power down") + notyfikacja HUD, ktora zdejmuje `main.ts`.
+     */
+    private pongFinish(player: Player, effects: EffectsManager): void {
+        const g = this.pongGfx;
+        if (g) { g.visible = false; g.clear(); }
+        effects.spawnShockwaveRing(player.x, player.y, PONG_CONFIG.deflectRadius * 1.5, PONG_CONFIG.color);
+        effects.spawnEnemyHitSparks(player.x, player.y, PONG_CONFIG.color);
+        effects.shake(3, 5);
+        AudioSys.getInstance().playPongEnd();
+        this.pongEnded = true;
+    }
+
+    /**
+     * Flaga „Ping-Pong wlasnie wygasl", konsumowana raz przez petle gry.
+     * PowerSystem nie zna HUD (notyfikacje robi `main.ts` / `onActivate` z kontekstu),
+     * wiec komunikat idzie przez flage zamiast przez nowa zaleznosc.
+     */
+    consumePongEnded(): boolean {
+        if (!this.pongEnded) return false;
+        this.pongEnded = false;
+        return true;
     }
 
     // ═══ TIER 3 SZALONE (v0.112.0, spec: sim v6 177-208/358-392/412-417) ═══
@@ -1697,6 +1769,7 @@ export class PowerSystem {
     /** Teardown/handoff wszystkich mocy Tier 3 (bez efektow konca). */
     tier3Clear(): void {
         this.duckLife = 0;
+        AudioSys.getInstance().stopDuckLoop();   // v0.146.0 — petla nie moze przezyc teardownu
         for (const d of [this.duckSprite, this.duckShadow]) {
             if (d) { if (d.parent) d.parent.removeChild(d); d.destroy(); }
         }
@@ -1726,6 +1799,7 @@ export class PowerSystem {
             this.grannySprite = null;
         }
         this.burpPushes = [];
+        this.burpClearCloud();   // v0.146.0 — chmura nie moze przezyc konca meczu
     }
 
     // ── GIGA KACZKA 🦆 ───────────────────────────────────────────────────────
@@ -1739,7 +1813,6 @@ export class PowerSystem {
         this.duckVy = (Math.random() < 0.5 ? 1 : -1) * DUCK_CONFIG.speedY;
         this.duckLife = DUCK_CONFIG.lifeFrames;
         this.duckWob = 0;
-        this.duckQuackT = 0;
         this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
         if (!this.duckSprite) {
             this.duckSprite = new PIXI.Sprite(bakeDuck());
@@ -1753,6 +1826,7 @@ export class PowerSystem {
         }
         this.duckSprite.visible = true;
         if (this.duckShadow) this.duckShadow.visible = true;
+        AudioSys.getInstance().startDuckLoop();   // v0.146.0 — kwak leci przez caly lot
     }
 
     private duckUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
@@ -1762,6 +1836,7 @@ export class PowerSystem {
         if (this.duckLife <= 0) {
             if (sp) sp.visible = false;
             if (sh) sh.visible = false;
+            AudioSys.getInstance().stopDuckLoop();   // v0.146.0 — dzwiek milknie Z kaczka
             effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b); // "kwak…" puff
             return;
         }
@@ -1776,8 +1851,34 @@ export class PowerSystem {
         if (this.duckY < M) { this.duckVy = Math.abs(this.duckVy); this.duckY = M; bounced = true; }
         if (this.duckY > WORLD_H - M) { this.duckVy = -Math.abs(this.duckVy); this.duckY = WORLD_H - M; bounced = true; }
         if (bounced) effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b);
+        // v0.146.0 — NAMIERZANIE NAJBLIZSZEGO WROGA (prosba z playtestu).
+        // Do v0.145.0 lot byl calkowicie losowy. Skret jest CELOWO wolny (polowa tempa
+        // rakiet): kaczka ma polowac, a nie byc pociskiem samonaprowadzajacym — przy
+        // `crushDmg: 9999` szybkie naprowadzanie zamienia 7 s lotu w kasowanie mapy.
+        // Modul predkosci zostaje staly, zmienia sie tylko kierunek.
+        let target: Enemy | null = null;
+        let bestD2 = DUCK_CONFIG.seekRange * DUCK_CONFIG.seekRange;
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const dx = e.x - this.duckX, dy = e.y - this.duckY;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestD2) { bestD2 = d2; target = e; }
+        }
+        if (target) {
+            const spd = Math.hypot(this.duckVx, this.duckVy);
+            const ang = PowerSystem.lerpAngle(
+                Math.atan2(this.duckVy, this.duckVx),
+                Math.atan2(target.y - this.duckY, target.x - this.duckX),
+                DUCK_CONFIG.steerLerpPerFrame * delta,
+            );
+            this.duckVx = Math.cos(ang) * spd;
+            this.duckVy = Math.sin(ang) * spd;
+            // Zygzak jest planem awaryjnym na PUSTA mape — z celem tylko przeszkadza.
+            this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
+        }
+
         // v3: SKRET 90 stopni co 2s (zygzak — kaczka nie czeka na krawedz planszy);
-        // losowo w lewo/prawo, KWAK przy skrecie (sygnalizuje zmiane kursu).
+        // losowo w lewo/prawo. Dziala tylko, gdy kaczka NIE ma celu (patrz wyzej).
         this.duckTurnT -= delta;
         if (this.duckTurnT <= 0) {
             this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
@@ -1787,13 +1888,10 @@ export class PowerSystem {
             effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b);
             bounced = true; // skret = tez kwak (nizej)
         }
-        // v2: kwacze CALY CZAS (interwal; odbicie/skret kwacze przez zerowanie timera)
-        this.duckQuackT -= delta;
-        if (bounced) this.duckQuackT = 0;
-        if (this.duckQuackT <= 0) {
-            this.duckQuackT = DUCK_CONFIG.quackEveryFrames;
-            AudioSys.getInstance().playDuckQuack();
-        }
+        // v0.146.0 — OKRESOWE KWAKANIE USUNIETE. Kaczka gra teraz `duck.mp3` W PETLI
+        // przez caly lot (start w `duckLaunch`, stop przy znikniecu), wiec dokladanie
+        // kwaku co 0.83 s i przy kazdym odbiciu robilo kakofonie na tej samej probce.
+        void bounced; // iskry przy odbiciu/skrecie zostaja — tylko dzwiek zszedl
         // Miazga na kontakcie: grunt insta (quiet=false => eksplozja per kill = spektakl),
         // boss dostaje ulamek (bossfight zostaje bossfightem).
         for (const e of enemies) {
@@ -2020,17 +2118,53 @@ export class PowerSystem {
      * Zwracany obiekt REUZYWANY — czytaj natychmiast.
      */
     grannyFearFor(enemy: Enemy): { x: number; y: number } | null {
-        // v3: strach dziala TAKZE przez fearFadeFrames po odejsciu babci (transition —
-        // bez tego wrogowie w te pedy zawracali na gracza i moc konczyla sie kara).
-        if (this.grannyFramesLeft <= 0 && this.grannyFearFade <= 0) return null;
-        const dx = enemy.x - this.grannyX;
-        const dy = enemy.y - this.grannyY;
-        const d2 = dx * dx + dy * dy;
-        if (d2 > GRANNY_CONFIG.fearRadius * GRANNY_CONFIG.fearRadius || d2 < 1) return null;
-        const d = Math.sqrt(d2);
-        // Cel = punkt daleko ZA wrogiem na osi od babci (wrog jedzie OD niej)
-        this.grannyFearPoint.x = enemy.x + (dx / d) * 600;
-        this.grannyFearPoint.y = enemy.y + (dy / d) * 600;
+        // ══ v0.146.0 — STRACH JAKO STAN, NIE JAKO TEST ODLEGLOSCI ══
+        //
+        // Zgloszenie z playtestu: „wrogowie sie zacinaja, migocza kierunkami — jakby
+        // obracali sie wokol wlasnego srodka".
+        //
+        // PRZYCZYNA. Do v0.145.0 ta funkcja byla BINARNYM PRZELACZNIKIEM na dokladnie
+        // `fearRadius`, przeliczanym co klatke, BEZ HISTEREZY:
+        //   - w promieniu: cel = punkt 600 px OD BABCI  -> kat ~theta
+        //   - poza:        cel = gracz, a gracz stoi 44 px od babci (`sideOffset`)
+        //                                                -> kat ~theta + PI
+        // Wrog na granicy dostawal wiec obrot o ~180 STOPNI CO KLATKE, a rotacja jest
+        // ustawiana natychmiastowo, bez wygladzania (Enemy.ts, `applyBakedAngle` na 36
+        // zapieczonych katach). Do tego rotacja jest ustawiana TAKZE gdy wrog stoi
+        // (ruch ma prog MIN_DIST_TO_PLAYER = 60, obrot nie ma zadnego) — stad wrazenie
+        // krecenia sie w miejscu. Trzeci skladnik: przy malym dystansie od babci kierunek
+        // ucieczki jest matematycznie niestabilny (dTheta ~ przesuniecie / d).
+        //
+        // LEKARSTWO. Kierunek ucieczki zapamietujemy RAZ, przy wejsciu w strach, i trzymamy
+        // go przez `fearFadeFrames`. Znika przerzut o 180 stopni, znika osobliwosc przy
+        // malym d, a wygasanie wpisu daje naturalna histereze: wrog nie wraca na gracza
+        // w tej samej klatce, w ktorej przekroczy granice.
+        const active = this.grannyFramesLeft > 0 || this.grannyFearFade > 0;
+        const now = Date.now();
+        let st = this.grannyFear.get(enemy);
+
+        if (active) {
+            const dx = enemy.x - this.grannyX;
+            const dy = enemy.y - this.grannyY;
+            const d2 = dx * dx + dy * dy;
+            if (d2 <= GRANNY_CONFIG.fearRadius * GRANNY_CONFIG.fearRadius && d2 >= 1) {
+                const d = Math.sqrt(d2);
+                // Kierunek zapisujemy tylko przy WEJSCIU w strach; potem juz nie drga.
+                if (!st || st.until <= now) {
+                    st = { until: 0, dx: dx / d, dy: dy / d };
+                    this.grannyFear.set(enemy, st);
+                }
+                st.until = now + (GRANNY_CONFIG.fearFadeFrames / 60) * 1000;
+            }
+        }
+
+        if (!st || st.until <= now) {
+            if (st) this.grannyFear.delete(enemy);
+            return null;
+        }
+        // Cel = punkt daleko przed wrogiem, na ZAPAMIETANEJ osi ucieczki.
+        this.grannyFearPoint.x = enemy.x + st.dx * 600;
+        this.grannyFearPoint.y = enemy.y + st.dy * 600;
         return this.grannyFearPoint;
     }
 
@@ -2097,7 +2231,12 @@ export class PowerSystem {
 
     // ── MEGA BEKA 📢 ─────────────────────────────────────────────────────────
 
-    /** Instant: 4 fale + odrzut wszystkich wrogow w 320px + stun 1s (freeze reuse). */
+    /**
+     * Instant: 4 fale + odrzut wszystkich wrogow w 320px + stun 1s (freeze reuse).
+     *
+     * v0.146.0 (playtest): dochodza OBRAZENIA, STRACH 2 s i CHMURA. Do v0.145.0 bek byl
+     * czystym odrzutem — robil wrazenie, ale nic nie kosztowal przeciwnika.
+     */
     burpBlast(px: number, py: number, enemies: Enemy[]): void {
         const now = Date.now();
         for (const e of enemies) {
@@ -2109,12 +2248,160 @@ export class PowerSystem {
             const f = (1 - d / BURP_CONFIG.knockRadius) * BURP_CONFIG.knockScale + BURP_CONFIG.knockBase;
             this.burpPushes.push({ e, kx: (dx / d) * f, ky: (dy / d) * f });
             e.freeze(now + BURP_CONFIG.stunMs); // stun (mechanicznie = krotki mroz)
+            // Strach: kierunek zapamietany RAZ — ta sama zasada co przy babci, z tego
+            // samego powodu (przeliczanie co klatke daje migotanie kierunku).
+            this.burpFear.set(e, { until: now + BURP_CONFIG.fearMs, dx: dx / d, dy: dy / d });
+        }
+        // Jedna eksplozja obszarowa zamiast pętli po wrogach — `aoeExplode` sam znajduje
+        // cele w promieniu (ten sam kill-path co miny i rakiety).
+        this.aoeExplode(px, py, BURP_CONFIG.knockRadius, BURP_CONFIG.blastDmg, true);
+        this.burpSpawnCloud(px, py);
+    }
+
+    /**
+     * v0.146.0 — CHMURA „NIESWIEZEGO ODDECHU".
+     *
+     * `zIndex = 9` to kanoniczna w tym projekcie warstwa „decal gruntu POD wszystkim
+     * Y-sortowanym" (dokladnie ta sama, co krater po nalocie). Wszystko, co ma
+     * `y + offset` — gracz (y+19), wrogowie (y+19), budynki (y+h), rosliny (floor(py)) —
+     * rysuje sie NAD nia. Prosba brzmiala „dym pod obiektami typu domy, drzewa".
+     *
+     * v0.146.1 — KLEBY zamiast plaskich kolek. `drawCircle` z jednolitym wypelnieniem
+     * czyta sie jak strefa mechaniki (tak wygladaja pady i zasiegi), nie jak gaz: gaz
+     * potrzebuje miekkiej krawedzi, a tej Graphics tanio nie zrobi. Dlatego jedna
+     * pieczona tekstura (`bakeSmokePuff`, biala) tintowana na zielono i uzyta jako 11
+     * spritow — kazdy z wlasnym dryfem, obrotem i opoznieniem startu.
+     *
+     * Rozklad jest STALY (bez `Math.random`) z dwoch powodow: chmura nie migocze miedzy
+     * klatkami, a wyglad jest powtarzalny w playtescie. Zero screen-blendu, zero
+     * gradientu per klatka — w meczu lecą wylacznie transformy.
+     */
+    private burpSpawnCloud(px: number, py: number): void {
+        this.burpClearCloud();
+        const cont = new PIXI.Container();
+        cont.zIndex = 9;
+        cont.x = px;
+        cont.y = py;
+        const tex = bakeSmokePuff();
+        // [kat w obrotach, dystans 0-1, rozmiar 0-1, opoznienie 0-1]
+        // Dystanse celowo NIEROWNE — przy rownych kleby ustawiaja sie w gwiazdke
+        // (sprawdzone na podgladzie), a chmura ma byc nieregularna.
+        const LAYOUT: ReadonlyArray<readonly [number, number, number, number]> = [
+            [0.00, 0.00, 1.00, 0.00], [0.07, 0.46, 0.82, 0.03], [0.17, 0.66, 0.60, 0.12],
+            [0.26, 0.30, 0.74, 0.01], [0.36, 0.58, 0.86, 0.06], [0.47, 0.72, 0.56, 0.14],
+            [0.54, 0.36, 0.70, 0.02], [0.63, 0.62, 0.80, 0.09], [0.72, 0.28, 0.62, 0.04],
+            [0.81, 0.68, 0.76, 0.11], [0.92, 0.44, 0.88, 0.05],
+        ];
+        const puffs: Array<{ s: PIXI.Sprite; dx: number; dy: number; spin: number; size: number; delay: number }> = [];
+        for (let i = 0; i < LAYOUT.length; i++) {
+            const [turn, dist, size, delay] = LAYOUT[i];
+            const a = turn * Math.PI * 2;
+            const s = new PIXI.Sprite(tex);
+            s.anchor.set(0.5);
+            s.tint = BURP_CONFIG.cloudColor;
+            s.rotation = a;
+            s.alpha = 0;                 // stan startowy — pierwszy `burpUpdate` go nadpisze
+            s.scale.set(0.01);
+            cont.addChild(s);
+            // Naprzemienny kierunek obrotu — chmura „mieli sie" zamiast wirowac w calosci.
+            puffs.push({ s, dx: Math.cos(a) * dist, dy: Math.sin(a) * dist, spin: (i % 2 ? 0.006 : -0.005), size, delay });
+        }
+        this.worldContainer.addChild(cont);
+        this.burpCloud = { cont, puffs, born: Date.now(), x: px, y: py, tick: BURP_CONFIG.cloudTickFrames };
+    }
+
+    private burpClearCloud(): void {
+        const c = this.burpCloud;
+        if (!c) return;
+        if (c.cont.parent) c.cont.parent.removeChild(c.cont);
+        c.cont.destroy({ children: true }); // tekstura zostaje w cache Tier3Bakera
+        this.burpCloud = null;
+    }
+
+    /**
+     * Fear-point po becie — wpinany w ten sam lancuch co babcia (main.ts).
+     * Kierunek jest ZAPAMIETANY, wiec wrog jedzie rownym torem zamiast drgac.
+     */
+    burpFearFor(enemy: Enemy): { x: number; y: number } | null {
+        const st = this.burpFear.get(enemy);
+        if (!st) return null;
+        if (st.until <= Date.now()) { this.burpFear.delete(enemy); return null; }
+        this.grannyFearPoint.x = enemy.x + st.dx * 600;
+        this.grannyFearPoint.y = enemy.y + st.dy * 600;
+        return this.grannyFearPoint;
+    }
+
+    /**
+     * v0.146.3 — TICK OBRAZEN CHMURY (tylko wrogowie).
+     *
+     * Strefa jest ELIPSA dopasowana do narysowanego gazu (patrz BURP_CONFIG.cloudHitX/Y):
+     * kleby sa splaszczone i dryfuja w pionie krocej niz w poziomie, wiec kolo klamaloby
+     * o zasiegu. Test elipsy robie tutaj, a aoeExplode wolam per wrog z promieniem 2 —
+     * dokladnie tak, jak robi to tick Lasera. Dzieki temu obrazenia ida PELNYM kill-pathem
+     * (registerKill, punkty, dropy, multi-kill, victory), a nie skrotem obok niego.
+     */
+    private burpCloudDamage(
+        c: NonNullable<PowerSystem['burpCloud']>,
+        gone: number,
+        delta: number,
+        enemies: Enemy[],
+        effects: EffectsManager,
+    ): void {
+        if (gone < BURP_CONFIG.cloudDmgMinAlpha) return;   // gaz juz niewidoczny = nie razi
+        c.tick -= delta;
+        if (c.tick > 0) return;
+        c.tick = BURP_CONFIG.cloudTickFrames;
+        const ax = BURP_CONFIG.cloudHitX, ay = BURP_CONFIG.cloudHitY;
+        for (const e of enemies) {
+            if (!e.active) continue;
+            const nx = (e.x - c.x) / ax, ny = (e.y - c.y) / ay;
+            if (nx * nx + ny * ny > 1) continue;
+            // Sensoryka: kazdy tick musi byc WIDOCZNY na wrogu, nie tylko na pasku HP.
+            effects.spawnEnemyHitSparks(e.x, e.y, BURP_CONFIG.cloudColor);
+            this.aoeExplode(e.x, e.y, 2, BURP_CONFIG.cloudTickDmg, true);
         }
     }
 
     /** Fale wizualne robi main.ts przy aktywacji? NIE — tu, przez effects w update 1. klatki:
      *  prosciej: pchniecia tikuja z decayem az zgasna (sim: kx -= kx*5*dt). */
-    private burpUpdate(delta: number): void {
+    private burpUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
+        // v0.146.2 — animacja chmury w trzech fazach (patrz BURP_CONFIG): rozrost ->
+        // stanie w pelnej sile -> rozwianie. Same transformy sprita, zero rysowania.
+        const c = this.burpCloud;
+        if (c) {
+            const age = Date.now() - c.born;
+            if (age >= BURP_CONFIG.cloudMs) {
+                this.burpClearCloud();
+            } else {
+                const MAX_SCALE = (BURP_CONFIG.cloudRadius * 0.95) / 128; // 128 = bok pieczonej tekstury
+                const DRIFT = BURP_CONFIG.cloudRadius * 0.52;
+                // Rozwianie startuje dopiero `cloudFadeMs` przed koncem — do tej chwili
+                // chmura stoi na pelnym kryciu (wczesniej gasla juz od pierwszej klatki).
+                const holdMs = BURP_CONFIG.cloudMs - BURP_CONFIG.cloudFadeMs;
+                let gone = 1;
+                if (age > holdMs) {
+                    const f = (age - holdMs) / BURP_CONFIG.cloudFadeMs;
+                    gone = (1 - f) * (1 - f);                              // easeInQuad — zanik lagodny
+                }
+                // Rozrost ma WLASNY, krotki zegar. Przy 5 s zycia wspolny zegar sprawilby,
+                // ze kleby pelzna przez pol mocy zamiast buchnac od razu.
+                const te = Math.min(1, age / BURP_CONFIG.cloudExpandMs);
+                // Po rozroscie chmura dalej leniwie sie rozlazi (+8% do konca zycia).
+                const creep = 1 + 0.08 * (age / BURP_CONFIG.cloudMs);
+                for (const p of c.puffs) {
+                    const tt = Math.min(1, Math.max(0, (te - p.delay) / (1 - p.delay)));
+                    const ease = 1 - (1 - tt) * (1 - tt);                  // easeOutQuad
+                    const sc = MAX_SCALE * p.size * (0.30 + 0.70 * ease) * creep;
+                    p.s.scale.set(sc, sc * 0.78);                          // splaszczenie = widok z gory
+                    p.s.x = p.dx * DRIFT * ease * creep;
+                    p.s.y = p.dy * DRIFT * 0.72 * ease * creep;
+                    p.s.rotation += p.spin * delta;
+                    p.s.alpha = BURP_CONFIG.cloudAlpha * Math.min(1, tt / 0.12) * gone;
+                }
+                this.burpCloudDamage(c, gone, delta, enemies, effects);
+            }
+        }
+
         if (this.burpPushes.length === 0) return;
         for (let i = this.burpPushes.length - 1; i >= 0; i--) {
             const p = this.burpPushes[i];

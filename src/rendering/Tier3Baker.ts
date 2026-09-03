@@ -46,6 +46,47 @@ export function bakeSoftShadow(): PIXI.Texture {
     });
 }
 
+/**
+ * v0.146.1 — KLAB DYMU dla MEGA BEKI.
+ *
+ * Zgloszenie Mariusza: „daj wiecej efektu dymku zielonego, a nie plaskich kolek".
+ * Pierwsza wersja chmury rysowala `PIXI.Graphics.drawCircle` — a kolo z jednolitym
+ * wypelnieniem ZAWSZE czyta sie jak strefa mechaniki (tak wygladaja pady i zasiegi),
+ * nie jak gaz. Gaz potrzebuje MIEKKIEJ KRAWEDZI, ktorej Graphics nie zrobi tanio.
+ *
+ * Dlatego klab jest PIECZONY w Canvas 2D (gradienty + AA, ktorego mobile renderer nie
+ * ma) i uzywany jako sprite — dokladnie ta sama zasada co `bakeSoftShadow`. Tekstura
+ * jest BIALA, zeby dalo sie ja tintowac kolorem mocy; jedna tekstura obsluguje
+ * wszystkie klaby.
+ *
+ * Ksztalt: kilka nachodzacych na siebie miekkich lobow zamiast jednego dysku — sam
+ * kontur robi wtedy „chmurke", nawet zanim ruszy animacja.
+ */
+export function bakeSmokePuff(): PIXI.Texture {
+    const S = 128;
+    return baked('t3puff', S, S, (c) => {
+        const lobes: ReadonlyArray<readonly [number, number, number]> = [
+            [0.50, 0.52, 0.30],
+            [0.34, 0.44, 0.22],
+            [0.66, 0.44, 0.24],
+            [0.42, 0.66, 0.20],
+            [0.62, 0.66, 0.18],
+            [0.50, 0.34, 0.19],
+        ];
+        for (const [nx, ny, nr] of lobes) {
+            const x = nx * S, y = ny * S, r = nr * S;
+            const g = c.createRadialGradient(x, y, r * 0.15, x, y, r);
+            g.addColorStop(0,    'rgba(255,255,255,0.70)');
+            g.addColorStop(0.55, 'rgba(255,255,255,0.30)');
+            g.addColorStop(1,    'rgba(255,255,255,0)');
+            c.fillStyle = g;
+            c.beginPath();
+            c.arc(x, y, r, 0, Math.PI * 2);
+            c.fill();
+        }
+    });
+}
+
 /** GIGA KACZKA — gumowa kaczka premium (profil w prawo; lot robi scale.x flip). */
 export function bakeDuck(): PIXI.Texture {
     return baked('t3duck', 150, 128, (c) => {

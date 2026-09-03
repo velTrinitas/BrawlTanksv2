@@ -290,6 +290,7 @@ export const pl = {
     'hub.garage.type.voice': 'Głos dowódcy',
     'hub.garage.type.sticker': 'Naklejki',
     'hub.garage.type.crosshair': 'Celowniki 🎯 (widoczne w grze)',
+    'hub.garage.type.avatarBg': 'Tła pod zdjęcie',
     'crate.rarity.c': 'Zwykły',
     'crate.rarity.r': 'Rzadki',
     'crate.rarity.e': 'Epicki',
@@ -301,7 +302,6 @@ export const pl = {
     'crate.newCosmetic': 'Nowy kosmetyk!',
     'crate.dup': 'Duplikat → sigmy',
     'crate.bolts': 'sigm',
-    'cosmetic.nc_silver': 'Srebrny nick',
     'cosmetic.nc_gold': 'Złoty nick',
     'cosmetic.nc_lime': 'Limonkowy nick',
     'cosmetic.nc_fire': 'Ognisty nick',
@@ -369,6 +369,20 @@ export const pl = {
     'cosmetic.ch_fangs': 'Kły',
     'cosmetic.ch_laser': 'Laser',
     'cosmetic.ch_sigma': 'Sigma',
+
+    // v0.144.0 — tła pod zdjęcie czołgisty (12 szt., prośba z playtestu).
+    'cosmetic.bg_steel': 'Stal',
+    'cosmetic.bg_sand': 'Piasek',
+    'cosmetic.bg_forest': 'Las',
+    'cosmetic.bg_night': 'Noc',
+    'cosmetic.bg_sunset': 'Zachód słońca',
+    'cosmetic.bg_ice': 'Lód',
+    'cosmetic.bg_neon': 'Neon',
+    'cosmetic.bg_camo': 'Moro',
+    'cosmetic.bg_mars': 'Mars',
+    'cosmetic.bg_rays': 'Promienie',
+    'cosmetic.bg_gold': 'Złoto',
+    'cosmetic.bg_holo': 'Hologram',
     'cosmetic.vo_commander': 'Dowódca',
 
     // ── SKLEP ──

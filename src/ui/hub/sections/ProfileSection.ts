@@ -6,7 +6,7 @@ import { TROPHY_MILESTONES, ACCURACY_MIN_SHOTS } from '../../../config/progressi
 import { leaderboardService } from '../../../services/ScoreService';
 import { LEADERBOARD_BOARDS } from '../../../services/leaderboard';
 import {
-    getCosmetic, nickColorStyle, frameStyle, COSMETICS, cosmeticsByType, RARITY_COLOR,
+    getCosmetic, nickColorStyle, frameStyle, avatarBgStyle, COSMETICS, cosmeticsByType, RARITY_COLOR,
     type CosmeticType,
 } from '../../../config/cosmetics';
 import { AVATARS } from '../../../config/avatars';
@@ -135,6 +135,7 @@ export class ProfileSection implements HubSection {
         const cos = ProgressionService.getCosmeticState(pid);
         const nickDef = cos.equipped.nickColor ? getCosmetic(cos.equipped.nickColor) : undefined;
         const frameDef = cos.equipped.frame ? getCosmetic(cos.equipped.frame) : undefined;
+        const bgDef = cos.equipped.avatarBg ? getCosmetic(cos.equipped.avatarBg) : undefined; // v0.144.0
         const shimmer = nickDef?.animated ? ' bt-cos-shimmer' : '';
         const avatar = AVATARS[profile.avatarId];
         const since = new Date(profile.createdAt).toLocaleDateString();
@@ -169,7 +170,7 @@ export class ProfileSection implements HubSection {
         return `
             <div class="bt-hub0-phero bt-hub0-phero--v2">
                 <span class="ph-portrait-wrap">
-                    <span class="ph-portrait" style="${frameStyle(frameDef)}">
+                    <span class="ph-portrait" style="${avatarBgStyle(bgDef)}${frameStyle(frameDef)}">
                         <img src="${import.meta.env.BASE_URL}${avatar.assetPath}" alt="" draggable="false">
                     </span>
                     ${this.stickerBubbleHtml(cos)}
@@ -376,7 +377,7 @@ export class ProfileSection implements HubSection {
         const ownedActive = cos.owned.filter(id => getCosmetic(id)?.type !== 'title').length;
         return `
             <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: ownedActive, total: ACTIVE_COSMETIC_COUNT })}</div>
-            ${cosmeticGroupsHtml(cos, ['crosshair', 'nickColor', 'frame', 'horn', 'voice'])}`;
+            ${cosmeticGroupsHtml(cos, ['crosshair', 'avatarBg', 'nickColor', 'frame', 'horn', 'voice'])}`;
     }
 
     // ── async ranking (token-guard — wzorzec StatsOverlay.loadBest) ─────────

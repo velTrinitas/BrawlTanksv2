@@ -98,6 +98,18 @@ export interface TrophyMilestone {
     bolts: number;
     /** Opcjonalna nagroda-content (display-only na Szlaku, np. odblokowana moc). */
     labelKey?: TranslationKey;
+    /**
+     * v0.144.0 — czy ten prog daje SKRZYNKE. Do v0.143.0 dawal KAZDY (11 skrzynek
+     * z samego Szlaku), co razem z trzema innymi torami dawalo 14-17 skrzynek w
+     * pierwszej sesji — wiecej, niz wynosila cala pula losowalnych kosmetykow.
+     *
+     * DLACZEGO FLAGA, A NIE PODNIESIENIE PROGOW: idempotencja jest kluczowana
+     * WARTOSCIA progu (`crateMilestonesCredited` trzyma liczby, a `creditMilestoneCrates`
+     * robi backfill przy kazdym dostepie do stanu). Zmiana 30 -> 38 dalaby KAZDEMU
+     * istniejacemu graczowi komplet skrzynek po raz drugi. Zdjecie grantu jest w tej
+     * strone bezpieczne: kto juz dostal, zachowuje; nowych wyplat po prostu nie ma.
+     */
+    crate?: boolean;
 }
 
 /**
@@ -106,19 +118,19 @@ export interface TrophyMilestone {
  * Akty II/III dojda w pozniejszych pod-fazach (content-unlocki gdy systemy gotowe).
  */
 export const ACT_I_MILESTONES: readonly TrophyMilestone[] = [
-    { threshold: 30, bolts: 40 },
+    { threshold: 30, bolts: 40, crate: true },
     { threshold: 70, bolts: 50 },
-    { threshold: 120, bolts: 60 },
+    { threshold: 120, bolts: 60, crate: true },
     { threshold: 180, bolts: 70 },
-    { threshold: 250, bolts: 90 },
+    { threshold: 250, bolts: 90, crate: true },
     // F7b-3: Salwa Rakiet w Akcie I (decyzja Mariusza — zamiast Turbo, ktore duplikowalo pady)
     { threshold: 330, bolts: 110, labelKey: 'road.unlock.rockets' },
-    { threshold: 430, bolts: 130 },
+    { threshold: 430, bolts: 130, crate: true },
     // F7b-5: Miny w Akcie I (Tier 1 = 9 mocy, decyzja Mariusza 2026-08-07)
     { threshold: 560, bolts: 160, labelKey: 'road.unlock.mines' },
     // F7b: domkniecie Aktu I odblokowuje NAPRAWE (unlockAtTrophies 750 w rejestrze mocy;
     // labelKey = marchewka na Szlaku — sama mechanika odblokowania liczy sie z trofeow).
-    { threshold: 750, bolts: 200, labelKey: 'road.unlock.repair' },
+    { threshold: 750, bolts: 200, crate: true, labelKey: 'road.unlock.repair' },
 ];
 
 /**
@@ -129,7 +141,7 @@ export const ACT_I_MILESTONES: readonly TrophyMilestone[] = [
 export const ACT_II_MILESTONES: readonly TrophyMilestone[] = [
     // F7b-6: Builder w Akcie II (Tier 1 = 9 mocy, decyzja Mariusza 2026-08-07)
     { threshold: 1000, bolts: 240, labelKey: 'road.unlock.build' },
-    { threshold: 1500, bolts: 280, labelKey: 'road.unlock.tower' },
+    { threshold: 1500, bolts: 280, crate: true, labelKey: 'road.unlock.tower' },
 ];
 
 /** Wszystkie milestony. Zawsze posortowane rosnaco po threshold. */

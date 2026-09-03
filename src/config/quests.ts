@@ -84,7 +84,10 @@ export const DAILY_SET_CRATES = 1;          // ...+ skrzynka (glowny hak dnia)
  * Wartosci startowe do kalibracji po playtescie, jak reszta ekonomii rozkazow.
  */
 export const WEEKLY_SET_BOLTS = 100;
-export const WEEKLY_SET_CRATES = 2;
+// v0.144.0: 2 -> 1. Komplet dnia (DAILY_SET_CRATES) zostaje nietkniety, bo to glowny hak
+// retencji i placi RAZ na dobe. Tygodniowka placila 2 na raz, w tym samym tygodniu co
+// Szlak, Sezon i Rangi.
+export const WEEKLY_SET_CRATES = 1;
 
 export const QUEST_BOLTS = {
     easy: 25,
@@ -177,8 +180,10 @@ export const WEEKLY_ANCHOR: QuestDef = {
 export const WEEKLY_CHECKLIST: QuestDef = {
     // KOLEKCJA map, nie licznik — nie ma czego dzielic na pol. 3 zamiast 4: gracz moze
     // odpuscic jedna mape, ktorej akurat nie lubi, i tydzien i tak sie domknie.
+    // v0.144.0: skrzynka zdjeta (sigmy zostaja). Z trzech tygodniowek skrzynke daja
+    // teraz kotwica trofeowa i rozkaz specjalny — ten jest zwyklym „pograj rozne mapy".
     id: 'w_maps', tier: 'weekly', metric: 'map_played', mode: 'set', target: 3,
-    icon: '🗺️', labelKey: 'quest.w_maps', bolts: 50, crates: 1,
+    icon: '🗺️', labelKey: 'quest.w_maps', bolts: 50,
 };
 
 /** Aspiracyjne (zlota ramka) — moze sie NIE udac i to jest OK (§17.4). Rotacja tygodniowa. */

@@ -108,9 +108,13 @@ export const SEASONS: readonly SeasonConfig[] = [
  * Progi Season Tracku (wspolne dla sezonow — kalibracja per sezon mozliwa pozniej;
  * sezon ~2 miesiace, swietna gra daje ~50 trofeow/mecz => 1500 = ~30 dobrych meczy).
  */
+// v0.144.0 — skrzynka znika z progu 250 (zostaja 900 i 1500). Powod: Tor Sezonowy byl
+// jednym z CZTERECH torow placacych rownolegle w pierwszej sesji; prog 250 wpadal w to
+// samo popoludnie co polowa Szlaku. Progi trofeow NIETKNIETE — zmiana ich wartosci
+// dalaby istniejacym graczom nagrody po raz drugi (klucz idempotencji to wartosc progu).
 export const SEASON_MILESTONES: readonly SeasonMilestone[] = [
     { threshold: 100, bolts: 100 },
-    { threshold: 250, bolts: 150, crates: 1 },
+    { threshold: 250, bolts: 150 },
     { threshold: 500, bolts: 250 },
     { threshold: 900, bolts: 400, crates: 1 },
     { threshold: 1500, bolts: 600, crates: 1 },

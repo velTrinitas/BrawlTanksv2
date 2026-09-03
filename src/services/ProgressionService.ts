@@ -153,6 +153,20 @@ interface ProgressionState {
         rewardsClaimed?: string[];
         /** Dzien (YYYY-MM-DD), w ktorym zebrano legendarna znajdzke — bramka 1/dobe. */
         legendaryDay?: string;
+        /**
+         * v0.144.0 — ile losowan z rzedu NIE dalo znajdzki o wartosci 6 (Globus).
+         *
+         * Do v0.143.0 licznik zyl jako transient meczu w main.ts i byl ZEROWANY na
+         * starcie kazdego meczu. Pity wlacza sie po 40 nieudanych probach, a losowanie
+         * idzie co 4 s — czyli wymagalo 160 SEKUND JEDNEGO meczu. Mediana meczu
+         * z telemetrii prod: 20 sekund. Mechanizm istnial i nie odpalal sie nigdy;
+         * Globus zostawal na plaskich 3% i komplet 6/6 byl kwestia szczescia,
+         * a nie pilnosci — dokladnie odwrotnie, niz mowi komentarz przy `rollSeasonItem`.
+         *
+         * Teraz licznik przezywa mecze i zeruje sie tam, gdzie ma sens: po trafieniu
+         * Globusa oraz razem z calym stanem przy rolloverze sezonu.
+         */
+        missStreak?: number;
     };
 
     /**
@@ -443,7 +457,7 @@ class ProgressionServiceImpl {
             // razem z sezonem. Stan TRWALY (gablota swiadectw, Akt 2) nie moze tu
             // mieszkac — pilnuje tego bramka G7 straznika. `seasonArchive` lezy
             // POZA tym obiektem wlasnie z tego powodu.
-            st.season = { id: cur.id, trophies: 0, claimed: [], collected: 0, items: {}, rewardsClaimed: [] };
+            st.season = { id: cur.id, trophies: 0, claimed: [], collected: 0, items: {}, rewardsClaimed: [], missStreak: 0 };
         }
     }
 
@@ -576,6 +590,25 @@ class ProgressionServiceImpl {
         const st = this.getOrCreate(profileId);
         this.ensureSeason(st);
         return st.season.legendaryDay !== localDayKey();
+    }
+
+    /**
+     * v0.144.0 — trwaly licznik nieudanych losowan Globusa (pity). Odczyt/zapis przez
+     * serwis, zeby main.ts nie trzymal wlasnej kopii, ktora ginie miedzy meczami.
+     */
+    getSeasonMissStreak(profileId: string): number {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        return st.season.missStreak ?? 0;
+    }
+
+    setSeasonMissStreak(profileId: string, value: number): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        st.season.missStreak = Math.max(0, value);
+        this.save();
     }
 
     /** Oznacz legendarna jako zebrana dzisiaj (blokuje spawn do polnocy). */
@@ -1457,9 +1490,12 @@ class ProgressionServiceImpl {
     }
 
     /** Grantuje 1 skrzynke za kazdy osiagniety (trophies>=threshold) milestone niebedacy
-     *  jeszcze w crateMilestonesCredited. Idempotentne (backfill + biezace przekroczenia). */
+     *  jeszcze w crateMilestonesCredited. Idempotentne (backfill + biezace przekroczenia).
+     *  v0.144.0: skrzynke daja tylko progi z `crate: true` (6 z 11) — patrz komentarz
+     *  przy `TrophyMilestone.crate`. Kto dostal wczesniej, zachowuje; cofania nie ma. */
     private creditMilestoneCrates(st: ProgressionState): void {
         for (const m of TROPHY_MILESTONES) {
+            if (!m.crate) continue;
             if (st.trophies >= m.threshold && !st.crateMilestonesCredited.includes(m.threshold)) {
                 st.cratesEarned += 1;
                 st.crateMilestonesCredited.push(m.threshold);

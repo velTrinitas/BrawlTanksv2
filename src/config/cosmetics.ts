@@ -12,7 +12,10 @@
 
 import type { TranslationKey } from '../i18n/i18n';
 
-export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair';
+// v0.144.0: 'avatarBg' — TLO POD ZDJECIEM czolgisty (prosba z playtestu). Awatary to
+// PNG RGBA z ~45% pikseli w pelni przezroczystych i ~34% miekkich krawedzi (zmierzone
+// na Ash_200/Jack_200), wiec warstwa pod nimi jest realnie widoczna.
+export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg';
 export type Rarity = 'c' | 'r' | 'e' | 'l';
 
 /**
@@ -39,6 +42,11 @@ export interface CosmeticDef {
     readonly border?: string;
     /** frame: box-shadow glow. */
     readonly glow?: string;
+    /**
+     * avatarBg (v0.144.0): skrot CSS `background` pod awatarem. Gradient/wzor, zero
+     * assetow — ta sama zasada co przy ramkach, tylko warstwa nizej.
+     */
+    readonly bg?: string;
     /** sticker: sciezka obrazka wzgledem BASE_URL (kulka na profilu + kafel sklepu). */
     readonly asset?: string;
     /**
@@ -67,7 +75,6 @@ export const RARITY_LABEL_KEY: Record<Rarity, TranslationKey> = {
 // ── Rejestr (F2a: ~14 kosmetykow profilowych CSS) ────────────────────────────
 export const COSMETICS: readonly CosmeticDef[] = [
     // kolory nicku
-    { id: 'nc_silver',  type: 'nickColor', rarity: 'c', labelKey: 'cosmetic.nc_silver',  color: '#c8cfda' },
     { id: 'nc_gold',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_gold',    color: '#f1c40f' },
     { id: 'nc_lime',    type: 'nickColor', rarity: 'r', labelKey: 'cosmetic.nc_lime',    color: '#a3e635' },
     { id: 'nc_fire',    type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_fire',    color: 'linear-gradient(90deg,#ff6b35,#f7c948)', gradient: true },
@@ -152,6 +159,30 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'ch_fangs',    type: 'crosshair', rarity: 'r', labelKey: 'cosmetic.ch_fangs' },
     { id: 'ch_laser',    type: 'crosshair', rarity: 'e', labelKey: 'cosmetic.ch_laser' },
     { id: 'ch_sigma',    type: 'crosshair', rarity: 'l', labelKey: 'cosmetic.ch_sigma' },
+
+    // ── v0.144.0: TLA POD ZDJECIEM czolgisty (12 szt.) ───────────────────────
+    // Prosba z playtestu. Wchodza do PULI SKRZYNEK (nie ma ich w SHOP_ONLY_TYPES),
+    // co przy okazji podnosi pule losowalna z 22 do 34 pozycji — skrzynki dluzej maja
+    // co dawac. Odwracalne jedna linia, gdyby mialy byc towarem sklepowym.
+    //
+    // Zasada doboru: awatar jest ciemny i kontrastowy, wiec tla sa STONOWANE i ciemniejsze
+    // od postaci. Czytelnosc sylwetki > efektowność tla (wartosc #1). Legendarne moga
+    // byc mocniejsze, bo sa rzadkie i swiadomie zakladane.
+    { id: 'bg_steel',    type: 'avatarBg', rarity: 'c', labelKey: 'cosmetic.bg_steel',    bg: 'linear-gradient(160deg, #4a5b6b 0%, #2b3946 100%)' },
+    { id: 'bg_sand',     type: 'avatarBg', rarity: 'c', labelKey: 'cosmetic.bg_sand',     bg: 'linear-gradient(160deg, #c9a45c 0%, #7a5c2c 100%)' },
+    { id: 'bg_forest',   type: 'avatarBg', rarity: 'c', labelKey: 'cosmetic.bg_forest',   bg: 'linear-gradient(160deg, #3f7a4d 0%, #1c3a26 100%)' },
+    { id: 'bg_night',    type: 'avatarBg', rarity: 'c', labelKey: 'cosmetic.bg_night',    bg: 'linear-gradient(160deg, #2a3550 0%, #11162a 100%)' },
+
+    { id: 'bg_sunset',   type: 'avatarBg', rarity: 'r', labelKey: 'cosmetic.bg_sunset',   bg: 'linear-gradient(160deg, #e07a3f 0%, #a13b62 55%, #3d1f3f 100%)' },
+    { id: 'bg_ice',      type: 'avatarBg', rarity: 'r', labelKey: 'cosmetic.bg_ice',      bg: 'linear-gradient(160deg, #8fc7e8 0%, #35719c 60%, #17364d 100%)' },
+    { id: 'bg_neon',     type: 'avatarBg', rarity: 'r', labelKey: 'cosmetic.bg_neon',     bg: 'linear-gradient(160deg, #6b2a8a 0%, #2a1f4a 55%, #0f1024 100%)' },
+    { id: 'bg_camo',     type: 'avatarBg', rarity: 'r', labelKey: 'cosmetic.bg_camo',     bg: 'repeating-linear-gradient(135deg, #55663e 0 14px, #39422c 14px 28px, #6b5a38 28px 40px)' },
+
+    { id: 'bg_mars',     type: 'avatarBg', rarity: 'e', labelKey: 'cosmetic.bg_mars',     bg: 'radial-gradient(circle at 50% 22%, #e0997f 0%, #a34a3a 45%, #4a2028 100%)' },
+    { id: 'bg_rays',     type: 'avatarBg', rarity: 'e', labelKey: 'cosmetic.bg_rays',     bg: 'repeating-conic-gradient(from 0deg at 50% 45%, rgba(241,196,15,0.35) 0deg 9deg, rgba(20,26,34,0.95) 9deg 22deg)' },
+
+    { id: 'bg_gold',     type: 'avatarBg', rarity: 'l', labelKey: 'cosmetic.bg_gold',     bg: 'linear-gradient(150deg, #f7e08a 0%, #e0a92c 38%, #8a5f12 72%, #3a2a08 100%)' },
+    { id: 'bg_holo',     type: 'avatarBg', rarity: 'l', labelKey: 'cosmetic.bg_holo',     bg: 'conic-gradient(from 200deg at 50% 40%, #ff5f6d, #ffc371, #47e5bc, #4d7cff, #b06ab3, #ff5f6d)' },
 ];
 
 const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));
@@ -199,6 +230,16 @@ export function nickColorStyle(def: CosmeticDef | undefined): string {
         return `background:${def.color};-webkit-background-clip:text;background-clip:text;color:transparent;`;
     }
     return `color:${def.color};`;
+}
+
+/**
+ * v0.144.0 — inline-style TLA pod awatarem wg equipped avatarBg.
+ * Gdy nic nie zalozone, zwraca pusty string i zostaje domyslne tlo z CSS
+ * (`.bt-hub0-avatar` / `.ph-portrait`) — czyli wyglad sprzed tej zmiany.
+ */
+export function avatarBgStyle(def: CosmeticDef | undefined): string {
+    if (!def || def.type !== 'avatarBg' || !def.bg) return '';
+    return `background:${def.bg};`;
 }
 
 /** Inline-style dla ramki avatara wg equipped frame. */

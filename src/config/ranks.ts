@@ -36,7 +36,9 @@ export const RANK_MIN_SECONDS = 60;
 // L5/L6 maja myslnik, L8 w nazwie "Hero" ale to poziom CHAMPION; rzadzi `level`).
 export const RANKS: readonly RankDef[] = [
     { level: 1,  name: 'ROOKIE',    wins: 1,    bolts: 50,                 img: 'L1_Rookie_500.png' },
-    { level: 2,  name: 'GUNNER',    wins: 3,    bolts: 100,  crates: 1,    img: 'L2_Gunner_500.png' },
+    // v0.144.0: skrzynka zdjeta z L2 — 3 wygrane to pierwsza sesja, a placily wtedy
+    // jeszcze trzy inne tory naraz. Sigmy zostaja, wiec ranga dalej cos daje.
+    { level: 2,  name: 'GUNNER',    wins: 3,    bolts: 100,                img: 'L2_Gunner_500.png' },
     { level: 3,  name: 'VETERAN',   wins: 8,    bolts: 150,                img: 'L3_Veteran_500.png' },
     { level: 4,  name: 'SERGEANT',  wins: 20,   bolts: 300,  crates: 1,    img: 'L4_Sergeant_500.png' },
     { level: 5,  name: 'ELITE',     wins: 50,   bolts: 500,                img: 'L5-Elite_500.png' },

@@ -73,6 +73,20 @@ export class CrateOverlay {
             else if (action === 'tap') this.onTap(profileId);
             else if (action === 'pools') this.showPools();
         });
+        // v0.144.0 — DZWIEK STARTUJE NA POCZATKU LOTU, NIE PO LADOWANIU.
+        //
+        // Zgloszenie z playtestu brzmialo „skrzynia spada za szybko, rozjazd z dzwiekiem",
+        // ale pomiar pokazal co innego. Obwiednia RMS `crate_drop.mp3` (kubelki 50 ms):
+        // uderzenie na 100 ms, cisza 450-600 ms, GLOWNY HUK na 650 ms, potem 800 ms
+        // poglosu. Do v0.143.0 `playCrateDrop()` wisial na `animationend` (550 ms), wiec
+        // huk padal na 1200 ms — 780 ms PO tym, jak skrzynia juz lezala.
+        //
+        // Spowolnienie spadania (o co prosil Michal) samo w sobie POGORSZYLOBY rozjazd,
+        // bo przesuwa `animationend` razem ze startem dzwieku. Dlatego dzwiek rusza tu,
+        // a czas spadania jest dobrany tak, zeby wizualne uderzenie (keyframe 76%)
+        // wypadlo na 650 ms — patrz `bt-crate-drop` w hub-styles.css.
+        AudioSys.getInstance().playCrateDrop();
+
         // v0.109.0 — ladowanie zrzutu: koniec animacji spadania => huk (thud modala)
         // + rozprysk kurzu przy ziemi. Tapowanie odblokowuje sie dopiero po ladowaniu
         // (pointer-events w CSS na .is-dropping).
@@ -88,7 +102,6 @@ export class CrateOverlay {
             const scene = el.querySelector<HTMLElement>('.bt-hub0-crate-scene');
             scene?.classList.add('quake');
             setTimeout(() => scene?.classList.remove('quake'), 260);
-            AudioSys.getInstance().playCrateDrop();
             this.spawnDust(false);
         }, { once: true });
     }

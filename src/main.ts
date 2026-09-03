@@ -2311,7 +2311,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     seasonPickupPool = [];
     {
         seasonContentCache = getSeasonContent(getCurrentSeason().id);
-        seasonMissStreak = 0;
+        // v0.144.0 — licznik pity WCZYTYWANY, nie zerowany. Do v0.143.0 stalo tu
+        // `seasonMissStreak = 0`, przez co pity (prog 40 prob co 4 s = 160 s JEDNEGO
+        // meczu) nie odpalal sie nigdy przy medianie meczu 20 s. Teraz licznik zyje
+        // w stanie sezonu i przezywa mecze; zapis nastepuje przy trafieniu szostki
+        // i na koncu meczu (nie co 4 s — to byloby pisanie do localStorage w petli).
+        seasonMissStreak = ProgressionService.getSeasonMissStreak(config.profileId);
         // pierwszy spawn po pelnym odstepie — inaczej znajdzka lezy juz w sekundzie zero
         seasonNextSpawnAt = Date.now() + (seasonContentCache?.spawn.everyMs ?? 0);
     }
@@ -2882,6 +2887,9 @@ function fitEndTitleToButton(screenEl: HTMLElement): void {
 }
 
 async function triggerGameOver(): Promise<void> {
+    // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
+    // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
+    if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
     // FAZA CTF F2 — drop niesionej flagi przy smierci (legacy 1:1: IDLE @gracz + 10 s reset)
     if (ctfSystem && player) ctfSystem.handlePlayerDeath(player.x, player.y);
     gameState = 'GAMEOVER';
@@ -2952,6 +2960,9 @@ async function triggerGameOver(): Promise<void> {
 }
 
 async function triggerVictory(): Promise<void> {
+    // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
+    // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
+    if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
     gameState = 'VICTORY';
     audio.playVictory();
 
@@ -3657,7 +3668,14 @@ app.ticker.add((rawDelta) => {
             // a nie z osobnego, latwego do rozjechania tempa per tier.
             if (nowMs >= seasonNextSpawnAt && seasonPickups.length < content.spawn.maxAlive) {
                 seasonNextSpawnAt = nowMs + content.spawn.everyMs;
-                const item = rollSeasonItem(content, seasonMissStreak);
+                // v0.144.0 — DOBOWA BRAMKA NA PITY (istniejaca, nigdy niepodpieta
+                // `canSpawnSeasonLegendary`). Trwaly licznik bez bramki odwracalby
+                // problem: po zebraniu szostki wystarczyloby 40 kolejnych prob (~2,7 min
+                // gry) na nastepna, czyli kilkanascie na sesje. Bramka wylacza SAM PITY
+                // do polnocy — naturalne losowanie 3% dziala dalej bez ograniczen,
+                // wiec szczescie nadal jest mozliwe, a pilnosc placi raz dziennie.
+                const pityAllowed = ProgressionService.canSpawnSeasonLegendary(currentSession.config.profileId);
+                const item = rollSeasonItem(content, pityAllowed ? seasonMissStreak : 0);
                 // pity: licznik prob BEZ "szostki" — zerowany dopiero, gdy padnie
                 seasonMissStreak = item.value === 6 ? 0 : seasonMissStreak + 1;
 
@@ -3698,6 +3716,14 @@ app.ticker.add((rawDelta) => {
 
             currentSession.seasonPickupsCollected += sp.value;
             currentSession.seasonItemsPicked[sp.value] = (currentSession.seasonItemsPicked[sp.value] ?? 0) + 1;
+            // v0.144.0 — szostka zebrana: zamykamy pity do polnocy i zerujemy licznik
+            // trwale (nie tylko w pamieci meczu). Zapis TU, bo to zdarzenie rzadkie —
+            // w petli spawnu byloby pisanie do localStorage co 4 s.
+            if (sp.value === 6) {
+                ProgressionService.markSeasonLegendaryTaken(currentSession.config.profileId);
+                ProgressionService.setSeasonMissStreak(currentSession.config.profileId, 0);
+                seasonMissStreak = 0;
+            }
             effects.spawnFloatingText(sp.x, sp.y - 12, `+${sp.value}`, 0xf1c40f);
             audio.playGemPickup();
 

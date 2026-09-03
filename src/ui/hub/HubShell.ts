@@ -15,7 +15,7 @@ import { ShopSection } from './sections/ShopSection';       // SHOP-1
 import { ShopOverlay } from './overlays/ShopOverlay';       // SHOP-1
 import { isShopEnabled } from '../../config/shop';          // SHOP-1
 import { CrateOverlay } from './overlays/CrateOverlay';
-import { getCosmetic, nickColorStyle, frameStyle } from '../../config/cosmetics'; // F2a
+import { getCosmetic, nickColorStyle, frameStyle, avatarBgStyle } from '../../config/cosmetics'; // F2a
 import { AVATARS } from '../../config/avatars'; // PROFILE-1 — miniatura w chipie
 import { seasonShortKey } from '../../config/season'; // SEASON-1/2 — pill sezonu
 import { SeasonSection } from './sections/SeasonSection'; // v0.129.0 — strona sezonu
@@ -288,6 +288,9 @@ export class HubShell implements IScreen {
         const cos = ProgressionService.getCosmeticState(pid);
         const nickDef = cos.equipped.nickColor ? getCosmetic(cos.equipped.nickColor) : undefined;
         const frameDef = cos.equipped.frame ? getCosmetic(cos.equipped.frame) : undefined;
+        // v0.144.0 — tlo pod awatarem. Pusty string gdy nic nie zalozone => zostaje
+        // domyslny gradient z `.bt-hub0-avatar`, czyli wyglad sprzed zmiany.
+        const bgDef = cos.equipped.avatarBg ? getCosmetic(cos.equipped.avatarBg) : undefined;
         const nickStyle = nickColorStyle(nickDef);
         const shimmer = nickDef?.animated ? ' bt-cos-shimmer' : '';
         const avatarInner = profile
@@ -296,7 +299,7 @@ export class HubShell implements IScreen {
 
         return `
             <button class="bt-hub0-profile" data-action="profile" type="button">
-                <span class="bt-hub0-avatar" aria-hidden="true" style="${frameStyle(frameDef)}">${avatarInner}</span>
+                <span class="bt-hub0-avatar" aria-hidden="true" style="${avatarBgStyle(bgDef)}${frameStyle(frameDef)}">${avatarInner}</span>
                 <span class="bt-hub0-pname${shimmer}" style="${nickStyle}">${name}</span>
             </button>
             <span class="bt-hub0-spacer"></span>

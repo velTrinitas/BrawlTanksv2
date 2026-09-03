@@ -281,6 +281,7 @@ export const en: typeof pl = {
     'hub.garage.type.voice': 'Commander voice',
     'hub.garage.type.sticker': 'Stickers',
     'hub.garage.type.crosshair': 'Crosshairs 🎯 (seen in game)',
+    'hub.garage.type.avatarBg': 'Portrait backgrounds',
     'crate.rarity.c': 'Common',
     'crate.rarity.r': 'Rare',
     'crate.rarity.e': 'Epic',
@@ -292,7 +293,6 @@ export const en: typeof pl = {
     'crate.newCosmetic': 'New cosmetic!',
     'crate.dup': 'Duplicate → sigma',
     'crate.bolts': 'sigma',
-    'cosmetic.nc_silver': 'Silver nick',
     'cosmetic.nc_gold': 'Gold nick',
     'cosmetic.nc_lime': 'Lime nick',
     'cosmetic.nc_fire': 'Fire nick',
@@ -358,6 +358,20 @@ export const en: typeof pl = {
     'cosmetic.ch_fangs': 'Fangs',
     'cosmetic.ch_laser': 'Laser',
     'cosmetic.ch_sigma': 'Sigma',
+
+    // v0.144.0 — portrait backgrounds (12).
+    'cosmetic.bg_steel': 'Steel',
+    'cosmetic.bg_sand': 'Sand',
+    'cosmetic.bg_forest': 'Forest',
+    'cosmetic.bg_night': 'Night',
+    'cosmetic.bg_sunset': 'Sunset',
+    'cosmetic.bg_ice': 'Ice',
+    'cosmetic.bg_neon': 'Neon',
+    'cosmetic.bg_camo': 'Camo',
+    'cosmetic.bg_mars': 'Mars',
+    'cosmetic.bg_rays': 'Rays',
+    'cosmetic.bg_gold': 'Gold',
+    'cosmetic.bg_holo': 'Hologram',
     'cosmetic.vo_commander': 'Commander',
 
     // ── SHOP ──

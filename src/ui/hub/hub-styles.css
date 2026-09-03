@@ -681,6 +681,39 @@ body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
 /* v0.115.0 juice: pillsy -> KARTY z gradientem koloru rzadkosci (--rarity-color z TS,
    hex+50% alpha) — kolekcjonerski flex; locked = grayscale (rzadkosc widac dopiero po zdobyciu). */
 .bt-hub0-cos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-bottom: 4px; }
+/* v0.144.0 — JEDEN RZAD dla kolorow nicku i tel pod zdjecie (decyzja Mariusza:
+   ma byc 12 w linii i BEZ SCROLLA POZIOMEGO).
+   `grid-auto-flow: column` + `grid-auto-columns: 1fr` dzieli dostepna szerokosc
+   rowno miedzy wszystkie kafle, ile by ich nie bylo — rzad nigdy sie nie zawija
+   i nigdy nie wystaje. `min-width: 0` na kaflu jest KONIECZNE: bez niego domyslne
+   `min-width: auto` gridu broni szerokosci tresci i rzad rozepchnalby kontener. */
+.bt-hub0-cos-grid--row {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 6px;
+    overflow: hidden;
+}
+.bt-hub0-cos-grid--row .bt-hub0-cos { min-width: 0; padding: 8px 3px; gap: 4px; }
+/* Nazwa lamie sie zamiast rozpychac kafel; przy bardzo waskich kaflach i tak schodzi
+   (regula nizej), bo probka koloru niesie tu caly sens. */
+.bt-hub0-cos-grid--row .nm { font-size: 10px; line-height: 1.1; white-space: normal; word-break: break-word; }
+
+/* Telefon: 12 kafli w jednym rzedzie to kilkadziesiat px na kafel — na etykiete nie ma
+   miejsca i zadne zmniejszanie fontu tego nie uratuje. Zostaje SAMA PROBKA, powiekszona,
+   zeby byla czytelnym celem dla kciuka. Nazwa siedzi w `aria-label`/`title` karty, wiec
+   nie znika z drzewa dostepnosci.
+
+   UWAGA NA BREAKPOINT: gra jest zablokowana w POZIOMIE, wiec telefon zglasza sie jako
+   SZEROKI (A54 w poziomie to ~873 px). Sam `max-width` by go NIE zlapal — mobilnym
+   sygnalem w tym pliku jest WYSOKOSC (ta sama konwencja co reszta regul landscape
+   w hub-styles.css). Drugi warunek zostaje dla waskich okien na desktopie. */
+@media (max-width: 720px), (orientation: landscape) and (max-height: 560px) {
+    .bt-hub0-cos-grid--row .nm { display: none; }
+    .bt-hub0-cos-grid--row .bt-hub0-cos { min-height: 40px; padding: 6px 2px; }
+    .bt-hub0-cos-grid--row .dot { width: 16px; height: 16px; }
+    .bt-hub0-cos-grid--row .dot--frame { width: 20px; height: 20px; }
+}
 .bt-hub0-cos {
     display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 52px;
     border: 2px solid var(--hub-line); border-radius: var(--radius-sm, 8px);
@@ -740,10 +773,51 @@ body.bt-desktop .bt-hub0-crate-modal { max-width: 640px; }
     35% { transform: translateY(5px); }
     65% { transform: translateY(-2px); }
 }
+/* v0.144.0 — SCENA MA TLO.
+   Zgloszenie z playtestu: „zbyt szary widok przy otwarciu, tlo powinno cos zawierac".
+   Trafne co do joty — do v0.143.0 `.bt-hub0-crate-scene` NIE MIALA reguly `background`
+   w ogole, wiec widac bylo goly modal (#1a252f).
+
+   TWARDE OGRANICZENIE: rzadkosc jest nieznana az do TRZECIEGO tapniecia (`openCrate()`
+   wola sie dopiero wtedy), wiec tlo NIE MOZE od niej zalezec — inaczej zdradza lup
+   przed odslona. Paleta jest neutralna (stal + zloto) i identyczna dla c/r/e/l.
+   Eskalacja koloru zostaje tam, gdzie juz byla: flash i karta odslony.
+
+   Koszt mobilny: kontener ma max 380 px szerokosci i 190 px wysokosci, wiec gradienty
+   sa tanie; rotacja promieni jest wylaczana w `prefers-reduced-motion` (blok nizej). */
 .bt-hub0-crate-scene {
     position: relative; height: 190px; display: flex; flex-direction: column;
     align-items: center; justify-content: flex-end; margin: 6px 0 4px;
+    overflow: hidden; border-radius: 14px;
+    background:
+        radial-gradient(120% 80% at 50% -10%, rgba(241, 196, 15, 0.16) 0%, rgba(241, 196, 15, 0.05) 38%, transparent 70%),
+        linear-gradient(180deg, #22303c 0%, #16202a 62%, #101820 100%);
 }
+/* Promienie reflektora — wolne, neutralne, maskowane radialnie, zeby nie tworzyly
+   twardej krawedzi na rogach sceny. */
+.bt-hub0-crate-scene::before {
+    content: ''; position: absolute; left: 50%; top: -40%;
+    width: 240%; height: 200%; transform: translateX(-50%);
+    background: repeating-conic-gradient(from 0deg,
+        rgba(241, 196, 15, 0.09) 0deg 7deg, transparent 7deg 20deg);
+    -webkit-mask-image: radial-gradient(closest-side, #000 25%, transparent 78%);
+    mask-image: radial-gradient(closest-side, #000 25%, transparent 78%);
+    animation: bt-crate-scene-rays 26s linear infinite;
+    pointer-events: none;
+}
+/* Podloga: skrzynia ma na czym wyladowac, zamiast wisiec w prozni. */
+.bt-hub0-crate-scene::after {
+    content: ''; position: absolute; left: 50%; bottom: 4px;
+    width: 62%; height: 26px; transform: translateX(-50%);
+    background: radial-gradient(closest-side, rgba(0, 0, 0, 0.5) 0%, transparent 100%);
+    pointer-events: none;
+}
+@keyframes bt-crate-scene-rays {
+    from { transform: translateX(-50%) rotate(0deg); }
+    to   { transform: translateX(-50%) rotate(360deg); }
+}
+/* Skrzynia, kurz i iskry NAD tlem (pseudoelementy sa w tle sceny). */
+.bt-hub0-crate-scene > * { position: relative; z-index: 1; }
 body.bt-desktop .bt-hub0-crate-scene { height: 260px; }
 /* Telefon w poziomie: zmierzone przy 667x375 — tresc wystawala o DOKLADNIE 16 px,
    czyli o dolny padding pod przyciskiem „Co moze wypasc?". Modal ma `overflow: hidden`,
@@ -789,8 +863,15 @@ body.bt-desktop .bt-hub0-crate-box { width: 200px; height: 200px; }
     width: 100%; height: 100%; object-fit: contain; display: block;
     pointer-events: none; /* klik ma trafiac w <button>, nie w obrazek */
 }
+/* v0.144.0 — CZAS SPADANIA WYNIKA Z POMIARU DZWIEKU, NIE Z GUSTU.
+   Obwiednia RMS `crate_drop.mp3` ma glowny huk na 650 ms (szczyt probki 675 ms).
+   Dzwiek startuje teraz na POCZATKU lotu (CrateOverlay.wireScene), wiec zeby wizualne
+   uderzenie padlo rowno z hukiem, keyframe ladowania (76%) musi wypasc na 650 ms:
+       0.855s x 0.76 = 650 ms
+   Bylo 0.55s — skrzynia ladowala na 418 ms, a huk (odpalany dopiero na `animationend`)
+   szedl na 1200 ms. To bylo zrodlo zgloszenia „rozjazd z dzwiekiem". */
 .bt-hub0-crate-box.is-dropping {
-    animation: bt-crate-drop 0.55s cubic-bezier(0.45, 0, 0.85, 0.6) both;
+    animation: bt-crate-drop 0.855s cubic-bezier(0.45, 0, 0.85, 0.6) both;
     pointer-events: none; /* tapy dopiero po ladowaniu */
 }
 @keyframes bt-crate-drop {
@@ -1467,6 +1548,8 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
     .bt-hub0-crate-glow, .bt-hub0-cratebox.is-ready .bt-hub0-crate-art,
     /* v0.131.0 — nowe efekty skrzynki */
     .bt-hub0-crate-scene.quake, .bt-hub0-crate-dust i.spark,
+    /* v0.144.0 — promienie reflektora na scenie: tlo zostaje, rotacja znika */
+    .bt-hub0-crate-scene::before,
     .bt-hub0-lslot.is-armed::after { animation: none; }
     /* v0.137.0 — eskalacja rzadkosci celuje w `[data-rarity]`, czyli specyficznosc (0,2,0),
        a reguly wyzej maja (0,1,0). Bez POWTORZENIA selektora z atrybutem `animation: none`

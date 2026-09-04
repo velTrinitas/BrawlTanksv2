@@ -2903,6 +2903,20 @@ function fitEndTitleToButton(screenEl: HTMLElement): void {
     });
 }
 
+// Z0.4 (COOP ETAP 0, v0.153.0) — JEDYNA warstwa wyboru celu wroga (targetRef).
+// Kolejnosc rozstrzygania (przeniesiona 1:1 z petli wrogow, zachowanie identyczne):
+//   1. nadpisania mocy: bek (2 s, wygrywa) > babcia (strach) > widmo (wabik) — F7b/T3,
+//   2. najblizszy ZYWY gracz — dzis jedyny `player`; Z0.3/ETAP 2 podmienia TYLKO to
+//      miejsce na przeglad players[] (wrogowie, HUD i kamera nie szukaja gracza same).
+// Bossowie: mega boss siedzi w enemies[] (isMegaBoss) => ta sama sciezka; boss+straznicy
+// CTF zyja w CtfSystem z wlasnym targetowaniem — przejda na players[] przy Z0.3.
+function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
+    const steer = powerSystem!.burpFearFor(enemy)
+        ?? powerSystem!.grannyFearFor(enemy)
+        ?? powerSystem!.ghostTauntFor(enemy);
+    return steer ?? player!;
+}
+
 async function triggerGameOver(): Promise<void> {
     // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
@@ -4040,15 +4054,10 @@ app.ticker.add((rawDelta) => {
             enemy.container.rotation += 0.13 * delta;
         } else {
             if (enemy.container.rotation !== 0) enemy.container.rotation = 0; // koniec imprezy
-            // TIER 3 BABCIA (strach — wrog UCIEKA) > F7b-4 WIDMO (taunt) > gracz.
-            // Oba wzorce = iniekcja wspolrzednych do enemy.update (zero zmian w AI).
-            // v0.146.0: bek dopisany do lancucha PRZED babcia — jest krotki (2 s) i ma
-            // wygrywac, gdy obie moce zadzialaja naraz. Zero zmian w AI wroga: to dalej
-            // ta sama iniekcja wspolrzednych, tylko z trzema zrodlami zamiast dwoch.
-            const steer = powerSystem.burpFearFor(enemy)
-                ?? powerSystem.grannyFearFor(enemy)
-                ?? powerSystem.ghostTauntFor(enemy);
-            shotInfo = enemy.update(delta, steer ? steer.x : player.x, steer ? steer.y : player.y, enemyBuildings, powerCubes);
+            // Z0.4: wybor celu wyciagniety do resolveEnemyTarget() — ten sam lancuch
+            // bek > babcia > widmo > gracz (iniekcja wspolrzednych, zero zmian w AI).
+            const tgt = resolveEnemyTarget(enemy);
+            shotInfo = enemy.update(delta, tgt.x, tgt.y, enemyBuildings, powerCubes);
         }
         // TIER 3 DISCO v2: zmeczony tancerz bije 20% slabiej do konca meczu.
         if (shotInfo) {

@@ -551,6 +551,9 @@ export class Enemy {
             this._stealTX = playerX; this._stealTY = playerY; return;
         }
 
+        // Z0.4: distToPlayerSq to dystans do PRZEKAZANEGO celu (moze byc wabik/gracz/
+        // najblizszy gracz w koopie) — semantyka "kostka blizej niz moj AKTUALNY cel"
+        // jest poprawna przy wielu graczach bez zmian tego kodu.
         if (nearestDistSq >= distToPlayerSq * CUBE_CHASE_THRESHOLD) {
             this._stealTX = playerX; this._stealTY = playerY; return;
         }

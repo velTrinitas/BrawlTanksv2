@@ -29,6 +29,7 @@ import type { IScreen } from './MainMenu';
 import { AudioSys } from '../audio/AudioSys';
 import { t } from '../i18n/i18n';
 import { ProfileService } from '../services/ProfileService';
+import { isCleanNickname } from '../config/nickFilter';
 import { supabaseProfileService } from '../services/SupabaseProfileService';
 import { pushProfileToCloud } from '../services/profileSync';
 import {
@@ -301,7 +302,9 @@ export class ProfileEditScreen implements IScreen {
             this.currentNickname = sanitized;
 
             // Visual validation feedback
-            const valid = isValidNickname(sanitized);
+            // Z0.10: filtr wulgaryzmow TYLKO przy zmianie nicku (patrz ProfileEditView)
+            const blocked = sanitized !== this.originalNickname && !isCleanNickname(sanitized);
+            const valid = isValidNickname(sanitized) && !blocked;
             nickInput.classList.toggle('is-valid', valid && sanitized.length > 0);
             nickInput.classList.toggle('is-invalid', !valid && sanitized.length > 0);
 
@@ -356,7 +359,9 @@ export class ProfileEditScreen implements IScreen {
         if (!saveBtn) return;
 
         const nicknameValid = isValidNickname(this.currentNickname);
-        saveBtn.disabled = !nicknameValid || this.isSaving;
+        const blocked = this.currentNickname !== this.originalNickname
+            && !isCleanNickname(this.currentNickname); // Z0.10
+        saveBtn.disabled = !nicknameValid || blocked || this.isSaving;
     }
 
     /** v0.47.0 FAZA 9b.3b: wizualny stan "zapisuje..." podczas async check. */
@@ -384,6 +389,11 @@ export class ProfileEditScreen implements IScreen {
         if (!isValidNickname(this.currentNickname)) {
             // Defensive — button powinien być disabled, ale safe-guard
             showToast(t('profile.onboarding.nicknameError'), 2500);
+            return;
+        }
+        // Z0.10: profanity gate — tylko dla ZMIENIONEGO nicku (przycisk i tak disabled).
+        if (this.currentNickname !== this.originalNickname && !isCleanNickname(this.currentNickname)) {
+            showToast(t('profile.onboarding.nicknameBlocked'), 2500);
             return;
         }
 
@@ -447,6 +457,9 @@ export class ProfileEditScreen implements IScreen {
         }
         if (this.currentNickname === this.originalNickname) {
             return t('profile.edit.nicknameUnchanged');
+        }
+        if (!isCleanNickname(this.currentNickname)) {
+            return t('profile.onboarding.nicknameBlocked'); // Z0.10
         }
         return t('profile.onboarding.nicknameHint');
     }

@@ -16,6 +16,7 @@
 
 import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
+import { containsProfanity } from '../config/nickFilter';
 
 export type TimeWindow = 'all' | 'week' | 'day';
 export type BoardMetric = 'score'; // 'time' | 'wins' — przyszlosc (Boss Rush/PvP)
@@ -109,10 +110,12 @@ export interface ILeaderboardService {
 
 // ── Name-safety (risk #3: bezpieczenstwo dzieci 9-12) ──────────────────────────
 //
-// STARTER blocklist — display-only (nick w bazie zostaje surowy). To NIE jest pelna
-// lista; docelowo rozszerzyc + najlepiej walidowac przy TWORZENIU nicku (server-side).
-// Token-based (caly wyraz), NIE substring — zeby uniknac falszywych trafien
-// (problem "Scunthorpe": niewinne slowo z wulgarnym fragmentem).
+// Z0.10 (v0.149.0): glowny filtr mieszka w config/nickFilter.ts (blokada przy
+// TWORZENIU/EDYCJI nicku + pelna maska ponizej przez containsProfanity, odporna
+// na leet/doklejki). Ponizsza lista tokenow zostaje jako DRUGA warstwa: maskowanie
+// slowo-po-slowie starych nickow z bazy zawierajacych spacje/diakrytyki (DB nie ma
+// checka charsetu). Token-based (caly wyraz), NIE substring — zeby uniknac falszywych
+// trafien (problem "Scunthorpe": niewinne slowo z wulgarnym fragmentem).
 const PROFANITY_TOKENS: ReadonlySet<string> = new Set([
     // PL
     'kurwa', 'chuj', 'chuja', 'huj', 'huja', 'pizda', 'pierdol', 'pierdole',
@@ -132,6 +135,12 @@ const MASK = '***';
 export function sanitizeDisplayName(nickname: string): string {
     const raw = (nickname ?? '').trim();
     if (raw.length === 0) return 'Gracz';
+
+    // Z0.10: pelna maska, gdy znormalizowany nick zawiera wulgaryzm (leet, doklejki
+    // typu "kurwa123", elongacje). Chroni przed STARYMI brudnymi nickami w bazie —
+    // przy tworzeniu/edycji blokuje je juz isCleanNickname. Celowo containsProfanity
+    // (bez kill-switcha): maska wyswietlania ma dzialac nawet przy wylaczonym gate.
+    if (containsProfanity(raw)) return 'Gracz';
 
     // Tnij na tokeny slowne, zachowujac separatory (spacje/podkreslniki/cyfry granice).
     const cleaned = raw.replace(/[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+/g, (word) =>

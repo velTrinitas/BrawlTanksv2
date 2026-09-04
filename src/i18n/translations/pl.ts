@@ -772,6 +772,7 @@ export const pl = {
     'profile.onboarding.nicknameHint': '2-16 znaków: litery i cyfry',
     'profile.onboarding.nicknameError': 'Pseudonim musi mieć 2-16 liter lub cyfr',
     'profile.onboarding.nicknameTaken': 'Pseudonim zajęty — wybierz inny',
+    'profile.onboarding.nicknameBlocked': 'Ten pseudonim jest niedozwolony — wybierz inny',
 
     // ============================================================
     // Profile / Edit (v0.43.0 FAZA 8b)

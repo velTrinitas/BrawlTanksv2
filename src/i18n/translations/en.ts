@@ -756,6 +756,7 @@ export const en: typeof pl = {
     'profile.onboarding.nicknameHint': '2-16 characters: letters and digits',
     'profile.onboarding.nicknameError': 'Nickname must be 2-16 letters or digits',
     'profile.onboarding.nicknameTaken': 'Nickname taken — choose another',
+    'profile.onboarding.nicknameBlocked': 'This nickname is not allowed — pick another one',
 
     // ============================================================
     // Profile / Edit (v0.43.0 FAZA 8b)

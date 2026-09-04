@@ -42,6 +42,7 @@ import { flagImgHtml, sortedFlagIds, FLAG_NAME_KEY } from './flagArt';
 // gdy HubShell jeszcze nie powstal (fresh boot pokazuje ten ekran PRZED hubem).
 import './hub/hub-styles.css';
 import { ProfileService } from '../services/ProfileService';
+import { isCleanNickname } from '../config/nickFilter';
 import { supabaseProfileService } from '../services/SupabaseProfileService';
 import { pushProfileToCloud } from '../services/profileSync';
 import { playUiClick, playUiSelect } from './uiSounds';
@@ -335,6 +336,7 @@ export class IdentityScreen implements IScreen {
         if (this.isSubmitting) return;
         if (!this.selectedAvatarId || !this.selectedFlagId) return;
         if (!isValidNickname(this.nicknameValue)) return;
+        if (!isCleanNickname(this.nicknameValue)) return; // Z0.10: profanity gate (button disabled anyway — safe-guard)
 
         this.isSubmitting = true;
         this.setCtaBusy(true);
@@ -396,6 +398,12 @@ export class IdentityScreen implements IScreen {
             input.classList.remove('is-invalid', 'is-valid');
             hint.classList.remove('is-error');
             hint.textContent = t('profile.onboarding.nicknameHint');
+        } else if (isValidNickname(this.nicknameValue) && !isCleanNickname(this.nicknameValue)) {
+            // Z0.10: charset/length OK, ale tresc zablokowana przez filtr wulgaryzmow
+            input.classList.remove('is-valid');
+            input.classList.add('is-invalid');
+            hint.classList.add('is-error');
+            hint.textContent = t('profile.onboarding.nicknameBlocked');
         } else if (isValidNickname(this.nicknameValue)) {
             input.classList.remove('is-invalid');
             input.classList.add('is-valid');
@@ -431,7 +439,8 @@ export class IdentityScreen implements IScreen {
         const allValid =
             !!this.selectedAvatarId &&
             !!this.selectedFlagId &&
-            isValidNickname(this.nicknameValue);
+            isValidNickname(this.nicknameValue) &&
+            isCleanNickname(this.nicknameValue); // Z0.10: profanity gate
 
         cta.disabled = !allValid;
         cta.classList.remove('is-busy');

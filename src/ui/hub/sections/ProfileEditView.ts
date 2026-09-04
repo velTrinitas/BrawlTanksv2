@@ -1,5 +1,6 @@
 import { t, type TranslationKey } from '../../../i18n/i18n';
 import { ProfileService } from '../../../services/ProfileService';
+import { isCleanNickname } from '../../../config/nickFilter';
 import { supabaseProfileService } from '../../../services/SupabaseProfileService';
 import { pushProfileToCloud } from '../../../services/profileSync';
 import {
@@ -160,7 +161,10 @@ export class ProfileEditView {
             const sanitized = sanitizeNickname(nickInput.value);
             if (sanitized !== nickInput.value) nickInput.value = sanitized;
             this.currentNickname = sanitized;
-            const valid = isValidNickname(sanitized);
+            // Z0.10: filtr wulgaryzmow egzekwowany TYLKO przy ZMIANIE nicku — gracz
+            // z istniejacym brudnym nickiem moze dalej zapisywac inne pola profilu.
+            const blocked = sanitized !== this.originalNickname && !isCleanNickname(sanitized);
+            const valid = isValidNickname(sanitized) && !blocked;
             nickInput.classList.toggle('is-valid', valid && sanitized.length > 0);
             nickInput.classList.toggle('is-invalid', !valid && sanitized.length > 0);
             if (nickHint) {
@@ -182,7 +186,9 @@ export class ProfileEditView {
     private updateSaveButtonState(): void {
         const saveBtn = this.el?.querySelector<HTMLButtonElement>('[data-action="edit-save"]');
         if (!saveBtn) return;
-        saveBtn.disabled = !isValidNickname(this.currentNickname) || this.isSaving;
+        const blocked = this.currentNickname !== this.originalNickname
+            && !isCleanNickname(this.currentNickname); // Z0.10
+        saveBtn.disabled = !isValidNickname(this.currentNickname) || blocked || this.isSaving;
     }
 
     private setSaveBusy(busy: boolean): void {
@@ -203,6 +209,11 @@ export class ProfileEditView {
         }
         if (!isValidNickname(this.currentNickname)) {
             showToast(t('profile.onboarding.nicknameError'), 2500);
+            return;
+        }
+        // Z0.10: profanity gate — tylko dla ZMIENIONEGO nicku (przycisk i tak disabled).
+        if (this.currentNickname !== this.originalNickname && !isCleanNickname(this.currentNickname)) {
+            showToast(t('profile.onboarding.nicknameBlocked'), 2500);
             return;
         }
 
@@ -249,6 +260,7 @@ export class ProfileEditView {
         if (len === 0) return t('profile.onboarding.nicknameHint');
         if (!isValidNickname(this.currentNickname)) return t('profile.onboarding.nicknameError');
         if (this.currentNickname === this.originalNickname) return t('profile.edit.nicknameUnchanged');
+        if (!isCleanNickname(this.currentNickname)) return t('profile.onboarding.nicknameBlocked'); // Z0.10
         return t('profile.onboarding.nicknameHint');
     }
 

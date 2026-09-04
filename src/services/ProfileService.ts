@@ -17,6 +17,7 @@
 
     import type { AvatarId, FlagId, LanguageId, Profile } from '../types/Profile';
     import { DEFAULT_LANGUAGE, isValidNickname } from '../types/Profile';
+    import { isCleanNickname } from '../config/nickFilter';
     import { DEFAULT_AVATAR_ID, isValidAvatarId } from '../config/avatars';
     import { DEFAULT_FLAG_ID, isValidFlagId } from '../config/flags';
 
@@ -67,6 +68,15 @@
                 );
             }
 
+            // Z0.10: profanity gate at the service layer (defense in depth — UI validates
+            // too). Applies to NEW profiles only; loadProfiles() is intentionally NOT
+            // touched, so existing saves are never dropped retroactively.
+            if (!isCleanNickname(opts.nickname)) {
+                throw new Error(
+                    `[ProfileService] Blocked nickname (profanity filter): "${opts.nickname}"`
+                );
+            }
+
             const now = Date.now();
             const profile: Profile = {
                 id: generateUuid(),
@@ -100,6 +110,16 @@
             if (updates.nickname !== undefined && !isValidNickname(updates.nickname)) {
                 throw new Error(
                     `[ProfileService] Invalid nickname in update: "${updates.nickname}"`
+                );
+            }
+
+            // Z0.10: profanity gate ONLY when the nickname actually CHANGES — a player
+            // with a pre-filter dirty nick can still save other profile fields.
+            if (updates.nickname !== undefined
+                && updates.nickname !== this.profiles[idx].nickname
+                && !isCleanNickname(updates.nickname)) {
+                throw new Error(
+                    `[ProfileService] Blocked nickname in update (profanity filter): "${updates.nickname}"`
                 );
             }
 

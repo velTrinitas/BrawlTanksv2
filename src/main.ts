@@ -449,6 +449,12 @@ const DELTA_SMOOTH = 0.2; // waga wygladzania (0.2 = mocne sciecie falowania, mi
 // Wszystkie encje sa dziecmi worldContainer, wiec dziedzicza gladkie przewijanie.
 let logicAccMs = 0;
 let smoothNeedsInit = true;
+// Z0.6-bis (fix po oblanym flipie 2026-09-04): staly krok logiki + CATCH-UP.
+// Maks. 3 kroki logiki na klatke renderu — splaca dlug czasu przy jitterze vsync
+// (przyczyna "mega zrywa": stara wersja robila maks. 1 krok/klatke, wiec przy
+// render 60Hz = logika 60Hz kazde drgniecie spychalo logike w tyl az guard skakal).
+const LOGIC_STEP_MS = 1000 / 60;
+const SMOOTH_MAX_CATCHUP = 3;
 let icCamPX = 0, icCamPY = 0, icCamCX = 0, icCamCY = 0; // interp kamera: prev/curr (world coords)
 let icPlPX = 0, icPlPY = 0, icPlCX = 0, icPlCY = 0;     // interp gracz: prev/curr (container coords)
 
@@ -3164,29 +3170,46 @@ app.ticker.add((rawDelta) => {
         return;
     }
 
-    // === F5 SMOOTH MODE: fixed 60Hz logika + interpolowany render ===
-    // Akumuluj realny czas; krok logiki tylko gdy uzbieral sie STEP_MS. Klatki bez kroku =
-    // render-only: tylko interpoluj world-scroll + gracza (encje jada z worldContainer) i wyjdz.
-    const STEP_MS = 1000 / 60;
-    if (SMOOTH_MODE) {
-        logicAccMs += app.ticker.elapsedMS;
-        if (logicAccMs > STEP_MS * 4) logicAccMs = STEP_MS; // guard: tab-switch / spiral of death
-        if (logicAccMs < STEP_MS) {
-            applySmoothInterp(logicAccMs / STEP_MS); // render-only frame
-            return;
-        }
-        logicAccMs -= STEP_MS;
-        // snapshot prev PRZED krokiem logiki (curr stanie sie nowym stanem po kroku)
-        icCamPX = icCamCX; icCamPY = icCamCY;
-        icPlPX = icPlCX; icPlPY = icPlCY;
-    }
-
-    // Wygladzona delta (pacing fix): clamp outlierow (0.5..2.0 = 120..30fps) + wygladzanie wykladnicze.
-    // Cala reszta tickera uzywa `delta` (= smoothedDelta), wiec ruch/animacje sa stabilne mimo falowania FPS.
-    // SMOOTH_MODE: krok logiki jest STALY (delta=1) — plynnosc daje interpolacja renderu, nie delta.
+    // Wygladzona delta (pacing fix): clamp outlierow (0.5..2.0 = 120..30fps) + wygladzanie
+    // wykladnicze. Sciezka bez SMOOTH uzywa jej jako delty kroku (jak dotad).
     const clampedDelta = Math.max(0.5, Math.min(2.0, rawDelta));
     smoothedDelta += (clampedDelta - smoothedDelta) * DELTA_SMOOTH;
-    const delta = SMOOTH_MODE ? 1 : smoothedDelta;
+
+    // === F5 SMOOTH MODE (Z0.6-bis): fixed 60Hz logika + interpolowany render + CATCH-UP ===
+    // Petla splaca do SMOOTH_MAX_CATCHUP krokow dlugu czasu na klatke (fix "mega zrywa"
+    // z playtestu 2026-09-04); dlug powyzej limitu jest ciety (tab-switch / spiral of death).
+    // Klatka bez kroku = render-only: sama interpolacja world-scrolla + gracza.
+    // Domyslnie OFF (?smooth=1) — produkcja idzie sciezka runLogicStep(smoothedDelta) nizej.
+    if (SMOOTH_MODE) {
+        logicAccMs += app.ticker.elapsedMS;
+        const maxDebt = LOGIC_STEP_MS * SMOOTH_MAX_CATCHUP;
+        if (logicAccMs > maxDebt) logicAccMs = maxDebt;
+        let steps = 0;
+        while (logicAccMs >= LOGIC_STEP_MS && steps < SMOOTH_MAX_CATCHUP && gameState === 'PLAYING') {
+            logicAccMs -= LOGIC_STEP_MS;
+            // snapshot prev PRZED krokiem (curr stanie sie nowym stanem po kroku)
+            icCamPX = icCamCX; icCamPY = icCamCY;
+            icPlPX = icPlCX; icPlPY = icPlCY;
+            runLogicStep(1); // staly krok: delta=1 (determinizm — plynnosc daje interp)
+            steps++;
+        }
+        applySmoothInterp(logicAccMs / LOGIC_STEP_MS);
+        return;
+    }
+
+    runLogicStep(smoothedDelta);
+});
+
+/**
+ * JEDEN krok logiki gry — dawne cialo tickera od obliczenia delty w dol (Z0.6-bis:
+ * wydzielone, zeby petla catch-up mogla wolac je wielokrotnie na klatke).
+ * delta=1 w SMOOTH (staly krok 60Hz), smoothedDelta bez SMOOTH (dokladnie raz na klatke
+ * — sciezka produkcyjna, bitowo ta sama logika co przed wydzieleniem).
+ * Guard na wstepie DUPLIKUJE guard tickera celowo: krok w petli catch-up moze
+ * zakonczyc mecz (victory/gameover), a kolejna iteracja nie moze wtedy nic ruszac.
+ */
+function runLogicStep(delta: number): void {
+    if (gameState !== 'PLAYING' || !localPlayer || !effects || !spawnSystem || !powerSystem || !currentSession) return;
 
     // SHOP-1 — paczka glosowa: ostrzezenie przy spadku ponizej polowy pancerza.
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
@@ -4286,7 +4309,8 @@ app.ticker.add((rawDelta) => {
         if (!HARNESS_NOHUD) hud.render(localPlayer, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
     }
 
-    // === F5 SMOOTH MODE: zapisz stan po kroku (kamera+gracz) i naloz interpolacje renderu ===
+    // === F5 SMOOTH MODE: zapisz stan PO KROKU (kamera+gracz). Interpolacje naklada
+    // ticker RAZ na klatke, po petli catch-up (Z0.6-bis) — nie tutaj.
     if (SMOOTH_MODE) {
         if (smoothNeedsInit) {
             // pierwszy krok nowego meczu: prev=curr => zero skoku na spawnie
@@ -4297,9 +4321,8 @@ app.ticker.add((rawDelta) => {
             icCamCX = camera.x; icCamCY = camera.y;
             icPlCX = localPlayer.container.x; icPlCY = localPlayer.container.y;
         }
-        applySmoothInterp(logicAccMs / STEP_MS);
     }
-});
+}
 
 // === F5: TWARDY frame-limiter (?cap=N). PIXI app.ticker.maxFPS NIE trzymal na A54 (log: 130fps
 // przy maxFPS 60). Przejmujemy pompowanie tickera wlasnym rAF z bramka czasowa => render

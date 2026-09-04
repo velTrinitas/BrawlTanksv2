@@ -308,7 +308,15 @@ let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
 let currentSession: GameSession | null = null;
 
-let player: Player | null = null;
+// Z0.3 (COOP ETAP 0, v0.155.0): singleton `player` -> `players[]` + `localPlayer`.
+// ZRODLO PRAWDY: `players` (dzis STALE jeden element — gra pozostaje jednoosobowa).
+// `localPlayer` = gracz TEGO urzadzenia (players[0]); kamera, HUD, input i celowanie
+// uzywaja localPlayer CELOWO — w koopie to poprawne z definicji (osobne kamery per
+// gracz). Petle, ktore w ETAPIE 2 musza objac WSZYSTKICH graczy (pociski wrogow,
+// taran, pickupy, strefy stealth, latch lowHpVoiceFired -> per-gracz), przechodza
+// na players[] dopiero tam — dzis kazda z nich dziala na players[0] przez alias.
+let players: Player[] = [];
+let localPlayer: Player | null = null;
 let enemies: Enemy[] = [];
 let bullets: Bullet[] = [];
 let enemyBullets: EnemyBullet[] = [];
@@ -446,14 +454,14 @@ let icPlPX = 0, icPlPY = 0, icPlCX = 0, icPlCY = 0;     // interp gracz: prev/cu
 
 /** Naloz interpolowany render (world-scroll + gracz) dla ulamka klatki a=0..1. */
 function applySmoothInterp(a: number): void {
-    if (!effects || !player) return;
+    if (!effects || !localPlayer) return;
     const Z = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     const cx = icCamPX + (icCamCX - icCamPX) * a;
     const cy = icCamPY + (icCamCY - icCamPY) * a;
     worldContainer.x = -cx * Z + effects.shakeOffsetX;
     worldContainer.y = -cy * Z + effects.shakeOffsetY;
-    player.container.x = icPlPX + (icPlCX - icPlPX) * a;
-    player.container.y = icPlPY + (icPlCY - icPlPY) * a;
+    localPlayer.container.x = icPlPX + (icPlCX - icPlPX) * a;
+    localPlayer.container.y = icPlPY + (icPlCY - icPlPY) * a;
 }
 
 const keys = { w: false, a: false, s: false, d: false };
@@ -661,11 +669,11 @@ if (touchManager.isActive) {
 const itemHints = new ItemHints(touchManager.isActive);
 /** Najblizszy obiekt {x,y} w zasiegu od gracza (do podpowiedzi kontekstowych). */
 function nearestInRange<T extends { x: number; y: number }>(items: T[], range: number): T | null {
-    if (!player) return null;
+    if (!localPlayer) return null;
     let best: T | null = null;
     let bestD = range * range;
     for (const it of items) {
-        const d = (it.x - player.x) ** 2 + (it.y - player.y) ** 2;
+        const d = (it.x - localPlayer.x) ** 2 + (it.y - localPlayer.y) ** 2;
         if (d < bestD) { bestD = d; best = it; }
     }
     return best;
@@ -717,14 +725,14 @@ let tutorialRing: PIXI.Graphics | null = null;
 // zestrzelenia. Teraz wrogi zawsze celuja w glab mapy i nigdy nie ladauja na krawedzi.
 const TUT_SPAWN_MARGIN = 320;
 function tutorialCenterAngle(): number {
-    if (!player) return 0;
-    return Math.atan2(WORLD_H / 2 - player.y, WORLD_W / 2 - player.x);
+    if (!localPlayer) return 0;
+    return Math.atan2(WORLD_H / 2 - localPlayer.y, WORLD_W / 2 - localPlayer.x);
 }
 function tutorialSpawnAt(angle: number, radius: number): void {
-    if (!player) return;
+    if (!localPlayer) return;
     const M = TUT_SPAWN_MARGIN;
-    const x = Math.max(M, Math.min(WORLD_W - M, player.x + Math.cos(angle) * radius));
-    const y = Math.max(M, Math.min(WORLD_H - M, player.y + Math.sin(angle) * radius));
+    const x = Math.max(M, Math.min(WORLD_W - M, localPlayer.x + Math.cos(angle) * radius));
+    const y = Math.max(M, Math.min(WORLD_H - M, localPlayer.y + Math.sin(angle) * radius));
     const e = new Enemy(x, y, ENEMY_NORMAL, false, worldContainer);
     attachEnemyCubeStolenCallback(e);
     enemies.push(e);
@@ -751,10 +759,10 @@ function updateTutorialRing(): void {
     if (!tutorialActive) { if (tutorialRing) tutorialRing.visible = false; return; }
     let target: Enemy | null = null;
     let best = Infinity;
-    if (player) {
+    if (localPlayer) {
         for (const e of tutorialEnemies) {
             if (!e.active) continue;
-            const d = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+            const d = (e.x - localPlayer.x) ** 2 + (e.y - localPlayer.y) ** 2;
             if (d < best) { best = d; target = e; }
         }
     }
@@ -785,40 +793,40 @@ let tutSuperBase = 0;      // superCharges przy wejsciu w krok GEMY
 let tutSuperShotBase = 0;  // superCharges przy wejsciu w krok SUPER SHOT
 
 function tutorialSpawnGems(): void {
-    tutSuperBase = player ? player.superCharges : 0;
-    if (!player) return;
+    tutSuperBase = localPlayer ? localPlayer.superCharges : 0;
+    if (!localPlayer) return;
     // 12 gemow w dwoch pierscieniach wokol gracza — zbierane przejazdem (auto-collect).
     // 12 > GEMS_PER_SUPER_CHARGE_TRIGGER(10) => zebranie gwarantuje przekroczenie progu (+3 ladunki),
     // niezaleznie ile gemow gracz mial wczesniej (manekin/FALA dropia po 1).
     for (let k = 0; k < 12; k++) {
         const a = (k / 12) * Math.PI * 2;
         const r = 120 + (k % 2) * 90;
-        spawnGem(player.x + Math.cos(a) * r, player.y + Math.sin(a) * r);
+        spawnGem(localPlayer.x + Math.cos(a) * r, localPlayer.y + Math.sin(a) * r);
     }
 }
 function tutorialSuperEarned(): boolean {
-    return !!player && player.superCharges > tutSuperBase;
+    return !!localPlayer && localPlayer.superCharges > tutSuperBase;
 }
 /** Watchdog GEMY: gdy gemy sie skonczyly/wygasly a super jeszcze nie naladowany -> dosyp swiezych.
  *  Zapobiega soft-lockowi gdy gracz zwleka ze zbieraniem (gemy w meczu maja czas zycia). */
 function tutorialTopUpGems(): void {
-    if (!player) return;
+    if (!localPlayer) return;
     if (gems.length < 3 && !tutorialSuperEarned()) {
         for (let k = 0; k < 6; k++) {
             const a = (k / 6) * Math.PI * 2;
-            spawnGem(player.x + Math.cos(a) * 150, player.y + Math.sin(a) * 150);
+            spawnGem(localPlayer.x + Math.cos(a) * 150, localPlayer.y + Math.sin(a) * 150);
         }
     }
 }
 function tutorialArmSuperShot(): void {
-    if (player && player.superCharges === 0) player.addSuperCharge(1); // gwarancja: lekcja ma dzialac
-    tutSuperShotBase = player ? player.superCharges : 0;
+    if (localPlayer && localPlayer.superCharges === 0) localPlayer.addSuperCharge(1); // gwarancja: lekcja ma dzialac
+    tutSuperShotBase = localPlayer ? localPlayer.superCharges : 0;
     tutorialEnemies = [];
     tutorialSpawnAt(tutorialCenterAngle(), 260); // cel dla super-strzalu (+ ring PIXI z updateTutorialRing)
 }
 function tutorialSuperShotFired(): boolean {
     // super-strzal auto-odpala sie przy strzale gdy sa ladunki => wykryj drop ladunku / aktywny super.
-    return !!player && (player.isSuperShotActive || player.superCharges < tutSuperShotBase);
+    return !!localPlayer && (localPlayer.isSuperShotActive || localPlayer.superCharges < tutSuperShotBase);
 }
 function tutorialSuperPillRect(): { x: number; y: number; w: number; h: number } {
     const s = hud.uiScale; // pasek SUPER rysowany na (14,70,172,54) w scaled space => screen px = *uiScale
@@ -845,7 +853,7 @@ function tutorialSuperPowerUsed(): boolean {
 function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
     new TutorialController({
         isTouch: touchManager.isActive,
-        isMoving: () => !!player && player.isMoving,
+        isMoving: () => !!localPlayer && localPlayer.isMoving,
         spawnDummy: tutorialSpawnDummy,
         spawnWave: tutorialSpawnWave,
         enemiesAlive: tutorialEnemiesAlive,
@@ -867,11 +875,11 @@ function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
  * (zabite dummy przechodza normalnym kill-path). Odtwarzamy sesje (score=0) i czyscimy super + moc.
  */
 function resetPlayerStateForMatch(matchConfig: GameConfig): void {
-    if (player) {
-        player.superCharges = 0;
-        player.superActive = false;
-        player.superEndTime = 0;
-        player.hp = player.maxHp;
+    if (localPlayer) {
+        localPlayer.superCharges = 0;
+        localPlayer.superActive = false;
+        localPlayer.superEndTime = 0;
+        localPlayer.hp = localPlayer.maxHp;
     }
     if (powerSystem) {
         powerSystem.clearCooldowns(); // F7a: bez literalu ksztaltu rekordu (przezyje nowe moce F7b)
@@ -1103,9 +1111,9 @@ i18n.onLanguageChange(applyPortraitWarningI18n);
  * co nalezy do petli gry: kill-path mega bomby (registerKill/score/drop/victory).
  */
 function tryActivateSuper(slot: 0 | 1 | 2 = 0): void {
-    if (gameState !== 'PLAYING' || !powerSystem || !player || !effects || !currentSession) return;
+    if (gameState !== 'PLAYING' || !powerSystem || !localPlayer || !effects || !currentSession) return;
 
-    const result = powerSystem.activate(slot, { player, enemies, effects, audio, hud });
+    const result = powerSystem.activate(slot, { player: localPlayer, enemies, effects, audio, hud }); // Z0.3: klucz ctx zostaje 'player'
     if (!result.activated) return;
 
     // Desktop: wybor podaza za ostatnia uzyta moca (PPM/SPACJA powtarza ja bez scrollowania).
@@ -1272,7 +1280,7 @@ function acquireBullet(x: number, y: number, angle: number, isSuper: boolean, su
         return pooled;
     }
     // Fallback: nowa instancja. brawler staly per mecz -> pooled.reset uzywa this.brawlerInfo.
-    return new Bullet(x, y, angle, player!.brawler, worldContainer, isSuper, superDmgOverride);
+    return new Bullet(x, y, angle, localPlayer!.brawler, worldContainer, isSuper, superDmgOverride);
 }
 
 /**
@@ -1402,13 +1410,13 @@ function attachEnemyCubeStolenCallback(enemy: Enemy): void {
  * po samouczku byl pusty — bug: "przeszedlem samouczek na CTF i nie spawnuja sie czolgi".
  */
 function spawnCtfMatchForces(): void {
-    if (!ctfSystem || !spawnSystem || !player) return;
+    if (!ctfSystem || !spawnSystem || !localPlayer) return;
     // v0.143.0: 5 s tarczy liczy sie od pojawienia sie WROGOW, a nie od utworzenia
     // systemu. W samouczku te dwa momenty dzieli kilka minut (FAZA A odklada spawn),
     // wiec bez tego resetu gracz dostawalby "WROGOWIE WCHODZA!" przy pustej mapie.
     ctfSystem.resetBaseShield();
     ctfSystem.spawnInitialForces();
-    enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, player.x, player.y, worldContainer, buildings, spawnBlocked));
+    enemies.push(...spawnSystem.spawnCtfInitialRoamers(10, localPlayer.x, localPlayer.y, worldContainer, buildings, spawnBlocked));
     for (const e of enemies) attachEnemyCubeStolenCallback(e);
 }
 
@@ -2124,7 +2132,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // Wieza strzela realnymi pociskami z puli gracza => kolizje/dmg-numbery/drop/quest-kille
     // za darmo z petli; przemalowanie na teal tracer, zeby nie wygladaly jak strzal gracza.
     powerSystem = new PowerSystem(worldContainer, matchLoadout, (x, y, angle) => {
-        const dmg = Math.round(player!.brawler.dmg * TOWER_CONFIG.dmgMult * (1 + currentSession.dmgBonus));
+        const dmg = Math.round(localPlayer!.brawler.dmg * TOWER_CONFIG.dmgMult * (1 + currentSession.dmgBonus));
         const b = acquireBullet(x, y, angle, false, dmg);
         b.styleAsTowerTracer();
         b.speed = TOWER_CONFIG.bulletSpeed;
@@ -2188,7 +2196,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         }
         // ...i nie NA graczu (pas + cofka moga zawinac droge na punkt zrzutu — mur
         // spawnujacy sie na czolgu zablokowalby ruch gracza az do expiry 8s).
-        if (player && (player.x - wx) ** 2 + (player.y - wy) ** 2 < 42 * 42) return null;
+        if (localPlayer && (localPlayer.x - wx) ** 2 + (localPlayer.y - wy) ** 2 < 42 * 42) return null;
         buildings.push(wall);
         solidBuildings.push(wall);
         const ctfArr = ctfEnemyBuildings !== null && ctfEnemyBuildings !== buildings ? ctfEnemyBuildings : null;
@@ -2262,12 +2270,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 ARCTIC_IGLOO_POS.x, ARCTIC_IGLOO_POS.y, ARCTIC_IGLOO_POS.size,
                 worldContainer, effects,
                 (ix, iy) => {
-                    if (!player || !currentSession || gameState !== 'PLAYING') return;
-                    const d = Math.hypot(player.x - ix, player.y - iy);
+                    if (!localPlayer || !currentSession || gameState !== 'PLAYING') return;
+                    const d = Math.hypot(localPlayer.x - ix, localPlayer.y - iy);
                     if (d <= SNOWBALL_HIT_RADIUS) {
-                        const died = player.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive, SRC_SNOWBALL); // Z0.5
+                        const died = localPlayer.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive, SRC_SNOWBALL); // Z0.5
                         if (!powerSystem!.isInvulnerable) {
-                            effects!.spawnEnemyHitSparks(player.x, player.y, 0xff0000);
+                            effects!.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0xff0000);
                             effects!.shake(4, 6);
                             audio.playHit('player');
                             currentSession.markDamageTaken();
@@ -2296,13 +2304,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         await EnemyBulletSpriteBaker.bakeAll(app);  // FAZA P4 — pociski wrogow 2.5D
     }
 
-    player = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
+    localPlayer = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
+    players = [localPlayer]; // Z0.3: tablica = zrodlo prawdy (dzis zawsze 1 element)
 
     // FAZA CTF F1: spawn w hangarze (200,1500) — legacy 1:1. Player konstruktor
     // ustawia (800,800); nadpisanie przed pierwsza klatka (container synce w update).
     if (config.scenario === 'ctf') {
-        player.x = FORTIFIED_PLAYER_SPAWN.x;
-        player.y = FORTIFIED_PLAYER_SPAWN.y;
+        localPlayer.x = FORTIFIED_PLAYER_SPAWN.x;
+        localPlayer.y = FORTIFIED_PLAYER_SPAWN.y;
     }
 
     enemies = [];
@@ -2344,7 +2353,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     // ── FAZA CTF F2: inicjalizacja rdzenia CTF (flagi, straznicy, bossy, roamerzy, gemy) ──
-    if (config.scenario === 'ctf' && effects && spawnSystem && currentSession && player) {
+    if (config.scenario === 'ctf' && effects && spawnSystem && currentSession && localPlayer) {
         ctfSystem = new CtfSystem({
             session: currentSession,
             worldContainer,
@@ -2384,7 +2393,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // samouczek oddaje sterowanie prawdziwemu meczowi (spawnCtfMatchForces w onDone launchTutorial).
         if (!tutorialMode) spawnCtfMatchForces();
         for (let i = 0; i < 12; i++) {
-            const pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings, spawnBlocked);
+            const pos = spawnSystem.findSafePickupPos(localPlayer.x, localPlayer.y, buildings, spawnBlocked);
             if (pos) spawnGem(pos.x, pos.y);
         }
     }
@@ -2914,7 +2923,16 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
     const steer = powerSystem!.burpFearFor(enemy)
         ?? powerSystem!.grannyFearFor(enemy)
         ?? powerSystem!.ghostTauntFor(enemy);
-    return steer ?? player!;
+    if (steer) return steer;
+    // Z0.3: najblizszy ZYWY gracz z players[] (dzis 1 element => identycznie jak alias).
+    let best = localPlayer!;
+    let bestDistSq = Infinity;
+    for (const p of players) {
+        if (p.hp <= 0) continue;
+        const dSq = (p.x - enemy.x) ** 2 + (p.y - enemy.y) ** 2;
+        if (dSq < bestDistSq) { bestDistSq = dSq; best = p; }
+    }
+    return best;
 }
 
 async function triggerGameOver(): Promise<void> {
@@ -2922,7 +2940,7 @@ async function triggerGameOver(): Promise<void> {
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
     if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
     // FAZA CTF F2 — drop niesionej flagi przy smierci (legacy 1:1: IDLE @gracz + 10 s reset)
-    if (ctfSystem && player) ctfSystem.handlePlayerDeath(player.x, player.y);
+    if (ctfSystem && localPlayer) ctfSystem.handlePlayerDeath(localPlayer.x, localPlayer.y);
     gameState = 'GAMEOVER';
     // Z0.9: telemetria meczu — fire-and-forget, nigdy nie blokuje konca meczu.
     if (currentSession) {
@@ -3133,7 +3151,7 @@ app.ticker.add((rawDelta) => {
         perfLastT = nowT;
     }
 
-    if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
+    if (gameState !== 'PLAYING' || !localPlayer || !effects || !spawnSystem || !powerSystem || !currentSession) return;
 
     // Z0.9: probka FPS (kubelek 1 Hz w TelemetryService). Koszt: jeden inkrement.
     telemetryTickFrame(performance.now());
@@ -3174,7 +3192,7 @@ app.ticker.add((rawDelta) => {
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
     // snieg, pady, serca, kostki mocy) i callback na takeDamage() przegapilby leczenie.
     // Koszt: jedno dzielenie na krok logiki, po czym latch zamyka temat na caly mecz.
-    if (!lowHpVoiceFired && player.hp / player.maxHp < LOW_HP_VOICE_AT) {
+    if (!lowHpVoiceFired && localPlayer.hp / localPlayer.maxHp < LOW_HP_VOICE_AT) {
         lowHpVoiceFired = true;
         playVoiceLine('lowHp');
     }
@@ -3186,8 +3204,8 @@ app.ticker.add((rawDelta) => {
     // Kamera sledzi gracza FLOATEM (bez ~~). ~~ ucinal do px SWIATA, a przy ZOOM 0.7 to nierowne
     // kroki 2,3,3.. => swiat przewijal sie skokowo mimo gladkiej jazdy. Snap przeniesiony NIZEJ do
     // przestrzeni EKRANU. Kamera = dokladny target (zero lagu, gracz wysrodkowany).
-    camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(player.x - viewW / 2)));
-    camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(player.y - viewH / 2)));
+    camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(localPlayer.x - viewW / 2)));
+    camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(localPlayer.y - viewH / 2)));
 
     worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
     worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
@@ -3243,8 +3261,8 @@ app.ticker.add((rawDelta) => {
         const aimVec = touchManager.aimVector;
         if (aimVec) {
             const AIM_DISTANCE = 200;
-            mouse.screenX = (player.x - camera.x) * ZOOM + aimVec.x * AIM_DISTANCE;
-            mouse.screenY = (player.y - camera.y) * ZOOM + aimVec.y * AIM_DISTANCE;
+            mouse.screenX = (localPlayer.x - camera.x) * ZOOM + aimVec.x * AIM_DISTANCE;
+            mouse.screenY = (localPlayer.y - camera.y) * ZOOM + aimVec.y * AIM_DISTANCE;
         }
 
         hud.showCrosshair = aimVec !== null;
@@ -3260,15 +3278,15 @@ app.ticker.add((rawDelta) => {
         // v0.132.0 — kamera do bramki cullingu. `isPointInside` nizej dziala niezaleznie
         // od bramki, wiec spowolnienie strefy zostaje nienaruszone.
         qs.update(camera.x, camera.y, viewW, viewH);
-        if (qs.isPointInside(player.x, player.y)) {
+        if (qs.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInQuicksand = true;
         }
     }
 // v0.59.0 Warstwa D — toksyczne rozlewiska (slow 0.5x + fluid wakes)
     let playerInSludge = false;
     for (const sp of sludgePools) {
-        sp.update(player.x, player.y, player.isMoving); // v0.59.0 AAA #3 — wakes z gasienic
-        if (sp.isPointInside(player.x, player.y)) {
+        sp.update(localPlayer.x, localPlayer.y, localPlayer.isMoving); // v0.59.0 AAA #3 — wakes z gasienic
+        if (sp.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInSludge = true;
         }
     }
@@ -3276,7 +3294,7 @@ app.ticker.add((rawDelta) => {
     let playerInRegolith = false;
     for (const rf of regolithFields) {
         rf.update();
-        if (rf.isPointInside(player.x, player.y)) {
+        if (rf.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInRegolith = true;
         }
     }
@@ -3284,19 +3302,19 @@ app.ticker.add((rawDelta) => {
     if (solarFarm) solarFarm.update();
     if (fuelStation) fuelStation.update(); // MARS M5c — swiatla ladowiska
 
-    for (const pk of parkings) pk.update(player.x, player.y); // v0.60.0 — puls diod + alarm na najechanie
+    for (const pk of parkings) pk.update(localPlayer.x, localPlayer.y); // v0.60.0 — puls diod + alarm na najechanie
     // FAZA CTF F1 — fosa: slow 0.5x jak quicksand/sludge (passable)
     let playerInFosa = false;
     if (ruinsFosa) {
         ruinsFosa.update();
-        if (ruinsFosa.isPointInside(player.x, player.y)) {
+        if (ruinsFosa.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInFosa = true;
         }
     }
     // FAZA CTF F2 — carry penalty (x0.90/0.85/0.80 wg eskalacji) MULTIPLIKATYWNIE
     // ze slow-zone (fosa z flaga = 0.5 * carry) — legacy 1536 1:1.
     const ctfCarryMult = ctfSystem ? ctfSystem.getCarrySpeedMult() : 1.0;
-    player.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa || playerInRegolith) ? 0.5 : 1.0) * ctfCarryMult;
+    localPlayer.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa || playerInRegolith) ? 0.5 : 1.0) * ctfCarryMult;
     
     groundClutter?.update(); // v0.60.0 — para z 1-2 studzienek
     
@@ -3325,7 +3343,7 @@ app.ticker.add((rawDelta) => {
     for (const oasis of oases) {
         // v0.132.0 — kamera do bramki cullingu; stealth dalej przez `isPointInside`.
         oasis.update(camera.x, camera.y, viewW, viewH);
-        if (oasis.isPointInside(player.x, player.y)) {
+        if (oasis.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInOasis = true;
         }
     }
@@ -3333,9 +3351,9 @@ app.ticker.add((rawDelta) => {
     // v0.60.0 — NEON-OASIS stealth (cyberpunk). update z camera dla parallaxu dachu.
     let playerInNeonStation = false;
     for (const ns of neonStations) {
-        ns.update(camera.x, camera.y, player.x, player.y, neonDidShootLastFrame, bullets);
-        ns.onTankEnter(player.x, player.y); // fog wakes z gasienic
-        if (ns.isPointInside(player.x, player.y)) {
+        ns.update(camera.x, camera.y, localPlayer.x, localPlayer.y, neonDidShootLastFrame, bullets);
+        ns.onTankEnter(localPlayer.x, localPlayer.y); // fog wakes z gasienic
+        if (ns.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInNeonStation = true;
         }
     }
@@ -3344,7 +3362,7 @@ app.ticker.add((rawDelta) => {
     let playerInRuinsBush = false;
     for (const rb of ruinsBushes) {
         rb.update();
-        if (rb.isPointInside(player.x, player.y)) {
+        if (rb.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInRuinsBush = true;
         }
     }
@@ -3353,7 +3371,7 @@ app.ticker.add((rawDelta) => {
     let playerInHydroGarden = false;
     for (const hg of hydroGardens) {
         hg.update();
-        if (hg.isPointInside(player.x, player.y)) {
+        if (hg.isPointInside(localPlayer.x, localPlayer.y)) {
             playerInHydroGarden = true;
         }
     }
@@ -3362,8 +3380,8 @@ app.ticker.add((rawDelta) => {
     let playerInSugarcaneField = false;
     for (const ff of farmFields) {
         ff.update(camera.x, camera.y, viewW, viewH);
-        ff.onTankEnter(player.x, player.y);
-        if (ff.isPointInside(player.x, player.y)) {
+        ff.onTankEnter(localPlayer.x, localPlayer.y);
+        if (ff.isPointInside(localPlayer.x, localPlayer.y)) {
             if (ff instanceof CornField) playerInCornField = true;
             else if (ff instanceof SugarcaneField) playerInSugarcaneField = true;
         }
@@ -3425,7 +3443,7 @@ app.ticker.add((rawDelta) => {
     // FAZA CTF F2 — rdzen CTF. Po bloku stealth (enemy.playerStealthed swieze),
     // przed petla enemies (stany guardow ustawione w TEJ klatce).
     if (ctfSystem) {
-        const ctfResult = ctfSystem.update(delta, player, powerSystem.isInvulnerable);
+        const ctfResult = ctfSystem.update(delta, localPlayer, powerSystem.isInvulnerable);
         if (ctfResult.victory) { triggerVictory(); return; }
         if (ctfResult.playerDied) { triggerGameOver(); return; }
     }
@@ -3449,7 +3467,7 @@ app.ticker.add((rawDelta) => {
     for (const bb of cityBillboards) bb.update(delta, camera.x, camera.y, viewW, viewH);
     // v0.52.0 phase 2: sludge reactors — proximity excited state + bullet hit detection
     for (const sr of sludgeReactors) {
-        sr.setPlayerNear(player.x, player.y);
+        sr.setPlayerNear(localPlayer.x, localPlayer.y);
         sr.update(camera.x, camera.y, viewW, viewH, bullets);
     }
     // v0.59.0 — stara fabryka: animacja + iskry (potrzebuje bullets; jak reaktor).
@@ -3460,13 +3478,13 @@ app.ticker.add((rawDelta) => {
 
     // v0.53.0: anti-grav scrap — proximity excited state + bullet hit detection
     for (const sc of antiGravScraps) {
-        sc.setPlayerNear(player.x, player.y);
+        sc.setPlayerNear(localPlayer.x, localPlayer.y);
         sc.update(camera.x, camera.y, viewW, viewH, bullets);
     }
 
     // v0.54.0: holo turbines — proximity excited + dual-hitbox (housing sparks + holo glitch)
     for (const ht of holoTurbines) {
-        ht.setPlayerNear(player.x, player.y);
+        ht.setPlayerNear(localPlayer.x, localPlayer.y);
         ht.update(camera.x, camera.y, viewW, viewH, bullets);
     }
 
@@ -3523,7 +3541,7 @@ app.ticker.add((rawDelta) => {
     // w grunt — kill-path (punkty/dropy/licznik fali) nalezy do main.ts, bo tylko
     // tu jest sesja i spawnSystem. Wzorzec taranu (main.ts kill-by-collision).
     if (ufo && effects && spawnSystem && currentSession) {
-        const tick = ufo.update(delta, enemies, marsCargo, player.x, player.y);
+        const tick = ufo.update(delta, enemies, marsCargo, localPlayer.x, localPlayer.y);
 
         // 1) ofiara pozarta => kill-path (punkty/dropy/licznik fali)
         const abduct = tick?.abducted;
@@ -3553,7 +3571,7 @@ app.ticker.add((rawDelta) => {
         const threat = ufo.consumeThreatBump();
         if (threat > 0 && threat < 5) {
             const col = ['#ffd54a', '#ffb03a', '#ff8a3a', '#ff5e6a'][threat - 1];
-            effects.spawnEnemyHitSparks(player.x, player.y, 0x39d98a);
+            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0x39d98a);
             effects.shake(1 + threat, 4 + threat * 2);
             audio.playHit('wall');
             hud.addNotif(t('hud.ufoWarn', { lvl: threat, max: 5 }), col);
@@ -3596,7 +3614,7 @@ app.ticker.add((rawDelta) => {
 
     // ARC-R2: przereble (fale + ryba/foka + lwy morskie) + pingwiny + Yeti
     for (const ih of iceHoles) ih.update();
-    if (iglooYeti && player) iglooYeti.update(delta, player.x, player.y);
+    if (iglooYeti && localPlayer) iglooYeti.update(delta, localPlayer.x, localPlayer.y);
     for (const colony of penguinColonies) {
         const drop = colony.update(delta);
         if (drop) {
@@ -3619,16 +3637,16 @@ app.ticker.add((rawDelta) => {
 
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
-    player.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
-    player.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
+    localPlayer.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
+    localPlayer.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
 
-    if (currentSession.config.map === 'desert' && player.isMoving) {
+    if (currentSession.config.map === 'desert' && localPlayer.isMoving) {
         sandKickFrameCounter++;
-        const interval = player.hasSpeedBoost ? 2 : 3;
+        const interval = localPlayer.hasSpeedBoost ? 2 : 3;
         if (sandKickFrameCounter >= interval) {
             sandKickFrameCounter = 0;
-            const intensity = player.hasSpeedBoost ? 1.6 : 1.0;
-            effects.spawnSandKick(player.x, player.y, player.hullAngle, intensity);
+            const intensity = localPlayer.hasSpeedBoost ? 1.6 : 1.0;
+            effects.spawnSandKick(localPlayer.x, localPlayer.y, localPlayer.hullAngle, intensity);
         }
     } else {
         sandKickFrameCounter = 0;
@@ -3636,20 +3654,20 @@ app.ticker.add((rawDelta) => {
 
     const time = Date.now() / 1000;
     for (const pad of mediPads) {
-        const result = pad.update(player.x, player.y, player.isMoving, player.hp, player.maxHp, time);
+        const result = pad.update(localPlayer.x, localPlayer.y, localPlayer.isMoving, localPlayer.hp, localPlayer.maxHp, time);
         if (result.healed) {
-            player.hp = Math.min(player.maxHp, player.hp + 100);
-            effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
+            localPlayer.hp = Math.min(localPlayer.maxHp, localPlayer.hp + 100);
+            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0x2ecc71);
             hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
             audio.playHeartPickup();
             QuestService.track('medi_pad'); // PROG-F3
         }
     }
     for (const pad of powerPads) {
-        const result = pad.update(player.x, player.y, time);
+        const result = pad.update(localPlayer.x, localPlayer.y, time);
         if (result.activated) {
-            player.applyTurboBoost(result.durationMs, result.multiplier);
-            effects.spawnEnemyHitSparks(player.x, player.y, 0xff6600);
+            localPlayer.applyTurboBoost(result.durationMs, result.multiplier);
+            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0xff6600);
             effects.shake(5, 8);
             hud.addNotif(t('hud.turboBoost', { sec: Math.round(result.durationMs / 1000) }), '#ffcc00');
             audio.playMagnetPickup();
@@ -3660,10 +3678,10 @@ app.ticker.add((rawDelta) => {
         const h = hearts[i];
         h.update(delta);
         if (!h.active) { hearts.splice(i, 1); continue; }
-        const dx = player.x - h.x, dy = player.y - h.y;
+        const dx = localPlayer.x - h.x, dy = localPlayer.y - h.y;
         if (dx * dx + dy * dy < (h.radius + 22) * (h.radius + 22)) {
             if (h.pickup(effects)) {
-                player.hp = Math.min(player.maxHp, player.hp + h.healAmount);
+                localPlayer.hp = Math.min(localPlayer.maxHp, localPlayer.hp + h.healAmount);
                 if (currentSession) currentSession.heartsHealed++;
                 QuestService.track('heart'); // PROG-F3
                 hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
@@ -3676,9 +3694,9 @@ app.ticker.add((rawDelta) => {
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
-        g.update(delta, player.x, player.y);
+        g.update(delta, localPlayer.x, localPlayer.y);
         if (!g.active) { gems.splice(i, 1); gemPool.push(g); continue; } // POOLING: zwrot do puli
-        const dx = player.x - g.x, dy = player.y - g.y;
+        const dx = localPlayer.x - g.x, dy = localPlayer.y - g.y;
         if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
             if (g.pickup(effects)) {
                 const prevTotal = spawnSystem.gemsCollected;
@@ -3689,8 +3707,8 @@ app.ticker.add((rawDelta) => {
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 if (newTrigger > prevTrigger) {
-                    player.addSuperCharge(SUPER_CHARGES_PER_TRIGGER);
-                    hud.addNotif(t('hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: player.superCharges }), '#c850ff');
+                    localPlayer.addSuperCharge(SUPER_CHARGES_PER_TRIGGER);
+                    hud.addNotif(t('hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: localPlayer.superCharges }), '#c850ff');
                     effects.shake(4, 8);
                 }
 
@@ -3734,16 +3752,16 @@ app.ticker.add((rawDelta) => {
                 // Przedmiot o wartosci 6 ma byc SZUKANY, nie lezec pod nogami:
                 // kilka prob o pozycje dalej niz 900 px, inaczej odpuszczamy do
                 // nastepnego okna (zamiast psuc jego range polozeniem przy graczu).
-                let pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
+                let pos = spawnSystem.findSafePickupPos(localPlayer.x, localPlayer.y, buildings);
                 if (item.value === 6 && pos) {
                     const MIN_D2 = 900 * 900;
                     let tries = 0;
                     while (pos && tries < 6
-                        && (pos.x - player.x) ** 2 + (pos.y - player.y) ** 2 < MIN_D2) {
-                        pos = spawnSystem.findSafePickupPos(player.x, player.y, buildings);
+                        && (pos.x - localPlayer.x) ** 2 + (pos.y - localPlayer.y) ** 2 < MIN_D2) {
+                        pos = spawnSystem.findSafePickupPos(localPlayer.x, localPlayer.y, buildings);
                         tries++;
                     }
-                    if (pos && (pos.x - player.x) ** 2 + (pos.y - player.y) ** 2 < MIN_D2) pos = null;
+                    if (pos && (pos.x - localPlayer.x) ** 2 + (pos.y - localPlayer.y) ** 2 < MIN_D2) pos = null;
                 }
                 if (pos) {
                     const pooled = seasonPickupPool.pop();
@@ -3755,9 +3773,9 @@ app.ticker.add((rawDelta) => {
     }
     for (let i = seasonPickups.length - 1; i >= 0; i--) {
         const sp = seasonPickups[i];
-        sp.update(delta, player.x, player.y);
+        sp.update(delta, localPlayer.x, localPlayer.y);
         if (!sp.active) { seasonPickups.splice(i, 1); seasonPickupPool.push(sp); continue; }
-        const dx = player.x - sp.x, dy = player.y - sp.y;
+        const dx = localPlayer.x - sp.x, dy = localPlayer.y - sp.y;
         const rr = sp.radius + 18;
         if (dx * dx + dy * dy < rr * rr) {
             // PIERWSZE zdobycie tego typu? Sprawdzamy PRZED inkrementacja: trwaly stan
@@ -3808,7 +3826,7 @@ app.ticker.add((rawDelta) => {
         const m = magnets[i];
         m.update(delta);
         if (!m.active) { magnets.splice(i, 1); continue; }
-        const dx = player.x - m.x, dy = player.y - m.y;
+        const dx = localPlayer.x - m.x, dy = localPlayer.y - m.y;
         if (dx * dx + dy * dy < (m.radius + 22) * (m.radius + 22)) {
             if (m.pickup(effects)) {
                 powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
@@ -3831,7 +3849,7 @@ app.ticker.add((rawDelta) => {
             continue;
         }
 
-        const dx = player.x - pc.x, dy = player.y - pc.y;
+        const dx = localPlayer.x - pc.x, dy = localPlayer.y - pc.y;
         const touchR = 22 + pc.radius;
         if (dx * dx + dy * dy < touchR * touchR) {
             const type = pc.type;
@@ -3841,14 +3859,14 @@ app.ticker.add((rawDelta) => {
             const isDmg = type === 'dmg';
             const color = isDmg ? 0xe74c3c : 0x2980b9;
             const labelText = isDmg ? t('pickup.dmgUp') : t('pickup.hpUp');
-            effects.spawnFloatingText(player.x, player.y - 30, labelText, color);
+            effects.spawnFloatingText(localPlayer.x, localPlayer.y - 30, labelText, color);
 
             if (type === 'hp') {
-                player.maxHp += POWERCUBE_HP_BONUS_PER_PICKUP;
-                player.hp = Math.min(player.maxHp, player.hp + POWERCUBE_HP_BONUS_PER_PICKUP);
+                localPlayer.maxHp += POWERCUBE_HP_BONUS_PER_PICKUP;
+                localPlayer.hp = Math.min(localPlayer.maxHp, localPlayer.hp + POWERCUBE_HP_BONUS_PER_PICKUP);
             }
 
-            effects.spawnEnemyHitSparks(player.x, player.y, color);
+            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, color);
             audio.playGemPickup();
 
             pc.destroy();
@@ -3857,7 +3875,7 @@ app.ticker.add((rawDelta) => {
     }
 
     const now = Date.now();
-    if (isMouseDown && now - lastShotTime > player.brawler.reload) {
+    if (isMouseDown && now - lastShotTime > localPlayer.brawler.reload) {
         // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
         // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
         // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
@@ -3868,18 +3886,18 @@ app.ticker.add((rawDelta) => {
             stealthBrokenByShot = true;
         }
 
-        const angle = player.turretAngle;
+        const angle = localPlayer.turretAngle;
         // FAZA P2 — muzzle z czubka lufy 2.5D (per-brawler muzzleDist + camera tilt + Z lift),
         // gated ?baker=1. Flat path: stare planarne +45 (bit-for-bit nietkniete).
-        const muzzle = BAKER_ENABLED && BulletSpriteBaker.isBaked(player.brawler.id)
-            ? BulletSpriteBaker.getMuzzlePos(player.brawler.id, player.x, player.y, angle)
-            : { x: player.x + Math.cos(angle) * 45, y: player.y + Math.sin(angle) * 45 };
+        const muzzle = BAKER_ENABLED && BulletSpriteBaker.isBaked(localPlayer.brawler.id)
+            ? BulletSpriteBaker.getMuzzlePos(localPlayer.brawler.id, localPlayer.x, localPlayer.y, angle)
+            : { x: localPlayer.x + Math.cos(angle) * 45, y: localPlayer.y + Math.sin(angle) * 45 };
         const sX = muzzle.x;
         const sY = muzzle.y;
         effects.spawnMuzzleFlash(sX, sY, angle);
 
-        const wasActive = player.isSuperShotActive;
-        const isSuperShot = player.tryActivateOrContinueSuperShot();
+        const wasActive = localPlayer.isSuperShotActive;
+        const isSuperShot = localPlayer.tryActivateOrContinueSuperShot();
         const justActivated = !wasActive && isSuperShot;
 
         if (justActivated) {
@@ -3888,7 +3906,7 @@ app.ticker.add((rawDelta) => {
             QuestService.track('super_shot'); // PROG-F3
         }
 
-        audio.playShoot(player.brawler.id);
+        audio.playShoot(localPlayer.brawler.id);
 
         const dmgMultiplier = 1 + currentSession.dmgBonus;
 
@@ -3896,10 +3914,10 @@ app.ticker.add((rawDelta) => {
         // dmg per-pocisk * dmgMultiplier (round) jak dotad.
         // FAZA P5 — super v2 (rozdzielone od renderu): SUPER_V2 + super => SUPER_PROFILES (uklad + dmg
         // per-pocisk absolutny). Inaczej stara sciezka getVolleyOffsets (bit-for-bit).
-        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES[player.brawler.id] : null;
-        const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[player.brawler.id] : null;
+        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES[localPlayer.brawler.id] : null;
+        const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[localPlayer.brawler.id] : null;
         const shotProfile = superProfile || normalProfile;
-        const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(player.brawler, isSuperShot);
+        const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(localPlayer.brawler, isSuperShot);
         for (const off of volleyOffsets) {
             const b = acquireBullet(sX, sY, angle + off, isSuperShot, shotProfile?.dmg); // POOLING
             b.dmg = Math.round(b.dmg * dmgMultiplier);
@@ -3911,13 +3929,13 @@ app.ticker.add((rawDelta) => {
         // nie przekracza 100% — inaczej L2b nie mialby na czym postawic reguly.
         currentSession.shotsFired += volleyOffsets.length;
         
-        player.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
+        localPlayer.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
         lastShotTime = now;
         neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
     }
 
     // FAZA P5 Batch 2 — ctx dla behaviorow (breakup -> fragi do bullets[], boomerang -> namierza gracza).
-    const bulletCtx = { bullets, playerX: player?.x ?? 0, playerY: player?.y ?? 0 };
+    const bulletCtx = { bullets, playerX: localPlayer?.x ?? 0, playerY: localPlayer?.y ?? 0 };
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects, bulletCtx);
@@ -3928,7 +3946,7 @@ app.ticker.add((rawDelta) => {
     // na klatke i uzywane w OBU sciezkach obrazen ponizej (pocisk + taran); trzecia
     // sciezka (bomba bossa) sprawdza to sama w CtfSystem. Bez taranu i bomb "bezpieczna
     // baza" bylaby klamstwem — Michal zginal wlasnie w garazu.
-    const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(player.x, player.y) : false;
+    const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(localPlayer.x, localPlayer.y) : false;
 
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
@@ -3977,11 +3995,11 @@ app.ticker.add((rawDelta) => {
             enemyBulletPool.push(eb); // POOLING
             continue;
         }
-        const dx = eb.x - player.x, dy = eb.y - player.y;
+        const dx = eb.x - localPlayer.x, dy = eb.y - localPlayer.y;
         if (dx * dx + dy * dy < 25 * 25) {
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
-            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
+            const playerDied = localPlayer.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
                 { kind: 'enemy_bullet', attackerRef: eb }); // Z0.5
 
             if (powerSystem.isInvulnerable || ctfSanctuary) {
@@ -4001,7 +4019,7 @@ app.ticker.add((rawDelta) => {
     }
 
     if (!tutorialActive) { // FAZA A: w tutorialu spawn OFF (bezpieczny sandbox nauki)
-        const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, player.x, player.y, worldContainer, buildings, spawnBlocked);
+        const spawnResult = spawnSystem.update(delta, enemies, hearts, magnets, localPlayer.x, localPlayer.y, worldContainer, buildings, spawnBlocked);
         for (const newEnemy of spawnResult.newEnemies) {
             attachEnemyCubeStolenCallback(newEnemy);
             // FREEZE: wrog zespawnowany PODCZAS freeze tez zamrozony (inaczej nowe czolgi jada+strzelaja).
@@ -4013,7 +4031,7 @@ app.ticker.add((rawDelta) => {
         if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     }
 
-    powerSystem.update(delta, player, enemies, worldContainer, effects);
+    powerSystem.update(delta, localPlayer, enemies, worldContainer, effects);
 
     // v0.146.1 — koniec Ping-Ponga musi byc WIDOCZNY (zgloszenie: „nie wiemy, kiedy sie
     // konczy"). PowerSystem nie zna HUD, wiec zdaje flage, a petla ja konsumuje.
@@ -4065,14 +4083,14 @@ app.ticker.add((rawDelta) => {
             spawnEnemyShot(shotInfo);
         }
 
-        const dP = (player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2;
+        const dP = (localPlayer.x - enemy.x) ** 2 + (localPlayer.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
         if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
             // TIER 3 DISCO v2: taran zmeczonego tancerza tez -20%
             const collDmg = powerSystem.isDiscoTired(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
                 : enemy.collisionDmg;
-            const playerDied = player.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
+            const playerDied = localPlayer.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
                 { kind: 'enemy_ram', attackerRef: enemy }); // Z0.5; tutorial/sanktuarium => niesmiertelny
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
@@ -4137,7 +4155,7 @@ app.ticker.add((rawDelta) => {
                 const hpBefore = enemy.hp;
                 // F7b-2: super-shot dotyczy TYLKO pociskow gracza — kill Wiezy w oknie
                 // super-shotu nie moze dostac fioletowego floatera ani super hit-stopu.
-                const wasSuperShot = b.source === 'player' && player.isSuperShotActive;
+                const wasSuperShot = b.source === 'player' && localPlayer.isSuperShotActive;
                 // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (frozen kill bonus).
                 const wasFrozen = Date.now() < enemy.frozenUntil;
                 // Z0.5: pocisk gracza vs pocisk Wiezy (moc) — Bullet.source rozstrzyga
@@ -4261,11 +4279,11 @@ app.ticker.add((rawDelta) => {
     // DEV-ONLY: mikro-profiler — czas hud.render() + calego callbacku (do rozbicia hitcha).
     if (PERF_ENABLED) {
         const _hudT = performance.now();
-        if (!HARNESS_NOHUD) hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+        if (!HARNESS_NOHUD) hud.render(localPlayer, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
         perfHudMs = performance.now() - _hudT;
         perfCbMs = performance.now() - perfCbStart;
     } else {
-        if (!HARNESS_NOHUD) hud.render(player, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
+        if (!HARNESS_NOHUD) hud.render(localPlayer, currentSession.score, spawnSystem.totalKills, mouse, spawnSystem, megaBoss, powerSystem);
     }
 
     // === F5 SMOOTH MODE: zapisz stan po kroku (kamera+gracz) i naloz interpolacje renderu ===
@@ -4273,11 +4291,11 @@ app.ticker.add((rawDelta) => {
         if (smoothNeedsInit) {
             // pierwszy krok nowego meczu: prev=curr => zero skoku na spawnie
             icCamPX = icCamCX = camera.x; icCamPY = icCamCY = camera.y;
-            icPlPX = icPlCX = player.container.x; icPlPY = icPlCY = player.container.y;
+            icPlPX = icPlCX = localPlayer.container.x; icPlPY = icPlCY = localPlayer.container.y;
             smoothNeedsInit = false;
         } else {
             icCamCX = camera.x; icCamCY = camera.y;
-            icPlCX = player.container.x; icPlCY = player.container.y;
+            icPlCX = localPlayer.container.x; icPlCY = localPlayer.container.y;
         }
         applySmoothInterp(logicAccMs / STEP_MS);
     }

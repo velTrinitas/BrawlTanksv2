@@ -230,7 +230,7 @@ export const LASER_CONFIG = {
 
 // ── PING-PONG 🏓 — wirujace paletki odbijajace pociski wroga ──
 export const PONG_CONFIG = {
-    durationFrames: 300,    // 5s (sim 1:1)
+    durationFrames: 480,    // v0.148.0: 5 s -> 8 s (playtest Mariusza; sim mial 5 s)
     deflectRadius: 70,      // zasieg odbicia wokol gracza (sim 1:1)
     reflectDmg: 250,        // dmg odbitego pocisku (flat x100; sim: 50% HP wroga)
     reflectSpeedMult: 1.8,  // odbity pocisk przyspiesza (sim 1:1)

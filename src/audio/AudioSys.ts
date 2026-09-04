@@ -203,6 +203,14 @@ export class AudioSys {
     private hubMusic: Howl | null = null;
 
     private muted: boolean = false;
+    /**
+     * v0.148.0 — czy karta/aplikacja jest SCHOWANA. Trzymane osobno od `muted`, bo to
+     * dwa niezalezne powody ciszy: powrot do gry nie moze wlaczyc dzwieku komus, kto
+     * swiadomie go wyciszyl.
+     */
+    private pageHidden: boolean = false;
+    /** Muzyka zapauzowana przez zwiniecie gry — tylko taka wraca sama po powrocie. */
+    private pausedOnHide: Howl[] = [];
     private gemPickupTimer: number = 0;
 
     // v0.24.0 FAZA 8a: volume multipliers per channel (0..1)
@@ -223,6 +231,77 @@ export class AudioSys {
         this.preloadAll();
         this.initMusic();
         this.initMenuMusic();
+        this.installVisibilityGuard();
+    }
+
+    /**
+     * v0.148.0 — CISZA PO ZWINIECIU GRY (zgloszenie Mariusza z telefonu: „wylaczam gre
+     * srodkowym przyciskiem, zwijam — a muzyka gra dalej; musze wejsc w ostatnio uzywane
+     * aplikacje i dopiero tam zamknac okno").
+     *
+     * Przyczyna: gra nie nasluchiwala ZADNEGO zdarzenia widocznosci. Przegladarka usypia
+     * `requestAnimationFrame`, wiec petla gry staje — ale Web Audio gra dalej wlasnym
+     * zegarem, calkowicie niezaleznie od rAF. Petla nie miala jak tego zauwazyc, bo
+     * w tym czasie w ogole sie nie wykonuje.
+     *
+     * Dwa zdarzenia, bo zadne nie wystarcza samo: `visibilitychange` to sciezka wlasciwa
+     * dla Androida (Home / przelacznik zadan), a `pagehide` lapie przypadki, w ktorych
+     * iOS usypia strone bez zmiany visibility. Oba ida do tej samej metody, wiec
+     * podwojne wywolanie jest nieszkodliwe.
+     *
+     * Muzyka jest PAUZOWANA, nie tylko wyciszana: sam mute daje cisze, ale zostawia
+     * dzialajacy strumien, przez ktory system trzyma aplikacje przy zyciu i pali baterie.
+     */
+    private installVisibilityGuard(): void {
+        try {
+            document.addEventListener('visibilitychange', () => {
+                this.setPageHidden(document.visibilityState === 'hidden');
+            });
+            window.addEventListener('pagehide', () => this.setPageHidden(true));
+            window.addEventListener('pageshow', () => this.setPageHidden(false));
+        } catch (e) {
+            console.warn('[AudioSys] Visibility guard install failed', e);
+        }
+    }
+
+    /** Wejscie/wyjscie ze stanu „gra schowana". Idempotentne w obie strony. */
+    private setPageHidden(hidden: boolean): void {
+        if (hidden === this.pageHidden) return;
+        this.pageHidden = hidden;
+        this.applyGlobalMute();
+
+        if (hidden) {
+            // Kandydaci = wszystko, co gra DLUGO. Efektow nie pauzujemy: sa krotkie
+            // i tak wygasna, a pauza zostawilaby zawieszone instancje na powrot.
+            const longRunning: Array<Howl | null> = [
+                this.currentMusicTrack, this.introMusic, this.hubMusic, this.ctfCarryMusic, this.duckLoop,
+            ];
+            this.pausedOnHide = [];
+            for (const howl of longRunning) {
+                if (!howl) continue;
+                try {
+                    if (howl.playing()) { howl.pause(); this.pausedOnHide.push(howl); }
+                } catch (e) {
+                    console.warn('[AudioSys] Pause on hide failed', e);
+                }
+            }
+        } else {
+            // Wracaja WYLACZNIE utwory, ktore my zapauzowalismy — inaczej powrot do gry
+            // wznowilby muzyke mapy komus, kto w miedzyczasie wyszedl do menu.
+            for (const howl of this.pausedOnHide) {
+                try { howl.play(); } catch (e) { console.warn('[AudioSys] Resume on show failed', e); }
+            }
+            this.pausedOnHide = [];
+        }
+    }
+
+    /**
+     * Jedyne miejsce dotykajace globalnego mute Howlera. Dwa niezalezne powody ciszy
+     * skladaja sie tu w jedna decyzje — inaczej powrot do gry odciszalby gracza, ktory
+     * sam wlaczyl mute, albo mute gracza znikalby po zwinieciu okna.
+     */
+    private applyGlobalMute(): void {
+        Howler.mute(this.muted || this.pageHidden);
     }
 
     static getInstance(): AudioSys {
@@ -1125,7 +1204,7 @@ export class AudioSys {
      */
     toggleMute(): boolean {
         this.muted = !this.muted;
-        Howler.mute(this.muted);
+        this.applyGlobalMute();   // v0.148.0 — mute gracza i cisza po zwinieciu gry lacza sie tutaj
         return this.muted;
     }
 

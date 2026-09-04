@@ -224,6 +224,14 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'ps_stones', type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_stones', bgImage: 'profileBG/Earth_mini.jpg' },
     { id: 'ps_deep',   type: 'profileSkin', rarity: 'l', labelKey: 'cosmetic.ps_deep',   bgImage: 'profileBG/Water_mini.jpg' },
     { id: 'ps_blaze',  type: 'profileSkin', rarity: 'l', labelKey: 'cosmetic.ps_blaze',  bgImage: 'profileBG/Fire_mini.jpg' },
+    // v0.148.0 — komplet 12. Cztery mozaiki pikselowe (Mariusz, 04.09). Rzadkosci
+    // rozlozone tak, zeby kazdy prog miec po trzy skiny: nowa czworka to jeden common,
+    // dwa rare i jeden epic — inaczej caly tani prog bylby kamuflazem, a caly drogi
+    // zywiolem, czyli gracz nie mialby wyboru KLIMATU, tylko wybor ceny.
+    { id: 'ps_moss',   type: 'profileSkin', rarity: 'c', labelKey: 'cosmetic.ps_moss',   bgImage: 'profileBG/G-Square_mini.jpg' },
+    { id: 'ps_amber',  type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_amber',  bgImage: 'profileBG/Y-Square_mini.jpg' },
+    { id: 'ps_plum',   type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_plum',   bgImage: 'profileBG/V-Square_mini.jpg' },
+    { id: 'ps_lava',   type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_lava',   bgImage: 'profileBG/R-Square_mini.jpg' },
 ];
 
 /**

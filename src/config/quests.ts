@@ -141,7 +141,7 @@ export const EASY_QUESTS: readonly QuestDef[] = [
 // ── PULA ŚREDNIA (1-2 runy / jeden dobry run) ──────────────────────────────
 export const MEDIUM_QUESTS: readonly QuestDef[] = [
     { id: 'm_kill',     tier: 'medium', metric: 'kill',         mode: 'sum', target: 90,  icon: '💀', labelKey: 'quest.m_kill',     bolts: QUEST_BOLTS.medium },
-    { id: 'm_boss',     tier: 'medium', metric: 'boss_kill',    mode: 'sum', target: 5,   icon: '👹', labelKey: 'quest.m_boss',     bolts: QUEST_BOLTS.medium },
+    { id: 'm_boss',     tier: 'medium', metric: 'boss_kill',    mode: 'sum', target: 5,   icon: 'img:boss', labelKey: 'quest.m_boss',     bolts: QUEST_BOLTS.medium },
     { id: 'm_magnet',   tier: 'medium', metric: 'magnet',       mode: 'sum', target: 3,   icon: '🧲', labelKey: 'quest.m_magnet',   bolts: QUEST_BOLTS.medium },
     { id: 'm_cube',     tier: 'medium', metric: 'cube',         mode: 'sum', target: 7,   icon: 'img:cube', labelKey: 'quest.m_cube',     bolts: QUEST_BOLTS.medium },
     { id: 'm_combo',    tier: 'medium', metric: 'combo',        mode: 'max', target: 5,   icon: '🔥', labelKey: 'quest.m_combo',    bolts: QUEST_BOLTS.medium },

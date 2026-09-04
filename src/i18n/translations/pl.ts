@@ -400,6 +400,10 @@ export const pl = {
     'cosmetic.ps_stones': 'Kamienie',
     'cosmetic.ps_deep': 'Głębina',
     'cosmetic.ps_blaze': 'Pożar',
+    'cosmetic.ps_moss': 'Mech',
+    'cosmetic.ps_amber': 'Bursztyn',
+    'cosmetic.ps_plum': 'Śliwka',
+    'cosmetic.ps_lava': 'Lawa',
     // v0.147.0 — nazwy kategorii w LICZBIE POJEDYNCZEJ (prefiks nagrody ze skrzynki).
     // Osobne od 'hub.garage.type.*', które są w mnogiej, bo tamte tytułują grupy.
     'cosmetic.cat.nickColor': 'Kolor nicku',
@@ -448,8 +452,6 @@ export const pl = {
     'shop.item.crate10.desc': 'Duża paczka. Największy rabat w sklepie.',
     'shop.item.sticker.desc': 'Naklejka przy Twoim zdjęciu w profilu.',
     'shop.item.profileSkin.desc': 'Tło całego paska Twojego profilu — widzi je każdy, kto na Ciebie zajrzy.',
-    'shop.item.soon_ps.name': 'Skin ?',
-    'shop.item.soon_ps.desc': 'Kolejny skin profilu. Jeszcze go szykujemy.',
     'shop.item.avatarSlot.name': 'Awatar ?',
     'shop.item.avatarSlot.desc': 'Nowa twarz do profilu. Jeszcze ją szykujemy.',
     'shop.item.horn.desc': 'Wciśnij H w grze, żeby zatrąbić. Nic więcej nie robi.',
@@ -525,7 +527,7 @@ export const pl = {
     'power.strike.desc': 'Eskadra 5 bombowców zrzuca dywan 12 bomb po linii celowania.',
     'power.hole.desc': 'Wir na 5 s zasysa wrogów z 420 px i miażdży w rdzeniu.',
     'power.laser.desc': 'Orbitalna plamka na 7,5 s sama goni wrogów — 600 dmg/s.',
-    'power.pong.desc': 'Paletki przez 5 s odbijaja pociski wroga z powrotem do nadawcy.',
+    'power.pong.desc': 'Paletki przez 8 s odbijają pociski wroga z powrotem do nadawcy.',
     'power.duck.desc': 'Gigantyczna kaczka zygzakuje po mapie i miażdży wszystko na drodze.',
     'power.locker.desc': 'Automat ostrzeliwuje wrogów paczkami — 450 dmg co pół sekundy.',
     'power.disco.desc': '6 s imprezy: wrogowie tańczą i do końca meczu biją 20% słabiej.',

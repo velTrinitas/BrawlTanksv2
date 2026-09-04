@@ -2605,13 +2605,19 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // emoji 🟦 „niebieski kwadrat", ktore nic nie znaczy i na czesci systemow renderuje
     // sie jako goly prostokat. Teraz dwie prawdziwe ikony rozdzielone ukosnikiem —
     // widac od razu, ze licznik obejmuje kostke OBRAZEN i kostke ZYCIA.
-    const cubePair = (px: string) => `<span style="display:flex;align-items:center;gap:0.15em;">
+    // v0.148.0 (zgloszenie Mariusza: „powieksz powercuby do rozmiaru pozostalych ikonek").
+    // ZMIERZONA przyczyna: oba PNG maja tresc na 68% kadru, wiec przy 1.15 rem widac
+    // z nich 0.78 rem — a sasiedzi mieli ~1.3 rem (gem 1.95x0.69, boss 1.5x0.88, emoji
+    // ~1.15 rem pelnego kadru). Do tego para z ukosnikiem dzielila slot na trzy czesci.
+    // Lekarstwo: 1.9 rem na kostke (1.9x0.68 = 1.29 rem widocznego = rowno z reszta),
+    // ukosnik OUT, a kostki wchodza na siebie ujemnym marginesem, zeby para zmiescila
+    // sie w kaflu siatki 4-kolumnowej obok liczby.
+    const cubePair = (px: string, overlap: string) => `<span style="display:flex;align-items:center;">
         <img src="${import.meta.env.BASE_URL}assets/items/powercube_dmg_100.png" alt="" style="width:${px};height:${px};display:block;object-fit:contain;">
-        <span style="opacity:0.5;font-size:${px};line-height:1;">/</span>
-        <img src="${import.meta.env.BASE_URL}assets/items/powercube_hp_100.png" alt="" style="width:${px};height:${px};display:block;object-fit:contain;">
+        <img src="${import.meta.env.BASE_URL}assets/items/powercube_hp_100.png" alt="" style="width:${px};height:${px};display:block;object-fit:contain;margin-left:${overlap};">
     </span>`;
-    const cubeIcon = cubePair('1.7rem');
-    const cubeIconSm = cubePair('1.15rem');
+    const cubeIcon = cubePair('2.6rem', '-0.7rem');
+    const cubeIconSm = cubePair('1.9rem', '-0.45rem');
 
     // iconHtml = surowy HTML (emoji-char ALBO <img>) renderowany w ramce ikony.
     const chip = (iconHtml: string, value: string | number, label: string): string => `

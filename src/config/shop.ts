@@ -245,21 +245,9 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
     // ── skiny profilu (v0.147.0) ────────────────────────────────────────────
     // Zakladka stoi ZARAZ ZA celownikami: to druga co do ceny kategoria i jedyna,
     // ktora zmienia caly wyglad strony profilu, wiec ma byc widoczna bez szukania.
+    // v0.148.0: komplet 12 skinow dostarczony, wiec kafle WKROTCE z tej kategorii
+    // zniknely — sklep pokazuje wylacznie towar, ktory naprawde istnieje.
     ...profileSkinSkus(),
-    // Cztery brakujace pliki. Kafel WKROTCE zamiast pustego miejsca, zeby siatka 2x1
-    // od razu mowila, ile finalnie bedzie skinow (12), i zeby nie skakala przy dosypce.
-    { sku: 'soon_ps_09', category: 'profileSkins', price: 0, currency: 'sigma', rarity: 'r',
-      nameKey: 'shop.item.soon_ps.name', descKey: 'shop.item.soon_ps.desc',
-      impactKey: 'shop.impact.none', grant: { kind: 'none' }, soon: true, emoji: '🖼️' },
-    { sku: 'soon_ps_10', category: 'profileSkins', price: 0, currency: 'sigma', rarity: 'r',
-      nameKey: 'shop.item.soon_ps.name', descKey: 'shop.item.soon_ps.desc',
-      impactKey: 'shop.impact.none', grant: { kind: 'none' }, soon: true, emoji: '🖼️' },
-    { sku: 'soon_ps_11', category: 'profileSkins', price: 0, currency: 'sigma', rarity: 'e',
-      nameKey: 'shop.item.soon_ps.name', descKey: 'shop.item.soon_ps.desc',
-      impactKey: 'shop.impact.none', grant: { kind: 'none' }, soon: true, emoji: '🖼️' },
-    { sku: 'soon_ps_12', category: 'profileSkins', price: 0, currency: 'sigma', rarity: 'l',
-      nameKey: 'shop.item.soon_ps.name', descKey: 'shop.item.soon_ps.desc',
-      impactKey: 'shop.impact.none', grant: { kind: 'none' }, soon: true, emoji: '🖼️' },
 
     // ── stickery ────────────────────────────────────────────────────────────
     // Generowane z rejestru kosmetyk: 12 pozycji to bylo 12 niemal identycznych

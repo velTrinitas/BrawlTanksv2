@@ -46,6 +46,18 @@ export function cubeIcon(px = 22): string {
     return icon('assets/items/powercube_dmg_100.png', px);
 }
 
+/**
+ * BOSS — ten sam fioletowy czolg, ktorego gracz realnie ubija na mapie.
+ *
+ * v0.148.0 (zgloszenie Mariusza): rozkaz „Pokonaj bossow" mial emoji 👹 (ogr), ktore
+ * na wiekszosci systemow renderuje sie jako fioletowy demon — czyli obiekt, ktory
+ * w tej grze NIE ISTNIEJE. Endcard rozwiazal dokladnie ten sam problem juz w v0.125.0,
+ * podmieniajac 👑 na ten plik; rozkazy zostaly z emoji przez przeoczenie.
+ */
+export function bossIcon(px = 22): string {
+    return icon('assets/sprites/boss_100.png', px);
+}
+
 /** Sigma (waluta). Klasa `.bt-sigma` niesie juz rozmiar i cien — px sluzy nadpisaniu. */
 export function sigmaIcon(px = 15): string {
     return icon('assets/sigma.png', px, 'bt-sigma');
@@ -96,6 +108,7 @@ export function iconFromToken(token: string, px: number): string | null {
         case 'gem': return gemIcon(px);
         case 'cube': return cubeIcon(px);
         case 'crate': return crateIcon(px);
+        case 'boss': return bossIcon(px);
         default: return null;
     }
 }

@@ -278,6 +278,29 @@ export interface ProgressionInsert {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// telemetry (Z0.9 — dane techniczne wydajnosci, ZERO identyfikatorow: bez
+// profile_id/session_id/nicku. RLS: anon INSERT-only. Migracja: supabase/telemetry.sql)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface TelemetryInsert {
+    game_version: string;
+    device_model: string;
+    browser: string;
+    platform: 'android' | 'ios' | 'desktop' | 'other';
+    is_touch: boolean;
+    dpr: number;
+    render_res: number;
+    fps_p50: number;
+    fps_p05: number;
+    fps_avg: number;
+    match_seconds: number;
+    map: string;
+    scenario: string;
+    difficulty: string;
+    result: 'victory' | 'gameover';
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Database — typ zbiorczy dla createClient<Database> (opcjonalnie, type-safe queries)
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -288,6 +311,7 @@ export interface Database {
             scores: { Row: ScoreRow; Insert: ScoreInsert; Update: never };
             sessions: { Row: SessionRow; Insert: SessionInsert; Update: Partial<SessionInsert> };
             progression: { Row: ProgressionRow; Insert: ProgressionInsert; Update: Partial<ProgressionInsert> };
+            telemetry: { Row: never; Insert: TelemetryInsert; Update: never }; // Z0.9: insert-only z klienta
         };
     };
 }

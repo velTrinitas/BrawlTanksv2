@@ -160,6 +160,7 @@ import { AudioSys } from './audio/AudioSys';
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { worldRng, seedMatchRng } from './systems/Rng';
+import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
@@ -1426,6 +1427,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     const _seedParam = new URLSearchParams(window.location.search).get('seed');
     const _forcedSeed = _seedParam !== null ? parseInt(_seedParam, 10) : NaN;
     seedMatchRng(Number.isFinite(_forcedSeed) ? _forcedSeed : config.rngSeed);
+    telemetryResetMatch(); // Z0.9: nowy mecz = nowe probki FPS
 
     ProfileService.recordSessionStart();
 
@@ -2907,6 +2909,15 @@ async function triggerGameOver(): Promise<void> {
     // FAZA CTF F2 — drop niesionej flagi przy smierci (legacy 1:1: IDLE @gracz + 10 s reset)
     if (ctfSystem && player) ctfSystem.handlePlayerDeath(player.x, player.y);
     gameState = 'GAMEOVER';
+    // Z0.9: telemetria meczu — fire-and-forget, nigdy nie blokuje konca meczu.
+    if (currentSession) {
+        void telemetrySubmitMatch({
+            map: currentSession.config.map, scenario: currentSession.config.scenario,
+            difficulty: currentSession.config.difficulty, result: 'gameover',
+            matchSeconds: currentSession.getElapsedSeconds(),
+            isTouch: touchManager.isActive, renderRes: _renderRes,
+        });
+    }
     audio.playGameOver();
 
     touchManager.hide();
@@ -2978,6 +2989,15 @@ async function triggerVictory(): Promise<void> {
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
     if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
     gameState = 'VICTORY';
+    // Z0.9: telemetria meczu — fire-and-forget, nigdy nie blokuje konca meczu.
+    if (currentSession) {
+        void telemetrySubmitMatch({
+            map: currentSession.config.map, scenario: currentSession.config.scenario,
+            difficulty: currentSession.config.difficulty, result: 'victory',
+            matchSeconds: currentSession.getElapsedSeconds(),
+            isTouch: touchManager.isActive, renderRes: _renderRes,
+        });
+    }
     audio.playVictory();
 
     touchManager.hide();
@@ -3099,6 +3119,9 @@ app.ticker.add((rawDelta) => {
     }
 
     if (gameState !== 'PLAYING' || !player || !effects || !spawnSystem || !powerSystem || !currentSession) return;
+
+    // Z0.9: probka FPS (kubelek 1 Hz w TelemetryService). Koszt: jeden inkrement.
+    telemetryTickFrame(performance.now());
 
     // === v0.45.0 FAZA 8.7: HIT-STOP ===
     // Early return jeśli aktywny hit-stop — frame freeze (movement, AI, effects, bullets stoją).

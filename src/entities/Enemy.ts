@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { getEnemyTextures, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
+import { worldRng } from '../systems/Rng'; // Z0.1: seeded gameplay RNG
 import { WORLD_W, WORLD_H } from '../config/constants'; // FAZA CTF F2 — clampy guarda
 import { BRAWLERS } from '../config/brawlers';
 import { EnemySpriteBaker, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
@@ -186,7 +187,7 @@ export class Enemy {
         isPursuit: boolean = false
     ) {
         this.x = x; this.y = y;
-        this.speed = config.speedMin + Math.random() * (config.speedMax - config.speedMin);
+        this.speed = worldRng.range(config.speedMin, config.speedMax); // Z0.1: seeded
         this.maxHp = config.hp;
         this.hp = this.maxHp;
         this.active = true;
@@ -218,16 +219,16 @@ export class Enemy {
             this.burstSpread = 0;
         }
 
-        this.lastShotTime = Date.now() + Math.random() * 1000 - this.shootIntervalMs;
+        this.lastShotTime = Date.now() + worldRng.next() * 1000 - this.shootIntervalMs; // Z0.1: seeded
 
         if (isMegaBoss) {
             this.megaShieldNextTime = Date.now() + 12000;
         }
 
         // v0.58.0: losowy poczatkowy kierunek orbitowania dla pursuit
-        this.pursuitStrafeDir = Math.random() < 0.5 ? 1 : -1;
+        this.pursuitStrafeDir = worldRng.chance(0.5) ? 1 : -1; // Z0.1: seeded
 
-        this.confusedRotation = Math.random() * Math.PI * 2;
+        this.confusedRotation = worldRng.next() * Math.PI * 2; // Z0.1: seeded
 
         // FAZA P4 — archetyp + typ pocisku. Kolejnosc: mega > pursuit(flat) > boss > grunt
         // (mega ma pierwszenstwo, jak wszedzie w tej klasie). Pursuit => null (ZAWSZE flat, poza scope P4).
@@ -685,7 +686,7 @@ export class Enemy {
                 this.burstSpread = 0.10;
                 const idealDist = 280;
                 this.megaStrafeAngle += 0.02 * this.megaStrafeDir * delta;
-                if (Math.random() < 0.005) this.megaStrafeDir *= -1;
+                if (worldRng.chance(0.005)) this.megaStrafeDir *= -1; // Z0.1: seeded
 
                 if (Math.abs(dist - idealDist) > 30) {
                     const radialDir = dist > idealDist ? 1 : -1;
@@ -719,7 +720,7 @@ export class Enemy {
             // niz megaboss strafe. Bursty karabinu juz ustawione w konstruktorze
             // (PURSUIT_BURST_COUNT/SPREAD) — NIE nadpisujemy ich tu (inaczej niz megaboss).
             this.megaStrafeAngle += PURSUIT_ORBIT_SPEED * this.pursuitStrafeDir * delta;
-            if (Math.random() < PURSUIT_DIR_FLIP_CHANCE) this.pursuitStrafeDir *= -1;
+            if (worldRng.chance(PURSUIT_DIR_FLIP_CHANCE)) this.pursuitStrafeDir *= -1; // Z0.1: seeded
 
             let moveX = 0, moveY = 0;
             if (Math.abs(dist - PURSUIT_IDEAL_DIST) > PURSUIT_RADIAL_BAND) {

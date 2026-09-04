@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import { MARS_HEX, MARS_ROVER_ROUTE } from '../MarsMap';
 
 /**
@@ -221,8 +222,8 @@ export class MarsRover {
         this.dropTimerMs += delta * (1000 / 60);
         if (this.dropTimerMs >= DROP_INTERVAL_MS) {
             this.dropTimerMs = 0;
-            // Z0.2 AUDIT: WORLD RNG (typ pickupu) -> seed w Z0.1
-            const roll = Math.random();
+            // Z0.2 AUDIT: WORLD RNG (typ pickupu) — SEEDED w Z0.1 (worldRng)
+            const roll = worldRng.next();
             const type: RoverDropType = roll < 0.80 ? 'gem' : roll < 0.95 ? 'heart' : 'magnet';
             return { type, x: pos.x, y: pos.y + 8 };
         }

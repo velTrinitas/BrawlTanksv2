@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import type { Enemy, EnemyShotInfo } from '../../entities/Enemy';
 import type { ICollidable } from '../../types/MapType';
 import type { MarsCargo } from './MarsCargo';
@@ -183,8 +184,8 @@ export class UfoAbductor {
 
         this.x = WORLD_W * 0.5;
         this.y = WORLD_H * 0.35;
-        // Z0.2 AUDIT: WORLD RNG (kurs bladzenia -> pozycja UFO -> kogo porywa) -> seed w Z0.1
-        this.wanderAngle = Math.random() * Math.PI * 2;
+        // Z0.2 AUDIT: WORLD RNG (kurs bladzenia -> pozycja UFO -> kogo porywa) — SEEDED w Z0.1 (worldRng)
+        this.wanderAngle = worldRng.next() * Math.PI * 2;
         this.phaseAt = Date.now();
         this.cooldownUntil = Date.now() + 6000;   // grace period after map start
 
@@ -446,8 +447,8 @@ export class UfoAbductor {
 
     /** Climb back to cruising altitude and resume hunting. */
     private doTakeoff(delta: number, now: number): void {
-        // Z0.2 AUDIT: WORLD RNG (per-frame jitter kursu -> pozycja UFO) -> seed w Z0.1
-        this.wanderAngle += (Math.random() - 0.5) * 0.03 * delta;
+        // Z0.2 AUDIT: WORLD RNG (per-frame jitter kursu -> pozycja UFO) — SEEDED w Z0.1 (worldRng)
+        this.wanderAngle += (worldRng.next() - 0.5) * 0.03 * delta;
         this.x += Math.cos(this.wanderAngle) * CRUISE_SPEED * 0.8 * delta;
         this.y += Math.sin(this.wanderAngle) * CRUISE_SPEED * 0.5 * delta;
         if (now - this.phaseAt >= TAKEOFF_MS) {
@@ -897,8 +898,8 @@ export class UfoAbductor {
 
     /** Wander the sky; divert when something grabbable comes into range. */
     private doCruise(delta: number, now: number, enemies: Enemy[], cargo: MarsCargo[]): void {
-        // Z0.2 AUDIT: WORLD RNG (per-frame jitter kursu -> pozycja UFO -> wybor ofiary) -> seed w Z0.1
-        this.wanderAngle += (Math.random() - 0.5) * 0.05 * delta;
+        // Z0.2 AUDIT: WORLD RNG (per-frame jitter kursu -> pozycja UFO -> wybor ofiary) — SEEDED w Z0.1 (worldRng)
+        this.wanderAngle += (worldRng.next() - 0.5) * 0.05 * delta;
         this.x += Math.cos(this.wanderAngle) * CRUISE_SPEED * delta;
         this.y += Math.sin(this.wanderAngle) * CRUISE_SPEED * 0.6 * delta;
 

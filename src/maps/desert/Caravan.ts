@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import { isPointInView } from '../cullGate';
 import {
     DESERT_CARAVAN_PATH,
@@ -508,10 +509,10 @@ export class Caravan {
             const visibleCamels = this.camels.filter(c => c.pathProgress > 0);
             if (visibleCamels.length === 0) return null;
             
-            // Z0.2 AUDIT: WORLD RNG (wybor wielblada = pozycja dropu + typ pickupu) -> seed w Z0.1
-            const randomCamel = visibleCamels[Math.floor(Math.random() * visibleCamels.length)];
+            // Z0.2 AUDIT: WORLD RNG (wybor wielblada = pozycja dropu + typ pickupu) — SEEDED w Z0.1 (worldRng)
+            const randomCamel = visibleCamels[worldRng.int(visibleCamels.length)];
 
-            const r = Math.random();
+            const r = worldRng.next();
             let type: CaravanDropType;
             if (r < 0.60) type = 'gem';
             else if (r < 0.90) type = 'heart';

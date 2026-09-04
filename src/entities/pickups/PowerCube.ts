@@ -20,6 +20,7 @@
  */
 
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded gameplay RNG
 
 export type PowerCubeType = 'dmg' | 'hp';
 
@@ -58,7 +59,7 @@ export class PowerCube {
         this.x = x;
         this.y = y;
 
-        this.type = Math.random() < 0.5 ? 'dmg' : 'hp';
+        this.type = worldRng.chance(0.5) ? 'dmg' : 'hp'; // Z0.1: seeded (typ kostki = gameplay)
         this.pulse = Math.random() * Math.PI * 2;
         this.rot = Math.random() * Math.PI * 2;
 

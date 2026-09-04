@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../entities/Enemy';
+import { worldRng } from './Rng'; // Z0.1: seeded gameplay RNG
 import { Heart } from '../entities/pickups/Heart';
 import { Magnet } from '../entities/pickups/Magnet';
 import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_MEGA_BOSS, HEART_CONFIG, type EnemyConfig } from '../config/enemies';
@@ -297,8 +298,8 @@ export class SpawnSystem {
         extraBlocked?: (x: number, y: number) => boolean
     ): { x: number, y: number } | null {
         for (let i = 0; i < 30; i++) {
-            const x = 100 + Math.random() * (WORLD_W - 200);
-            const y = 100 + Math.random() * (WORLD_H - 200);
+            const x = worldRng.range(100, WORLD_W - 100); // Z0.1: seeded (pozycje spawnu)
+            const y = worldRng.range(100, WORLD_H - 100);
             const dx = x - playerX, dy = y - playerY;
             if (dx * dx + dy * dy < minDistFromPlayer * minDistFromPlayer) continue;
 

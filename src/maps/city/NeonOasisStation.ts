@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 
 /**
  * v0.60.0 — NEON-OASIS: Automatyczna Stacja Chlodzenia Plazmy (cyberpunk stealth zone).
@@ -876,11 +877,11 @@ export class NeonOasisStation {
             const near = dx * dx + dy * dy < 70 * 70;
             if (near && !this.playerWasNearVend && !this.can && this.canSpawnCooldown <= 0) {
                 // wypada z otworu wydawczego, toczy sie w losowa strone (przewaga w dol/bok)
-                // Z0.2 AUDIT: WORLD RNG (kierunek/predkosc puszki -> gdzie lezy -> zdarzenie zgniecenia) -> seed w Z0.1
-                const dir = Math.random() < 0.5 ? -1 : 1;
+                // Z0.2 AUDIT: WORLD RNG (kierunek/predkosc puszki -> gdzie lezy -> zdarzenie zgniecenia) — SEEDED w Z0.1 (worldRng)
+                const dir = worldRng.chance(0.5) ? -1 : 1;
                 this.can = {
                     x: this.vendX, y: this.vendY + 22,
-                    vx: dir * (1.2 + Math.random() * 1.0), vy: 0.4 + Math.random() * 0.6,
+                    vx: dir * (1.2 + worldRng.next() * 1.0), vy: 0.4 + worldRng.next() * 0.6,
                     roll: 0, rollSpeed: dir * 0.25,
                     age: 0, crushed: false, settleTimer: 0,
                 };

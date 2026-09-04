@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { EffectsManager } from '../../rendering/Effects';
 import { PICKUP_CONFIG } from '../../config/powers';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded gameplay RNG
 
 /**
  * Gem pickup — zielony heksagonalny diamond.
@@ -108,8 +109,8 @@ export class Gem {
     private vy: number = 0;
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
-        this.x = x + (Math.random() - 0.5) * 30;
-        this.y = y + (Math.random() - 0.5) * 30;
+        this.x = x + worldRng.range(-15, 15); // Z0.1: seeded (pozycja pickupu)
+        this.y = y + worldRng.range(-15, 15); // Z0.1: seeded
         this.baseY = this.y;
         this.active = true;
         this.bornAt = Date.now();
@@ -176,8 +177,8 @@ export class Gem {
      * i jest w kontenerze (ukryty), wiec tylko go pokazujemy i repozycjonujemy.
      */
     reset(x: number, y: number): void {
-        this.x = x + (Math.random() - 0.5) * 30;
-        this.y = y + (Math.random() - 0.5) * 30;
+        this.x = x + worldRng.range(-15, 15); // Z0.1: seeded (pozycja pickupu)
+        this.y = y + worldRng.range(-15, 15); // Z0.1: seeded
         this.baseY = this.y;
         this.active = true;
         this.bornAt = Date.now();

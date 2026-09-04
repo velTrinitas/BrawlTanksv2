@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import { MARS_HEX } from '../MarsMap';
 
 /**
@@ -77,8 +78,8 @@ export class DustStorm {
         this.container.visible = false;
         worldContainer.addChild(this.container);
 
-        // Z0.2 AUDIT: WORLD RNG (timing startu burzy = wspolne zdarzenie swiata) -> seed w Z0.1
-        this.phaseEndsAt = Date.now() + IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
+        // Z0.2 AUDIT: WORLD RNG (timing startu burzy = wspolne zdarzenie swiata) — SEEDED w Z0.1 (worldRng)
+        this.phaseEndsAt = Date.now() + IDLE_MIN_MS + worldRng.next() * (IDLE_MAX_MS - IDLE_MIN_MS);
 
         for (let i = 0; i < PARTICLE_COUNT; i++) this.motes.push(this.makeMote(true));
         for (let i = 0; i < STREAK_COUNT; i++) this.streaks.push(this.makeStreak(true));
@@ -148,8 +149,8 @@ export class DustStorm {
                     break;
                 case 'rampDown':
                     this.phase = 'idle';
-                    // Z0.2 AUDIT: WORLD RNG (timing kolejnej burzy) -> seed w Z0.1
-                    this.phaseEndsAt = now + IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
+                    // Z0.2 AUDIT: WORLD RNG (timing kolejnej burzy) — SEEDED w Z0.1 (worldRng)
+                    this.phaseEndsAt = now + IDLE_MIN_MS + worldRng.next() * (IDLE_MAX_MS - IDLE_MIN_MS);
                     this.container.visible = false;
                     this.intensity = 0;
                     break;

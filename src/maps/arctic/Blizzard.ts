@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 
 /**
  * Blizzard — cykliczna sniezyca na Arktyce (ARC-R3, podejscie zaakceptowane przez
@@ -75,8 +76,8 @@ export class Blizzard {
         }
 
         this.phaseAt = Date.now();
-        // Z0.2 AUDIT: WORLD RNG (timing pierwszej zamieci = wspolne zdarzenie swiata) -> seed w Z0.1
-        this.idleDuration = FIRST_IDLE_MIN_MS + Math.random() * 4_000;
+        // Z0.2 AUDIT: WORLD RNG (timing pierwszej zamieci = wspolne zdarzenie swiata) — SEEDED w Z0.1 (worldRng)
+        this.idleDuration = FIRST_IDLE_MIN_MS + worldRng.next() * 4_000;
     }
 
     /** Debug/test: wymus natychmiastowy start zadymki (konsola: snieg()). */
@@ -119,8 +120,8 @@ export class Blizzard {
                 if (this.intensity <= 0) {
                     this.phase = 'idle';
                     this.phaseAt = now;
-                    // Z0.2 AUDIT: WORLD RNG (timing kolejnej zamieci) -> seed w Z0.1
-                    this.idleDuration = IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
+                    // Z0.2 AUDIT: WORLD RNG (timing kolejnej zamieci) — SEEDED w Z0.1 (worldRng)
+                    this.idleDuration = IDLE_MIN_MS + worldRng.next() * (IDLE_MAX_MS - IDLE_MIN_MS);
                     this.container.visible = false;
                     return;
                 }

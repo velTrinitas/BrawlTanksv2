@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { ambientRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 
 /**
  * v0.41.0 FAZA T9.1 — HORSE (Koń AAA premium side-view)
@@ -587,8 +588,8 @@ export class Horse {
                 // Just animation, no movement
                 this.idleTimer += 1 / 60;
                 // v0.41.5: Faster transitions for visible movement (1.5-3.5s instead of 4-8s)
-                // Z0.2 AUDIT: RNG widoczne w swiecie (NPC bez kolizji) -> seed w Z0.1 OSOBNYM strumieniem ambient
-                if (this.idleTimer >= 1.5 + Math.random() * 2) {
+                // Z0.2 AUDIT: RNG widoczne w swiecie (NPC bez kolizji) — SEEDED w Z0.1 strumieniem ambientRng
+                if (this.idleTimer >= 1.5 + ambientRng.next() * 2) {
                     this.startWandering();
                 }
                 break;
@@ -771,10 +772,10 @@ export class Horse {
         this.y = this.stableDoor.y;
         this.container.visible = true;
         // Target: random spot inside paddock
-        // Z0.2 AUDIT: RNG widoczne w swiecie (NPC bez kolizji) -> seed w Z0.1 OSOBNYM strumieniem ambient
+        // Z0.2 AUDIT: RNG widoczne w swiecie (NPC bez kolizji) — SEEDED w Z0.1 strumieniem ambientRng
         const padding = 30;
-        this.targetX = this.paddockBounds.x + padding + Math.random() * (this.paddockBounds.w - padding * 2);
-        this.targetY = this.paddockBounds.y + padding + Math.random() * (this.paddockBounds.h - padding * 2);
+        this.targetX = this.paddockBounds.x + padding + ambientRng.next() * (this.paddockBounds.w - padding * 2);
+        this.targetY = this.paddockBounds.y + padding + ambientRng.next() * (this.paddockBounds.h - padding * 2);
         this.facing = this.targetX > this.x ? 1 : -1;
         this.container.scale.x = this.facing;
     }
@@ -808,8 +809,8 @@ export class Horse {
         // Z0.2 AUDIT: RNG widoczne w swiecie + UWAGA: do-while zuzywa ZMIENNA liczbe losowan
         // (2-10 na wywolanie) -> w Z0.1 KONIECZNIE osobny strumien ambient, nie wspolny world-stream
         do {
-            this.targetX = this.paddockBounds.x + padding + Math.random() * (this.paddockBounds.w - padding * 2);
-            this.targetY = this.paddockBounds.y + padding + Math.random() * (this.paddockBounds.h - padding * 2);
+            this.targetX = this.paddockBounds.x + padding + ambientRng.next() * (this.paddockBounds.w - padding * 2);
+            this.targetY = this.paddockBounds.y + padding + ambientRng.next() * (this.paddockBounds.h - padding * 2);
             attempts++;
         } while (Math.abs(this.targetX - this.x) < minXDelta && attempts < 5);
         // Pre-flip facing toward target przed first walkToward (zapobiega ruchu do tyłu first frame)

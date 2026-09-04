@@ -159,6 +159,7 @@ import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
+import { worldRng, seedMatchRng } from './systems/Rng';
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
@@ -1374,7 +1375,7 @@ function handleEnemyDrop(enemy: Enemy): void {
     }
 
     // Regular enemy
-    if (canSpawnCube && Math.random() < POWERCUBE_REGULAR_DROP_CHANCE) {
+    if (canSpawnCube && worldRng.chance(POWERCUBE_REGULAR_DROP_CHANCE)) { // Z0.1: seeded
         powerCubes.push(new PowerCube(enemy.x, enemy.y, worldContainer));
     } else {
         dropGems(enemy.x, enemy.y, enemy.getGemDropCount());
@@ -1419,6 +1420,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     document.body.classList.add('game-cursor-hidden');
 
     currentSession = new GameSession(config);
+
+    // Z0.1: reset gameplayowego RNG na start meczu. ?seed=N wymusza seed (odtwarzanie
+    // bugow: dwa wejscia z tym samym ?seed daja identyczne skaly/fale/dropy).
+    const _seedParam = new URLSearchParams(window.location.search).get('seed');
+    const _forcedSeed = _seedParam !== null ? parseInt(_seedParam, 10) : NaN;
+    seedMatchRng(Number.isFinite(_forcedSeed) ? _forcedSeed : config.rngSeed);
 
     ProfileService.recordSessionStart();
 
@@ -1717,8 +1724,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         let smallRockAttempts = 0;
         while (smallRocks.length < DESERT_SMALL_ROCKS_COUNT && smallRockAttempts < 250) {
             smallRockAttempts++;
-            const rx = 100 + Math.random() * (WORLD_W - 200);
-            const ry = 100 + Math.random() * (WORLD_H - 200);
+            const rx = worldRng.range(100, WORLD_W - 100); // Z0.1: seeded (uklad skal)
+            const ry = worldRng.range(100, WORLD_H - 100);
 
             let blocked = false;
             for (const b of buildings) {
@@ -1744,8 +1751,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             }
             if (blocked) continue;
 
-            const size = DESERT_SMALL_ROCK_MIN_SIZE + Math.random() * (DESERT_SMALL_ROCK_MAX_SIZE - DESERT_SMALL_ROCK_MIN_SIZE);
-            const seed = Math.floor(Math.random() * 1000);
+            // Z0.1: seeded — size wchodzi do HITBOXA skaly, seed do pieczonego artu
+            const size = worldRng.range(DESERT_SMALL_ROCK_MIN_SIZE, DESERT_SMALL_ROCK_MAX_SIZE);
+            const seed = worldRng.int(1000);
             smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
         }
 
@@ -2235,7 +2243,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     if (config.map === 'arctic') {
         for (const ic of ARCTIC_ICE_CUBES_LAYOUT) {
             const cube = new IceCube(ic.x, ic.y, ic.seed, worldContainer, effects, audio,
-                (cx, cy) => { if (Math.random() < 0.28) spawnGem(cx, cy); });
+                (cx, cy) => { if (worldRng.chance(0.28)) spawnGem(cx, cy); }); // Z0.1: seeded
             iceCubes.push(cube);
             solidBuildings.push(cube);
             for (const extra of cube.getExtraCollidables()) {

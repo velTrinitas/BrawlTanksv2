@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import {
     ARCTIC_PENGUIN_PATH,
     ARCTIC_PENGUIN_COUNT,
@@ -194,9 +195,9 @@ export class PenguinColony {
             this.dropTimerMs = 0;
             const eligible = this.penguins.filter(p => p.pathProgress > 0);
             if (eligible.length > 0) {
-                // Z0.2 AUDIT: WORLD RNG (wybor pingwina = pozycja dropu + typ pickupu) -> seed w Z0.1
-                const p = eligible[Math.floor(Math.random() * eligible.length)];
-                const roll = Math.random();
+                // Z0.2 AUDIT: WORLD RNG (wybor pingwina = pozycja dropu + typ pickupu) — SEEDED w Z0.1 (worldRng)
+                const p = eligible[worldRng.int(eligible.length)];
+                const roll = worldRng.next();
                 const type: DropInfo['type'] = roll < 0.80 ? 'gem' : roll < 0.95 ? 'heart' : 'magnet';
                 return { type, x: p.x, y: p.y + 8 };
             }

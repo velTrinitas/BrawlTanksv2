@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../../entities/Enemy';
+import { worldRng } from '../Rng'; // Z0.1: seeded gameplay RNG
 import { CtfFlag } from '../../entities/ctf/CtfFlag';
 import { BossBomb, BOSS_BOMB_BLAST_R } from '../../entities/ctf/BossBomb';
 import { ENEMY_GUARD, ENEMY_CTF_BOSS, CTF_BOSS_SHOOT_RANGE, type EnemyConfig } from '../../config/enemies';
@@ -157,7 +158,7 @@ export class CtfSystem {
                     orbitY: f.y,
                     orbitR: GUARD_ORBIT_R,
                     state: 'patrol',
-                    patrolAngle: Math.random() * Math.PI * 2,
+                    patrolAngle: worldRng.next() * Math.PI * 2, // Z0.1: seeded
                     chaseSpeed: 2.2,
                     fireIntervalMs: 2200,
                 });
@@ -357,8 +358,8 @@ export class CtfSystem {
                     this.lastAnyBombTime = now;
                     this.bombs.push(new BossBomb(
                         boss.x, boss.y,
-                        player.x + (Math.random() - 0.5) * BOMB_TARGET_JITTER,
-                        player.y + (Math.random() - 0.5) * BOMB_TARGET_JITTER,
+                        player.x + (worldRng.next() - 0.5) * BOMB_TARGET_JITTER, // Z0.1: seeded
+                        player.y + (worldRng.next() - 0.5) * BOMB_TARGET_JITTER,
                         this.opts.worldContainer,
                         bombFlightSpeed,
                     ));

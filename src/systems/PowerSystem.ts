@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { Enemy } from '../entities/Enemy';
+import { worldRng } from './Rng'; // Z0.1: seeded gameplay RNG (wizualia zostaja na Math.random)
 import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
 import {
@@ -473,7 +474,7 @@ export class PowerSystem {
         this.diceCtx = null;
         if (!ctx) return;
         const pool = TIER3_POWERS.filter(pid => pid !== this.lastRolled);
-        const id = pool[Math.floor(Math.random() * pool.length)];
+        const id = pool[worldRng.int(pool.length)]; // Z0.1: seeded (kostka 🎲)
         this.lastRolled = id;
         const def = POWERS[id];
         console.log(`[PowerSystem] Dice rolled ${id}`);
@@ -797,7 +798,7 @@ export class PowerSystem {
             if (this.towerFireT <= 0 && Math.abs(diff) < TOWER_CONFIG.aimToleranceRad) {
                 this.towerFireT = TOWER_CONFIG.fireEveryFrames;
                 this.towerHeat = 1;
-                const a = this.towerAngle + (Math.random() - 0.5) * 2 * TOWER_CONFIG.spreadRad;
+                const a = this.towerAngle + (worldRng.next() - 0.5) * 2 * TOWER_CONFIG.spreadRad; // Z0.1: seeded
                 const mx = this.towerX + Math.cos(this.towerAngle) * TOWER_CONFIG.barrelLen;
                 const my = pivotY + Math.sin(this.towerAngle) * TOWER_CONFIG.barrelLen;
                 effects.spawnMuzzleFlash(mx, my, a);
@@ -900,7 +901,7 @@ export class PowerSystem {
                 this.rocketLaunchT += ROCKETS_CONFIG.launchEveryFrames;
                 const target = this.rocketQueue.shift() ?? null;
                 const vi = this.rocketAcquireVisual();
-                const ang = this.rocketBaseAng + (Math.random() - 0.5) * 2 * ROCKETS_CONFIG.spreadRad;
+                const ang = this.rocketBaseAng + (worldRng.next() - 0.5) * 2 * ROCKETS_CONFIG.spreadRad; // Z0.1: seeded
                 this.rocketsActive.push({
                     vi,
                     x: this.rocketOriginX,
@@ -1354,7 +1355,7 @@ export class PowerSystem {
         this.strikeBombs = [];
         for (let i = 0; i < STRIKE_CONFIG.bombCount; i++) {
             const d = STRIKE_CONFIG.bombStartDist + i * STRIKE_CONFIG.bombStepDist;
-            const off = (Math.random() - 0.5) * 2 * STRIKE_CONFIG.bombSpreadPx;
+            const off = (worldRng.next() - 0.5) * 2 * STRIKE_CONFIG.bombSpreadPx; // Z0.1: seeded
             this.strikeBombs.push({
                 x: px + cos * d - sin * off,
                 y: py + sin * d + cos * off,
@@ -1806,11 +1807,11 @@ export class PowerSystem {
 
     /** Kaczka wlatuje z boku gracza i szaleje po CALEJ planszy (odbicia od granic mapy). */
     duckLaunch(px: number, py: number): void {
-        const fromLeft = Math.random() < 0.5;
+        const fromLeft = worldRng.chance(0.5); // Z0.1: seeded
         this.duckX = Math.max(DUCK_CONFIG.edgeMargin, Math.min(WORLD_W - DUCK_CONFIG.edgeMargin, px + (fromLeft ? -500 : 500)));
         this.duckY = Math.max(DUCK_CONFIG.edgeMargin, Math.min(WORLD_H - DUCK_CONFIG.edgeMargin, py));
         this.duckVx = (fromLeft ? 1 : -1) * DUCK_CONFIG.speedX;
-        this.duckVy = (Math.random() < 0.5 ? 1 : -1) * DUCK_CONFIG.speedY;
+        this.duckVy = (worldRng.chance(0.5) ? 1 : -1) * DUCK_CONFIG.speedY; // Z0.1: seeded
         this.duckLife = DUCK_CONFIG.lifeFrames;
         this.duckWob = 0;
         this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
@@ -1883,7 +1884,7 @@ export class PowerSystem {
         if (this.duckTurnT <= 0) {
             this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
             const vx = this.duckVx, vy = this.duckVy;
-            if (Math.random() < 0.5) { this.duckVx = -vy; this.duckVy = vx; }  // 90 w lewo
+            if (worldRng.chance(0.5)) { this.duckVx = -vy; this.duckVy = vx; }  // Z0.1: seeded; 90 w lewo
             else { this.duckVx = vy; this.duckVy = -vx; }                       // 90 w prawo
             effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b);
             bounced = true; // skret = tez kwak (nizej)
@@ -2006,7 +2007,7 @@ export class PowerSystem {
                 return dx * dx + dy * dy < LOCKER_CONFIG.range * LOCKER_CONFIG.range;
             });
             if (inRange.length > 0) {
-                const tgt = inRange[Math.floor(Math.random() * inRange.length)];
+                const tgt = inRange[worldRng.int(inRange.length)]; // Z0.1: seeded (wybor celu)
                 const sp = new PIXI.Sprite(bakeParcel());
                 sp.anchor.set(0.5);
                 const sh = new PIXI.Sprite(bakeSoftShadow());
@@ -2089,7 +2090,7 @@ export class PowerSystem {
             this.discoNoteT = DISCO_CONFIG.noteEveryFrames;
             const alive = enemies.filter(e => e.active);
             if (alive.length > 0) {
-                const e = alive[Math.floor(Math.random() * alive.length)];
+                const e = alive[worldRng.int(alive.length)]; // Z0.1: seeded (wybor celu)
                 effects.spawnFloatingText(e.x, e.y - 26, '♪', 0xff7ce0);
             }
         }

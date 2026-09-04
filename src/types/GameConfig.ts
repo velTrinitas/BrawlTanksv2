@@ -39,6 +39,7 @@ export interface GameConfig {
     readonly mode: GameMode;              // 'solo' only w obecnej fazie
     readonly sessionId: string;           // UUID v4 — unique per game session
     readonly timestamp: number;           // Date.now() — analytics + last-session
+    readonly rngSeed: number;             // Z0.1: 32-bit seed gameplayowego RNG (worldRng/ambientRng)
 }
 
 export interface DifficultyConfig {
@@ -172,6 +173,9 @@ export class GameConfigBuilder {
             mode: this._mode,
             sessionId: generateSessionId(),
             timestamp: Date.now(),
+            // Z0.1: swiezy seed per config. Jedyne "legalne" Math.random w warstwie gameplayu —
+            // to zrodlo seeda, nie losowanie gameplayowe. ?seed=N nadpisuje w startGame().
+            rngSeed: (Math.random() * 0x100000000) >>> 0,
         });
         return config;
     }

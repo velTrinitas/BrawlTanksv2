@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../../entities/Enemy';
 import { worldRng } from '../Rng'; // Z0.1: seeded gameplay RNG
+import { SRC_BOSS_BOMB } from '../../types/DamageSource'; // Z0.5
 import { CtfFlag } from '../../entities/ctf/CtfFlag';
 import { BossBomb, BOSS_BOMB_BLAST_R } from '../../entities/ctf/BossBomb';
 import { ENEMY_GUARD, ENEMY_CTF_BOSS, CTF_BOSS_SHOOT_RANGE, type EnemyConfig } from '../../config/enemies';
@@ -383,7 +384,7 @@ export class CtfSystem {
                     // v0.143.0: bomba tez respektuje sanktuarium. Bez tego "bezpieczna baza"
                     // bylaby klamstwem — bomba leci z 400 px i ma promien razenia 250 px.
                     const shielded = isInvulnerable || this.isInHomeSanctuary(player.x, player.y);
-                    const died = player.takeDamage(dmg, shielded);
+                    const died = player.takeDamage(dmg, shielded, SRC_BOSS_BOMB); // Z0.5
                     if (!shielded) {
                         this.opts.session.markDamageTaken();
                         effects.shake(28, 30);

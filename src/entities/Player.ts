@@ -5,6 +5,7 @@ import { TankSpriteBaker } from '../rendering/TankSpriteBaker';
 import { checkRectCollision } from '../systems/Physics';
 import type { EffectsManager } from '../rendering/Effects';
 import type { ICollidable } from '../types/MapType';
+import type { DamageSource } from '../types/DamageSource'; // Z0.5
 
 // FAZA 7c: profile flag override via FLAGS config (data-driven)
 import { FLAGS, type FlagConfig } from '../config/flags';
@@ -92,6 +93,8 @@ export class Player {
     public baseSpeed: number;
     public maxHp: number;
     public hp: number;
+    /** Z0.5: ostatnie PRZYJETE zrodlo obrazen (konsumenci: koop/moce — na razie brak). */
+    public lastDamageSource: DamageSource | null = null;
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
@@ -313,8 +316,13 @@ export class Player {
         this.flagGfx.endFill();
     }
 
-    takeDamage(amount: number, isInvulnerable: boolean = false): boolean {
+    /**
+     * Z0.5: `source` OBOWIAZKOWE — kazde obrazenie niesie sprawce (typ + referencja).
+     * Zapisywane tylko przy FAKTYCZNIE przyjetym obrazeniu (invulnerable nie nadpisuje).
+     */
+    takeDamage(amount: number, isInvulnerable: boolean, source: DamageSource): boolean {
         if (isInvulnerable) return false;
+        this.lastDamageSource = source;
         this.hp -= amount;
         return this.hp <= 0;
     }

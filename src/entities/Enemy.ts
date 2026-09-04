@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { getEnemyTextures, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { checkRectCollision } from '../systems/Physics';
 import { worldRng } from '../systems/Rng'; // Z0.1: seeded gameplay RNG
+import type { DamageSource } from '../types/DamageSource'; // Z0.5
 import { WORLD_W, WORLD_H } from '../config/constants'; // FAZA CTF F2 — clampy guarda
 import { BRAWLERS } from '../config/brawlers';
 import { EnemySpriteBaker, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
@@ -99,6 +100,8 @@ export class Enemy {
     public speed: number;
     public maxHp: number;
     public hp: number;
+    /** Z0.5: ostatnie zrodlo obrazen (kill-attribution pod koop/questy — na razie bez konsumenta). */
+    public lastDamageSource: DamageSource | null = null;
     public active: boolean;
     public tintHex: number;
     public isBoss: boolean;
@@ -802,12 +805,14 @@ export class Enemy {
         return null;
     }
 
-    takeDamage(amount: number, hitX: number, hitY: number, worldContainer: PIXI.Container, effects: EffectsManager): boolean {
+    /** Z0.5: `source` OBOWIAZKOWE — kazde obrazenie niesie sprawce (kill-attribution pod koop/questy). */
+    takeDamage(amount: number, hitX: number, hitY: number, worldContainer: PIXI.Container, effects: EffectsManager, source: DamageSource): boolean {
         if (this.isMegaBoss && this.megaShieldActive) {
             effects.spawnEnemyHitSparks(hitX, hitY, 0xffd700);
             return false;
         }
 
+        this.lastDamageSource = source;
         this.hp -= amount;
         this.drawHp();
 

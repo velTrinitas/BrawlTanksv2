@@ -161,6 +161,7 @@ import { AudioSys } from './audio/AudioSys';
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { worldRng, seedMatchRng } from './systems/Rng';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
+import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
@@ -1127,7 +1128,7 @@ function tryActivateSuper(slot: 0 | 1 | 2 = 0): void {
         for (const enemy of result.megaBombTargets) {
             // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (na wszelki wypadek).
             const wasFrozen = Date.now() < enemy.frozenUntil;
-            const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects);
+            const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects, SRC_POWER_MEGA_BOMB); // Z0.5
             if (killed) {
                 spawnSystem!.registerKill(enemy);
                 // v0.49.0 Scoring v2: mega bomba NIE wola registerKill na GameSession (AOE != skill streak),
@@ -1340,7 +1341,7 @@ function triggerShockwave(x: number, y: number, radius: number, dmg: number, sou
     for (const other of enemies) {
         if (other === source || !other.active) continue;
         if ((other.x - x) ** 2 + (other.y - y) ** 2 <= r2) {
-            const killed = other.takeDamage(dmg, other.x, other.y, worldContainer, eff);
+            const killed = other.takeDamage(dmg, other.x, other.y, worldContainer, eff, SRC_SHOCKWAVE); // Z0.5
             if (killed) {
                 ss.registerKill(other);
                 cs.addKillScore(other.scoreValue);
@@ -2149,7 +2150,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             if (!enemy.active) continue;
             if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 > r2) continue;
             const wasFrozen = Date.now() < enemy.frozenUntil;
-            const killed = enemy.takeDamage(dmg, enemy.x, enemy.y, worldContainer, effects);
+            const killed = enemy.takeDamage(dmg, enemy.x, enemy.y, worldContainer, effects, SRC_POWER); // Z0.5: generyczne AOE mocy (miny/rakiety/Dziura/Laser)
             if (killed) {
                 spawnSystem.registerKill(enemy);
                 currentSession.addKillScore(enemy.scoreValue);
@@ -2264,7 +2265,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                     if (!player || !currentSession || gameState !== 'PLAYING') return;
                     const d = Math.hypot(player.x - ix, player.y - iy);
                     if (d <= SNOWBALL_HIT_RADIUS) {
-                        const died = player.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive);
+                        const died = player.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive, SRC_SNOWBALL); // Z0.5
                         if (!powerSystem!.isInvulnerable) {
                             effects!.spawnEnemyHitSparks(player.x, player.y, 0xff0000);
                             effects!.shake(4, 6);
@@ -3966,7 +3967,8 @@ app.ticker.add((rawDelta) => {
         if (dx * dx + dy * dy < 25 * 25) {
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
-            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary);
+            const playerDied = player.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
+                { kind: 'enemy_bullet', attackerRef: eb }); // Z0.5
 
             if (powerSystem.isInvulnerable || ctfSanctuary) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
@@ -4061,7 +4063,8 @@ app.ticker.add((rawDelta) => {
             const collDmg = powerSystem.isDiscoTired(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
                 : enemy.collisionDmg;
-            const playerDied = player.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary); // tutorial/sanktuarium => niesmiertelny
+            const playerDied = player.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
+                { kind: 'enemy_ram', attackerRef: enemy }); // Z0.5; tutorial/sanktuarium => niesmiertelny
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.
@@ -4128,7 +4131,9 @@ app.ticker.add((rawDelta) => {
                 const wasSuperShot = b.source === 'player' && player.isSuperShotActive;
                 // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (frozen kill bonus).
                 const wasFrozen = Date.now() < enemy.frozenUntil;
-                const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects);
+                // Z0.5: pocisk gracza vs pocisk Wiezy (moc) — Bullet.source rozstrzyga
+                const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects,
+                    b.source === 'player' ? SRC_PLAYER_BULLET : SRC_POWER);
                 const damageApplied = enemy.hp < hpBefore || killed;
 
                 // v0.46.0 HP/DMG x100: floating damage numbers przy trafieniu (premium feel).

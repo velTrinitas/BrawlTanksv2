@@ -89,6 +89,12 @@ export interface ScoreInsert {
     powers_used?: number;
     mega_boss_defeated?: boolean;
     fun_mode?: boolean;         // v0.114.0 — DEFAULT false (stara kolejka offline bez pola)
+    // Z0.7 (COOP): wymiar trybu. DB ma DEFAULT 'solo' (migracja supabase/scores_mode.sql).
+    // UWAGA: obecnie wdrozona Edge Function IGNORUJE te pola (przepisuje payload
+    // jawnie) — zaczna dzialac po redeployu w Z0.7b (PO oknie testow 23.09).
+    // CURRENT_SCORE_VERSION zostaje 4: to nowy WYMIAR, nie zmiana formuly wyniku.
+    mode?: string;              // 'solo' | 'coop' — DEFAULT 'solo'
+    match_id?: string | null;   // UUID wspolnego meczu koop; solo = null
     // id / created_at — NIE wysylamy (server-side)
 }
 

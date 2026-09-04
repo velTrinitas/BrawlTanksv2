@@ -199,6 +199,10 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
             brawler_id: config.brawlerId,
             session_id: config.sessionId,
             score_version: CURRENT_SCORE_VERSION,
+            // Z0.7: wymiar trybu (dzis zawsze 'solo'). Obecna Edge Function pole
+            // IGNORUJE (DB dostaje DEFAULT 'solo' — ten sam efekt); zacznie je
+            // honorowac po redeployu w Z0.7b (po oknie testow 23.09).
+            mode: config.mode,
             // v0.100.0 — staty meczu. Edge Function waliduje i klampuje je serwerowo;
             // brak pola => kolumna zostaje na DEFAULT (zgodnosc ze starymi wpisami w kolejce).
             ...(stats ? {

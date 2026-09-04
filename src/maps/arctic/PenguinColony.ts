@@ -194,6 +194,7 @@ export class PenguinColony {
             this.dropTimerMs = 0;
             const eligible = this.penguins.filter(p => p.pathProgress > 0);
             if (eligible.length > 0) {
+                // Z0.2 AUDIT: WORLD RNG (wybor pingwina = pozycja dropu + typ pickupu) -> seed w Z0.1
                 const p = eligible[Math.floor(Math.random() * eligible.length)];
                 const roll = Math.random();
                 const type: DropInfo['type'] = roll < 0.80 ? 'gem' : roll < 0.95 ? 'heart' : 'magnet';

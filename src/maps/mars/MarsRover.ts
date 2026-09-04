@@ -221,6 +221,7 @@ export class MarsRover {
         this.dropTimerMs += delta * (1000 / 60);
         if (this.dropTimerMs >= DROP_INTERVAL_MS) {
             this.dropTimerMs = 0;
+            // Z0.2 AUDIT: WORLD RNG (typ pickupu) -> seed w Z0.1
             const roll = Math.random();
             const type: RoverDropType = roll < 0.80 ? 'gem' : roll < 0.95 ? 'heart' : 'magnet';
             return { type, x: pos.x, y: pos.y + 8 };

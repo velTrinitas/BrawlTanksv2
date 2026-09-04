@@ -285,6 +285,8 @@ export class LettuceField implements IFarmField {
         splat.x = p.baseX;
         splat.y = p.baseY + 2;  // lekko niżej (płaska plama na ziemi)
         splat.zIndex = Math.floor(p.baseY) - 1;  // pod tankami
+        // Z0.2 AUDIT: KOSMETYKA, ale runtime (trigger = najechanie czolgiem) — w Z0.1 zostawic
+        // na Math.random() albo strumieniu visual; NIE podpinac pod world-stream (desync pozycji w strumieniu)
         splat.rotation = (Math.random() - 0.5) * Math.PI * 2;  // random rotation dla variety
         splat.scale.set(0.85 + Math.random() * 0.3);
         this.worldContainer.addChild(splat);

@@ -508,8 +508,9 @@ export class Caravan {
             const visibleCamels = this.camels.filter(c => c.pathProgress > 0);
             if (visibleCamels.length === 0) return null;
             
+            // Z0.2 AUDIT: WORLD RNG (wybor wielblada = pozycja dropu + typ pickupu) -> seed w Z0.1
             const randomCamel = visibleCamels[Math.floor(Math.random() * visibleCamels.length)];
-            
+
             const r = Math.random();
             let type: CaravanDropType;
             if (r < 0.60) type = 'gem';

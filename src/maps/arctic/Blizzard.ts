@@ -75,6 +75,7 @@ export class Blizzard {
         }
 
         this.phaseAt = Date.now();
+        // Z0.2 AUDIT: WORLD RNG (timing pierwszej zamieci = wspolne zdarzenie swiata) -> seed w Z0.1
         this.idleDuration = FIRST_IDLE_MIN_MS + Math.random() * 4_000;
     }
 
@@ -118,6 +119,7 @@ export class Blizzard {
                 if (this.intensity <= 0) {
                     this.phase = 'idle';
                     this.phaseAt = now;
+                    // Z0.2 AUDIT: WORLD RNG (timing kolejnej zamieci) -> seed w Z0.1
                     this.idleDuration = IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
                     this.container.visible = false;
                     return;

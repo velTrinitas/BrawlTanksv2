@@ -183,6 +183,7 @@ export class UfoAbductor {
 
         this.x = WORLD_W * 0.5;
         this.y = WORLD_H * 0.35;
+        // Z0.2 AUDIT: WORLD RNG (kurs bladzenia -> pozycja UFO -> kogo porywa) -> seed w Z0.1
         this.wanderAngle = Math.random() * Math.PI * 2;
         this.phaseAt = Date.now();
         this.cooldownUntil = Date.now() + 6000;   // grace period after map start
@@ -445,6 +446,7 @@ export class UfoAbductor {
 
     /** Climb back to cruising altitude and resume hunting. */
     private doTakeoff(delta: number, now: number): void {
+        // Z0.2 AUDIT: WORLD RNG (per-frame jitter kursu -> pozycja UFO) -> seed w Z0.1
         this.wanderAngle += (Math.random() - 0.5) * 0.03 * delta;
         this.x += Math.cos(this.wanderAngle) * CRUISE_SPEED * 0.8 * delta;
         this.y += Math.sin(this.wanderAngle) * CRUISE_SPEED * 0.5 * delta;
@@ -895,6 +897,7 @@ export class UfoAbductor {
 
     /** Wander the sky; divert when something grabbable comes into range. */
     private doCruise(delta: number, now: number, enemies: Enemy[], cargo: MarsCargo[]): void {
+        // Z0.2 AUDIT: WORLD RNG (per-frame jitter kursu -> pozycja UFO -> wybor ofiary) -> seed w Z0.1
         this.wanderAngle += (Math.random() - 0.5) * 0.05 * delta;
         this.x += Math.cos(this.wanderAngle) * CRUISE_SPEED * delta;
         this.y += Math.sin(this.wanderAngle) * CRUISE_SPEED * 0.6 * delta;

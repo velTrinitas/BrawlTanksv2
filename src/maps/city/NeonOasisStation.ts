@@ -876,6 +876,7 @@ export class NeonOasisStation {
             const near = dx * dx + dy * dy < 70 * 70;
             if (near && !this.playerWasNearVend && !this.can && this.canSpawnCooldown <= 0) {
                 // wypada z otworu wydawczego, toczy sie w losowa strone (przewaga w dol/bok)
+                // Z0.2 AUDIT: WORLD RNG (kierunek/predkosc puszki -> gdzie lezy -> zdarzenie zgniecenia) -> seed w Z0.1
                 const dir = Math.random() < 0.5 ? -1 : 1;
                 this.can = {
                     x: this.vendX, y: this.vendY + 22,

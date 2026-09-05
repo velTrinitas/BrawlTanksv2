@@ -148,6 +148,11 @@ export class Gem {
                 this.vy = (dy / dist) * PICKUP_CONFIG.magnetAttractSpeed;
                 this.x += this.vx * delta;
                 this.baseY += this.vy * delta;
+                // BUGFIX v0.155.2: y bylo zamrozona pozycja spawnu, a kolizja zbierania
+                // w main.ts czyta g.y — gem przyciagniety magnesem zbieral sie wg pionu
+                // SPRZED przyciagniecia. Synchronizacja przywraca jeden autorytet pionu
+                // (y === baseY; floatOffset to czysto wizualny dodatek na sprite).
+                this.y = this.baseY;
             }
         }
         

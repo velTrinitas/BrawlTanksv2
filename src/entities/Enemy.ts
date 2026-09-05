@@ -102,6 +102,8 @@ export class Enemy {
     public hp: number;
     /** Z0.5: ostatnie zrodlo obrazen (kill-attribution pod koop/questy — na razie bez konsumenta). */
     public lastDamageSource: DamageSource | null = null;
+    /** v0.155.2: czy tint mrozu jest nalozony — wczesniej stan czytany z hull.tint (widok jako sim). */
+    private frozenTintApplied: boolean = false;
     public active: boolean;
     public tintHex: number;
     public isBoss: boolean;
@@ -595,10 +597,12 @@ export class Enemy {
             // Freeze: multiply tint 0x66ddff dziala tez na baked kolory (cyan cast, czyta sie jako mroz).
             this.hull.tint = 0x66ddff;
             this.turret.tint = 0x66ddff;
+            this.frozenTintApplied = true; // v0.155.2: stan sim zamiast odczytu tinta (dlug pod headless)
             if (this.flashOverlay) this.flashOverlay.visible = false; // flash stlumiony podczas mrozu (jak flat)
             return null;
-        } else if (this.hull.tint === 0x66ddff) {
+        } else if (this.frozenTintApplied) {
             // Reset po mrozie: bake => 0xffffff (baked kolory), flat => tintHex.
+            this.frozenTintApplied = false;
             const base = this.bakerArch ? 0xffffff : this.tintHex;
             this.hull.tint = base;
             this.turret.tint = base;

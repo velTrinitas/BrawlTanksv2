@@ -1000,7 +1000,10 @@ export class PowerSystem {
         const hull = new PIXI.Sprite(tex.hull);
         hull.anchor.set(0.5);
         hull.tint = 0xb39ddb;
-        hull.rotation = player.hull.rotation;
+        // BUGFIX v0.155.2 (znalezisko inwentaryzacji ETAPU 1): player.hull.rotation w bake
+        // mode NIGDY nie jest pisane (Player gated na !bakerActive) — duch stal pod katem 0.
+        // hullAngle to wlasciwy sim-akcesor (lastMoveAngle), dziala w obu trybach.
+        hull.rotation = player.hullAngle;
         c.addChild(hull);
         const turret = new PIXI.Sprite(tex.turret);
         turret.anchor.set(0.5);

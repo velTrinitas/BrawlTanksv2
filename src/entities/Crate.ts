@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../types/MapType';
 import { EffectsManager } from '../rendering/Effects';
+import { applyHitShake } from '../rendering/hitShake'; // v0.155.3 (D1)
 import { AudioSys } from '../audio/AudioSys';
 
 /**
@@ -373,16 +374,9 @@ export class Crate implements ICollidable {
         } else {
             // Mini hit feedback (small splinter spray od miejsca trafienia)
             this.effects.spawnWoodSplinters(hitX, hitY, 5);
-            // Subtle shake (lekka oscylacja crate)
-            const shakeAmt = 1.5;
-            this.crateContainer.x = (Math.random() - 0.5) * shakeAmt;
-            this.crateContainer.y = (Math.random() - 0.5) * shakeAmt;
-            setTimeout(() => {
-                if (this.crateContainer && !this.isDestroyed) {
-                    this.crateContainer.x = 0;
-                    this.crateContainer.y = 0;
-                }
-            }, 80);
+            // Subtle shake (lekka oscylacja crate) — v0.155.3: wspolny helper (D1);
+            // Crate rysuje w wspolrzednych swiata, wiec baza kontenera to (0,0)
+            applyHitShake(this.crateContainer, 0, 0, 1.5, 80, () => this.isDestroyed);
         }
     }
 

@@ -150,6 +150,23 @@ export class EffectsManager {
     // Screen shake state
     private shakeIntensity: number = 0;
     private shakeDuration: number = 0;
+    // v0.155.3 (D2, porzadki dlugu pod MP): animacje pierscieni/overlay jezdzace na TICKU
+    // gry zamiast wlasnych petli requestAnimationFrame. Efekt: respektuja hit-stop
+    // (zamieraja z calym swiatem — spojna Sensoryka) i nie wymagaja rAF (dlug pod
+    // headless/ETAP 1). frame biegnie o delta na krok (jednostki klatek 60 fps).
+    // Uboczne (akceptowane): po koncu meczu (update() nie biega poza PLAYING) trwajaca
+    // animacja zamiera do rozbiorki swiata — freeze-frame na endcardzie, nie wyciek.
+    private tickAnims: Array<{
+        gfx: PIXI.Graphics;
+        frame: number;
+        dur: number;
+        draw: (gfx: PIXI.Graphics, t: number, frame: number) => void;
+    }> = [];
+
+    private addTickAnim(gfx: PIXI.Graphics, dur: number, draw: (gfx: PIXI.Graphics, t: number, frame: number) => void): void {
+        this.tickAnims.push({ gfx, frame: 0, dur, draw });
+    }
+
     public shakeOffsetX: number = 0;
     public shakeOffsetY: number = 0;
 
@@ -525,27 +542,15 @@ export class EffectsManager {
 
         this.shake(15, 25);
 
-        let frame = 0;
-        const animate = () => {
-            frame++;
-            const t = frame / 30;
-
-            if (t >= 1) {
-                if (ring.parent) ring.parent.removeChild(ring);
-                ring.destroy();
-                return;
-            }
-
+        // v0.155.3 (D2): tick gry zamiast wlasnego rAF — zamiera z hit-stopem.
+        this.addTickAnim(ring, 30, (g, t) => {
             const radius = 50 + (200 * t);
-            ring.clear();
-            ring.lineStyle(8 - t * 6, 0xff4400, 1 - t);
-            ring.drawCircle(0, 0, radius);
-            ring.lineStyle(4 - t * 3, 0xffaa00, 1 - t);
-            ring.drawCircle(0, 0, radius - 6);
-
-            requestAnimationFrame(animate);
-        };
-        animate();
+            g.clear();
+            g.lineStyle(8 - t * 6, 0xff4400, 1 - t);
+            g.drawCircle(0, 0, radius);
+            g.lineStyle(4 - t * 3, 0xffaa00, 1 - t);
+            g.drawCircle(0, 0, radius - 6);
+        });
     }
 
     /**
@@ -559,25 +564,15 @@ export class EffectsManager {
         ring.zIndex = 498;
         this.worldContainer.addChild(ring);
 
-        let frame = 0;
-        const DUR = 18; // ~0.3s @60fps (szybki impakt)
-        const animate = () => {
-            frame++;
-            const t = frame / DUR;
-            if (t >= 1) {
-                if (ring.parent) ring.parent.removeChild(ring);
-                ring.destroy();
-                return;
-            }
+        // v0.155.3 (D2): tick gry zamiast wlasnego rAF (~0.3s @60fps, szybki impakt).
+        this.addTickAnim(ring, 18, (g, t) => {
             const radius = maxRadius * t;
-            ring.clear();
-            ring.lineStyle(5 - t * 4, color, 1 - t);
-            ring.drawCircle(0, 0, radius);
-            ring.lineStyle(2, 0xd8b8ff, (1 - t) * 0.6);
-            ring.drawCircle(0, 0, radius - 4);
-            requestAnimationFrame(animate);
-        };
-        animate();
+            g.clear();
+            g.lineStyle(5 - t * 4, color, 1 - t);
+            g.drawCircle(0, 0, radius);
+            g.lineStyle(2, 0xd8b8ff, (1 - t) * 0.6);
+            g.drawCircle(0, 0, radius - 4);
+        });
     }
 
     /**
@@ -592,25 +587,15 @@ export class EffectsManager {
         const ring = new PIXI.Graphics();
         ring.x = x; ring.y = y; ring.zIndex = 498;
         this.worldContainer.addChild(ring);
-        let frame = 0;
-        const DUR = 32;
-        const animate = () => {
-            frame++;
-            const t = frame / DUR;
-            if (t >= 1) {
-                if (ring.parent) ring.parent.removeChild(ring);
-                ring.destroy();
-                return;
-            }
+        // v0.155.3 (D2): tick gry zamiast wlasnego rAF (~0.5s, wzorzec spawnShockwaveRing).
+        this.addTickAnim(ring, 32, (g, t) => {
             const R = 20 + t * 62;
-            ring.clear();
-            ring.lineStyle(6 - t * 5, color, 1 - t);
-            ring.drawCircle(0, 0, R);
-            ring.lineStyle(3, 0xffffff, (1 - t) * 0.7);
-            ring.drawCircle(0, 0, R * 0.6);
-            requestAnimationFrame(animate);
-        };
-        animate();
+            g.clear();
+            g.lineStyle(6 - t * 5, color, 1 - t);
+            g.drawCircle(0, 0, R);
+            g.lineStyle(3, 0xffffff, (1 - t) * 0.7);
+            g.drawCircle(0, 0, R * 0.6);
+        });
     }
 
     spawnFreezeOverlay(durationFrames: number): void {
@@ -621,21 +606,12 @@ export class EffectsManager {
         overlay.zIndex = 9999;
         this.worldContainer.addChild(overlay);
 
-        let frame = 0;
-        const animate = () => {
-            frame++;
-            if (frame >= durationFrames || !overlay.parent) {
-                if (overlay.parent) overlay.parent.removeChild(overlay);
-                overlay.destroy();
-                return;
-            }
-            const t = frame / durationFrames;
+        // v0.155.3 (D2): tick gry zamiast wlasnego rAF — puls freeze zamiera z hit-stopem.
+        this.addTickAnim(overlay, durationFrames, (g, t, frame) => {
             const pulse = 0.85 + Math.sin(frame / 10) * 0.15;
             const fadeOut = t > 0.7 ? 1 - ((t - 0.7) / 0.3) : 1;
-            overlay.alpha = 0.18 * pulse * fadeOut;
-            requestAnimationFrame(animate);
-        };
-        animate();
+            g.alpha = 0.18 * pulse * fadeOut;
+        });
     }
 
     // ==========================================
@@ -795,6 +771,20 @@ export class EffectsManager {
     // ==========================================
 
     update(delta: number): void {
+        // === Tick-anims (v0.155.3 D2): pierscienie mega bomby/shockwave/portalu + overlay freeze ===
+        for (let i = this.tickAnims.length - 1; i >= 0; i--) {
+            const a = this.tickAnims[i];
+            a.frame += delta;
+            const t = a.frame / a.dur;
+            if (t >= 1 || !a.gfx.parent) {
+                if (a.gfx.parent) a.gfx.parent.removeChild(a.gfx);
+                a.gfx.destroy();
+                this.tickAnims.splice(i, 1);
+                continue;
+            }
+            a.draw(a.gfx, t, a.frame);
+        }
+
         // === Particles ===
         for (const p of this.particles) {
             if (!p.active) continue;

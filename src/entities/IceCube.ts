@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../types/MapType';
 import type { EffectsManager } from '../rendering/Effects';
+import { applyHitShake } from '../rendering/hitShake'; // v0.155.3 (D1)
 import type { AudioSys } from '../audio/AudioSys';
 import { ARCTIC_PALETTE, ARCTIC_LIGHT } from '../maps/ArcticMap';
 
@@ -129,15 +130,8 @@ export class IceCube implements ICollidable {
         }
         // mini rozbryzg + drgniecie
         this.effects.spawnEnemyHitSparks(hitX, hitY, SPLASH_LIGHT);
-        const shakeAmt = 1.5;
-        this.container.x = this.origX + (Math.random() - 0.5) * shakeAmt;
-        this.container.y = this.origY + (Math.random() - 0.5) * shakeAmt;
-        setTimeout(() => {
-            if (this.container && !this.isDestroyed) {
-                this.container.x = this.origX;
-                this.container.y = this.origY;
-            }
-        }, 80);
+        // v0.155.3: wspolny helper drgniecia (D1) — baza kontenera to (origX, origY)
+        applyHitShake(this.container, this.origX, this.origY, 1.5, 80, () => this.isDestroyed);
     }
 
     private shatter(): void {

@@ -16,6 +16,11 @@ interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
+// SKIN-2: reduced-motion gasi sin pulsu skina (stale alpha) — odczyt raz na load.
+const SKIN_PULSE_REDUCED = ((): boolean => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch { return false; }
+})();
 
 // FAZA P1 Sprite Baker — display scale gracza w trybie bake (2.5D). 1.25 = +25% vs wrogowie.
 // Flaga wpieczona w teksture hull skaluje sie razem z bryla. Hitbox (main.ts radius) BEZ zmian.
@@ -98,6 +103,14 @@ export class Player {
     public container: PIXI.Container;
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
+    /**
+     * SKIN-2: tani puls animowanego skina w meczu — sprite ADD reuzywajacy
+     * TA SAMA teksture co hull (podmiana referencji per kat = zero VRAM),
+     * animowane tylko alpha (sin). Pelna animacja wzoru zyje w Garazu.
+     * null gdy skin nie-animowany albo flat path.
+     */
+    private skinPulseOverlay: PIXI.Sprite | null = null;
+    private skinPulseT = 0;
 
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
@@ -141,7 +154,9 @@ export class Player {
      *   new Player(brawlerData, worldContainer)                       — uses brawler.flag default
      *   new Player(brawlerData, worldContainer, profileFlagId)        — profile override
      */
-    constructor(brawlerData: Brawler, worldContainer: PIXI.Container, profileFlagId?: FlagId | null) {
+    constructor(brawlerData: Brawler, worldContainer: PIXI.Container, profileFlagId?: FlagId | null,
+        // SKIN-2: obecnosc = zalozony ANIMOWANY skin (puls ADD); tint opcjonalny.
+        skinPulse?: { tint?: string } | null) {
         this.brawler = brawlerData;
         this.x = 800;
         this.y = 800;
@@ -187,9 +202,24 @@ export class Player {
         // wiec gasimy overlay zeby nie dublowac (overlay mial nierozwiazywalny problem kompresji 2.5D).
         if (this.bakerActive) this.flagGfx.visible = false;
 
-        // Order: super-ring -> hull -> tracks -> exhaust -> flag -> turret
+        // SKIN-2: puls animowanego skina — tylko bake path; dane skina przychodza
+        // z main.ts (Player nie siega do serwisow — kierunek GameConfig -> Player).
+        // Nad hull, POD tracks/flag/turret (poswiata lakieru nie moze przykryc
+        // flagi ani wiezy). reduced-motion => stale alpha (bez sin).
+        if (this.bakerActive && skinPulse) {
+            this.skinPulseOverlay = new PIXI.Sprite(this.hull.texture);
+            this.skinPulseOverlay.anchor.set(0.5);
+            this.skinPulseOverlay.blendMode = PIXI.BLEND_MODES.ADD;
+            this.skinPulseOverlay.alpha = 0.06;
+            if (skinPulse.tint) {
+                this.skinPulseOverlay.tint = parseInt(skinPulse.tint.replace('#', ''), 16);
+            }
+        }
+
+        // Order: super-ring -> hull -> [skin pulse] -> tracks -> exhaust -> flag -> turret
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
+        if (this.skinPulseOverlay) this.container.addChild(this.skinPulseOverlay);
         this.container.addChild(this.tracksGfx);
         this.container.addChild(this.exhaustGfx);
         this.container.addChild(this.flagGfx);
@@ -631,6 +661,15 @@ export class Player {
             // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
             this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle);
             this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
+
+            // SKIN-2: puls skina — ta sama referencja tekstury co hull + sin-alpha.
+            if (this.skinPulseOverlay) {
+                this.skinPulseOverlay.texture = this.hull.texture;
+                this.skinPulseT += 1 / 60;
+                this.skinPulseOverlay.alpha = SKIN_PULSE_REDUCED
+                    ? 0.06
+                    : 0.05 + 0.09 * (0.5 + 0.5 * Math.sin(this.skinPulseT * 2.2));
+            }
 
             // recoil: caly turret sprite cofa sie wzdluz -turretAngle (barrel wpieczony w teksture
             // turret). Rozbieznosc vs lab (lab cofa tylko barrel) — czyta sie jako kopniecie.

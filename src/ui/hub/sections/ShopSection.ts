@@ -14,7 +14,7 @@ import { t } from '../../../i18n/i18n';
 import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
-import { getCosmetic, RARITY_COLOR } from '../../../config/cosmetics';
+import { getCosmetic, RARITY_COLOR, tankSkinSwatchStyle } from '../../../config/cosmetics';
 import { crateStack } from '../gameIcons';
 import { crosshairCanvasHtml, paintCrosshairPreviews } from '../crosshairPreview'; // SHOP-2
 import {
@@ -99,6 +99,27 @@ export class ShopSection implements HubSection {
         if (!items.length) return `<p class="bt-hub0-placeholder">${t('shop.empty')}</p>`;
         const owned = ProgressionService.getCosmeticState(pid).owned;
         const balance = ProgressionService.getBoltsBalance(pid);
+        // SKIN-2: zakladka BARWY CZOLGU (42 kafle) dostaje naglowki sekcji
+        // per kategoria wzoru — pelna szerokosc gridu (grid-column:1/-1).
+        if (this.tab === 'tankSkins') {
+            const catLabel: Record<string, string> = {
+                palettes: t('cosmetic.tskin.cat.palettes'),
+                animals: t('cosmetic.tskin.cat.animals'),
+                games: t('cosmetic.tskin.cat.games'),
+                elements: t('cosmetic.tskin.cat.elements'),
+                military: t('cosmetic.tskin.cat.military'),
+                seasonal: t('cosmetic.tskin.cat.seasonal'),
+            };
+            let lastCat = '';
+            return items.map(item => {
+                const def = item.grant.kind === 'cosmetic' ? getCosmetic(item.grant.id) : undefined;
+                const cat = def?.patternCat ?? 'palettes';
+                const head = cat !== lastCat
+                    ? `<div class="bt-shop-sechead">${catLabel[cat] ?? cat}</div>` : '';
+                lastCat = cat;
+                return head + this.cardHtml(item, owned, balance);
+            }).join('');
+        }
         return items.map(item => this.cardHtml(item, owned, balance)).join('');
     }
 
@@ -117,6 +138,11 @@ export class ShopSection implements HubSection {
             ? crateStack(item.grant.count)
             : def?.type === 'crosshair'
                 ? crosshairCanvasHtml(def.id)
+            // SKIN-1: barwy czolgu pokazuja PRAWDZIWA probke koloru z rejestru
+            // (ta sama zasada co celowniki — emoji 🎨 wygladaloby identycznie
+            // dla wszystkich osmiu palet).
+            : def?.type === 'tankSkin'
+                ? `<span class="sk-swatch" style="${tankSkinSwatchStyle(def)}" aria-hidden="true"></span>`
                 : src
                     ? `<img src="${BASE}${src}" alt="" draggable="false" loading="lazy" onerror="this.remove()">
                        <span class="sk-emoji" aria-hidden="true">${emoji}</span>`

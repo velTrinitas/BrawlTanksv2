@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BT Turntable Cutter — GARAZ-2.5</title>
+<!--
+  turntable-cutter.html — GARAZ-2.5 (v0.157.0). NARZEDZIE LOKALNE, POZA BUNDLEM.
+
+  Cel: wideo AI-turntable czolgu (orbit 360, jednolite tlo) -> atlas klatek webp
+  z przezroczystoscia + meta.json dla src/ui/hub/tankTurn360.ts.
+
+  Uzycie (Mariusz):
+   1. Otworz ten plik w Chrome (podwojny klik — zero servera, zero zaleznosci).
+   2. Przeciagnij wideo mp4/webm na strone.
+   3. Ustaw: liczbe klatek (24/36), kolor tla (przycisk AUTO bierze z rogu),
+      tolerancje chroma-key, despill. Kliknij TNIJ KLATKI.
+   4. Obejrzyj podglad petli; strzalkami / suwakiem wybierz KLATKE STARTOWA
+      (kanoniczne 3/4 jak na jpg) i kierunek obrotu.
+   5. Wpisz id czolga (np. king) i kliknij EKSPORT — pobiora sie atlas.webp
+      i meta.json. Wrzucic do public/assets/tanks/turn/<id>/.
+
+  Format meta.json (kontrakt z tankTurn360.ts):
+    { "frames": N, "cols": C, "frameSize": S, "startFrame": K, "dir": 1|-1 }
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #171a22; color: #e8ecf4; font: 14px/1.5 system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #9aa3b5; margin: 0 0 16px; font-size: 12px; }
+  .drop {
+    border: 2px dashed #3a4560; border-radius: 14px;
+    padding: 28px; text-align: center; color: #9aa3b5; margin-bottom: 16px;
+    transition: border-color .15s, background .15s; cursor: pointer;
+  }
+  .drop.is-over { border-color: #f1c40f; background: rgba(241,196,15,.06); }
+  .drop b { color: #e8ecf4; }
+  .panel { background: #1e2330; border: 1px solid #2c3448; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+  .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  .row label { color: #9aa3b5; font-size: 12px; min-width: 130px; }
+  input[type=range] { width: 180px; }
+  input[type=text], select {
+    background: #141824; color: #e8ecf4; border: 1px solid #2c3448; border-radius: 8px;
+    padding: 6px 10px; font: inherit;
+  }
+  input[type=color] { width: 40px; height: 30px; border: none; background: none; padding: 0; }
+  button {
+    background: #f1c40f; color: #1a1d12; border: 0; border-radius: 10px;
+    padding: 9px 18px; font: inherit; font-weight: 800; cursor: pointer;
+  }
+  button.ghost { background: #2c3448; color: #e8ecf4; }
+  button:disabled { opacity: .4; cursor: default; }
+  .val { display: inline-block; min-width: 34px; text-align: right; color: #e8ecf4; }
+  #stage { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  canvas.view {
+    background:
+      repeating-conic-gradient(#232839 0% 25%, #2c3244 0% 50%) 0 0 / 24px 24px;
+    border-radius: 12px; max-width: 380px; width: 100%;
+  }
+  #status { color: #f1c40f; font-size: 12px; min-height: 18px; }
+  video { display: none; }
+  .hint { color: #667089; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛠️ BT Turntable Cutter <span style="color:#667089;font-weight:400">GARAZ-2.5</span></h1>
+  <p class="sub">wideo AI-turntable → atlas.webp + meta.json dla obrotnicy 3/4 w Garazu</p>
+
+  <div class="drop" id="drop"><b>Przeciagnij wideo mp4/webm tutaj</b><br>albo kliknij, zeby wybrac plik</div>
+  <input type="file" id="file" accept="video/*" hidden>
+
+  <div class="panel" id="params" hidden>
+    <div class="row">
+      <label>Liczba klatek</label>
+      <select id="frames"><option>24</option><option selected>36</option></select>
+      <label>Rozmiar klatki (px)</label>
+      <select id="fsize"><option>256</option><option>340</option><option>400</option><option selected>512</option></select>
+      <span class="hint">512 = ostry przy duzej gablocie (atlas 6×6 = 3072px)</span>
+    </div>
+    <div class="row">
+      <label>Kolor tla (chroma)</label>
+      <input type="color" id="key" value="#00ff00">
+      <button class="ghost" id="autokey" type="button">AUTO z rogu</button>
+      <label>Tolerancja</label>
+      <input type="range" id="tol" min="4" max="90" value="34"><span class="val" id="tolv">34</span>
+      <label>Krawedz (feather)</label>
+      <input type="range" id="fea" min="0" max="40" value="14"><span class="val" id="feav">14</span>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="despill" checked> despill (zdejmij poswiate tla z krawedzi)</label>
+      <button id="cut" type="button">✂️ TNIJ KLATKI</button>
+      <span id="status"></span>
+    </div>
+  </div>
+
+  <div id="stage" hidden>
+    <div>
+      <canvas class="view" id="preview" width="340" height="340"></canvas>
+      <div class="row">
+        <button class="ghost" id="play" type="button">⏸</button>
+        <input type="range" id="scrub" min="0" max="35" value="0" style="flex:1">
+        <span class="val" id="fno">0</span>
+      </div>
+    </div>
+    <div class="panel" style="flex:1;min-width:260px">
+      <div class="row">
+        <label>Klatka startowa (3/4)</label>
+        <button class="ghost" id="setstart" type="button">USTAW BIEZACA</button>
+        <span class="val" id="startv">0</span>
+      </div>
+      <div class="row">
+        <label>Kierunek (drag w prawo)</label>
+        <select id="dir"><option value="1" selected>zgodny (1)</option><option value="-1">odwrotny (-1)</option></select>
+        <span class="hint">jak obrot w podgladzie idzie „pod rake" przy dragu w prawo → 1</span>
+      </div>
+      <div class="row">
+        <label>Id czolga</label>
+        <input type="text" id="tid" value="king" size="10">
+        <button id="export" type="button">💾 EKSPORT atlas + meta</button>
+      </div>
+      <p class="hint">Pliki wrzucic do: <code>public/assets/tanks/turn/&lt;id&gt;/</code><br>
+      i dopisac id do <code>TURN360_TANKS</code> w <code>src/config/hubChoose.ts</code>.</p>
+    </div>
+  </div>
+
+  <video id="vid" muted playsinline preload="auto"></video>
+</div>
+
+<script>
+'use strict';
+// ── stan ────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+let videoUrl = null;
+let cutFrames = [];      // ImageBitmap[] — przyciete, kwadratowe, frameSize
+let playT = null;
+let playing = true;
+
+$('tol').oninput = () => $('tolv').textContent = $('tol').value;
+$('fea').oninput = () => $('feav').textContent = $('fea').value;
+
+// ── wczytanie wideo ─────────────────────────────────────────────────────────
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('is-over'); };
+drop.ondragleave = () => drop.classList.remove('is-over');
+drop.ondrop = e => {
+  e.preventDefault(); drop.classList.remove('is-over');
+  const f = e.dataTransfer.files[0];
+  if (f) loadVideo(f);
+};
+$('file').onchange = e => { const f = e.target.files[0]; if (f) loadVideo(f); };
+
+function loadVideo(f) {
+  if (videoUrl) URL.revokeObjectURL(videoUrl);
+  videoUrl = URL.createObjectURL(f);
+  const v = $('vid');
+  v.src = videoUrl;
+  v.onloadedmetadata = () => {
+    $('params').hidden = false;
+    drop.innerHTML = `<b>${f.name}</b> — ${v.videoWidth}×${v.videoHeight}, ${v.duration.toFixed(2)}s`;
+    autoKeyFromCorner();
+  };
+}
+
+// ── chroma key ──────────────────────────────────────────────────────────────
+function hexToRgb(h) {
+  const v = parseInt(h.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+async function autoKeyFromCorner() {
+  const v = $('vid');
+  // BUGFIX (pilot KROL): przy loadedmetadata wideo NIE ma jeszcze zdekodowanej
+  // klatki — drawImage rysowal pustke i klucz zostawal domyslny #00ff00,
+  // a realne tlo AI to np. rgb(107,226,84) -> chroma-key nic nie wycinal.
+  // Seek wymusza dekodowanie realnej klatki przed probkowaniem.
+  await seek(v, Math.min(0.05, v.duration / 2));
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(v, 0, 0);
+  // mediana z 4 rogow (rog moze miec winiete — bierzemy najczestszy)
+  const px = [];
+  for (const [cx, cy] of [[4, 4], [c.width - 5, 4], [4, c.height - 5], [c.width - 5, c.height - 5]]) {
+    const d = x.getImageData(cx, cy, 1, 1).data;
+    px.push([d[0], d[1], d[2]]);
+  }
+  const avg = px.reduce((a, p) => [a[0] + p[0], a[1] + p[1], a[2] + p[2]], [0, 0, 0]).map(n => Math.round(n / 4));
+  $('key').value = '#' + avg.map(n => n.toString(16).padStart(2, '0')).join('');
+}
+$('autokey').onclick = autoKeyFromCorner;
+
+/**
+ * v9 keying: odleglosc w plaszczyznie CHROMINANCJI (CbCr) — luma nie wchodzi
+ * do klucza, wiec ciemniejsze/jasniejsze partie tla schodza tak samo, a cienie
+ * na tle nie zostawiaja plyt. Alpha = smoothstep; despill ODBARWIA krawedz
+ * (kolor w strone neutralnego), NIGDY nie kasuje pikseli sylwetki.
+ */
+function toCbCr(r, g, b) {
+  return [128 - 0.169 * r - 0.331 * g + 0.5 * b, 128 + 0.5 * r - 0.419 * g - 0.081 * b];
+}
+function keyOut(imgData, keyRgb, tol, fea, despill) {
+  const d = imgData.data;
+  const [kCb, kCr] = toCbCr(keyRgb[0], keyRgb[1], keyRgb[2]);
+  const t0 = tol, t1 = tol + Math.max(1, fea);
+  const keyIsGreen = keyRgb[1] > keyRgb[0] && keyRgb[1] > keyRgb[2];
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const [cb, cr] = toCbCr(r, g, b);
+    const dist = Math.hypot(cb - kCb, cr - kCr);
+    let a;
+    if (dist <= t0) a = 0;
+    else if (dist >= t1) a = 255;
+    else {
+      const k = (dist - t0) / (t1 - t0);
+      a = Math.round(k * k * (3 - 2 * k) * 255); // smoothstep
+    }
+    d[i + 3] = Math.min(d[i + 3], a);
+    // DESPILL TYLKO NA RAMPIE KRAWEDZI (alpha<255 ze smoothstepa) — wnetrze
+    // czolgu NIE JEST DOTYKANE. Lekcja z TWARDEGO (zielony kamuflaz): globalny
+    // despill zdejmowal zielen z CALEGO czolgu i przeklamywal kolory vs film.
+    if (despill && d[i + 3] > 0 && d[i + 3] < 255) {
+      if (keyIsGreen && g > Math.max(r, b)) d[i + 1] = Math.round((r + b) / 2) + 8;
+      else if (!keyIsGreen && r > g && b > g) { // magenta
+        const cap = g + 8;
+        if (r > cap) d[i] = Math.round((r + cap) / 2);
+        if (b > cap) d[i + 2] = Math.round((b + cap) / 2);
+      }
+    }
+  }
+  return imgData;
+}
+
+/** Wygladzenie alfy TYLKO w strefie krawedzi (3x3 gauss) — jedwabisty kontur. */
+function smoothEdgeAlpha(imgData) {
+  const d = imgData.data, w = imgData.width, h = imgData.height;
+  const a0 = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) a0[p] = d[p * 4 + 3];
+  const K = [1, 2, 1, 2, 4, 2, 1, 2, 1];
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    let has0 = false, hasS = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const v = a0[(y + dy) * w + x + dx];
+      if (v === 0) has0 = true; else if (v > 128) hasS = true;
+    }
+    if (!has0 || !hasS) continue;
+    let acc = 0, k = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const kk = K[(dy + 1) * 3 + dx + 1];
+      acc += a0[(y + dy) * w + x + dx] * kk; k += kk;
+    }
+    d[(y * w + x) * 4 + 3] = Math.round(acc / k);
+  }
+  return imgData;
+}
+
+// ── ciecie ──────────────────────────────────────────────────────────────────
+$('cut').onclick = async () => {
+  const v = $('vid');
+  if (!v.videoWidth) return;
+  $('cut').disabled = true;
+  const N = +$('frames').value;
+  const FS = +$('fsize').value;
+  const keyRgb = hexToRgb($('key').value);
+  const tol = +$('tol').value, fea = +$('fea').value;
+  const despill = $('despill').checked;
+
+  const src = document.createElement('canvas');
+  src.width = v.videoWidth; src.height = v.videoHeight;
+  const sx = src.getContext('2d', { willReadFrequently: true });
+
+  const keyed = []; // ImageData po chroma-key, pelny rozmiar zrodla
+  // bbox wspolny (kwadratowy crop identyczny dla wszystkich klatek — czolg nie "plywa")
+  let minX = 1e9, minY = 1e9, maxX = -1, maxY = -1;
+
+  for (let i = 0; i < N; i++) {
+    $('status').textContent = `klatka ${i + 1}/${N}…`;
+    // ostatnia klatka wideo bywa = pierwszej (petla) — probkujemy [0, dur) bez konca
+    const t = (i / N) * v.duration;
+    await seek(v, Math.min(t, Math.max(0, v.duration - 0.05)));
+    sx.drawImage(v, 0, 0);
+    const img = keyOut(sx.getImageData(0, 0, src.width, src.height), keyRgb, tol, fea, despill);
+    keyed.push(img);
+    const d = img.data;
+    for (let y = 0; y < src.height; y += 2) {        // co 2. px wystarcza na bbox
+      for (let x = 0; x < src.width; x += 2) {
+        if (d[(y * src.width + x) * 4 + 3] > 24) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    }
+  }
+  if (maxX < 0) { $('status').textContent = 'BLAD: po chroma-key nic nie zostalo — zmniejsz tolerancje'; $('cut').disabled = false; return; }
+
+  // kwadrat + 6% marginesu (czolg oddycha, nic nie dotyka krawedzi klatki)
+  const bw = maxX - minX, bh = maxY - minY;
+  const side = Math.round(Math.max(bw, bh) * 1.12);
+  const cx0 = Math.round(minX + bw / 2 - side / 2);
+  const cy0 = Math.round(minY + bh / 2 - side / 2);
+
+  cutFrames = [];
+  const tmp = document.createElement('canvas');
+  tmp.width = src.width; tmp.height = src.height;
+  const tx = tmp.getContext('2d');
+  for (let i = 0; i < N; i++) {
+    tx.clearRect(0, 0, tmp.width, tmp.height);
+    tx.putImageData(keyed[i], 0, 0);
+    const f = document.createElement('canvas');
+    f.width = FS; f.height = FS;
+    const fc = f.getContext('2d', { willReadFrequently: true });
+    fc.imageSmoothingQuality = 'high';
+    fc.drawImage(tmp, cx0, cy0, side, side, 0, 0, FS, FS);
+    // v9: jedwabisty kontur — wygladzenie alfy w strefie krawedzi po zeskalowaniu
+    fc.putImageData(smoothEdgeAlpha(fc.getImageData(0, 0, FS, FS)), 0, 0);
+    cutFrames.push(f);
+  }
+  $('status').textContent = `OK — ${N} klatek ${FS}px (crop ${side}px @ ${cx0},${cy0})`;
+  $('cut').disabled = false;
+  $('stage').hidden = false;
+  $('scrub').max = String(N - 1);
+  startPreview();
+};
+
+function seek(v, t) {
+  return new Promise(res => {
+    const done = () => { v.removeEventListener('seeked', done); requestAnimationFrame(() => res()); };
+    v.addEventListener('seeked', done);
+    v.currentTime = t;
+  });
+}
+
+// ── podglad petli ───────────────────────────────────────────────────────────
+let curF = 0;
+function drawPreview() {
+  const c = $('preview'), x = c.getContext('2d');
+  const f = cutFrames[curF];
+  if (!f) return;
+  if (c.width !== f.width) { c.width = f.width; c.height = f.height; }
+  x.clearRect(0, 0, c.width, c.height);
+  x.drawImage(f, 0, 0);
+  $('fno').textContent = String(curF);
+  $('scrub').value = String(curF);
+}
+function startPreview() {
+  if (playT) clearInterval(playT);
+  playing = true; $('play').textContent = '⏸';
+  playT = setInterval(() => {
+    if (!playing) return;
+    curF = (curF + 1) % cutFrames.length;
+    drawPreview();
+  }, 1000 / 12); // 12 fps — widac spójnosc klatek, nie maskuje jej rozmycie
+  drawPreview();
+}
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸' : '▶'; };
+$('scrub').oninput = () => { playing = false; $('play').textContent = '▶'; curF = +$('scrub').value; drawPreview(); };
+$('setstart').onclick = () => { $('startv').textContent = String(curF); };
+
+// ── eksport ─────────────────────────────────────────────────────────────────
+$('export').onclick = async () => {
+  if (!cutFrames.length) return;
+  const N = cutFrames.length;
+  const FS = cutFrames[0].width;
+  const cols = Math.ceil(Math.sqrt(N));
+  const rows = Math.ceil(N / cols);
+  if (cols * FS > 3100) { $('status').textContent = `BLAD: atlas ${cols * FS}px > 3100 — zmniejsz rozmiar klatki`; return; }
+  const atlas = document.createElement('canvas');
+  atlas.width = cols * FS; atlas.height = rows * FS;
+  const ax = atlas.getContext('2d');
+  cutFrames.forEach((f, i) => ax.drawImage(f, (i % cols) * FS, Math.floor(i / cols) * FS));
+
+  const blob = await new Promise(res => atlas.toBlob(res, 'image/webp', 0.9));
+  if (!blob) { $('status').textContent = 'BLAD: toBlob(webp) — uzyj Chrome'; return; }
+  const meta = {
+    frames: N, cols, frameSize: FS,
+    startFrame: +$('startv').textContent,
+    dir: +$('dir').value,
+  };
+  const id = ($('tid').value || 'tank').trim();
+  dl(blob, 'atlas.webp');
+  dl(new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' }), 'meta.json');
+  $('status').textContent = `Wyeksportowano: atlas.webp (${(blob.size / 1024).toFixed(0)} KB) + meta.json → public/assets/tanks/turn/${id}/`;
+};
+
+function dl(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+</script>
+</body>
+</html>

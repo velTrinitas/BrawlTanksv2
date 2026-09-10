@@ -1,5 +1,5 @@
 import { t, type TranslationKey } from '../../../i18n/i18n';
-import type { HubSection } from './HubSection';
+import type { HubSection, HubSelection } from './HubSection';
 import { SCENARIO_CONFIGS, type ScenarioId } from '../../../types/Scenario';
 import { DIFFICULTY_CONFIGS, type DifficultyId } from '../../../types/GameConfig';
 import { MENU_MAP_CARDS, CTF_MAP_CARDS, type MapId, type MenuMapCard } from '../../../types/MapType';
@@ -10,6 +10,7 @@ import { renderScenarioPreview, type ScenarioPreviewId } from '../../ScenarioPre
 import { playUiClick } from '../../uiSounds'; // Sensoryka: wybor "klika"
 import { AudioSys } from '../../../audio/AudioSys'; // v0.135.0 — prefetch muzyki mapy
 import { getCurrentSeason } from '../../../config/season'; // SEASON-2 — baner biezacego sezonu
+import { isChooseMode } from '../../../config/hubChoose'; // GARAZ-2 — wybor czolgu w Garazu
 
 /**
  * BattleSection (BITWA) — home hubu.
@@ -23,10 +24,16 @@ import { getCurrentSeason } from '../../../config/season'; // SEASON-2 — baner
  * Wybor = zloty ring + ✓ (wspolny), hover = zoom mediow (easing strony), GRAJ pokazuje
  * PODSUMOWANIE wyboru i startuje mecz natychmiast. Wybor pamietany przez LastSession.
  * PRZYSZLOSC: badge Crew Rank na karcie czolgu (docs/crew-ranks-v1.md §8).
+ *
+ * GARAZ-2 (v0.156.0, flaga ?choose=1): wybor czolgu PRZENOSI sie do Garaza
+ * (obrotnica) — przy flag ON ta sekcja NIE renderuje gridu czolgow (zostaja
+ * scenariusz/mapa + trudnosc), a brawler zyje we WSPOLNYM HubSelection
+ * (wstrzykniety przez HubShell; flag OFF uzywa go identycznie — mechanicznie
+ * 1:1 z dawnym prywatnym polem, ten sam seed i zywotnosc).
  */
 
 /** Przetlumaczona nazwa czolgu: `brawler.{id}.name`, fallback na config.name. */
-function tankName(b: Brawler): string {
+export function tankName(b: Brawler): string {
     const key = `brawler.${b.id}.name` as TranslationKey;
     const translated = t(key);
     return translated === key ? b.name : translated;
@@ -39,7 +46,19 @@ const DIFFICULTY_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare']
 const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle'];
 
 // Normalizacja paskow = maksima rosteru (heavy 700hp / sniper 300dmg / scout 7.5 speed).
-const STAT_MAX = { hp: 700, dmg: 300, speed: 7.5 } as const;
+// GARAZ-2: export — te same paski rysuje TankPickerOverlay i hero-row Garaza.
+export const STAT_MAX = { hp: 700, dmg: 300, speed: 7.5 } as const;
+
+/** Rzad statu czolgu (referencja: label + pasek w kolorze czolgu + biala liczba). */
+export function statRowHtml(label: string, val: number | null, max: number): string {
+    const pct = val === null ? 0 : Math.round((val / max) * 100);
+    return `
+        <span class="cd-stat">
+            <em>${label}</em>
+            <span class="bar"><b style="width:${pct}%"></b></span>
+            <u>${val === null ? '???' : val}</u>
+        </span>`;
+}
 
 // v0.137.0 — ROLE_BADGE (STANDARD/TANK/ASSASSIN/ALL-AROUND) USUNIETY. Tokeny byly
 // wziete 1:1 ze strony sigmatanks.eu i celowo nietlumaczone, ale playtest Michala
@@ -69,7 +88,6 @@ export class BattleSection implements HubSection {
      * kasuje wyboru mapy w drugim trybie — i nie trzeba tego prostowac przy 2. mapie CTF.
      */
     private selectedCtfMap: MapId = 'fortified_ruins';
-    private selectedBrawlerId: string;
     private selectedDifficulty: DifficultyId;
     private el: HTMLElement | null = null;
     /**
@@ -80,12 +98,15 @@ export class BattleSection implements HubSection {
      */
     private bump = false;
 
-    constructor() {
+    /**
+     * GARAZ-2: wybor czolgu zyje we WSPOLNYM obiekcie (HubShell seeduje z LastSession
+     * dawna logika tej klasy). Grid BITWY (flag OFF) i obrotnica Garaza (flag ON)
+     * pisza do tego samego pola — dock GRAJ z kazdej sekcji startuje wlasciwym czolgiem.
+     */
+    constructor(private readonly sel: HubSelection) {
         // Ostatni wybor gracza z LastSession (wygasa 30 dni) — walidowany, fallback
-        // twardy/normal. "GRAJ" gra tym, czym gralem ostatnio (zero pickera).
+        // normal. "GRAJ" gra tym, czym gralem ostatnio (zero pickera).
         const last = sessionService.getLastSession();
-        this.selectedBrawlerId = last && BRAWLERS.some(b => b.id === last.brawlerId)
-            ? last.brawlerId : (BRAWLERS[0]?.id ?? 'twardy');
         this.selectedDifficulty = last && (DIFFICULTY_ORDER as string[]).includes(last.difficulty)
             ? last.difficulty as DifficultyId : 'normal';
     }
@@ -107,7 +128,7 @@ export class BattleSection implements HubSection {
     }
 
     public startCurrentMatch(): void {
-        this.onPlay?.(this.selectedScenario, this.currentMapId(), this.selectedBrawlerId, this.selectedDifficulty);
+        this.onPlay?.(this.selectedScenario, this.currentMapId(), this.sel.brawlerId, this.selectedDifficulty);
     }
 
     render(el: HTMLElement): void {
@@ -133,15 +154,9 @@ export class BattleSection implements HubSection {
 
     // ── wspolne kawalki karty ───────────────────────────────────────────────
 
-    /** Rzad statu czolgu (referencja: label + pasek w kolorze czolgu + biala liczba). */
+    /** Rzad statu czolgu — deleguje do modulowego statRowHtml (GARAZ-2: wspolny). */
     private statRow(label: string, val: number | null, max: number): string {
-        const pct = val === null ? 0 : Math.round((val / max) * 100);
-        return `
-            <span class="cd-stat">
-                <em>${label}</em>
-                <span class="bar"><b style="width:${pct}%"></b></span>
-                <u>${val === null ? '???' : val}</u>
-            </span>`;
+        return statRowHtml(label, val, max);
     }
 
     private html(): string {
@@ -156,8 +171,12 @@ export class BattleSection implements HubSection {
             </div>`;
 
         // ── CZOLGI 3x3 (8 + placeholder Enigma) ─────────────────────────────
-        const tankCards = BRAWLERS.map(b => `
-            <button class="bt-hub0-card${b.id === this.selectedBrawlerId ? ' is-selected' : ''}"
+        // GARAZ-2 (flag ON): grid czolgow ZNIKA z BITWY — wybor mieszka w Garazu
+        // (obrotnica). Flag OFF: dokladnie dzisiejszy grid, zero zmian.
+        let tanks = '';
+        if (!isChooseMode()) {
+            const tankCards = BRAWLERS.map(b => `
+            <button class="bt-hub0-card${b.id === this.sel.brawlerId ? ' is-selected' : ''}"
                     data-tank="${b.id}" type="button" style="--tank:${b.colorMain}">
                 <span class="cd-media">
                     ${b.icon
@@ -173,8 +192,8 @@ export class BattleSection implements HubSection {
                     ${this.statRow('SPEED', b.speed, STAT_MAX.speed)}
                 </span>
             </button>`).join('');
-        // 9. slot — teaser przyszlego czolgu (nazwa wlasna "Enigma", bez i18n).
-        const enigma = `
+            // 9. slot — teaser przyszlego czolgu (nazwa wlasna "Enigma", bez i18n).
+            const enigma = `
             <span class="bt-hub0-card is-soon">
                 <span class="cd-media"><span class="cd-q" aria-hidden="true">?</span></span>
                 <span class="cd-body">
@@ -187,9 +206,10 @@ export class BattleSection implements HubSection {
                     ${this.statRow('SPEED', null, 1)}
                 </span>
             </span>`;
-        const tanks = `
+            tanks = `
             <div class="bt-hub0-subhead">🚜 ${t('hub.battle.pickTank')}</div>
             <div class="bt-hub0-cards bt-hub0-cards--tanks">${tankCards}${enigma}</div>`;
+        }
 
         // ── SCENARIUSZE 3x1 (ktb/ctf/castle; save_king wyciety) ─────────────
         //
@@ -253,7 +273,7 @@ export class BattleSection implements HubSection {
             </div>`;
 
         // ── GRAJ z PODSUMOWANIEM wyboru (Czytelnosc: widzisz CO odpalasz) ───
-        const b = BRAWLERS.find(x => x.id === this.selectedBrawlerId) ?? BRAWLERS[0];
+        const b = BRAWLERS.find(x => x.id === this.sel.brawlerId) ?? BRAWLERS[0];
         const summaryParts = [tankName(b)];
         if (this.selectedScenario === 'ktb') {
             const m = AVAILABLE_MAPS.find(x => x.id === this.selectedMap);
@@ -346,12 +366,13 @@ export class BattleSection implements HubSection {
                 this.render(el);
             });
         });
+        // GARAZ-2: przy flag ON grid czolgow nie istnieje w DOM — petla nic nie znajdzie.
         el.querySelectorAll<HTMLElement>('[data-tank]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const id = btn.dataset.tank;
                 if (!id || !BRAWLERS.some(b => b.id === id)) return;
                 playUiClick();
-                this.selectedBrawlerId = id;
+                this.sel.brawlerId = id;
                 this.bump = true;
                 this.render(el);
             });

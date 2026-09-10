@@ -4,9 +4,12 @@ import { ProfileService } from '../../services/ProfileService';
 import { ProgressionService } from '../../services/ProgressionService';
 import type { ScenarioId } from '../../types/Scenario';
 import type { MapId } from '../../types/MapType';
-import type { HubSection } from './sections/HubSection';
+import type { HubSection, HubSelection } from './sections/HubSection';
 import { BattleSection } from './sections/BattleSection';
 import { GarageSection } from './sections/GarageSection';
+import { LoadoutOverlay } from './overlays/LoadoutOverlay'; // GARAZ-3 — wybor mocy (?choose=1)
+import { sessionService } from '../../services/SessionService';  // GARAZ-2 — seed HubSelection
+import { BRAWLERS } from '../../config/brawlers';                // GARAZ-2 — walidacja seedu
 import { QuestsSection } from './sections/QuestsSection';
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
@@ -63,8 +66,23 @@ export class HubShell implements IScreen {
     /** PROG-F2b — odsubskrybowanie nasluchu "chmura domergowala progresje". */
     private unsubscribeSync: (() => void) | null = null;
 
-    private readonly battle = new BattleSection();
-    private readonly garage = new GarageSection();
+    /**
+     * GARAZ-2 (v0.156.0) — WSPOLNY wybor czolgu (jedno zrodlo prawdy dla gridu
+     * w BITWIE i obrotnicy w GARAZU). Seed = dawna logika BattleSection 1:1:
+     * LastSession (walidowany) -> BRAWLERS[0]. Zywotnosc = zywotnosc shella,
+     * wiec dock GRAJ z KAZDEJ sekcji startuje tym samym, aktualnym wyborem.
+     * UWAGA kolejnosc pol: hubSel MUSI byc zadeklarowany przed battle/garage
+     * (inicjalizatory pol biegna w kolejnosci deklaracji).
+     */
+    private readonly hubSel: HubSelection = (() => {
+        const last = sessionService.getLastSession();
+        const ok = !!last && BRAWLERS.some(b => b.id === last.brawlerId);
+        return { brawlerId: ok && last ? last.brawlerId : (BRAWLERS[0]?.id ?? 'twardy') };
+    })();
+    private readonly battle = new BattleSection(this.hubSel);
+    private readonly garage = new GarageSection(this.hubSel);
+    /** GARAZ-3 — pelnoekranowy wybor mocy; otwierany tylko z Garaza (?choose=1). */
+    private readonly loadout = new LoadoutOverlay();
     private readonly quests = new QuestsSection();
     private readonly rank = new RankSection();
     /** SHOP-1 — sekcja tylko za flaga ?shop=1 (towar to jeszcze placeholdery). */
@@ -108,6 +126,17 @@ export class HubShell implements IScreen {
         // w miejscu do czasu przejscia miedzy sekcjami, wiec wygladalo to na zgubione
         // sigmy. Wszystkie pozostale sciezki skrzynek (rozkazy, zakup w sklepie) mialy
         // `refreshReadout()` od v0.126.0; garazowa, czyli ta pierwotna, zostala w tyle.
+        // GARAZ-3 — Garaz prosi o pelnoekranowy wybor mocy, shell montuje go
+        // w swoim roocie (ta sama sciezka co CrateOverlay). Po zamknieciu
+        // targeted refresh rzedu slotow (obrotnica NIE remountuje sie).
+        this.garage.onOpenLoadout = (slot) => {
+            if (this.rootEl) this.loadout.open(this.rootEl, this.pid(), slot,
+                () => this.garage.refreshSlots());
+        };
+        // SKIN-1 — hint preview skina prowadzi do SKLEPU (gdy sklep w nawigacji)
+        this.garage.onOpenShop = () => {
+            if (isShopEnabled()) this.setActive('shop');
+        };
         this.garage.onOpenCrate = () => {
             if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => {
                 this.refreshReadout();
@@ -235,6 +264,7 @@ export class HubShell implements IScreen {
         this.crate.close();
         this.rankUp.close();
         this.shopModal.close();
+        this.loadout.close(); // GARAZ-3
         this.rootEl?.remove();
         this.rootEl = null;
     }

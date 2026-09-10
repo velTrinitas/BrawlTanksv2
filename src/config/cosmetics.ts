@@ -11,6 +11,7 @@
  */
 
 import type { TranslationKey } from '../i18n/i18n';
+import { isSkinsEnabled } from './skins'; // SKIN-1 — gating puli skrzynek (location w try/catch)
 
 // v0.144.0: 'avatarBg' — TLO POD ZDJECIEM czolgisty (prosba z playtestu). Awatary to
 // PNG RGBA z ~45% pikseli w pelni przezroczystych i ~34% miekkich krawedzi (zmierzone
@@ -18,7 +19,12 @@ import type { TranslationKey } from '../i18n/i18n';
 // v0.147.0: 'profileSkin' — BANER pod calym paskiem hero na stronie PROFIL (1024x167).
 // To pierwszy kosmetyk oparty na PLIKU, a nie na CSS: kamuflazu ani zywiolu nie da sie
 // zapisac gradientem, a proba skonczylaby sie karykatura moro w trzech kolorach.
-export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg' | 'profileSkin';
+// SKIN-1 (v0.159.0): 'tankSkin' — BARWY CZOLGU. Pierwszy kosmetyk przecinajacy
+// granice "zero silnika": recolor przez render2d.derive(hex) wpieczony w bake
+// (TankSpriteBaker) + zywy spread na obrotnicach Garazu. GLOBALNY (1 slot barwi
+// aktualny czolg). Def niesie tylko gole stringi (hex/filter3d) — ten plik dalej
+// NIE importuje render2d ani import.meta.env.
+export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg' | 'profileSkin' | 'tankSkin';
 export type Rarity = 'c' | 'r' | 'e' | 'l';
 
 /**
@@ -32,6 +38,10 @@ export const SHOP_ONLY_TYPES: ReadonlySet<CosmeticType> =
     // (patrz cosmeticIdsOfRarity) — bez wpisu skiny wypadalyby ze skrzynek i jednoczesnie
     // stalyby na sprzedaz, czyli sklep kanibalizowalby sam siebie, a pula losowania
     // rozjechalaby sie o 8 pozycji.
+    // SKIN-1: 'tankSkin' ŚWIADOMIE POZA tym zbiorem (decyzja Mariusza: drop ze
+    // skrzynek + sklep ROWNOLEGLE). Kanibalizacja jest tu mechanicznie bezpieczna:
+    // kupiony skin => skrzynkowy duplikat konwertuje na srubki (CRATE_DUP_BOLTS),
+    // a sklepowy kafel posiadanego pokazuje "posiadane" (ShopSection).
     new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice', 'crosshair', 'profileSkin']);
 
 export interface CosmeticDef {
@@ -43,7 +53,12 @@ export interface CosmeticDef {
     readonly color?: string;
     /** nickColor: traktuj `color` jako gradient (background-clip:text). */
     readonly gradient?: boolean;
-    /** nickColor: animowany shimmer (klasa CSS bt-cos-shimmer). */
+    /**
+     * nickColor: animowany shimmer (klasa CSS bt-cos-shimmer).
+     * tankSkin (SKIN-2): wzor ANIMOWANY — pelna animacja na obrotnicy w Garazu
+     * (_skinPhase) + tani puls ADD w meczu (pulseTint). Trzy istniejace
+     * call-site'y shimmer sa gated na nickColor — bezpieczne wspoldzielenie.
+     */
     readonly animated?: boolean;
     /** frame: border shorthand ringu avatara. */
     readonly border?: string;
@@ -70,6 +85,39 @@ export interface CosmeticDef {
     readonly emoji?: string;
     /** horn: nazwa pliku w public/sfx/ (ladowany LENIWIE, patrz AudioSys.registerOwnedSound). */
     readonly sound?: string;
+    /**
+     * tankSkin (SKIN-1): kolor bazowy palety. Konsument (baker/obrotnica) liczy
+     * z niego pelna palete przez render2d.derive(hex) — tu tylko goly string.
+     */
+    readonly hex?: string;
+    /**
+     * tankSkin (SKIN-1): filtr Canvas2D (`ctx.filter`) dla obrotnicy 3/4 z ATLASU
+     * klatek (KING) — atlas nie przemaluje sie kodem, wiec skin wchodzi filtrem
+     * hue-rotate/saturate/brightness. Tuningowany per skin NA atlasie KINGA.
+     * Pusty/brak = obrotnica 3/4 zostaje w barwach bazowych (recolor tylko w meczu).
+     * WZORY (SKIN-2) maja filter3d ZAWSZE pusty — KING z wzorem spada na zywa
+     * obrotnice render2d (wzor 1:1), patrz GarageSection.mountTurntable.
+     */
+    readonly filter3d?: string;
+    /**
+     * tankSkin (SKIN-2): id WZORU = klucz rejestru SKIN_PATTERNS
+     * (src/experimental/tank25d/skinPatterns.ts). undefined = czysta paleta
+     * (sciezka SKIN-1 bez zmian). Konwencja id defow: tp_* wzory, ts_* palety.
+     */
+    readonly pattern?: string;
+    /**
+     * tankSkin (SKIN-2): aproksymacja wzoru w CSS (background shorthand) do
+     * PROSTOKATNEGO swatcha w pasku Garazu/kolekcji/sklepie. Zajawka, nie
+     * wiernosc — prawdziwy wzor gracz widzi na obrotnicy. Zero canvasow w gridzie.
+     */
+    readonly swatchCss?: string;
+    /** tankSkin (SKIN-2): kategoria wzoru do chipsow/grup UI (palety = undefined). */
+    readonly patternCat?: 'animals' | 'games' | 'elements' | 'military' | 'seasonal';
+    /**
+     * tankSkin (SKIN-2, tylko animated): kolor akcentu meczowego PULSU
+     * (overlay ADD na kadlubie — pelna animacja zyje tylko w Garazu).
+     */
+    readonly pulseTint?: string;
     /**
      * voice: pliki kwestii, `{lang}` podmieniane na aktywny jezyk ('pl' | 'en').
      * Dwie kwestie na paczke: start meczu + spadek ponizej 50% HP.
@@ -232,6 +280,132 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'ps_amber',  type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_amber',  bgImage: 'profileBG/Y-Square_mini.jpg' },
     { id: 'ps_plum',   type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_plum',   bgImage: 'profileBG/V-Square_mini.jpg' },
     { id: 'ps_lava',   type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_lava',   bgImage: 'profileBG/R-Square_mini.jpg' },
+
+    // ── SKIN-1 (v0.159.0): BARWY CZOLGU (8 palet, c2/r3/e2/l1) ───────────────
+    // hex CELOWO omija 8 barw bazowych czolgow (#27ae60/#8e44ad/#f1c40f/#3498db/
+    // #71B7F2/#b04a35/#5E587A/#E02948) — skin ma byc widoczna ZMIANA, nie odcien.
+    // filter3d: punkt startowy, tuning na zywym atlasie KINGA (krok 4 planu).
+    // Legendarny "Zloty Sigma" gra z waluta gry — czytelny cel zbierania.
+    { id: 'ts_desert',    type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.ts_desert',    hex: '#c9a35a', filter3d: 'sepia(0.5) hue-rotate(15deg) saturate(0.9) brightness(1.08)' },
+    { id: 'ts_snow',      type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.ts_snow',      hex: '#c3ced8', filter3d: 'saturate(0.15) brightness(1.32)' },
+    { id: 'ts_bubblegum', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_bubblegum', hex: '#ff5fa2', filter3d: 'hue-rotate(330deg) saturate(1.15) brightness(1.1)' },
+    { id: 'ts_toxic',     type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_toxic',     hex: '#a7f320', filter3d: 'hue-rotate(110deg) saturate(1.2)' },
+    { id: 'ts_wave',      type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_wave',      hex: '#17b8a6', filter3d: 'hue-rotate(185deg) saturate(1.05)' },
+    { id: 'ts_lava',      type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_lava',      hex: '#ff6b35', filter3d: 'hue-rotate(20deg) saturate(1.35) brightness(1.05)' },
+    { id: 'ts_night',     type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_night',     hex: '#2f3d55', filter3d: 'hue-rotate(230deg) saturate(0.5) brightness(0.8)' },
+    { id: 'ts_sigma',     type: 'tankSkin', rarity: 'l', labelKey: 'cosmetic.ts_sigma',     hex: '#f4c842', filter3d: 'hue-rotate(55deg) saturate(1.3) brightness(1.12)' },
+
+    // ── SKIN-2 (v0.160.0): WZORY PREMIUM (tp_*) + nowe palety ────────────────
+    // pattern = klucz SKIN_PATTERNS (skinPatterns.ts); hex = paleta bazowa POD
+    // wzorem (derive) + kolor nazwy; swatchCss = prostokatna zajawka w UI
+    // (aproksymacja — prawda na obrotnicy); filter3d wzorow ZAWSZE pusty
+    // (KING -> zywa obrotnica). pulseTint = akcent pulsu ADD w meczu (animated).
+
+    // ZWIERZETA
+    { id: 'tp_tiger', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_tiger',
+      hex: '#e8862a', pattern: 'tp_tiger', patternCat: 'animals',
+      swatchCss: 'background:repeating-linear-gradient(105deg,#e8862a 0 9px,#1a1208 9px 15px,#e8862a 15px 22px,#1a1208 22px 26px);' },
+    { id: 'tp_cow', type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.tp_cow',
+      hex: '#e8e4da', pattern: 'tp_cow', patternCat: 'animals',
+      swatchCss: 'background:radial-gradient(ellipse 14px 10px at 22% 30%,#17130f 60%,transparent 61%),radial-gradient(ellipse 12px 9px at 72% 65%,#17130f 60%,transparent 61%),#f4f1ea;' },
+    { id: 'tp_shark', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_shark',
+      hex: '#5d707f', pattern: 'tp_shark', patternCat: 'animals',
+      swatchCss: 'background:linear-gradient(180deg,#5d707f 0 55%,#dfe7ec 55%);' },
+    { id: 'tp_dino', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_dino',
+      hex: '#3f7d3a', pattern: 'tp_dino', patternCat: 'animals',
+      swatchCss: 'background:radial-gradient(circle 6px at 8px 12px,#25511f 5px,transparent 6px),radial-gradient(circle 6px at 20px 12px,#25511f 5px,transparent 6px),radial-gradient(circle 6px at 14px 22px,#25511f 5px,transparent 6px),#3f7d3a;' },
+    { id: 'tp_panda', type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.tp_panda',
+      hex: '#d8d4cc', pattern: 'tp_panda', patternCat: 'animals',
+      swatchCss: 'background:linear-gradient(90deg,#191512 0 26%,#f2efe9 26% 74%,#191512 74%);' },
+    { id: 'tp_cobra', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_cobra',
+      hex: '#4a5d33', pattern: 'tp_cobra', patternCat: 'animals', animated: true, pulseTint: '#d9e8a0',
+      swatchCss: 'background:repeating-linear-gradient(45deg,#4a5d33 0 6px,#2b3a1c 6px 8px),repeating-linear-gradient(-45deg,transparent 0 6px,rgba(91,115,64,0.6) 6px 8px);' },
+
+    // GRY (nazwy wlasne — zero marek)
+    { id: 'tp_woxel', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_woxel',
+      hex: '#5d9a3c', pattern: 'tp_woxel', patternCat: 'games',
+      swatchCss: 'background:conic-gradient(#5d9a3c 0 25%,#4d8032 0 50%,#7ab54e 0 75%,#6b4f35 0) 0 0/12px 12px;' },
+    { id: 'tp_bricks', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_bricks',
+      hex: '#c9352b', pattern: 'tp_bricks', patternCat: 'games',
+      swatchCss: 'background:radial-gradient(circle 5px at 10px 10px,#e0453a 4px,transparent 5px),radial-gradient(circle 5px at 26px 10px,#e0453a 4px,transparent 5px),radial-gradient(circle 5px at 18px 24px,#e0453a 4px,transparent 5px),#a02620;' },
+    { id: 'tp_retro', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_retro',
+      hex: '#5a3a80', pattern: 'tp_retro', patternCat: 'games',
+      swatchCss: 'background:repeating-linear-gradient(180deg,rgba(0,0,0,0.3) 0 2px,transparent 2px 5px),conic-gradient(#3d2a56 0 25%,#5a3a80 0 50%,#2a1c3d 0 75%,#7a52a8 0) 0 0/10px 10px;' },
+    { id: 'tp_glitch', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_glitch',
+      hex: '#2bd8c8', pattern: 'tp_glitch', patternCat: 'games', animated: true, pulseTint: '#2bd8c8',
+      swatchCss: 'background:linear-gradient(180deg,#101418 0 30%,rgba(255,40,90,0.75) 30% 42%,#101418 42% 55%,rgba(40,255,220,0.7) 55% 68%,#101418 68% 80%,#e8ecf2 80% 86%,#101418 86%);' },
+    { id: 'tp_neongrid', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_neongrid',
+      hex: '#00d4ff', pattern: 'tp_neongrid', patternCat: 'games', animated: true, pulseTint: '#00d4ff',
+      swatchCss: 'background:repeating-linear-gradient(0deg,rgba(0,220,255,0.8) 0 1.5px,transparent 1.5px 9px),repeating-linear-gradient(90deg,rgba(0,220,255,0.8) 0 1.5px,transparent 1.5px 9px),#0a1020;' },
+    { id: 'tp_lowpoly', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_lowpoly',
+      hex: '#3aa0e0', pattern: 'tp_lowpoly', patternCat: 'games',
+      swatchCss: 'background:conic-gradient(from 45deg,#7ec8f0 0 25%,#3aa0e0 0 50%,#1e6a9c 0 75%,#3aa0e0 0) 0 0/16px 16px;' },
+
+    // ZYWIOLY (rdzen premium — wszystkie animowane)
+    { id: 'tp_lava', type: 'tankSkin', rarity: 'l', labelKey: 'cosmetic.tp_lava',
+      hex: '#ff6b35', pattern: 'tp_lava', patternCat: 'elements', animated: true, pulseTint: '#ff9a3d',
+      swatchCss: 'background:linear-gradient(115deg,transparent 0 40%,rgba(255,140,20,0.9) 40% 46%,transparent 46% 60%,rgba(255,170,30,0.85) 60% 65%,transparent 65%),#211410;' },
+    { id: 'tp_ice', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_ice',
+      hex: '#8fd0e8', pattern: 'tp_ice', patternCat: 'elements', animated: true, pulseTint: '#e8fbff',
+      swatchCss: 'background:linear-gradient(60deg,transparent 0 45%,rgba(70,140,180,0.6) 45% 48%,transparent 48%),linear-gradient(150deg,transparent 0 60%,rgba(70,140,180,0.5) 60% 63%,transparent 63%),#bfe3f2;' },
+    { id: 'tp_ocean', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_ocean',
+      hex: '#17b8a6', pattern: 'tp_ocean', patternCat: 'elements', animated: true, pulseTint: '#8ce6ff',
+      swatchCss: 'background:radial-gradient(circle 8px at 8px 0px,transparent 6px,rgba(140,230,255,0.55) 7px,transparent 8px) 0 6px/16px 12px repeat,#0f5e7e;' },
+    { id: 'tp_storm', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_storm',
+      hex: '#96d2ff', pattern: 'tp_storm', patternCat: 'elements', animated: true, pulseTint: '#96d2ff',
+      swatchCss: 'background:linear-gradient(115deg,transparent 0 44%,rgba(150,210,255,0.95) 44% 48%,transparent 48% 58%,rgba(150,210,255,0.7) 58% 61%,transparent 61%),#1b2340;' },
+    { id: 'tp_galaxy', type: 'tankSkin', rarity: 'l', labelKey: 'cosmetic.tp_galaxy',
+      hex: '#8a5adf', pattern: 'tp_galaxy', patternCat: 'elements', animated: true, pulseTint: '#c9a0ff',
+      swatchCss: 'background:radial-gradient(circle 2px at 20% 30%,#fff 1.2px,transparent 2px),radial-gradient(circle 2px at 70% 60%,#fff 1px,transparent 2px),radial-gradient(circle 2px at 45% 80%,#fff 1px,transparent 2px),radial-gradient(ellipse 26px 16px at 35% 40%,rgba(160,80,220,0.55),transparent 70%),#12102e;' },
+    { id: 'tp_slime', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_slime',
+      hex: '#59c542', pattern: 'tp_slime', patternCat: 'elements', animated: true, pulseTint: '#c8ffb0',
+      swatchCss: 'background:radial-gradient(circle 5px at 25% 35%,#59c542 4px,transparent 5px),radial-gradient(circle 4px at 65% 60%,#59c542 3px,transparent 4px),linear-gradient(180deg,rgba(230,255,210,0.35) 0 22%,transparent 40%),#3f9e2f;' },
+
+    // WOJSKOWE
+    { id: 'tp_desert', type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.tp_desert',
+      hex: '#c8a86a', pattern: 'tp_desert', patternCat: 'military',
+      swatchCss: 'background:radial-gradient(ellipse 12px 8px at 28% 35%,#8a6b40 60%,transparent 61%),radial-gradient(ellipse 10px 7px at 70% 62%,#5f4a2c 60%,transparent 61%),#c8a86a;' },
+    { id: 'tp_cadpat', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_cadpat',
+      hex: '#3d5a33', pattern: 'tp_cadpat', patternCat: 'military',
+      swatchCss: 'background:conic-gradient(#3d5a33 0 25%,#243c1e 0 50%,#5a7548 0 75%,#141d10 0) 0 0/8px 8px;' },
+    { id: 'tp_m90', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_m90',
+      hex: '#4a5d3a', pattern: 'tp_m90', patternCat: 'military',
+      swatchCss: 'background:linear-gradient(70deg,#2c3b22 0 30%,transparent 30%),linear-gradient(250deg,#75683f 0 26%,transparent 26%),linear-gradient(160deg,#1d2618 0 20%,transparent 20%),#4a5d3a;' },
+    { id: 'tp_woodland', type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.tp_woodland',
+      hex: '#4f6636', pattern: 'tp_woodland', patternCat: 'military',
+      swatchCss: 'background:radial-gradient(ellipse 13px 9px at 30% 40%,#33491f 60%,transparent 61%),radial-gradient(ellipse 11px 8px at 72% 60%,#6b5a38 60%,transparent 61%),#4f6636;' },
+    { id: 'tp_winter', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_winter',
+      hex: '#c9d2da', pattern: 'tp_winter', patternCat: 'military',
+      swatchCss: 'background:radial-gradient(ellipse 12px 8px at 30% 38%,#b9c2cc 60%,transparent 61%),radial-gradient(ellipse 10px 7px at 70% 64%,#8b98a6 60%,transparent 61%),#eef1f4;' },
+    { id: 'tp_navy', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.tp_navy',
+      hex: '#33507a', pattern: 'tp_navy', patternCat: 'military',
+      swatchCss: 'background:radial-gradient(ellipse 12px 8px at 30% 38%,#1e3050 60%,transparent 61%),radial-gradient(ellipse 10px 7px at 70% 62%,#5a7aa5 60%,transparent 61%),#33507a;' },
+
+    // SEZONOWE (s3-s8; sezonowosc = klimat/nazwa, zero mechaniki sezonow)
+    { id: 'tp_s3_notebook', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s3_notebook',
+      hex: '#3aa0e0', pattern: 'tp_s3_notebook', patternCat: 'seasonal',
+      swatchCss: 'background:repeating-linear-gradient(0deg,rgba(58,160,224,0.5) 0 1px,transparent 1px 8px),repeating-linear-gradient(90deg,rgba(58,160,224,0.5) 0 1px,transparent 1px 8px),linear-gradient(90deg,transparent 0 9px,#d4213d 9px 11px,transparent 11px),#f6f1e2;' },
+    { id: 'tp_s4_sweater', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s4_sweater',
+      hex: '#2ecc71', pattern: 'tp_s4_sweater', patternCat: 'seasonal',
+      swatchCss: 'background:linear-gradient(180deg,#b8352c 0 25%,#efe9dc 25% 50%,#2e6b3a 50% 75%,#efe9dc 75%);' },
+    { id: 'tp_s5_penguin', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s5_penguin',
+      hex: '#4dd7c8', pattern: 'tp_s5_penguin', patternCat: 'seasonal',
+      swatchCss: 'background:radial-gradient(ellipse 16px 12px at 50% 55%,#f2f4f6 60%,transparent 61%),#16181d;' },
+    { id: 'tp_s6_hatchling', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s6_hatchling',
+      hex: '#a3e635', pattern: 'tp_s6_hatchling', patternCat: 'seasonal',
+      swatchCss: 'background:linear-gradient(102deg,#f3e9cf 0 46%,#ffd23f 46% 62%,#f3e9cf 62%),radial-gradient(circle 3px at 24% 30%,#d9c79a 2.4px,transparent 3px),radial-gradient(circle 3px at 78% 66%,#d9c79a 2.4px,transparent 3px);' },
+    { id: 'tp_s7_grill', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s7_grill',
+      hex: '#ff9f43', pattern: 'tp_s7_grill', patternCat: 'seasonal',
+      swatchCss: 'background:repeating-linear-gradient(65deg,transparent 0 8px,rgba(60,25,8,0.75) 8px 12px),#e0862f;' },
+    { id: 'tp_s8_aloha', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s8_aloha',
+      hex: '#37a0e0', pattern: 'tp_s8_aloha', patternCat: 'seasonal',
+      swatchCss: 'background:radial-gradient(circle 6px at 30% 40%,#ff5f7a 5px,transparent 6px),radial-gradient(circle 4px at 30% 40%,#ffd23f 3px,transparent 4px),radial-gradient(ellipse 12px 9px at 72% 62%,#0e6b52 60%,transparent 61%),#1fa3b8;' },
+
+    // NOWE PALETY (4 — omijaja 8 istniejacych ts_* i barwy bazowe czolgow)
+    { id: 'ts_mint',    type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.ts_mint',    hex: '#8fe3c0', filter3d: 'hue-rotate(150deg) saturate(0.7) brightness(1.22)' },
+    { id: 'ts_choco',   type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_choco',   hex: '#7b4b2a', filter3d: 'sepia(0.6) hue-rotate(-10deg) saturate(1.1) brightness(0.9)' },
+    { id: 'ts_indigo',  type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_indigo',  hex: '#4b2ea8', filter3d: 'hue-rotate(255deg) saturate(1.15) brightness(0.92)' },
+    { id: 'ts_fuchsia', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_fuchsia', hex: '#c026d3', filter3d: 'hue-rotate(300deg) saturate(1.35) brightness(1.05)' },
 ];
 
 /**
@@ -254,6 +428,7 @@ export const CATEGORY_LABEL_ONE: Record<CosmeticType, TranslationKey> = {
     crosshair: 'cosmetic.cat.crosshair',
     avatarBg: 'cosmetic.cat.avatarBg',
     profileSkin: 'cosmetic.cat.profileSkin',
+    tankSkin: 'cosmetic.cat.tankSkin',
 };
 
 const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c => [c.id, c]));
@@ -277,7 +452,11 @@ export function cosmeticsByType(type: CosmeticType): CosmeticDef[] {
  * konwertuje na srubki (CRATE_DUP_BOLTS), pity 10/30 dziala bez zmian.
  */
 export function cosmeticIdsOfRarity(rarity: Rarity): string[] {
-    return COSMETICS.filter(c => c.rarity === rarity && !SHOP_ONLY_TYPES.has(c.type)).map(c => c.id);
+    // SKIN-1: przy fladze OFF skiny czolgu NIE dropia (skrzynka nie moze dac
+    // "niewidzialnego" kosmetyku, ktorego zaden ekran nie pokaze).
+    return COSMETICS.filter(c => c.rarity === rarity
+        && !SHOP_ONLY_TYPES.has(c.type)
+        && (c.type !== 'tankSkin' || isSkinsEnabled())).map(c => c.id);
 }
 
 /**
@@ -337,6 +516,26 @@ export function profileSkinStyle(def: CosmeticDef | undefined, base: string): st
         + 'linear-gradient(90deg,rgba(12,16,22,0.92) 0%,rgba(12,16,22,0.74) 45%,rgba(12,16,22,0.58) 100%)';
     return `background-image:${veil},url('${base}${def.bgImage}');`
         + 'background-size:cover;background-position:center;';
+}
+
+/**
+ * SKIN-1/2 — inline-style PROBKI skina (PROSTOKAT — decyzja Mariusza: kulkowy
+ * selektor nie pasowal do UI; prostokat czyta sie jak plyta pancerza).
+ * Wzor (SKIN-2): gotowy swatchCss z defa (aproksymacja — prawda jest na
+ * obrotnicy). Paleta: poziomy gradient "lakierowanej blachy" na hexie.
+ */
+/** SKIN-2 — porzadek kategorii skinow (sklep + kolekcja); undefined = palety. */
+export const TANK_SKIN_CAT_ORDER: readonly (string | undefined)[] =
+    [undefined, 'animals', 'games', 'elements', 'military', 'seasonal'];
+
+export function tankSkinSwatchStyle(def: CosmeticDef | undefined): string {
+    if (!def || def.type !== 'tankSkin') return '';
+    if (def.swatchCss) return def.swatchCss;
+    if (!def.hex) return '';
+    return 'background:'
+        + `linear-gradient(180deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.05) 35%,`
+        + ` rgba(0,0,0,0) 60%, rgba(0,0,0,0.28) 100%),`
+        + `${def.hex};`;
 }
 
 /** Inline-style dla ramki avatara wg equipped frame. */

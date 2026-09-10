@@ -189,6 +189,7 @@ import { showToast } from './ui/toast';
 import { ProfileSpriteCache } from './rendering/profile/ProfileSpriteCache';
 import { ProfileService } from './services/ProfileService';
 import { getCosmetic, voiceFile } from './config/cosmetics'; // SHOP-1 — klakson + paczka glosowa
+import { isSkinsEnabled } from './config/skins'; // SKIN-1 — barwy czolgu do bake
 
 // === FAZA 9b.3a: cloud profile sync (push aktywny profil -> oproznia kolejke scores) ===
 import { syncActiveProfileToCloud } from './services/profileSync';
@@ -2304,13 +2305,30 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // FAZA P1 Sprite Baker — bake 2.5D gracza PRZED stworzeniem Player (czolg nie mignie pusty).
     // Flaga gracza wpieczona w teksture hull (per-profil). Tylko gdy ?baker=1. Idempotentny (cache).
     if (BAKER_ENABLED) {
-        await TankSpriteBaker.bakeBrawler(app, brawler.id, activeProfile?.flagId ?? null);
+        // SKIN-1: zalozone barwy czolgu wpieczone w bake (paleta z derive(hex)).
+        // Flaga OFF => null => bit-identyczny bake jak dotad.
+        const skinId = isSkinsEnabled()
+            ? ProgressionService.getCosmeticState(activeProfile?.id ?? 'default').equipped['tankSkin']
+            : undefined;
+        const skinDef = skinId ? getCosmetic(skinId) : undefined;
+        const skinHex = skinDef?.hex ?? null;
+        const skinPattern = skinDef?.pattern ?? null; // SKIN-2: wzor wpieczony w bake
+        await TankSpriteBaker.bakeBrawler(app, brawler.id, activeProfile?.flagId ?? null,
+            skinHex, skinPattern);
         await BulletSpriteBaker.bakeBrawler(app, brawler.id); // FAZA P2 — pociski 2.5D (normal+super)
         await EnemySpriteBaker.bakeAll(app);        // FAZA P4 — wrogowie 2.5D (grunt/boss/mega)
         await EnemyBulletSpriteBaker.bakeAll(app);  // FAZA P4 — pociski wrogow 2.5D
     }
 
-    localPlayer = new Player(brawler, worldContainer, activeProfile?.flagId ?? null);
+    // SKIN-2: zalozony ANIMOWANY skin => Player dostaje dane pulsu (ADD overlay).
+    const skinPulse = ((): { tint?: string } | null => {
+        if (!isSkinsEnabled()) return null;
+        const id = ProgressionService.getCosmeticState(activeProfile?.id ?? 'default')
+            .equipped['tankSkin'];
+        const def = id ? getCosmetic(id) : undefined;
+        return (def?.pattern && def.animated) ? { tint: def.pulseTint } : null;
+    })();
+    localPlayer = new Player(brawler, worldContainer, activeProfile?.flagId ?? null, skinPulse);
     players = [localPlayer]; // Z0.3: tablica = zrodlo prawdy (dzis zawsze 1 element)
 
     // FAZA CTF F1: spawn w hangarze (200,1500) — legacy 1:1. Player konstruktor

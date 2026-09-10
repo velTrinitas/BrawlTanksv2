@@ -2660,3 +2660,302 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 @media (prefers-reduced-motion: reduce) {
     .bt-mp-card, .bt-mp-card .mp-media svg { transition: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GARAZ-2 (v0.156.0, flaga ?choose=1) — obrotnica czolgu + wybor w Garazu.
+   Zero glow/screen-blend (mobile fill-rate); panel normal-alpha jak loadout.
+   Lekcja v0.141: wysokosc to deficytowa os — hero-row jest SIDE-BY-SIDE,
+   canvas ma clamp po wysokosci viewportu, a garaz dostaje (pierwszy raz)
+   wlasny breakpoint max-height:560px.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.bt-gr2-hero {
+    /* GARAZ-3: hero to jedna wysrodkowana kompozycja (stage2), nie side-by-side */
+    display: flex; justify-content: center; margin-bottom: 12px;
+}
+.bt-gr2-stage {
+    position: relative; flex: 0 0 auto;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px; padding: 8px 8px 6px;
+}
+.bt-gr2-canvas {
+    /* GARAZ-2.5: gablota powiekszona (decyzja Mariusza "o 100%") — reszta
+       przyrostu siedzi w atlasie (tank fill 96%) i dw=1.0 w tankTurn360. */
+    width: clamp(140px, 46vh, 290px); height: clamp(140px, 46vh, 290px);
+    display: block; cursor: grab;
+    opacity: 0; transition: opacity 0.25s ease; /* fade-in maskuje 1. frame po imporcie */
+}
+.bt-gr2-canvas.is-live { opacity: 1; }
+.bt-gr2-canvas:active { cursor: grabbing; }
+.bt-gr2-draghint { color: var(--hub-ink-faint); font-size: 11.5px; letter-spacing: 0.35px; }
+.bt-gr2-info {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px; justify-content: center;
+}
+.bt-gr2-info .bt-hub0-subhead { margin: 0 0 2px; }
+.bt-gr2-name { font-size: 20px; letter-spacing: 0.4px; }
+/* Paski statow: te same reguly co na kartach (.bt-hub0-card .cd-stat), zescope'owane
+   na hero — statRowHtml jest wspolny, wiec wyglad musi byc 1:1.
+   v2: .bt-gr2-stats (staty pod centralna gablota) uzywa tych samych regul. */
+.bt-gr2-info .cd-stat, .bt-gr2-stats .cd-stat {
+    display: flex; align-items: center; gap: 6px; line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.bt-gr2-info .cd-stat em, .bt-gr2-stats .cd-stat em {
+    font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+    text-transform: uppercase; color: var(--hub-ink-faint);
+    width: 44px; flex: 0 0 auto;
+}
+.bt-gr2-info .cd-stat .bar, .bt-gr2-stats .cd-stat .bar {
+    flex: 1 1 auto; max-width: 220px; height: 6px; border-radius: 999px; overflow: hidden;
+    background: var(--hub-steel-950);
+}
+.bt-gr2-info .cd-stat .bar b, .bt-gr2-stats .cd-stat .bar b {
+    display: block; height: 100%; border-radius: 999px;
+    background: var(--tank, var(--hub-accent));
+}
+.bt-gr2-info .cd-stat u, .bt-gr2-stats .cd-stat u {
+    text-decoration: none; font-size: 12px; font-weight: 800; color: var(--hub-ink);
+    width: 34px; text-align: right; flex: 0 0 auto;
+}
+
+/* ── GARAZ-3 (brief Mariusza): hero FRAMELESS + karuzela + sloty-kafle ──────
+   Czolg+strzalki+nazwa+staty = jedna kompozycja na tle garazu (zero kart).
+   Jedyne ramki = 3 sloty mocy (kafle .bt-hub0-stat--art z Rekordow). */
+.bt-gr2-stage2 {
+    /* GARAZ-4 (uwaga Mariusza): ROW — gablota lekko w lewo, nazwa+staty obok
+       czolgu po prawej. Desktop i mobile ten sam uklad; przy niskim landscape
+       tylko ciasniej (breakpoint ponizej). */
+    display: flex; flex-direction: row; align-items: center; justify-content: center;
+    gap: clamp(8px, 2vw, 28px);
+    margin-bottom: 12px;
+}
+.bt-gr2-stagerow { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.bt-gr2-side {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    flex: 0 1 auto; min-width: 0; width: clamp(180px, 28vw, 320px);
+}
+.bt-gr2-stage2 .bt-gr2-canvas {
+    width: clamp(200px, 52vh, 440px); height: clamp(200px, 52vh, 440px);
+    /* obrot dragiem — cursor grab/grabbing dziedziczony z .bt-gr2-canvas */
+}
+/* Strzalki karuzeli: bez ramki/tla (frameless) — ZLOTE z glow (decyzja
+   Mariusza: ‹ › byly malo czytelne), duzy tap-target. */
+.bt-gr2-arrow {
+    min-width: 52px; min-height: 72px; padding: 0 6px;
+    border: 0; background: transparent; cursor: pointer;
+    color: var(--hub-accent); font-family: inherit;
+    font-size: 58px; font-weight: 800; line-height: 1;
+    text-shadow: 0 0 14px rgba(241, 196, 15, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5);
+    transition: color 0.12s ease, transform 0.12s ease, text-shadow 0.12s ease;
+}
+.bt-gr2-arrow:hover {
+    color: #ffd94d; transform: scale(1.12);
+    text-shadow: 0 0 20px rgba(241, 196, 15, 0.75), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+.bt-gr2-arrow:active { transform: scale(0.94); }
+/* Nazwa czolgu = button (tap = nastepny), stylem czysty tytul. */
+.bt-gr2-stage2 .bt-gr2-name {
+    border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left;
+    font-family: inherit; font-size: 26px; font-weight: 800; letter-spacing: 0.5px;
+}
+.bt-gr2-stats { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+/* Rzad 3 slotow mocy — kafle record-boxa w button-wrapperze bez wlasnego stylu. */
+.bt-gr2-slots {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    margin-bottom: 12px;
+}
+.bt-ld-slotbtn {
+    display: block; width: 100%; padding: 0; border: 0; background: transparent;
+    cursor: pointer; font-family: inherit; text-align: inherit;
+}
+.bt-ld-slotbtn .bt-hub0-stat { min-height: 64px; }
+/* Wariant slotu na bazie kafla --art: emoji zamiast SVG, nazwa zamiast liczby. */
+.bt-hub0-stat--slot .art { display: grid; place-items: center; }
+.bt-hub0-stat--slot .slot-emoji { font-size: 34px; line-height: 1; }
+.bt-hub0-stat--slot .val b { font-size: 15px; line-height: 1.15; }
+.bt-hub0-stat--slot[data-vlen] .val b { font-size: 15px; } /* nazwa, nie liczba — bez skali vlen */
+.bt-hub0-stat--slot .val small { font-size: 10.5px; letter-spacing: 0.5px; }
+.bt-hub0-stat--slot.is-empty .val b { color: var(--hub-ink-faint); }
+.bt-hub0-stat--slot.is-armed {
+    outline: 2px solid var(--hub-accent);
+    outline-offset: -2px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07),
+        inset 0 -14px 26px rgba(0, 0, 0, 0.38),
+        0 0 14px rgba(241, 196, 15, 0.35);
+}
+.bt-hub0-stat--slot.is-dice { opacity: 0.9; }
+/* Komplet wybrany (auto-close): sloty pulsuja "wskoczylo" tuz przed zamknieciem. */
+.bt-ld-slots.is-done .bt-hub0-stat {
+    animation: bt-ld-done 0.55s ease;
+    outline: 2px solid var(--hub-accent); outline-offset: -2px;
+}
+@keyframes bt-ld-done {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.07); box-shadow: 0 0 22px rgba(241, 196, 15, 0.55); }
+    100% { transform: scale(1); }
+}
+
+/* ── SKIN-1: BARWY CZOLGU — pasek kropek pod obrotnica (?skins=1) ──────────
+   Czyste probki koloru = rzad-paleta (wzorzec .bt-hub0-cos-grid--row);
+   na waskim ekranie scrolluje w poziomie zamiast sciskac kafle. */
+.bt-gr2-skins { margin-bottom: 12px; }
+.bt-gr2-skinrow {
+    display: flex; gap: 8px; justify-content: center; align-items: flex-start;
+    overflow-x: auto; padding: 2px 4px 4px;
+}
+.bt-gr2-skin {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    min-width: 48px; padding: 4px 2px; border: 0; background: transparent;
+    cursor: pointer; font-family: inherit;
+}
+/* SKIN-2 (decyzja Mariusza): PROSTOKAT zamiast kulki — plyta pancerza, nie cukierek. */
+.bt-gr2-skin .dot {
+    position: relative; display: grid; place-items: center;
+    width: 56px; height: 34px; border-radius: 6px;
+    border: 2px solid var(--rar, rgba(255, 255, 255, 0.25));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+/* znacznik animowanego wzoru (czysty CSS) */
+.bt-gr2-skin .dot.is-anim::after {
+    content: '✦'; position: absolute; right: 2px; top: 0;
+    font-size: 10px; color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.bt-gr2-skin:hover .dot { transform: scale(1.12); }
+.bt-gr2-skin small {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--hub-ink-faint); max-width: 64px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* SKIN-2: chipsy filtra kategorii nad paskiem */
+.bt-gr2-skincats {
+    display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 6px; padding: 0 4px;
+}
+.bt-gr2-skincat {
+    min-height: 28px; padding: 0 12px; border-radius: 999px;
+    border: 1px solid var(--hub-line); background: var(--hub-steel-850);
+    color: var(--hub-ink-dim); font-family: inherit;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.4px; cursor: pointer;
+}
+.bt-gr2-skincat.is-on {
+    border-color: var(--hub-accent); color: var(--hub-accent);
+    background: rgba(241, 196, 15, 0.10);
+}
+.bt-gr2-skin.is-equipped .dot {
+    outline: 2px solid var(--hub-accent); outline-offset: 2px;
+    box-shadow: 0 0 12px rgba(241, 196, 15, 0.45);
+}
+.bt-gr2-skin.is-equipped small { color: var(--hub-ink); }
+.bt-gr2-skin.is-preview .dot {
+    outline: 2px dashed var(--hub-ink-dim); outline-offset: 2px;
+}
+.bt-gr2-skin.is-locked .dot { opacity: 0.55; }
+.bt-gr2-skin .lk { font-size: 15px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.bt-gr2-skinhint {
+    display: block; margin: 4px auto 0; padding: 6px 14px;
+    border: 1px dashed rgba(241, 196, 15, 0.5); border-radius: 999px;
+    background: rgba(241, 196, 15, 0.08); color: var(--hub-accent);
+    font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
+}
+
+/* SKIN-1/2: probka skina na kaflu sklepu — PROSTOKAT (spojnie z paskiem Garazu). */
+.bt-shop-card .sk-swatch {
+    display: block; width: 84px; height: 50px; border-radius: 8px;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+/* SKIN-2: naglowek sekcji kategorii w gridzie zakladki BARWY CZOLGU */
+.bt-shop-sechead {
+    grid-column: 1 / -1;
+    margin: 8px 0 2px; padding-left: 2px;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--hub-ink-dim);
+}
+/* SKIN-2: mini-naglowek podgrupy skinow w kolekcji Profilu */
+.bt-hub0-cos-grouptitle--sub {
+    font-size: 10.5px; color: var(--hub-ink-faint);
+    margin: 8px 0 4px; letter-spacing: 0.5px;
+}
+
+/* GARAZ-3 v2: skrzynki jako kompaktowy pasek (minimalizacja UI). */
+.bt-gr2-crate {
+    display: flex; align-items: center; gap: 12px;
+    max-width: 420px; margin: 0 auto 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--hub-line); border-radius: var(--radius-md, 12px);
+    background: var(--hub-steel-850);
+}
+.bt-gr2-crate .art { flex: 0 0 auto; display: grid; place-items: center; }
+.bt-gr2-crate .cnt { flex: 1 1 auto; font-size: 14px; letter-spacing: 0.3px; }
+.bt-gr2-crate.is-ready {
+    border-color: rgba(241, 196, 15, 0.45);
+    box-shadow: 0 0 16px rgba(241, 196, 15, 0.18);
+}
+.bt-gr2-crate-open { min-height: 40px; padding: 0 18px; font-size: 13px; }
+.bt-gr2-crate-open:disabled { opacity: 0.45; cursor: default; }
+
+/* ── LoadoutOverlay: PELNOEKRANOWY wybor mocy (wzorzec .bt-rankup) ──────────
+   Scroll WYLACZNIE w .bt-ld-scroll (gate wysokosci: sam Garaz nie scrolluje). */
+.bt-ld {
+    position: absolute; inset: 0; z-index: 30;
+    display: flex; flex-direction: column;
+    background: rgba(9, 14, 20, 0.96);
+    animation: bt-hub0-fade 0.16s ease;
+}
+.bt-ld-top {
+    position: relative; flex: 0 0 auto;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--hub-line);
+    background: var(--hub-steel-900);
+}
+.bt-ld-title {
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-weight: 800; font-size: 20px; letter-spacing: 0.6px;
+    margin: 0 44px 10px 0;
+}
+.bt-ld-slots {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    max-width: 560px;
+}
+.bt-ld-top .bt-hub0-lhint { display: block; margin-top: 8px; }
+.bt-ld-scroll {
+    flex: 1 1 auto; overflow-y: auto; overflow-x: hidden;
+    padding: 12px 16px 16px;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-ld-top { padding: 8px 12px 6px; }
+    .bt-ld-title { font-size: 14px; margin-bottom: 6px; }
+    .bt-ld-slotbtn .bt-hub0-stat { min-height: 52px; }
+    .bt-ld-top .bt-hub0-lhint { display: none; }
+}
+/* (GARAZ-3: przyciski zmien/zoom, POTWIERDZ/Cofnij i popup czolgow USUNIETE —
+   karuzela ‹ › + flick, wybor mocy w pelnoekranowym LoadoutOverlay ponizej.) */
+/* Garaz @niskim landscape (gate WYSOKOSCI): hero + sloty + crate maja zmiescic
+   sie BEZ scrolla sekcji — canvas ciasniej, sloty nizsze, hint znika. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-gr2-canvas { width: clamp(112px, 38vh, 170px); height: clamp(112px, 38vh, 170px); }
+    .bt-gr2-stage2 { gap: 8px; margin-bottom: 8px; }
+    .bt-gr2-side { width: clamp(150px, 34vw, 240px); gap: 4px; }
+    .bt-gr2-stage2 .bt-gr2-canvas { width: clamp(130px, 40vh, 200px); height: clamp(130px, 40vh, 200px); }
+    .bt-gr2-stage2 .bt-gr2-name { font-size: 17px; }
+    .bt-gr2-stats { gap: 4px; }
+    .bt-gr2-draghint { display: none; }
+    .bt-gr2-slots { gap: 6px; margin-bottom: 8px; }
+    .bt-ld-slotbtn .bt-hub0-stat { min-height: 52px; }
+    .bt-hub0-stat--slot .slot-emoji { font-size: 26px; }
+    .bt-hub0-stat--slot .val b { font-size: 13px; }
+    .bt-gr2-arrow { font-size: 40px; min-height: 56px; min-width: 44px; }
+    .bt-gr2-crate { padding: 5px 10px; margin-bottom: 6px; }
+    .bt-gr2-crate-open { min-height: 36px; }
+    /* SKIN-1: pasek barw ciasniej przy niskim landscape */
+    .bt-gr2-skins { margin-bottom: 8px; }
+    .bt-gr2-skin .dot { width: 34px; height: 34px; }
+    .bt-gr2-skin { min-width: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bt-gr2-canvas { transition: none; }
+}

@@ -20,6 +20,47 @@
   // ============ TOGGLES ============
   const T = { recoil:true, hitflash:true, shake:true, popoff:true, chunky:true, rumble:false, pitch:true, treadmark:true, glare:true, rivets:true, rim:true, asym:true, spriteStack:true };
 
+  // ============ SKIN-2: WZORY (dispatcher; painterzy w skinPatterns.ts) ============
+  // Import statyczny — skinPatterns laduje sie w TYM SAMYM lazy-chunku co render2d
+  // (render2d wszedzie importowany dynamicznie), guardrail "zero bajtow bez huba/bake"
+  // zachowany. Gate: brawler.skinPattern === undefined => natychmiastowy return
+  // (wrogowie i gracz bez skina BIT-TOZSAMI z dzisiejszym renderem).
+  import { SKIN_PATTERNS } from './skinPatterns';
+
+  /**
+   * Rysuje wzor skina przyciety do ksztaltu czesci. Centralny CLIP zna ksztalty
+   * wiezy wieksze niz r (chamfered 1.05r, wide_cylinder 1.25r x 0.95r) i podmiane
+   * truncated_cone->round — zaden painter nie robi clip sam.
+   * Faza WYLACZNIE z brawler._skinPhase (bake ustawia 0 — determinizm 36 katow;
+   * wlasny performance.now() painterow = faza skacze miedzy katami, bug klasy
+   * neonPulse).
+   */
+  function drawSkinPattern(ctx, brawler, c, area) {
+    const painter = brawler.skinPattern ? SKIN_PATTERNS[brawler.skinPattern] : undefined;
+    if (!painter) return;
+    const phase = brawler._skinPhase ?? 0;
+    ctx.save();
+    ctx.beginPath();
+    if (area === 'hull') {
+      drawHullPath(ctx, brawler.hullShape, brawler.hullW, brawler.hullH);
+      ctx.clip();
+      painter.hull(ctx, {
+        w: brawler.hullW, h: brawler.hullH,
+        hx: brawler.hullW / 2, hy: brawler.hullH / 2,
+        r: Math.min(brawler.hullW, brawler.hullH) / 2,
+        area: 'hull', phase, colors: c,
+      });
+    } else {
+      const r = brawler.turretRadius;
+      const shape = brawler.turretShape === 'truncated_cone' ? 'round' : brawler.turretShape;
+      drawTurretShape(ctx, shape, r);
+      ctx.clip();
+      const fn = painter.turret ?? painter.hull;
+      fn(ctx, { w: r * 2, h: r * 2, hx: r, hy: r, r, area: 'turret', phase, colors: c });
+    }
+    ctx.restore();
+  }
+
   // ============ FLAGS ============
   const FLAGS = ['PL','UA','DE','JP','GB','US','FR','IT'];
   function drawFlag(ctx, fId, w=9, h=9) {
@@ -1161,7 +1202,13 @@
 
     // Tech: PULSING NEON STRIPE - pulses on hull
     if (brawler.neonPulse) {
-      const pulse = 0.45 + Math.sin(performance.now() * 0.005) * 0.55;
+      // SKIN-2 FIX (klasa bugow determinizmu bake): gdy caller podal _skinPhase
+      // (baker: 0; turntable: zywa faza), puls liczy sie z NIEJ — 36 katow piecze
+      // sie w JEDNEJ fazie zamiast "skakac" per kat. Fallback performance.now()
+      // zachowuje zywy puls w labie/miejscach bez fazy.
+      const pulse = brawler._skinPhase !== undefined
+        ? 0.45 + Math.sin(brawler._skinPhase * Math.PI * 2) * 0.55
+        : 0.45 + Math.sin(performance.now() * 0.005) * 0.55;
       ctx.save();
       ctx.beginPath(); drawHullPath(ctx, brawler.hullShape, w, h); ctx.clip();
       // Two parallel cyan stripes along the longitudinal axis
@@ -1185,6 +1232,11 @@
 
     // (Flag przeniesiona NIŻEJ — rysowana PO wydechu + hull customization, żeby ich nie
     //  zasłaniały. Patrz blok po drawExhaustPipes.)
+
+    // SKIN-2: wzor skina — TRZECI blok wzorow (po camoSpots i neonPulse), PRZED
+    // customization: lemiesze/nity/glare/rim zostaja NAD wzorem (wzor = lakier,
+    // nie naklejka). Gate w srodku (skinPattern undefined => zero zmian sciezki).
+    drawSkinPattern(ctx, brawler, c, 'hull');
 
     // NEW: Per-brawler hull customization (lemiesz Pancerny, arrow Zwiad, outriggers Snajper, crown King, etc.)
     drawHullCustomization(ctx, brawler, c, isSuperShot);
@@ -1341,6 +1393,10 @@
       ctx.strokeStyle = '#f4c842'; ctx.lineWidth = 1.8;
       drawTurretShape(ctx, brawler.turretShape, r-3); ctx.stroke();
     }
+    // SKIN-2: wzor skina na topie wiezy — po detalach bazowych, PRZED glare
+    // (blysk zostaje na wierzchu wzoru — poprawna kolejnosc malarska).
+    drawSkinPattern(ctx, brawler, c, 'turret');
+
     // NEW: Anime glare on turret top
     if (T.glare && r > 14) {
       ctx.save();

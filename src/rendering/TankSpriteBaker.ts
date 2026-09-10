@@ -44,6 +44,12 @@ interface BakedBrawler {
     hull: PIXI.Texture[];   // length BAKE_ANGLES, indexed by hullAngle quantum
     turret: PIXI.Texture[]; // length BAKE_ANGLES, indexed by turretAngle quantum
     flagId: string | null;  // raw flagId baked into hull textures (cache key — rebake on change)
+    // SKIN-1: tank-skin base hex baked into the palette (cache key — rebake on change).
+    // Same invalidation pattern as flagId; skin is swapped only in the hub, so at most
+    // one rebake per match start. Cache never holds two skins at once (no VRAM delta).
+    skinHex: string | null;
+    // SKIN-2: pattern id baked into the textures (cache key, same pattern as above).
+    skinPattern: string | null;
 }
 
 /** Minimal shape render2d.bakeHullLayer / bakeTurretLayer read off the tank object. */
@@ -80,16 +86,21 @@ class TankSpriteBakerImpl {
         app: PIXI.Application,
         brawlerId: string,
         flagId: string | null = null,
+        skinHex: string | null = null, // SKIN-1: tank-skin base color (null = default palette)
+        skinPattern: string | null = null, // SKIN-2: pattern id (null = no pattern)
     ): Promise<BakedBrawler> {
         const cached = this.cache.get(brawlerId);
-        if (cached && cached.flagId === flagId) return cached;
-        // Flag changed since last bake (or new player flag) -> drop stale textures, rebake.
+        if (cached && cached.flagId === flagId && cached.skinHex === skinHex
+            && cached.skinPattern === skinPattern) return cached;
+        // Flag or skin changed since last bake -> drop stale textures, rebake.
         if (cached) this.dispose(brawlerId);
 
+        // De-dupe stays keyed by brawlerId: bake runs once per match start, so an
+        // in-flight bake with a DIFFERENT skin is a deliberately unsupported case.
         const inFlight = this.baking.get(brawlerId);
         if (inFlight) return inFlight;
 
-        const promise = this.doBake(app, brawlerId, flagId);
+        const promise = this.doBake(app, brawlerId, flagId, skinHex, skinPattern);
         this.baking.set(brawlerId, promise);
         try {
             const result = await promise;
@@ -104,6 +115,8 @@ class TankSpriteBakerImpl {
         app: PIXI.Application,
         brawlerId: string,
         flagId: string | null,
+        skinHex: string | null,
+        skinPattern: string | null,
     ): Promise<BakedBrawler> {
         // DYNAMIC import — FIX#1 prototype patch installs HERE, not at game boot (rollback-safe).
         const r2d = await import('../experimental/tank25d/render2d');
@@ -116,7 +129,19 @@ class TankSpriteBakerImpl {
         // National flag baked INTO the hull texture (1:1 with lab via drawHullTop), so it inherits
         // the exact 2.5D compression/rotation at every angle. Map game flagId -> render2d FLAGS id.
         const fId = this.mapFlag(r2d.FLAGS as string[], flagId);
-        const brawler = { ...srcBrawler, flag: fId };
+        // SKIN-1: tank skin = palette override. BOTH fields swapped together
+        // (colors for drawTank/bake*, color for muzzle-flash path in fire.ts) —
+        // consistency rule for every brawler spread that feeds render2d.
+        const derive = r2d.derive as (hex: string) => unknown;
+        // SKIN-2: _skinPhase: 0 ZAWSZE — 36 katow piecze sie w JEDNEJ zamrozonej
+        // fazie (determinizm bake; painterzy wzorow nie znaja performance.now()).
+        const brawler = {
+            ...srcBrawler,
+            flag: fId,
+            _skinPhase: 0,
+            ...(skinHex ? { color: skinHex, colors: derive(skinHex) } : {}),
+            ...(skinPattern ? { skinPattern } : {}),
+        };
 
         const resolution = app.renderer.resolution || 1;
 
@@ -129,7 +154,7 @@ class TankSpriteBakerImpl {
             turret[i] = this.bakeLayer(r2d, brawler, 'turret', angle, resolution);
         }
 
-        return { hull, turret, flagId };
+        return { hull, turret, flagId, skinHex, skinPattern };
     }
 
     private bakeLayer(

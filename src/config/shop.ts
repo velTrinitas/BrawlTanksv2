@@ -14,7 +14,8 @@
  */
 
 import type { TranslationKey } from '../i18n/i18n';
-import { getCosmetic, cosmeticsByType, type Rarity } from './cosmetics';
+import { getCosmetic, cosmeticsByType, TANK_SKIN_CAT_ORDER, type Rarity } from './cosmetics';
+import { isSkinsEnabled } from './skins'; // SKIN-1 — gate taba i SKU barw czolgu
 
 /**
  * SHOP_LIVE steruje DWIEMA rzeczami naraz i warto o tym pamietac przy przelaczaniu:
@@ -46,7 +47,9 @@ export function isShopSandbox(): boolean {
 
 // v0.147.0: +'profileSkins' (baner hero), +'avatars' (12 slotow placeholder).
 // -'voice': paczka glosowa zdjeta ze sklepu do czasu dostarczenia plikow kwestii.
-export type ShopCategory = 'crates' | 'crosshairs' | 'profileSkins' | 'stickers' | 'avatars' | 'horns' | 'soon';
+// SKIN-1 (v0.159.0): +'tankSkins' — barwy czolgu (jedyna kosmetyka na SAMYM
+// czolgu w meczu). Tab i SKU wchodza tylko przy isSkinsEnabled().
+export type ShopCategory = 'crates' | 'tankSkins' | 'crosshairs' | 'profileSkins' | 'stickers' | 'avatars' | 'horns' | 'soon';
 
 /** Dzis wylacznie 'sigma'. 'real' zarezerwowane — patrz naglowek pliku (PEGI). */
 export type ShopCurrency = 'sigma';
@@ -112,6 +115,24 @@ const CROSSHAIR_PRICE: Record<Rarity, number> = { c: 800, r: 1400, e: 2200, l: 3
 const PROFILE_SKIN_PRICE: Record<Rarity, number> = { c: 900, r: 1500, e: 2400, l: 3600 };
 
 /**
+ * SKIN-1 — BARWY CZOLGU, ~1.3x stawki celownikow: skin widac NA CZOLGU przez
+ * caly mecz (najmocniejsza kosmetyka w sklepie), ale w odroznieniu od reszty
+ * kategorii dropi TEZ ze skrzynek (decyzja Mariusza: dwie drogi) — sklep jest
+ * skrotem, nie jedynym zrodlem, wiec cena nie moze odjechac wyzej.
+ * Pierwszy common po ~2 dniach (400-550 sigm/dobe), komplet 8 (17 200) ~4-5 tyg.
+ * Skiny NIE zwracaja sigm — twarda regula bez zmian.
+ */
+const TANK_SKIN_PRICE: Record<Rarity, number> = { c: 1000, r: 1800, e: 2800, l: 4200 };
+
+/**
+ * SKIN-2 — WZORY premium, wyzej niz palety na kazdym progu (wzor to art, paleta
+ * to kolor). Legendarny animowany (Zywa Lawa/Galaktyka) = 6000 — wyrazny cel
+ * dlugoterminowy (~11-14 dni przychodu), wciaz krotszy niz komplet skrzynek.
+ */
+const TANK_PATTERN_PRICE: Record<Rarity, number> = { c: 1500, r: 2600, e: 4000, l: 6000 };
+
+
+/**
  * Kafle naklejek i klaksonow prosto z rejestru kosmetyk. Nowa pozycja = jeden wiersz
  * w `COSMETICS` i tyle — sklep podlapie ja sam, bez dotykania tego pliku.
  */
@@ -136,6 +157,29 @@ function stickerSkus(): ShopItemDef[] {
  * Dolozenie brakujacych czterech skinow = jeden wiersz w cosmetics.ts, zero pracy tutaj.
  * `art` celowo wskazuje na `bgImage`: kafel MA pokazywac sam baner, a nie ikone obok niego.
  */
+/**
+ * SKIN-1 — kafle barw czolgu z rejestru (wzorzec profileSkinSkus). Bez `art`:
+ * kafel rysuje probke koloru przez tankSkinSwatchStyle (ShopSection ma galaz
+ * na typ, jak celowniki z zywym canvasem) — probka z prawdziwego zrodla.
+ */
+function tankSkinSkus(): ShopItemDef[] {
+    // SKIN-2: sortowanie po kategorii (sekcje w gridzie zakladki), wzory drozsze.
+    const defs = [...cosmeticsByType('tankSkin')].sort((a, b) =>
+        TANK_SKIN_CAT_ORDER.indexOf(a.patternCat) - TANK_SKIN_CAT_ORDER.indexOf(b.patternCat));
+    return defs.map(def => ({
+        sku: def.id,
+        category: 'tankSkins' as const,
+        price: def.pattern ? TANK_PATTERN_PRICE[def.rarity] : TANK_SKIN_PRICE[def.rarity],
+        currency: 'sigma' as const,
+        rarity: def.rarity,
+        nameKey: def.labelKey,
+        descKey: (def.pattern ? 'shop.item.tankPattern.desc' : 'shop.item.tankSkin.desc') as TranslationKey,
+        impactKey: 'shop.impact.none' as TranslationKey,
+        grant: { kind: 'cosmetic' as const, id: def.id },
+        emoji: '🎨',
+    }));
+}
+
 function profileSkinSkus(): ShopItemDef[] {
     return cosmeticsByType('profileSkin').map(def => ({
         sku: def.id,
@@ -236,10 +280,15 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
       nameKey: 'shop.item.crate10.name', descKey: 'shop.item.crate10.desc',
       impactKey: 'shop.impact.none', grant: { kind: 'crates', count: 10 }, emoji: '📦' },
 
+    // ── barwy czolgu (SKIN-1) — tylko przy fladze ?skins=1 ──────────────────
+    // Zakladka stoi ZARAZ ZA skrzynkami: to od SKIN-1 najmocniejszy towar
+    // (jedyna kosmetyka na samym czolgu w meczu). SHOP_ITEMS buduje sie przy
+    // imporcie modulu — URL jest staly w sesji, wiec jednorazowy odczyt flagi
+    // wystarcza (ten sam kompromis co caly katalog).
+    ...(isSkinsEnabled() ? tankSkinSkus() : []),
+
     // ── celowniki (SHOP-2) ──────────────────────────────────────────────────
-    // Zakladka stoi ZARAZ ZA skrzynkami, przed naklejkami: to najmocniejszy towar
-    // w sklepie (jedyna kosmetyka widoczna w meczu), wiec ma byc widoczny od razu,
-    // a nie po przewinieciu do trzeciej kategorii.
+    // Do SKIN-1 najmocniejszy towar w sklepie — nadal wysoko, zaraz za barwami.
     ...crosshairSkus(),
 
     // ── skiny profilu (v0.147.0) ────────────────────────────────────────────
@@ -274,10 +323,8 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
 
     // ── WKROTCE (placeholdery; art i systemy w osobnych fazach) ────────────
     // v0.147.0: `soon_avatar` przeniesiony do wlasnej zakladki AWATARY jako 12 slotow.
-    { sku: 'soon_skin',   category: 'soon', price: 8000, currency: 'sigma', rarity: 'l',
-      nameKey: 'shop.item.soon_skin.name',   descKey: 'shop.item.soon_skin.desc',
-      impactKey: 'shop.impact.none', grant: { kind: 'none' }, soon: true,
-      art: 'assets/tanks/king_hull.png' },
+    // SKIN-1: `soon_skin` USUNIETY — obietnica zrealizowana (zakladka BARWY CZOLGU);
+    // obietnica i realizacja nie moga wspolistniec w jednym buildzie.
     { sku: 'soon_part',   category: 'soon', price: 0, currency: 'sigma', rarity: 'e',
       nameKey: 'shop.item.soon_part.name',   descKey: 'shop.item.soon_part.desc',
       impactKey: 'shop.impact.boost', grant: { kind: 'none' }, soon: true,
@@ -287,6 +334,10 @@ export const SHOP_ITEMS: readonly ShopItemDef[] = [
 /** Kolejnosc tabow + ich etykiety (literalne klucze — dynamiczny t(var) nie kompiluje). */
 export const SHOP_TABS: readonly { readonly id: ShopCategory; readonly labelKey: TranslationKey }[] = [
     { id: 'crates',       labelKey: 'shop.tab.crates' },
+    // SKIN-1: tab tylko przy fladze (pusta zakladka bez SKU mylilaby graczy)
+    ...(isSkinsEnabled()
+        ? [{ id: 'tankSkins' as const, labelKey: 'shop.tab.tankSkins' as TranslationKey }]
+        : []),
     { id: 'crosshairs',   labelKey: 'shop.tab.crosshairs' },
     { id: 'profileSkins', labelKey: 'shop.tab.profileSkins' },
     { id: 'stickers',     labelKey: 'shop.tab.stickers' },

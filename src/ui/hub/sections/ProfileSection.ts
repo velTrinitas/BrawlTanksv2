@@ -12,6 +12,8 @@ import {
 } from '../../../config/cosmetics';
 import { AVATARS } from '../../../config/avatars';
 import { renderStatArt, STAT_ACCENT, type StatArtId } from '../statArt';   // v0.145.0
+import { statTileHtml } from '../statTile';                                 // GARAZ-3 — wspolny kafel
+import { isSkinsEnabled } from '../../../config/skins';                     // SKIN-1
 import { gemIcon, sigmaIcon } from '../gameIcons';                          // v0.145.0 — koniec lokalnych kopii
 import { RANKS } from '../../../config/ranks';
 import { flagImgHtml } from '../../flagArt';
@@ -41,8 +43,15 @@ import { getSeasonContent } from '../../../config/seasonContent';
 // dedykowanej sekcji SEZON (`SeasonSection`), do ktorej wchodzi sie pillem na belce.
 type ProfileTab = 'overview' | 'records' | 'collection';
 
-/** Kosmetyki aktywne w kolekcji — tytuly WYCIETE z UI (PROFILE-1; dane zostaja). */
-const ACTIVE_COSMETIC_COUNT = COSMETICS.filter(c => c.type !== 'title').length;
+/**
+ * Kosmetyki aktywne w kolekcji — tytuly WYCIETE z UI (PROFILE-1; dane zostaja).
+ * SKIN-1: barwy czolgu licza sie tylko przy fladze (?skins=1) — inaczej licznik
+ * "STYL x/y" obiecywalby 8 pozycji, ktorych zaden ekran nie pokazuje.
+ */
+const isCountedCosmetic = (type: string): boolean =>
+    type !== 'title' && (type !== 'tankSkin' || isSkinsEnabled());
+const activeCosmeticCount = (): number =>
+    COSMETICS.filter(c => isCountedCosmetic(c.type)).length;
 
 export class ProfileSection implements HubSection {
     public readonly id = 'profile';
@@ -305,18 +314,11 @@ export class ProfileSection implements HubSection {
      * sie jako jedna calosc, a nie jako ikona doklejona do cyfry.
      */
     private tileHtml(artHtml: string, accent: string, value: string | number, label: string): string {
-        // DLUGOSC WARTOSCI STERUJE SKALA LICZBY. Kafle niosa od 1 do 7 znakow: „7",
-        // „19x", „89%", „1h 58m", „—". Pierwsza wersja skalowala font przez `clamp(vw)`,
-        // ale `vw` mierzy OKNO, a nie kafel — przy trzech kolumnach na waskim ekranie
-        // „12h 45m" wychodzilo poza pole i lapal je wielokropek (zmierzone: przepelnienie
-        // przy kaflu 155 px). Dlugosc stringa znamy tutaj, wiec skala jest deterministyczna
-        // i niezalezna od szerokosci okna.
-        const plain = String(value).replace(/<[^>]*>/g, '');   // slot rangi niesie HTML
-        return `
-            <div class="bt-hub0-stat bt-hub0-stat--art" style="--art:${accent}" data-vlen="${Math.min(9, plain.length)}">
-                <span class="art" aria-hidden="true">${artHtml}</span>
-                <span class="val"><b>${value}</b><small>${label}</small></span>
-            </div>`;
+        // GARAZ-3: generator wyciagniety do wspoldzielonego statTile.ts —
+        // te same kafle stroja teraz sloty mocy w Garazu (?choose=1).
+        // Skala liczby przez data-vlen zyje w statTileHtml (historia: clamp(vw)
+        // mierzyl OKNO, nie kafel — przepelnienie przy 155 px, v0.145.0).
+        return statTileHtml(artHtml, accent, value, label);
     }
 
     /** Kafel z ikona rysowana kodem (statArt). */
@@ -405,10 +407,18 @@ export class ProfileSection implements HubSection {
         // v0.136.0: doszly 'horn' i 'voice'. Do v0.135.0 nie mialy kafli NIGDZIE, wiec
         // `equipped.horn` / `equipped.voice` nie dalo sie ustawic — kupiony klakson lezal
         // w `owned`, a klawisz H (main.ts) nie mial czego odtworzyc.
-        const ownedActive = cos.owned.filter(id => getCosmetic(id)?.type !== 'title').length;
+        const ownedActive = cos.owned.filter(id => {
+            const type = getCosmetic(id)?.type;
+            return !!type && isCountedCosmetic(type);
+        }).length;
+        // SKIN-1: barwy czolgu na POCZATKU listy (obok celownika — kosmetyki
+        // "meczowe" razem), tylko przy fladze.
         return `
-            <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: ownedActive, total: ACTIVE_COSMETIC_COUNT })}</div>
-            ${cosmeticGroupsHtml(cos, ['crosshair', 'profileSkin', 'avatarBg', 'nickColor', 'frame', 'horn', 'voice'])}`;
+            <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: ownedActive, total: activeCosmeticCount() })}</div>
+            ${cosmeticGroupsHtml(cos, [
+                ...(isSkinsEnabled() ? ['tankSkin' as const] : []),
+                'crosshair', 'profileSkin', 'avatarBg', 'nickColor', 'frame', 'horn', 'voice',
+            ])}`;
     }
 
     // ── async ranking (token-guard — wzorzec StatsOverlay.loadBest) ─────────

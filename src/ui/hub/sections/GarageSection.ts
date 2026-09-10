@@ -1,10 +1,21 @@
 import { t, type TranslationKey } from '../../../i18n/i18n';
 import { crateIcon } from '../gameIcons';
-import type { HubSection } from './HubSection';
+import type { HubSection, HubSelection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
+import { sessionService } from '../../../services/SessionService';
 import { PITY_RARE_AT } from '../../../config/progression';
 import { POWERS, POWER_ORDER, TIER3_POWERS, type PowerId, type PowerDef } from '../../../config/powers'; // F7a loadout + v0.114.0 kostka
+import { BRAWLERS } from '../../../config/brawlers';
+import { isChooseMode, TURN360_TANKS } from '../../../config/hubChoose'; // GARAZ-2 / GARAZ-2.5
+import { isSkinsEnabled } from '../../../config/skins'; // SKIN-1
+import { cosmeticsByType, getCosmetic, tankSkinSwatchStyle, RARITY_COLOR, type CosmeticDef } from '../../../config/cosmetics'; // SKIN-1
+import { getShopItem } from '../../../config/shop'; // SKIN-1 — cena na kaflu locked
+import { tankName, statRowHtml, STAT_MAX } from './BattleSection'; // GARAZ-2: wspolne kawalki kart
+import { turntableCanvasHtml, mountTankTurntable, type TurntableHandle } from '../tankTurntable'; // GARAZ-2
+import { mountTankTurn360 } from '../tankTurn360'; // GARAZ-2.5: viewer 3/4 z klatek
+import { loadoutSlotTileHtml } from '../overlays/LoadoutOverlay'; // GARAZ-3: kafle slotow
+import { playUiClick } from '../../uiSounds';
 
 /**
  * v0.119.0 — opisy mocy do bogatych kart (odwzorowanie boxow z sigmatanks.eu).
@@ -40,6 +51,13 @@ const POWER_DESC_KEY: Record<PowerId, TranslationKey> = {
  * LOADOUT (F7a): 2 sloty + siatka mocy z rejestru. UX dla 9-12: tap slot = uzbroj go (zloty
  * ring), tap moc = wsadz do uzbrojonego slotu (duplikat w drugim slocie => swap w serwisie),
  * po przypisaniu auto-przejscie na drugi slot. Zablokowane moce wyszarzone z progiem 🏆.
+ *
+ * GARAZ-2 (v0.156.0, flaga ?choose=1): Garaz dostaje DWA wspol-glowne elementy —
+ * WYBIERZ CZOLG (hero-row: zywa obrotnica Canvas2D + staty + POTWIERDZ) oraz
+ * wywindowany loadout. Wybor commituje sie do WSPOLNEGO HubSelection (to samo pole,
+ * ktore czyta GRAJ) + merge do LastSession. Interakcje loadoutu robia TARGETED
+ * re-render tylko kontenera loadoutu, wiec obrotnica NIE remountuje sie na kazdy tap.
+ * Flag OFF: renderLegacy() = dokladnie dzisiejszy Garaz, zero zmian.
  */
 export class GarageSection implements HubSection {
     public readonly id = 'garage';
@@ -49,33 +67,45 @@ export class GarageSection implements HubSection {
     /** HubShell otwiera CrateOverlay. */
     public onOpenCrate: (() => void) | null = null;
 
+    /** GARAZ-3: HubShell otwiera pelnoekranowy wybor mocy (LoadoutOverlay). */
+    public onOpenLoadout: ((slot: 0 | 1 | 2) => void) | null = null;
+
+    /** SKIN-1: hint preview prowadzi do sekcji SKLEP (HubShell.setActive). */
+    public onOpenShop: (() => void) | null = null;
+
+    /** SKIN-1: ULOTNY preview zablokowanego skina (znika przy zmianie czolgu/kafla/sekcji). */
+    private previewSkinId: string | null = null;
+
+    /** SKIN-2: aktywny chip filtra kategorii (nie persystowany). */
+    private skinCat: 'all' | 'palettes' | 'animals' | 'games' | 'elements' | 'military' | 'seasonal' = 'all';
+
+    /** SKIN-2: typ zamontowanego viewera (wzor wymusza remount KING: atlas->zywy). */
+    private viewerIs360 = false;
+
     /** F7a — ktory slot loadoutu jest "uzbrojony" na przypisanie mocy (v0.114.0: 3 sloty). */
     private activeSlot: 0 | 1 | 2 = 0;
 
+    private turntable: TurntableHandle | null = null;
+
     private el: HTMLElement | null = null;
+
+    constructor(private readonly sel: HubSelection) {}
 
     render(el: HTMLElement): void {
         this.el = el;
-        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
-        const cos = ProgressionService.getCosmeticState(pid);
-        const pityLeft = PITY_RARE_AT - (cos.pityCounter % PITY_RARE_AT);
+        if (isChooseMode()) {
+            this.renderChoose(el);
+            return;
+        }
+        this.renderLegacy(el);
+    }
 
-        // v0.115.0 juice: gotowa skrzynka CELEBRUJE (zloty glow + lewitacja) — skrzynki
-        // to glowny hak petli, maja krzyczec "otworz mnie" (Sensoryka). is-ready tylko
-        // tutaj (Rozkazy reuzywaja .bt-hub0-cratebox, ale nigdy nie dostaja tej klasy).
-        const hasCrates = cos.crateCount > 0;
-        const crateBox = `
-            <div class="bt-hub0-cratebox${hasCrates ? ' is-ready' : ''}">
-                ${hasCrates ? '<div class="bt-hub0-crate-glow" aria-hidden="true"></div>' : ''}
-                <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}</div>
-                <div class="bt-hub0-crate-info">
-                    <b>${t('hub.garage.crates', { n: cos.crateCount })}</b>
-                    <small>${t('hub.garage.pity', { n: pityLeft })}</small>
-                </div>
-                <button class="bt-hub0-play" data-action="open-crate" type="button" ${hasCrates ? '' : 'disabled'}>
-                    ${t('hub.garage.open')}
-                </button>
-            </div>`;
+    // ════════════════════════════════════════════════════════════════════════
+    // GALAZ FLAG-OFF — dzisiejszy Garaz 1:1 (warunek odbioru: zero regresji)
+    // ════════════════════════════════════════════════════════════════════════
+
+    private renderLegacy(el: HTMLElement): void {
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
 
         // v0.129.0 (zgloszenie Mariusza "nie wiem skad one tam sa") — SKRZYNKI NA GORZE.
         // Do v0.128.0 pudelko lezalo POD 18 kartami mocy i przelacznikiem Szalonych Mocy,
@@ -91,15 +121,382 @@ export class GarageSection implements HubSection {
         // przycisku OTWORZ, a nie kilkaset pikseli nizej.
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.garage')}</h2>
-            ${crateBox}
+            ${this.crateBoxHtml(pid)}
             <small class="bt-hub0-lhint">${crateIcon(15)} ${t('hub.garage.cratesFrom')}</small>
             <small class="bt-hub0-lhint">🪖 ${t('hub.garage.cosmeticsMoved')}</small>
             ${this.loadoutHtml(pid)}
         `;
-        this.wire();
+        this.wireLegacy();
     }
 
-    // ── F7a: Loadout Super Mocy ─────────────────────────────────────────────
+    /** Pudelko skrzynek (wspolne dla obu galezi — v0.115.0 juice: gotowa CELEBRUJE). */
+    private crateBoxHtml(pid: string): string {
+        const cos = ProgressionService.getCosmeticState(pid);
+        const pityLeft = PITY_RARE_AT - (cos.pityCounter % PITY_RARE_AT);
+        const hasCrates = cos.crateCount > 0;
+        return `
+            <div class="bt-hub0-cratebox${hasCrates ? ' is-ready' : ''}">
+                ${hasCrates ? '<div class="bt-hub0-crate-glow" aria-hidden="true"></div>' : ''}
+                <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}</div>
+                <div class="bt-hub0-crate-info">
+                    <b>${t('hub.garage.crates', { n: cos.crateCount })}</b>
+                    <small>${t('hub.garage.pity', { n: pityLeft })}</small>
+                </div>
+                <button class="bt-hub0-play" data-action="open-crate" type="button" ${hasCrates ? '' : 'disabled'}>
+                    ${t('hub.garage.open')}
+                </button>
+            </div>`;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // GALAZ FLAG-ON (GARAZ-2): obrotnica + WYBIERZ CZOLG + loadout wywindowany
+    // ════════════════════════════════════════════════════════════════════════
+
+    private renderChoose(el: HTMLElement): void {
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        this.previewSkinId = null; // SKIN-1: preview nie przezywa wyjscia z sekcji
+        // Wrapper dostaje delegowany click PER RENDER (listener ginie z innerHTML —
+        // zero duplikatow przy ponownym wejsciu do sekcji; el to trwaly .bt-hub0-main).
+        // GARAZ-3 (brief Mariusza): hero FRAMELESS (czolg+nazwa+staty jedna
+        // kompozycja na tle garazu, zero kart), zmiana czolgu = karuzela
+        // (strzalki / flick / tap w nazwe, commit OD RAZU), jedyne ramki =
+        // 3 sloty mocy (kafle record-boxa), wybor mocy w pelnoekranowym
+        // LoadoutOverlay (tap slotu). Scroll TYLKO w overlayu.
+        el.innerHTML = `
+            <div class="bt-gr2-wrap">
+                <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.garage')}</h2>
+                <div class="bt-gr2-hero" data-gr2-hero>${this.heroHtml()}</div>
+                ${isSkinsEnabled() ? `<div class="bt-gr2-skins" data-gr2-skins>${this.skinsRowHtml(pid)}</div>` : ''}
+                <div class="bt-gr2-slots" data-gr2-slots>${this.slotsRowHtml(pid)}</div>
+                ${this.crateRowHtml(pid)}
+            </div>`;
+        this.wireChoose(el);
+        this.mountTurntable(el);
+    }
+
+    /**
+     * GARAZ-3 v2 (minimalizacja UI): skrzynki jako JEDEN kompaktowy pasek —
+     * ikona + licznik + OTWORZ. Pity i linijki zrodel zostaly w galezi legacy;
+     * strefa hero ma byc czysta (brief: "czysta, piekna, estetyczna").
+     */
+    private crateRowHtml(pid: string): string {
+        const cos = ProgressionService.getCosmeticState(pid);
+        const hasCrates = cos.crateCount > 0;
+        return `
+            <div class="bt-gr2-crate${hasCrates ? ' is-ready' : ''}">
+                <span class="art" aria-hidden="true">${crateIcon(30)}</span>
+                <b class="cnt">${t('hub.garage.crates', { n: cos.crateCount })}</b>
+                <button class="bt-hub0-play bt-gr2-crate-open" data-action="open-crate"
+                        type="button" ${hasCrates ? '' : 'disabled'}>
+                    ${t('hub.garage.open')}
+                </button>
+            </div>`;
+    }
+
+    // ── SKIN-1: BARWY CZOLGU — pasek kropek pod obrotnica ───────────────────
+
+    /** Zalozony skin (def) albo null. */
+    private equippedSkin(pid: string): CosmeticDef | null {
+        const id = ProgressionService.getCosmeticState(pid).equipped['tankSkin'];
+        return (id ? getCosmetic(id) : undefined) ?? null;
+    }
+
+    /** Skin pokazywany na obrotnicy: ulotny preview albo zalozony. */
+    private displayedSkin(pid: string): CosmeticDef | null {
+        const p = this.previewSkinId ? getCosmetic(this.previewSkinId) : undefined;
+        return p ?? this.equippedSkin(pid);
+    }
+
+    /** SKIN-2: chipsy filtra kategorii (42 pozycje = za duzo na jeden rzad). */
+    private skinChipsHtml(): string {
+        const cats = [
+            ['all', t('cosmetic.tskin.cat.all')],
+            ['palettes', t('cosmetic.tskin.cat.palettes')],
+            ['animals', t('cosmetic.tskin.cat.animals')],
+            ['games', t('cosmetic.tskin.cat.games')],
+            ['elements', t('cosmetic.tskin.cat.elements')],
+            ['military', t('cosmetic.tskin.cat.military')],
+            ['seasonal', t('cosmetic.tskin.cat.seasonal')],
+        ] as const;
+        return `<div class="bt-gr2-skincats">${cats.map(([id, label]) => `
+            <button class="bt-gr2-skincat${this.skinCat === id ? ' is-on' : ''}"
+                    data-action="gr2-skincat" data-cat="${id}" type="button">${label}</button>`).join('')}
+        </div>`;
+    }
+
+    /**
+     * Pasek: chipsy kategorii + kafel BAZA (zawsze) + skiny z rejestru
+     * (przefiltrowane chipem). PROSTOKATNE swatche (tankSkinSwatchStyle) z
+     * ringiem rarity; locked = 🔒 + cena. Hint pod paskiem tylko przy preview.
+     */
+    private skinsRowHtml(pid: string): string {
+        const cos = ProgressionService.getCosmeticState(pid);
+        const equippedId = cos.equipped['tankSkin'] ?? null;
+        const b = BRAWLERS.find(x => x.id === this.sel.brawlerId) ?? BRAWLERS[0];
+        const baseDot = `
+            <button class="bt-gr2-skin${!equippedId && !this.previewSkinId ? ' is-equipped' : ''}"
+                    data-action="gr2-skin" data-skin="" type="button" title="${t('hub.garage.skinBase')}">
+                <span class="dot" style="background:
+                    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0) 55%),
+                    radial-gradient(circle at 70% 75%, rgba(0,0,0,0.25), rgba(0,0,0,0) 60%),
+                    ${b.colorMain};"></span>
+                <small>${t('hub.garage.skinBase')}</small>
+            </button>`;
+        // SKIN-2: filtr chipa — palety = brak patternCat; kategorie po polu.
+        const visible = cosmeticsByType('tankSkin').filter(def =>
+            this.skinCat === 'all'
+            || (this.skinCat === 'palettes' ? !def.patternCat : def.patternCat === this.skinCat));
+        const dots = visible.map(def => {
+            const owned = cos.owned.includes(def.id);
+            const state = def.id === equippedId ? ' is-equipped'
+                : def.id === this.previewSkinId ? ' is-preview'
+                : owned ? '' : ' is-locked';
+            const price = getShopItem(def.id)?.price;
+            return `
+            <button class="bt-gr2-skin${state}" data-action="gr2-skin" data-skin="${def.id}"
+                    type="button" title="${t(def.labelKey)}"
+                    style="--rar:${RARITY_COLOR[def.rarity]}">
+                <span class="dot${def.animated ? ' is-anim' : ''}" style="${tankSkinSwatchStyle(def)}">${owned ? '' : '<span class="lk">🔒</span>'}</span>
+                <small>${owned ? t(def.labelKey) : `${price ?? '?'} ⚙`}</small>
+            </button>`;
+        }).join('');
+        const previewDef = this.previewSkinId ? getCosmetic(this.previewSkinId) : undefined;
+        const hint = previewDef
+            ? `<button class="bt-gr2-skinhint" data-action="gr2-skin-shop" type="button">
+                   ${t('hub.garage.skinPreview', { n: getShopItem(previewDef.id)?.price ?? 0 })}
+               </button>`
+            : '';
+        return `${this.skinChipsHtml()}<div class="bt-gr2-skinrow">${baseDot}${dots}</div>${hint}`;
+    }
+
+    /** Targeted refresh paska + przemalowanie obrotnicy (remount tylko gdy trzeba). */
+    private refreshSkins(el: HTMLElement, pid: string): void {
+        const box = el.querySelector<HTMLElement>('[data-gr2-skins]');
+        if (box) box.innerHTML = this.skinsRowHtml(pid);
+        const def = this.displayedSkin(pid);
+        // SKIN-2: zmiana skina moze zmienic wymagany TYP viewera na czolgu z
+        // atlasem (paleta<->wzor) — wtedy pelny remount zamiast setSkin.
+        const needs360 = TURN360_TANKS.includes(this.sel.brawlerId) && !def?.pattern;
+        if (needs360 !== this.viewerIs360) {
+            this.mountTurntable(el);
+        } else {
+            this.turntable?.setSkin(def?.hex ?? null, def?.filter3d ?? null,
+                def?.pattern ?? null, !!def?.animated);
+        }
+        // nazwa czolgu w hexie skina (feedback "to sa TWOJE barwy")
+        const name = el.querySelector<HTMLElement>('.bt-gr2-name');
+        const b = BRAWLERS.find(x => x.id === this.sel.brawlerId) ?? BRAWLERS[0];
+        if (name) name.style.color = def?.hex ?? b.colorMain;
+        // GARAZ-4: paski HP/DMG/SPEED tez w barwie skina (--tank na stage2).
+        const stage = el.querySelector<HTMLElement>('[data-gr2-stage]');
+        if (stage) stage.style.setProperty('--tank', def?.hex ?? b.colorMain);
+    }
+
+    /** GARAZ-3: rzad 3 slotow mocy — te same kafle co w LoadoutOverlay. */
+    private slotsRowHtml(pid: string): string {
+        return ([0, 1, 2] as const).map(slot => `
+            <button class="bt-ld-slotbtn" data-action="gr2-slot" data-slot="${slot}" type="button">
+                ${loadoutSlotTileHtml(pid, slot)}
+            </button>`).join('');
+    }
+
+    /** GARAZ-3: karuzela czolgow — commit natychmiast (bez preview/potwierdz). */
+    private cycleTank(el: HTMLElement, dir: 1 | -1): void {
+        const idx = BRAWLERS.findIndex(b => b.id === this.sel.brawlerId);
+        const next = BRAWLERS[(idx + dir + BRAWLERS.length) % BRAWLERS.length];
+        if (!next) return;
+        playUiClick();
+        this.previewSkinId = null; // SKIN-1: preview jest ulotny — zmiana czolgu go zdejmuje
+        this.sel.brawlerId = next.id;
+        this.persistBrawler();
+        this.updateHero(el);
+        if (isSkinsEnabled()) {
+            this.refreshSkins(el, ProfileService.getActiveProfile()?.id ?? 'default');
+        }
+    }
+
+    private heroHtml(): string {
+        const b = BRAWLERS.find(x => x.id === this.sel.brawlerId) ?? BRAWLERS[0];
+        // GARAZ-3: frameless — strzalki karuzeli po bokach czolgu, nazwa
+        // (tappable = nastepny), jedna kompozycja na tle garazu.
+        // GARAZ-4 (uwaga Mariusza): gablota lekko w LEWO, nazwa+staty OBOK
+        // czolgu po PRAWEJ (.bt-gr2-side) — desktop i mobile tak samo.
+        // --tank na wrapperze barwi paski statow; refreshSkins podmienia go
+        // na hex skina (paski zmieniaja kolor razem z czolgiem).
+        return `
+            <div class="bt-gr2-stage2" style="--tank:${b.colorMain}" data-gr2-stage>
+                <div class="bt-gr2-stagerow">
+                    <button class="bt-gr2-arrow" data-action="gr2-prev" type="button"
+                            aria-label="prev">&#8249;</button>
+                    ${turntableCanvasHtml()}
+                    <button class="bt-gr2-arrow" data-action="gr2-next" type="button"
+                            aria-label="next">&#8250;</button>
+                </div>
+                <div class="bt-gr2-side">
+                    <button class="bt-gr2-name" data-action="gr2-next" type="button"
+                            style="color:${b.colorMain}">${tankName(b)}</button>
+                    <div class="bt-gr2-stats">
+                        ${statRowHtml('HP', b.hp, STAT_MAX.hp)}
+                        ${statRowHtml('DMG', b.dmg, STAT_MAX.dmg)}
+                        ${statRowHtml('SPEED', b.speed, STAT_MAX.speed)}
+                    </div>
+                    <small class="bt-gr2-draghint">${t('hub.garage.dragHint')}</small>
+                </div>
+            </div>`;
+    }
+
+    /** Re-render TYLKO hero (zmiana czolgu) + remount obrotnicy. */
+    private updateHero(el: HTMLElement): void {
+        const hero = el.querySelector<HTMLElement>('[data-gr2-hero]');
+        if (!hero) return;
+        hero.innerHTML = this.heroHtml();
+        this.mountTurntable(el);
+    }
+
+    /**
+     * GARAZ-3: odswiez rzad slotow po powrocie z LoadoutOverlay — targeted
+     * (obrotnica NIE remountuje sie przy zamknieciu overlaya).
+     */
+    public refreshSlots(): void {
+        const box = this.el?.querySelector<HTMLElement>('[data-gr2-slots]');
+        if (!box) return;
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        box.innerHTML = this.slotsRowHtml(pid);
+    }
+
+    private mountTurntable(el: HTMLElement): void {
+        const cv = el.querySelector<HTMLCanvasElement>('canvas.bt-gr2-canvas');
+        if (!cv) return;
+        // GARAZ-2.5: singletony obu modulow sprzataja tylko SWOJE handle —
+        // przy przelaczeniu renderera (turn360 <-> turntable) stary konczymy tu.
+        this.turntable?.destroy();
+        const id = this.sel.brawlerId;
+        const flagId = ProfileService.getActiveProfile()?.flagId ?? null;
+        const skinDef = isSkinsEnabled()
+            ? this.displayedSkin(ProfileService.getActiveProfile()?.id ?? 'default')
+            : null;
+        // SKIN-2: atlas 3/4 nie umie WZOROW — wzorzysty skin zrzuca KING na zywa
+        // obrotnice render2d (wzor 1:1 z meczem). Palety/filtr zostaja na atlasie.
+        this.viewerIs360 = TURN360_TANKS.includes(id) && !skinDef?.pattern;
+        this.turntable = this.viewerIs360
+            ? mountTankTurn360(cv, id, flagId) // flagId: fallback turntable, gdy brak klatek
+            : mountTankTurntable(cv, id, flagId);
+        // SKIN-1/2: swiezo zamontowany viewer dostaje aktualne barwy/wzor od razu
+        if (skinDef) {
+            this.turntable.setSkin(skinDef.hex ?? null, skinDef.filter3d ?? null,
+                skinDef.pattern ?? null, !!skinDef.animated);
+        }
+        this.wireFlick(el, cv);
+    }
+
+    /**
+     * GARAZ-3 (decyzja z AskUserQuestion): FLICK na canvasie = zmiana czolgu.
+     * Warstwa gestu zyje TUTAJ, nie w viewerach — mierzymy czas+dystans wlasnymi
+     * listenerami; wolny drag dalej obraca gablote (viewer), szybki zamach
+     * (<250 ms, >60 px) przelacza czolg. Canvas ginie przy updateHero, wiec
+     * wiring odnawia sie przy kazdym mountTurntable (zero duplikatow).
+     */
+    private wireFlick(el: HTMLElement, cv: HTMLCanvasElement): void {
+        let downT = 0;
+        let downX = 0;
+        cv.addEventListener('pointerdown', (e) => { downT = performance.now(); downX = e.clientX; });
+        cv.addEventListener('pointerup', (e) => {
+            if (downT === 0) return;
+            const held = performance.now() - downT;
+            const dx = e.clientX - downX;
+            downT = 0;
+            if (held > 250 || Math.abs(dx) < 60) return; // to byl obrot/tap, nie flick
+            this.cycleTank(el, dx < 0 ? 1 : -1); // zamach w lewo = nastepny
+        });
+    }
+
+    /**
+     * Delegowany click (na wrapperze, ktory ginie z innerHTML — zero duplikatow
+     * przy ponownym wejsciu): karuzela czolgow, sloty mocy, skrzynki.
+     */
+    private wireChoose(el: HTMLElement): void {
+        const wrap = el.querySelector<HTMLElement>('.bt-gr2-wrap');
+        if (!wrap) return;
+        wrap.addEventListener('click', (e) => {
+            const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+            const action = hit?.dataset.action;
+            if (!action) return;
+            switch (action) {
+                case 'open-crate':
+                    this.onOpenCrate?.();
+                    return;
+                case 'gr2-prev':
+                    this.cycleTank(el, -1);
+                    return;
+                case 'gr2-next':
+                    this.cycleTank(el, 1);
+                    return;
+                case 'gr2-slot': {
+                    playUiClick();
+                    const slot = Number(hit?.dataset.slot ?? 0) as 0 | 1 | 2;
+                    this.onOpenLoadout?.(slot);
+                    return;
+                }
+                case 'gr2-skin': {
+                    // SKIN-1: posiadany = commit OD RAZU (spojnie z karuzela);
+                    // zablokowany = ULOTNY preview na obrotnicy + hint sklepowy.
+                    const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+                    const skinId = hit?.dataset.skin ?? '';
+                    const cos = ProgressionService.getCosmeticState(pid);
+                    playUiClick();
+                    if (skinId === '') {
+                        // BAZA: zdejmij skina (toggle na zalozonym id) + zdejmij preview
+                        this.previewSkinId = null;
+                        const eq = cos.equipped['tankSkin'];
+                        if (eq) ProgressionService.equipCosmetic(pid, eq); // toggle OFF
+                    } else if (cos.owned.includes(skinId)) {
+                        this.previewSkinId = null;
+                        ProgressionService.equipCosmetic(pid, skinId); // equip/toggle (serwis)
+                    } else {
+                        this.previewSkinId = this.previewSkinId === skinId ? null : skinId;
+                    }
+                    this.refreshSkins(el, pid);
+                    return;
+                }
+                case 'gr2-skin-shop':
+                    playUiClick();
+                    this.onOpenShop?.();
+                    return;
+                case 'gr2-skincat': {
+                    playUiClick();
+                    this.skinCat = (hit?.dataset.cat ?? 'all') as typeof this.skinCat;
+                    const catPid = ProfileService.getActiveProfile()?.id ?? 'default';
+                    const box = el.querySelector<HTMLElement>('[data-gr2-skins]');
+                    if (box) box.innerHTML = this.skinsRowHtml(catPid);
+                    return;
+                }
+            }
+        });
+    }
+
+    /**
+     * GARAZ-2: commit wyboru do LastSession (ISTNIEJACY klucz, zero nowych pol).
+     * Merge: podmieniamy tylko brawlerId+brawlerName; gdy sesji nie ma (pierwszy
+     * gracz przed pierwszym meczem) — bez zapisu, wybor zyje w HubSelection
+     * i utrwali sie przy pierwszym GRAJ w startGame (jak dotad).
+     */
+    private persistBrawler(): void {
+        try {
+            const last = sessionService.getLastSession();
+            if (!last) return;
+            const b = BRAWLERS.find(x => x.id === this.sel.brawlerId);
+            sessionService.saveLastSession({
+                ...last,
+                brawlerId: this.sel.brawlerId,
+                brawlerName: b ? tankName(b) : this.sel.brawlerId,
+            });
+        } catch (e) {
+            console.error('[GarageSection] persistBrawler failed:', (e as Error).stack ?? e,
+                { brawlerId: this.sel.brawlerId });
+        }
+    }
+
+    // ── F7a: Loadout Super Mocy (GALAZ LEGACY — flag-ON ma LoadoutOverlay) ──
 
     private loadoutHtml(pid: string): string {
         const ps = ProgressionService.getPowerState(pid);
@@ -217,7 +614,7 @@ export class GarageSection implements HubSection {
             </button>`;
     }
 
-    private wire(): void {
+    private wireLegacy(): void {
         const el = this.el;
         if (!el) return;
         el.querySelector('[data-action="open-crate"]')?.addEventListener('click', () => this.onOpenCrate?.());

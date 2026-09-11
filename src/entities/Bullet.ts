@@ -274,9 +274,10 @@ export class Bullet {
             // Wall collision (+ destructibles routing — v0.34.0 T7 crates)
             for (const b of buildings) {
                 if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
-                    const destructible = b as ICollidable & { takeDamage?: (dmg: number, hitX: number, hitY: number) => void };
+                    const destructible = b as ICollidable & { takeDamage?: (dmg: number, hitX: number, hitY: number, heavy?: boolean) => void };
                     if (typeof destructible.takeDamage === 'function') {
-                        destructible.takeDamage(this.dmg, this.x, this.y);
+                        // SAVE THE QUEEN Q2: 4. arg "heavy" = super strzal (Zwornik odporny na zwykle pociski); inne propy go ignoruja
+                        destructible.takeDamage(this.dmg, this.x, this.y, this.isSuper);
                     } else {
                         effects.spawnWallImpact(this.x, this.y);
                         AudioSys.getInstance().playHit('wall');

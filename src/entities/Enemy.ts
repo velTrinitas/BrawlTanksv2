@@ -5,7 +5,7 @@ import { worldRng } from '../systems/Rng'; // Z0.1: seeded gameplay RNG
 import type { DamageSource } from '../types/DamageSource'; // Z0.5
 import { WORLD_W, WORLD_H } from '../config/constants'; // FAZA CTF F2 — clampy guarda
 import { BRAWLERS } from '../config/brawlers';
-import { EnemySpriteBaker, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
+import { EnemySpriteBaker, ENEMY_TEX_SIZE, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
 import type { EnemyBulletType } from '../rendering/EnemyBulletSpriteBaker';
 import type { EffectsManager } from '../rendering/Effects';
 import type { EnemyConfig } from '../config/enemies';
@@ -140,6 +140,8 @@ export class Enemy {
     // WaveDirector przy spawnie; stan trasy mutuje CastleSystem.targetFor per klatke
     // (scratch-obiekty = zero alokacji, wzorzec _stealTX/_stealTY).
     public castleRole: CastleRole | null = null;
+    /** SAVE THE QUEEN Q4 — rola w Lochach (null = raider/AI KTB). Budowniczy: cel = slot muru (QueenSystem.targetFor). */
+    public queenRole: 'raider' | 'builder' | null = null;
     public castleLane: CastleLaneId | null = null;
     public castleRouteId: string = '';
     public castleNode: number = 0;
@@ -383,6 +385,102 @@ export class Enemy {
      *         usuniety — patrz komentarz przy GuardConfig).
      * Strzal: tylko CHASE/ALERT, dist<500, cooldown fireIntervalMs (z CtfSystem).
      */
+    /**
+     * v0.165.0 (SAVE THE QUEEN Q2, zgloszenie Mariusza + testerow — GLOBALNE): ruch z OMIJANIEM
+     * przeszkod Z WYPRZEDZENIEM (steering, nie slizg). Decyzja Mariusza po playtescie v3:
+     * "slizganie wyglada kaprawo" -> wrog ma WYKRYC przeszkode zawczasu i ominac ja lukiem.
+     *
+     * Algorytm (zero pathfindingu, zero alokacji per klatke):
+     *  1. SONDA: punkt lookAhead = pozycja + kierunek * L (L = r + ~0.6 s drogi, 70..170 px).
+     *     Jesli sonda (kolo r) nie dotyka zadnego prostokata -> jazda prosto.
+     *  2. WYBOR STRONY: gdy sonda trafia blokera, liczymy po ktorej stronie osi ruchu lezy
+     *     jego srodek (iloczyn wektorowy) i skrecamy na strone PRZECIWNA, a gdy bloker jest
+     *     duzy (sciana) — w strone blizszej krawedzi. Strona trzymana ~0.7 s (histereza —
+     *     bez drgania miedzy dwoma filarami), sila skretu narasta im blizej przeszkody.
+     *  3. RUCH: wektor = kierunek + prostopadla * strona * sila, znormalizowany do predkosci.
+     *     Kolizja per-os zostaje jako siatka bezpieczenstwa (nigdy nie wjezdzamy w prostokat).
+     *  4. Gdy mimo to obie osie zablokowane (rog) — flip strony i krok po osi prostopadlej,
+     *     zeby sie odkleic (fallback, w praktyce rzadki).
+     * Dotyczy zwyklych, pursuit i mega bossa (guard ma wlasna maszyne stanow, bez zmian).
+     */
+    private avoidSide = 0;          // -1 / 0 / +1 — strona skretu (0 = brak)
+    private avoidFrames = 0;        // pamiec strony (histereza)
+    private static readonly AVOID_HOLD = 42;
+    private moveAvoiding(mx: number, my: number, delta: number, buildings: ICollidable[], r: number): void {
+        const speed = Math.hypot(mx, my);
+        if (speed < 0.01) { if (this.avoidFrames > 0) this.avoidFrames -= delta; return; }
+        const ux = mx / speed, uy = my / speed;
+        // 1. sonda przed czolgiem (im szybszy, tym dalej patrzy)
+        const look = Math.max(70, Math.min(170, r + speed * 36));
+        const px = this.x + ux * look, py = this.y + uy * look;
+        let blocker: ICollidable | null = null;
+        let blockerDist = Infinity;
+        for (const b of buildings) {
+            if (!checkRectCollision(b.x, b.y, b.w, b.h, px, py, r)) continue;
+            // najblizszy bloker wzdluz kierunku ruchu (srodek prostokata rzutowany na os ruchu)
+            const d = (b.x + b.w / 2 - this.x) * ux + (b.y + b.h / 2 - this.y) * uy;
+            if (d < blockerDist) { blockerDist = d; blocker = b; }
+        }
+        let vx = mx, vy = my;
+        if (blocker) {
+            if (this.avoidFrames <= 0 || this.avoidSide === 0) {
+                // 2. strona skretu: przeciwna do srodka blokera; przy duzym blokerze (sciana) —
+                //    w strone blizszej krawedzi wzdluz osi prostopadlej do ruchu
+                const cx = blocker.x + blocker.w / 2, cy = blocker.y + blocker.h / 2;
+                const cross = ux * (cy - this.y) - uy * (cx - this.x); // >0: bloker po prawej (uklad ekranu)
+                const big = Math.max(blocker.w, blocker.h) > 6 * r;
+                if (big) {
+                    const perpX = -uy, perpY = ux;
+                    const horiz = Math.abs(perpX) > Math.abs(perpY);
+                    // dystans do krawedzi w kierunku +perp vs -perp: skrecamy tam, gdzie krawedz blizej
+                    const plus = horiz ? (perpX > 0 ? blocker.x + blocker.w - this.x : this.x - blocker.x)
+                                       : (perpY > 0 ? blocker.y + blocker.h - this.y : this.y - blocker.y);
+                    const minus = horiz ? (perpX > 0 ? this.x - blocker.x : blocker.x + blocker.w - this.x)
+                                        : (perpY > 0 ? this.y - blocker.y : blocker.y + blocker.h - this.y);
+                    this.avoidSide = plus <= minus ? 1 : -1;
+                } else {
+                    this.avoidSide = cross > 0 ? -1 : 1;
+                }
+                this.avoidFrames = Enemy.AVOID_HOLD;
+            }
+            // 3. sila skretu rosnie, im blizej przeszkoda (0.55 daleko .. 1.4 tuz przed)
+            const near = Math.max(0, Math.min(1, 1 - (blockerDist - r) / look));
+            const k = 0.55 + near * 0.85;
+            const sx = ux + (-uy) * this.avoidSide * k;
+            const sy = uy + ux * this.avoidSide * k;
+            const sl = Math.hypot(sx, sy) || 1;
+            vx = (sx / sl) * speed; vy = (sy / sl) * speed;
+        } else if (this.avoidFrames > 0) {
+            // po minieciu przeszkody dojezdzamy lagodnie (slabszy skret), zeby nie zawadzic rogiem
+            this.avoidFrames -= delta;
+            const k = 0.35 * Math.min(1, this.avoidFrames / Enemy.AVOID_HOLD);
+            const sx = ux + (-uy) * this.avoidSide * k;
+            const sy = uy + ux * this.avoidSide * k;
+            const sl = Math.hypot(sx, sy) || 1;
+            vx = (sx / sl) * speed; vy = (sy / sl) * speed;
+            if (this.avoidFrames <= 0) this.avoidSide = 0;
+        }
+        // siatka bezpieczenstwa: kolizja per-os (nigdy w prostokat)
+        const nx = this.x + vx * delta, ny = this.y + vy * delta;
+        let canX = true, canY = true;
+        for (const b of buildings) {
+            if (canX && checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, r)) canX = false;
+            if (canY && checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, r)) canY = false;
+            if (!canX && !canY) break;
+        }
+        if (canX) this.x = nx;
+        if (canY) this.y = ny;
+        if (!canX && !canY) {
+            // 4. rog / zakleszczenie: flip strony + krok po osi prostopadlej do ruchu
+            this.avoidSide = this.avoidSide === 0 ? 1 : -this.avoidSide;
+            this.avoidFrames = Enemy.AVOID_HOLD;
+            const ex = this.x + (-uy) * this.avoidSide * speed * delta, ey = this.y + ux * this.avoidSide * speed * delta;
+            let free = true;
+            for (const b of buildings) { if (checkRectCollision(b.x, b.y, b.w, b.h, ex, ey, r)) { free = false; break; } }
+            if (free) { this.x = ex; this.y = ey; }
+        }
+    }
+
     private updateGuard(delta: number, playerX: number, playerY: number, buildings: ICollidable[]): EnemyShotInfo | null {
         const g = this.guard!;
         let facing: number;
@@ -473,6 +571,27 @@ export class Enemy {
      */
     /** F4: interwal strzalu/lobu (odczyt dla CastleSystem). */
     public get shootInterval(): number { return this.shootIntervalMs; }
+
+    /**
+     * SAVE THE QUEEN Q6: przelacz na PIECZONY archetyp 2.5D (atlas 36 katow) po spawnie —
+     * Budowniczy dostaje "dusze" jak nasze czolgi. Fallback (nie pieczony): false => wolajacy
+     * uzywa plaskiego sprite'a (useCustomSprite).
+     */
+    public useBakedArchetype(arch: EnemyArchetype): boolean {
+        if (!EnemySpriteBaker.isBaked(arch)) return false;
+        this.bakerArch = arch;
+        this.tintHex = 0xffffff;
+        const scale = this.container.scale.x || 1;
+        this.hull.texture = EnemySpriteBaker.getTexture(arch, 0);
+        this.hull.anchor.set(0.5);
+        this.hull.scale.set(EnemySpriteBaker.getDisplayScale(arch) / scale);
+        this.hull.rotation = 0;
+        this.hull.tint = 0xffffff;
+        this.turret.visible = false;
+        if (this.flashOverlay) { this.flashOverlay.visible = false; this.flashOverlay.texture = this.hull.texture; this.flashOverlay.scale.set(this.hull.scale.x); }
+        this.hpBar.y = -(ENEMY_TEX_SIZE[arch] * this.hull.scale.x) / 2 + 26;
+        return true;
+    }
 
     public useCustomSprite(tex: PIXI.Texture, displayScale: number): void {
         this.bakerArch = null;
@@ -573,6 +692,19 @@ export class Enemy {
         if (!this.bakerArch) return;
         this.hull.texture = EnemySpriteBaker.getTexture(this.bakerArch, angle);
         if (this.flashOverlay) this.flashOverlay.texture = this.hull.texture;
+        if (this.accessory) this.accessory.rotation = angle; // Q6: dzwig Budowniczego obraca sie z kadlubem
+    }
+
+    /** Q6: plaski dodatek NA pieczonym kadlubie (dzwig Budowniczego) — obraca sie z facingiem, nad hullem, pod hpBar. */
+    private accessory: PIXI.Sprite | null = null;
+    public attachAccessory(tex: PIXI.Texture, scale: number): void {
+        if (this.accessory) { this.accessory.destroy(); this.accessory = null; }
+        const s = new PIXI.Sprite(tex);
+        s.anchor.set(0.5);
+        s.scale.set(scale);
+        this.accessory = s;
+        const idx = this.container.getChildIndex(this.hull);
+        this.container.addChildAt(s, idx + 1);
     }
 
     /**
@@ -784,15 +916,7 @@ export class Enemy {
                 }
             }
 
-            const nx = this.x + moveX * delta;
-            const ny = this.y + moveY * delta;
-            let canMoveX = true, canMoveY = true;
-            for (const b of buildings) {
-                if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 35)) canMoveX = false;
-                if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 35)) canMoveY = false;
-            }
-            if (canMoveX) this.x = nx;
-            if (canMoveY) this.y = ny;
+            this.moveAvoiding(moveX, moveY, delta, buildings, 35);
         } else if (this.isPursuit) {
             // v0.58.0 Warstwa C2 — strafe-dodge AI (napastliwy poscig).
             // Orbituje gracza na PURSUIT_IDEAL_DIST (200px), z czestszymi unikami
@@ -813,15 +937,7 @@ export class Enemy {
                 moveY = (dx / dist) * effectiveSpeed * this.pursuitStrafeDir;
             }
 
-            const nx = this.x + moveX * delta;
-            const ny = this.y + moveY * delta;
-            let canMoveX = true, canMoveY = true;
-            for (const b of buildings) {
-                if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 25)) canMoveX = false;
-                if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 25)) canMoveY = false;
-            }
-            if (canMoveX) this.x = nx;
-            if (canMoveY) this.y = ny;
+            this.moveAvoiding(moveX, moveY, delta, buildings, 25);
         } else {
             // v0.44.1 FIX: cube chase wymaga niskiego minMoveDist (5px zamiast 60)
             // żeby enemy DOSZEDŁ do touch range (50px) i ukradł cube.
@@ -830,16 +946,7 @@ export class Enemy {
             const minMoveDist = isChasingCube ? CUBE_CHASE_MIN_MOVE_DIST : (this.castleRole ? CASTLE_MOVE_MIN_DIST : Enemy.MIN_DIST_TO_PLAYER);
 
             if (dist > minMoveDist) {
-                const nx = this.x + (dx / dist) * effectiveSpeed * delta;
-                const ny = this.y + (dy / dist) * effectiveSpeed * delta;
-
-                let canMoveX = true, canMoveY = true;
-                for (const b of buildings) {
-                    if (checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, 20)) canMoveX = false;
-                    if (checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, 20)) canMoveY = false;
-                }
-                if (canMoveX) this.x = nx;
-                if (canMoveY) this.y = ny;
+                this.moveAvoiding((dx / dist) * effectiveSpeed, (dy / dist) * effectiveSpeed, delta, buildings, 20);
             }
         }
 

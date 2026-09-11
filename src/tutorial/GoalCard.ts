@@ -14,7 +14,7 @@ import { t } from '../i18n/i18n';
 const GOLD = '#ffd24a';
 const AUTO_MS = 6000;
 
-type GoalScenario = 'ktb' | 'ctf' | 'castle'; // OBRON ZAMEK F5
+type GoalScenario = 'ktb' | 'ctf' | 'castle' | 'save_queen'; // OBRON ZAMEK F5, SAVE THE QUEEN Q1
 
 let currentRoot: HTMLDivElement | null = null;
 let autoTimer: number | null = null;
@@ -72,7 +72,7 @@ export function showModeGoal(scenario: GoalScenario, isTouch: boolean): void {
     title.style.cssText = 'color:' + GOLD + ';font-size:' + (desk ? 'clamp(30px,3vw,44px)' : 'clamp(22px,5.5vw,36px)') + ';line-height:1.05;text-shadow:0 3px 0 #000,0 0 20px rgba(255,180,40,.55)';
 
     const text = document.createElement('div');
-    text.textContent = scenario === 'ctf' ? t('goal.ctf') : scenario === 'castle' ? t('goal.castle') : t('goal.ktb');
+    text.textContent = scenario === 'ctf' ? t('goal.ctf') : scenario === 'castle' ? t('goal.castle') : scenario === 'save_queen' ? t('goal.save_queen') : t('goal.ktb');
     text.style.cssText = 'color:#e9edf8;font-family:system-ui,sans-serif;font-weight:700;margin-top:' + (desk ? '10px' : '8px') + ';' +
         'font-size:' + (desk ? 'clamp(17px,1.7vw,24px)' : 'clamp(13px,3.2vw,19px)') + ';line-height:1.3;text-shadow:0 2px 0 rgba(0,0,0,.6)';
 

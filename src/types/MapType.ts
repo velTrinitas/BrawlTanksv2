@@ -24,7 +24,9 @@ import type { TranslationKey } from '../i18n/i18n';
 // FAZA CTF F1: 'fortified_ruins' — mapa scenariusza CTF (bez karty w MENU_MAP_CARDS,
 // wybierana wylacznie przez scenario.fixedMapId).
 // OBRON ZAMEK F1: 'castle_grounds' — mapa scenariusza Castle (bez karty; scenario.fixedMapId).
-export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars' | 'castle_grounds';
+export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars' | 'castle_grounds' | 'dungeon';
+// SAVE THE QUEEN Q1: 'dungeon' — mapa scenariusza Krolowej (bez karty; scenario.fixedMapId).
+// Swiat 3000x3000 jak wszedzie; pole gry 2400x2000 wyciete gruba skalna granica (DungeonBorder).
 
 export interface MapConfig {
     id: MapId;
@@ -42,6 +44,7 @@ export const MAP_CONFIGS: Record<MapId, MapConfig> = {
     fortified_ruins: { id: 'fortified_ruins', name: 'FORTIFIED RUINS', bg: '#a08a64', musicTrack: 'ctf.ogg', badge: '#b8956a' },
     mars:    { id: 'mars',    name: 'MARS',      bg: '#c97b62', musicTrack: 'mars1.ogg',     badge: '#a34a3a' },
     castle_grounds: { id: 'castle_grounds', name: 'CASTLE GROUNDS', bg: '#7cbf58', musicTrack: 'castle.ogg', badge: '#2d5016' },
+    dungeon: { id: 'dungeon', name: 'LOCHY', bg: '#1e1729', musicTrack: 'queen.ogg', badge: '#8e44ad' },
 };
 
 /**
@@ -58,6 +61,7 @@ export function getMapIdFromUrl(): MapId {
     if (m === 'fortified_ruins') return 'fortified_ruins';
     if (m === 'mars') return 'mars';
     if (m === 'castle_grounds') return 'castle_grounds';
+    if (m === 'dungeon') return 'dungeon';
     return 'city';
 }
 
@@ -246,7 +250,7 @@ export const CTF_MAP_CARDS: MenuMapCard[] = [
  */
 export function isPlayableMapId(id: MenuMapCardId): id is MapId {
     return id === 'city' || id === 'desert' || id === 'tropics' || id === 'arctic'
-        || id === 'fortified_ruins' || id === 'mars' || id === 'castle_grounds';
+        || id === 'fortified_ruins' || id === 'mars' || id === 'castle_grounds' || id === 'dungeon';
 }
 
 /**

@@ -19,8 +19,9 @@
 import type { MapId } from './MapType';
 import type { TranslationKey } from '../i18n/i18n';
 import { isCastleMode } from '../config/castleFlag'; // OBRON ZAMEK F1
+import { isQueenMode } from '../config/queenFlag'; // SAVE THE QUEEN Q1
 
-export type ScenarioId = 'ktb' | 'ctf' | 'castle' | 'save_king';
+export type ScenarioId = 'ktb' | 'ctf' | 'castle' | 'save_queen'; // Q1: save_king (placeholder v0.93, nigdy niezbudowany) -> save_queen
 
 export interface ScenarioConfig {
     id: ScenarioId;
@@ -79,15 +80,18 @@ export const SCENARIO_CONFIGS: Record<ScenarioId, ScenarioConfig> = {
         comingSoonKey: 'common.locked',
         fixedMapId: 'castle_grounds',
     },
-    save_king: {
-        id: 'save_king',
-        nameKey: 'scenario.save_king.name',
-        descKey: 'scenario.save_king.desc',
-        emoji: '👑',
-        color: '#8e44ad',
-        available: false,
+    save_queen: {
+        id: 'save_queen',
+        nameKey: 'scenario.save_queen.name',
+        descKey: 'scenario.save_queen.desc',
+        emoji: '👸',
+        color: '#8e44ad', // krolewski fiolet (lock: zloto = Enigma)
+        // SAVE THE QUEEN Q1 (2026-09-11): przejmuje slot save_king (placeholder v0.93, nigdy
+        // niezbudowany). Odblokowany TYLKO za ?queen=1 (queenFlag.ts). Bez flagi hub
+        // bit-identyczny (kafel nierenderowany w BattleSection, jak dotad save_king).
+        available: isQueenMode(),
         comingSoonKey: 'common.locked',
-        fixedMapId: null,
+        fixedMapId: 'dungeon',
     },
 };
 
@@ -108,7 +112,7 @@ export function getOrderedScenarios(): ScenarioConfig[] {
         SCENARIO_CONFIGS.ktb,
         SCENARIO_CONFIGS.ctf,
         SCENARIO_CONFIGS.castle,
-        SCENARIO_CONFIGS.save_king,
+        SCENARIO_CONFIGS.save_queen,
     ];
 }
 

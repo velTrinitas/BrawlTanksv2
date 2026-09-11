@@ -23,7 +23,7 @@
  */
 import * as PIXI from 'pixi.js';
 
-export type EnemyArchetype = 'grunt' | 'boss' | 'mega';
+export type EnemyArchetype = 'grunt' | 'boss' | 'mega' | 'builder';
 
 /** Number of baked angles. 36 => 10deg quantization. Lever mobile: 36->24 if horde stutters. */
 export const ENEMY_BAKE_ANGLES = 36;
@@ -39,6 +39,7 @@ export const ENEMY_TEX_SIZE: Record<EnemyArchetype, number> = {
     grunt: 144,
     boss: 208,
     mega: 288,
+    builder: 208, // SAVE THE QUEEN Q6 (s1.30, hull 92x54)
 };
 
 /** Per-archetype display scale — mnoznik sprite'a on-screen (kotwica: gracz Twardy 2.5D). */
@@ -46,13 +47,15 @@ export const ENEMY_BAKE_DISPLAY_SCALE: Record<EnemyArchetype, number> = {
     grunt: 1.14,
     boss: 0.95,
     mega: 1.36,
+    builder: 1.12, // Q6: wiekszy od grunta (size 1.3 w configu)
 };
 
 /** Map archetype -> render2d exported config name. */
-const R2D_CONFIG_KEY: Record<EnemyArchetype, 'GRUNT' | 'REGULAR_BOSS' | 'MEGA_BOSS'> = {
+const R2D_CONFIG_KEY: Record<EnemyArchetype, 'GRUNT' | 'REGULAR_BOSS' | 'MEGA_BOSS' | 'BUILDER'> = {
     grunt: 'GRUNT',
     boss: 'REGULAR_BOSS',
     mega: 'MEGA_BOSS',
+    builder: 'BUILDER',
 };
 
 const ANGLE_STEP = (Math.PI * 2) / ENEMY_BAKE_ANGLES;
@@ -95,6 +98,7 @@ class EnemySpriteBakerImpl {
             this.bakeArchetype(app, 'grunt'),
             this.bakeArchetype(app, 'boss'),
             this.bakeArchetype(app, 'mega'),
+            this.bakeArchetype(app, 'builder'), // SAVE THE QUEEN Q6
         ]);
     }
 

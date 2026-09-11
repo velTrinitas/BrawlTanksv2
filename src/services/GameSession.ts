@@ -217,6 +217,22 @@ export interface ScoreBreakdown {
  * CastleSystem trzyma tylko referencje obiektow). Liczniki ida do bonusow koncowych
  * (addCastleEndBonuses) i do ekranu konca / metryk questowych.
  */
+/**
+ * SAVE THE QUEEN Q2 — stan runtime scenariusza Krolowej (zyje w GameSession). Liczby do
+ * endcardu (cegly, Budowniczowie, wybuchy, czas ratunku, flexy) + wynik meczu.
+ */
+export interface QueenSessionState {
+    bricks: number;
+    builders: number;
+    blasts: number;
+    pathBroken: number;
+    pathTotal: number;
+    result: 'rescued' | 'timeout' | 'death' | null;
+    remainingSecAtEnd: number;
+    flexLastSecond: boolean;
+    flexLightning: boolean;
+}
+
 export interface CastleSessionState {
     wave: number;
     wavesCleared: number;
@@ -265,6 +281,8 @@ export class GameSession {
 
     /** FAZA CTF F2 — stan CTF (null poza scenariuszem ctf). */
     public ctf: CtfSessionState | null = null;
+    /** SAVE THE QUEEN Q2 — stan Krolowej (null poza scenariuszem save_queen). */
+    public queen: QueenSessionState | null = null;
     /** OBRON ZAMEK F3 — stan zamku (null poza scenariuszem castle). */
     public castle: CastleSessionState | null = null;
 
@@ -430,6 +448,9 @@ export class GameSession {
                 taranKills: 0, katapultaKills: 0, trebuchetKills: 0,
                 megaKilled: false, gateIntact: true, wallPctAtEnd: 1, keepPctAtEnd: 1,
             };
+        }
+        if (config.scenario === 'save_queen') {
+            this.queen = { bricks: 0, builders: 0, blasts: 0, pathBroken: 0, pathTotal: 20, result: null, remainingSecAtEnd: 0, flexLastSecond: false, flexLightning: false };
         }
     }
 
@@ -670,6 +691,18 @@ export class GameSession {
         if (amount <= 0) return;
         this.scoreFromStaticBonus += amount;
         this.bonusCastle += amount;
+        this.recomputeScore();
+    }
+
+    /**
+     * SAVE THE QUEEN Q2 — bonusy statyczne Krolowej (cegla, Budowniczy, ratunek + czas + flexy,
+     * wybuch lancuchowy). Wartosci TYLKO z queenTuning (zero literalow tutaj — lekcja driftu endBonus*).
+     */
+    public bonusQueen: number = 0;
+    addQueenStaticBonus(amount: number, _reason: 'brick' | 'builder' | 'rescue' | 'blast'): void {
+        if (amount <= 0) return;
+        this.scoreFromStaticBonus += amount;
+        this.bonusQueen += amount;
         this.recomputeScore();
     }
 

@@ -251,6 +251,7 @@ export class LeaderboardScreen implements IScreen {
             case 'ktb':    return t('leaderboard.tab.ktb');
             case 'ctf':    return t('leaderboard.tab.ctf');
             case 'castle': return t('leaderboard.tab.castle');
+            case 'save_queen': return t('leaderboard.tab.save_queen');
             default:       return id;
         }
     }

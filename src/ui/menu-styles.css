@@ -1759,18 +1759,18 @@
     }
 }
 
-/* ---- SaveKing (locked): royal sparkles + floating crown ---- */
-.bt-scenario-card[data-scenario-id="save_king"] .bt-scenario-card-preview {
+/* ---- SaveQueen (Q1: ex-SaveKing): royal sparkles, fiolet/magenta (zero zlota — lock Enigmy) ---- */
+.bt-scenario-card[data-scenario-id="save_queen"] .bt-scenario-card-preview {
     background:
-        radial-gradient(circle at 50% 50%, rgba(241, 196, 15, 0.25) 0%, transparent 70%),
+        radial-gradient(circle at 50% 50%, rgba(194, 36, 122, 0.28) 0%, transparent 70%),
         var(--surface-dark);
 }
 
-.bt-scenario-card[data-scenario-id="save_king"] .bt-scenario-card-preview::before {
+.bt-scenario-card[data-scenario-id="save_queen"] .bt-scenario-card-preview::before {
     content: '✦   ✦   ✦';
     position: absolute;
     inset: 0;
-    color: rgba(241, 196, 15, 0.7);
+    color: rgba(226, 140, 200, 0.8);
     font-size: 0.7rem;
     text-align: center;
     line-height: 100%;
@@ -1785,7 +1785,7 @@
     50%      { opacity: 0.95; transform: translateY(-3px); }
 }
 
-.bt-scenario-card[data-scenario-id="save_king"] .bt-scenario-card-emoji {
+.bt-scenario-card[data-scenario-id="save_queen"] .bt-scenario-card-emoji {
     animation: bt-emoji-crown-juicy 2.6s ease-in-out infinite;
 }
 

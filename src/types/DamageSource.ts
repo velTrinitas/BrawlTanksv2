@@ -23,6 +23,10 @@ export type DamageSourceKind =
     | 'snowball'       // sniezka yeti (Arktyka)
     | 'boss_bomb'      // bomba bossa CTF
     | 'catapult'       // glaz katapulty/trebucheta (OBRON ZAMEK)
+    | 'lava'           // lawa (SAVE THE QUEEN Q4) — DoT, gracz I wrogowie
+    | 'geyser'         // erupcja gejzeru (SAVE THE QUEEN Q4) — gracz I wrogowie
+    | 'dynamite'       // wybuch dynamitu w murze (SAVE THE QUEEN Q4) — gracz I wrogowie
+    | 'tower'          // kula Zlowrogiej Wiezy (SAVE THE QUEEN Q4.5) -> gracz
     // -> wrogowie
     | 'player_bullet'  // pocisk gracza (takze super shot)
     | 'power'          // super moc (mega bomba, miny, rakiety, Dziura, Laser, wieza...)
@@ -43,6 +47,10 @@ export interface DamageSource {
 export const SRC_SNOWBALL: DamageSource = Object.freeze({ kind: 'snowball' as const });
 export const SRC_BOSS_BOMB: DamageSource = Object.freeze({ kind: 'boss_bomb' as const });
 export const SRC_CATAPULT: DamageSource = Object.freeze({ kind: 'catapult' as const }); // OBRON ZAMEK F4
+export const SRC_LAVA: DamageSource = Object.freeze({ kind: 'lava' as const }); // SAVE THE QUEEN Q4
+export const SRC_GEYSER: DamageSource = Object.freeze({ kind: 'geyser' as const }); // SAVE THE QUEEN Q4
+export const SRC_DYNAMITE: DamageSource = Object.freeze({ kind: 'dynamite' as const }); // SAVE THE QUEEN Q4
+export const SRC_TOWER: DamageSource = Object.freeze({ kind: 'tower' as const }); // SAVE THE QUEEN Q4.5
 export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bullet' as const, playerIndex: 0 });
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });

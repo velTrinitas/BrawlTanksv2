@@ -77,6 +77,20 @@ import { CastleCrows } from './maps/castle/CastleCrows'; // OBRON ZAMEK F6
 import { isCastleMode } from './config/castleFlag'; // OBRON ZAMEK F1
 import { CastleSystem } from './systems/castle/CastleSystem'; // OBRON ZAMEK F3
 import { CASTLE_TUNING, CASTLE_WAVES_TOTAL } from './systems/castle/castleWaves'; // OBRON ZAMEK F3
+import {
+    buildDungeonTexture, DUNGEON_PLAYABLE, DUNGEON_ROCK_E, DUNGEON_CAGE, DUNGEON_PILLARS, DUNGEON_PLAYER_SPAWN, DUNGEON_LANES,
+    DUNGEON_MEDI_PAD_POSITIONS, DUNGEON_POWER_PAD_POSITIONS, DUNGEON_LAVA, isDungeonLavaPoint, dungeonLavaSeed, DUNGEON_TORCHES,
+} from './maps/DungeonMap'; // SAVE THE QUEEN Q1
+import { DungeonBorder } from './maps/dungeon/DungeonBorder'; // SAVE THE QUEEN Q1
+import { DungeonPillar } from './maps/dungeon/DungeonPillar'; // SAVE THE QUEEN Q1
+import { DungeonLava } from './maps/dungeon/DungeonLava'; // SAVE THE QUEEN Q2 polish — zywa lawa
+import { DungeonTorch } from './maps/dungeon/DungeonTorch'; // SAVE THE QUEEN Q5 — zywe pochodnie
+import { DungeonBats } from './maps/dungeon/DungeonBats'; // SAVE THE QUEEN Q5 — nietoperze
+import { isQueenMode, queenTutorialWanted, markQueenTutorialDone } from './config/queenFlag'; // SAVE THE QUEEN Q1 / Q6 tutorial
+import { QueenSystem } from './systems/queen/QueenSystem'; // SAVE THE QUEEN Q2
+import { QueenDirector } from './systems/queen/QueenDirector'; // SAVE THE QUEEN Q3
+import type { DamageSource } from './types/DamageSource'; // SAVE THE QUEEN Q4 (hazardy)
+import type { HudQueenInfo } from './rendering/HUD'; // SAVE THE QUEEN Q2
 import { MarsBase } from './maps/mars/MarsBase'; // FAZA MARS M3 (landmark)
 import { MarsCargo } from './maps/mars/MarsCargo'; // FAZA MARS M3 (niszczalne)
 import { RegolithField } from './maps/mars/RegolithField'; // FAZA MARS M4 (slow)
@@ -159,7 +173,7 @@ import { Caravan } from './maps/desert/Caravan';
 import { MAP_CONFIGS, type ICollidable } from './types/MapType';
 import { Player } from './entities/Player';
 import { Enemy } from './entities/Enemy';
-import { ENEMY_NORMAL, ENEMY_PURSUIT } from './config/enemies'; // v0.58.0 Warstwa C2; FAZA B tutorial dummy/wave
+import { ENEMY_NORMAL, ENEMY_PURSUIT, HEART_CONFIG } from './config/enemies'; // v0.58.0 Warstwa C2; FAZA B tutorial dummy/wave; SAVE THE QUEEN Q2 serce Krolowej
 import { Bullet } from './entities/Bullet';
 import { EnemyBullet } from './entities/EnemyBullet';
 import { Heart } from './entities/pickups/Heart';
@@ -384,6 +398,19 @@ let wasInWheatLastFrame = false; // OBRON ZAMEK F2 — stealth w zbozu
 /** OBRON ZAMEK F3 — rdzen scenariusza (fale, cele, obrazenia struktur, respawn). */
 let castleSystem: CastleSystem | null = null;
 let castleFrameDelta = 1; // delta biezacej klatki dla targetFor (anti-grind liczony w klatkach)
+// SAVE THE QUEEN Q1 — mapa LOCHY: gruba skalna granica + kolumnada (reszta: Q2 cegly, Q4 lawa).
+let dungeonBorder: DungeonBorder | null = null;
+let dungeonPillars: DungeonPillar[] = [];
+/** SAVE THE QUEEN Q2 polish — animowana warstwa lawy (bable/plucie/dym); strefa DoT = Q4. */
+let dungeonLava: DungeonLava[] = [];
+/** SAVE THE QUEEN Q5 — pochodnie (flara telegrafu, gasniecie PORWANA), nietoperze, grunt (tint = sciemnienie). */
+let dungeonTorches: DungeonTorch | null = null;
+let dungeonBats: DungeonBats | null = null;
+let dungeonGround: PIXI.Sprite | null = null;
+/** SAVE THE QUEEN Q2 — rdzen scenariusza (zegar, wiezienie, Krolowa, wygrana/przegrana). */
+let queenSystem: QueenSystem | null = null;
+/** SAVE THE QUEEN Q3 — dyrektor spawnu (fazy z zegara, telegraf lane'u, boss z killi). */
+let queenDirector: QueenDirector | null = null;
 let marsCargo: MarsCargo[] = []; // FAZA MARS M3 (niszczalne kontenery — wlasna petla)
 let regolithFields: RegolithField[] = []; // FAZA MARS M4 (slow 0.5x)
 let solarFarm: SolarFarm | null = null; // FAZA MARS M4b
@@ -432,6 +459,11 @@ const castleHudInfo: HudCastleInfo = {
     phase: 'intro', wave: 0, wavesTotal: 6, phaseSecondsLeft: 0, wallPct: 1, gatePct: 1, gateDestroyed: false, gatesAlive: 4, gatesTotal: 4, wallsDestroyed: 0,
     keepPct: 1, respawnSecondsLeft: 0, enemiesAlive: 0, megaAlive: false, lanes: [], breaches: [], machines: [], keepAlarm: false,
     cameraX: 0, cameraY: 0, zoom: 1,
+};
+// SAVE THE QUEEN Q2 — dane HUD Krolowej (obiekt reuzywany per klatke, zero alokacji)
+const queenHudInfo: HudQueenInfo = {
+    phase: 'calm', remainingMs: 150000, pathBroken: 0, pathTotal: 20, pathFlash: false, keystoneDown: false,
+    queen: { wx: 0, wy: 0 }, lanes: [], hasKey: false, cameraX: 0, cameraY: 0, zoom: 1,
 };
 // OBRON ZAMEK F5 — przycisk "NASTEPNA FALA" (DOM; dotyk + mysz; klawisz N = alias). Tworzony raz,
 // pokazywany TYLKO w fazie budowy. Rozmiar kciuka, nad paskiem mocy (12 px luzu px).
@@ -972,6 +1004,12 @@ menu.onGameRequested = (config: GameConfig) => {
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
         return;
     }
+    // SAVE THE QUEEN Q1: save_queen odblokowany TYLKO za ?queen=1 (queenFlag.ts).
+    if (config.scenario === 'save_queen' && !isQueenMode()) {
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
+        return;
+    }
     menu.hide();
     if (!isTutorialCoreDone()) {
         // FAZA A: pierwsze uruchomienie => tutorial nad sandboxem (spawn off) TYM czolgiem,
@@ -982,7 +1020,7 @@ menu.onGameRequested = (config: GameConfig) => {
                 if (cont) {
                     resetPlayerStateForMatch(config); // stan od zera (super/score) — sprawiedliwosc
                     if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
-                    if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf' || lastGameConfig.scenario === 'castle')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
+                    if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf' || lastGameConfig.scenario === 'castle' || lastGameConfig.scenario === 'save_queen')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
                 } else returnToMenuFromEnd();
             });
         });
@@ -999,6 +1037,12 @@ menu.onContinueRequested = (lastSession: LastSession) => {
         console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
         return;
     }
+    if (lastSession.scenario === 'save_queen' && !isQueenMode()) { // SAVE THE QUEEN Q1
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
+        return;
+    }
+    if (lastSession.scenario === 'save_queen' && lastSession.map !== 'dungeon') lastSession.map = 'dungeon'; // SAVE THE QUEEN Q1: stale sesje sprzed odblokowania
     // OBRON ZAMEK F1: stale sesje castle sprzed odblokowania moga niesc mape KTB.
     if (lastSession.scenario === 'castle' && lastSession.map !== 'castle_grounds') {
         lastSession.map = 'castle_grounds';
@@ -1042,7 +1086,7 @@ menu.onHowToPlayRequested = () => {
             if (cont) {
                 resetPlayerStateForMatch(cfg); // stan od zera (super/score) — sprawiedliwosc
                 if (cfg.scenario === 'ctf') spawnCtfMatchForces();
-                if (cfg.scenario === 'ktb' || cfg.scenario === 'ctf' || cfg.scenario === 'castle') showModeGoal(cfg.scenario, touchManager.isActive);
+                if (cfg.scenario === 'ktb' || cfg.scenario === 'ctf' || cfg.scenario === 'castle' || cfg.scenario === 'save_queen') showModeGoal(cfg.scenario, touchManager.isActive);
             } else returnToMenuFromEnd();
         });
     });
@@ -1569,7 +1613,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     castleEnemyBulletSolids = null;
     wasInWheatLastFrame = false;
     castleSystem?.destroy(); castleSystem = null; // OBRON ZAMEK F3
+    queenSystem?.destroy(); queenSystem = null; // SAVE THE QUEEN Q2
+    queenDirector?.destroy(); queenDirector = null; // SAVE THE QUEEN Q3
     if (castleNextBtn) castleNextBtn.style.display = 'none'; // F5
+    dungeonBorder = null; // SAVE THE QUEEN Q1
+    for (const p of dungeonPillars) p.destroy(); dungeonPillars = [];
+    for (const lv of dungeonLava) lv.destroy(); dungeonLava = [];
+    dungeonTorches?.destroy(); dungeonTorches = null; // SAVE THE QUEEN Q5
+    dungeonBats?.destroy(); dungeonBats = null;
+    dungeonGround = null;
     marsCargo = []; // FAZA MARS M3
     regolithFields = []; // FAZA MARS M4
     solarFarm = null; // FAZA MARS M4b
@@ -2292,6 +2344,38 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         if (CASTLE_DEBUG_HOOKS) (window as any).castleTier = (tier: CastleDamageTier, id?: string) => {
             for (const p of castleParts) if (!id || p.id === id) p.setTierDebug(tier);
         };
+    } else if (config.map === 'dungeon') {
+        // ── SAVE THE QUEEN Q1 "LOCHY" — szkielet mapy za ?queen=1 ──
+        // Layout FROZEN + AABB-verified: tools/queen_q1_layout.mjs (V1-V10 PASS).
+        // Swiat 3000x3000 (stala silnika), pole gry 2400x2000 wyciete skala (DungeonBorder).
+        // Q1 = grunt (plyty + lawa statyczna + mosty + kregi gejzerow + skala + luki lane'ow
+        // + cela) + kolumnada + pady Zamku jako placeholder (reskin w Q5). Q2: PrisonBrick /
+        // ruda / Zwornik / Krolowa + QueenSystem. Q4: DungeonLava (DoT+slow), gejzery.
+        const dungeonTex = buildDungeonTexture();
+        const dungeonSprite = new PIXI.Sprite(dungeonTex);
+        dungeonSprite.zIndex = -100;
+        worldContainer.addChild(dungeonSprite);
+        dungeonGround = dungeonSprite; // Q5: tint = sciemnienie PORWANA (zero overlayow)
+
+        dungeonBorder = new DungeonBorder(WORLD_W, WORLD_H, DUNGEON_PLAYABLE, [DUNGEON_ROCK_E, ...DUNGEON_CAGE]); // v3: klatka celi = cienkie prety kolizji
+        buildings.push(...dungeonBorder.getCollisionRects());
+        solidBuildings.push(...dungeonBorder.getCollisionRects());
+
+        dungeonPillars = [];
+        for (const pl of DUNGEON_PILLARS) {
+            const pillar = new DungeonPillar(pl.x, pl.y, pl.w, pl.h, worldContainer);
+            dungeonPillars.push(pillar); buildings.push(pillar); solidBuildings.push(pillar);
+        }
+
+        // Q2 polish: zywa lawa (ten sam seed obrysu co bake => bable/puls krawedzi trzymaja sie lobow).
+        dungeonLava = DUNGEON_LAVA.map((l, i) => new DungeonLava(l, dungeonLavaSeed(i), worldContainer, isDungeonLavaPoint));
+        // Q5: zywe pochodnie + nietoperze (perches = katy pola gry i przy kratach)
+        dungeonTorches = new DungeonTorch(DUNGEON_TORCHES, worldContainer);
+        dungeonBats = new DungeonBats(worldContainer, [{ x: 120, y: 120 }, { x: 2880, y: 120 }, { x: 120, y: 2880 }, { x: 2880, y: 2880 }, { x: 1300, y: 90 }, { x: 1700, y: 2910 }]);
+
+        // Pady: Q1 = Zamku (granitowe daisy pasuja do lochow); Q5 reskin DungeonMediPad/DungeonPowerPad.
+        mediPads = DUNGEON_MEDI_PAD_POSITIONS.map(p => new CastleMediPad(p.x, p.y, worldContainer));
+        powerPads = DUNGEON_POWER_PAD_POSITIONS.map(p => new CastlePowerPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);
@@ -2309,6 +2393,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         getDifficultyModifiers(config.difficulty),
         config.scenario === 'ctf' ? { roamerCap: 10 }
             : config.scenario === 'castle' ? { castleMode: true } // OBRON ZAMEK F3: fale = WaveDirector
+            : config.scenario === 'save_queen' ? { queenMode: true } // SAVE THE QUEEN Q3: lane'y = QueenDirector
             : null,
     );
     // PROG-F7a/b: loadout z GARAZU, rozwiazany pod scenariusz + WLASNOSC (filtr po owned
@@ -2525,6 +2610,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // OBRON ZAMEK F1: start na apronie donzonu (ten sam punkt = respawn w F3).
         localPlayer.x = CASTLE_PLAYER_SPAWN.x;
         localPlayer.y = CASTLE_PLAYER_SPAWN.y;
+    } else if (config.scenario === 'save_queen') {
+        // SAVE THE QUEEN Q1: start przy wrotach S (1 zycie — brak respawnu, celowo).
+        localPlayer.x = DUNGEON_PLAYER_SPAWN.x;
+        localPlayer.y = DUNGEON_PLAYER_SPAWN.y;
     }
 
     enemies = [];
@@ -2674,6 +2763,72 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         }
     }
 
+    // SAVE THE QUEEN Q2 — rdzen scenariusza: po effects/audio/powerSystem (jak CastleSystem).
+    // System jest wlascicielem cegiel/rudy/Krolowej i sam dopisuje collidery do buildings/solidBuildings.
+    if (config.scenario === 'save_queen') {
+        queenSystem = new QueenSystem({
+            session: currentSession,
+            worldContainer,
+            effects,
+            audio,
+            difficulty: getDifficultyModifiers(config.difficulty),
+            buildings,
+            solidBuildings,
+            enemies,
+            hudNotif: (text, color) => hud.addNotif(text, color),
+            banner: (text, color, frames) => hud.triggerCastleBanner(text, color, frames),
+            onGemDrop: (x, y) => spawnGem(x, y),
+            // Q4 hazardy (lawa / gejzer / dynamit): kill-path 1:1 z AoE mocy (registerKill+score+drop), Perfect Run gasnie
+            hurtPlayer: (dmg, src) => {
+                if (!localPlayer || !powerSystem || !currentSession) return false;
+                const died = localPlayer.takeDamage(dmg, powerSystem.isInvulnerable || tutorialActive || (queenSystem?.isPlayerProtected() ?? false), src);
+                if (!powerSystem.isInvulnerable) currentSession.markDamageTaken();
+                return died;
+            },
+            hurtEnemy: (enemy, dmg, src) => applyHazardDamageToEnemy(enemy, dmg, src),
+            // Q5: ambient — sciemnienie gruntu (PORWANA), pochodnie, nietoperze
+            onDim: (k) => { if (dungeonGround) { const v = Math.round(255 * (1 - k)); dungeonGround.tint = (v << 16) | (v << 8) | v; } },
+            onTorchFlareAll: () => dungeonTorches?.flareAll(),
+            onTorchOut: (i) => dungeonTorches?.extinguish(i),
+            onPanic: () => dungeonBats?.burst(),
+            // Q6: szkolenie raz na urzadzenie (wzorzec Zamku: bt2:castle_tut_done); ?queentut=1 wymusza, =0 pomija
+            tutorial: !tutorialMode && queenTutorialWanted(),
+            onTutorialDone: () => markQueenTutorialDone(),
+            spawnTutorialBuilder: () => { queenDirector?.spawnTutorialBuilder(1790, 1500); },
+            onQueenHeart: (x, y) => { if (hearts.length < HEART_CONFIG.maxOnMap + 1) hearts.push(new Heart(x, y, worldContainer)); audio.playHeartPickup(); },
+        });
+        // Q3: dyrektor spawnu — fazy z zegara QueenSystem, kille z SpawnSystem (jeden licznik).
+        const qs = queenSystem;
+        queenDirector = new QueenDirector({
+            worldContainer,
+            enemies,
+            difficulty: getDifficultyModifiers(config.difficulty),
+            phaseDef: () => qs.phaseDef,
+            isRunning: () => !qs.inTutorial && qs.currentPhase !== 'rescued' && qs.currentPhase !== 'captured', // Q6: dyrektor spi w szkoleniu
+            killCount: () => spawnSystem?.regularKills ?? 0,
+            onSpawn: (enemy) => {
+                attachEnemyCubeStolenCallback(enemy);
+                if (powerSystem.isFreezeActive) enemy.freeze(powerSystem.freezeUntil);
+            },
+            onBossSpawned: () => { hud.triggerCastleBanner(t('queen.boss'), '#ff3b3b', 120); audio.playShockwave(); },
+            onBuilderSpawn: (enemy) => qs.registerBuilder(enemy), // Q4
+            builderCount: () => qs.builderCount,
+            // telegraf lane'u: portal na kracie + dzwiek (jak Zamek F6) + flara dyrektora + strzalka HUD (activeLanes)
+            onLaneTelegraph: (sp) => { const grate = sp.y < 200 || sp.y > 2800; effects.spawnPortal(sp.x, sp.y + (grate ? (sp.y < 1500 ? 40 : -40) : 0), 0xff7a1a); dungeonTorches?.flare(sp.x, sp.y); audio.playMineDrop(); }, // Q6: flara w punkcie spawnu (kraty + wnetrze)
+        });
+        if (CASTLE_DEBUG_HOOKS) {
+            (window as any).queenDir = () => queenDirector;
+            (window as any).queenPlayer = () => localPlayer; // debug: testy smoke (god-mode przez hp) — tylko DEV/?perf=1
+            (window as any).queenSys = () => queenSystem;
+            (window as any).queenInfo = () => queenSystem?.getHudInfo();
+            (window as any).queenTeleport = (x: number, y: number) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } };
+            // debug: queenStep(n) -> recznie pompuje n klatek tickera (testy w karcie w tle, gdzie rAF stoi — wzorzec castleStep)
+            // Zegar monotoniczny miedzy wywolaniami: ticker pamieta lastTime, wiec start od performance.now() po
+            // wczesniejszym kroku dawalby ujemne delty (klatki puste).
+            (window as any).queenStep = (n: number) => { const w = window as any; let tNow = Math.max(performance.now(), w.__queenStepT ?? 0); for (let i = 0; i < n; i++) { tNow += 1000 / 60; app.ticker.update(tNow); } w.__queenStepT = tNow; };
+        }
+    }
+
     audio.startMusic(config.map);
 
     // SHOP-1 — PACZKA GLOSOWA. Latch 50% HP zerujemy na kazdy mecz, potem kwestia
@@ -2708,7 +2863,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
-    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle')) { // OBRON ZAMEK F5
+    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle' || config.scenario === 'save_queen')) { // OBRON ZAMEK F5, SAVE THE QUEEN Q1
         showModeGoal(config.scenario, touchManager.isActive);
     }
 }
@@ -2839,6 +2994,10 @@ interface EndScreenData {
     /** OBRON ZAMEK F5: odparte fale (null poza zamkiem) + smierci. */
     castleWaves: number | null;
     castleDeaths: number;
+    /** SAVE THE QUEEN Q2: wynik meczu Krolowej (undefined poza scenariuszem) + cegly + sekundy zapasu. */
+    queenResult?: 'rescued' | 'timeout' | 'death';
+    queenBricks?: number;
+    queenRescueSec?: number;
     /** PROG-F1 — trofea zdobyte w tym runie (undefined = brak progresji, np. sesja bez profilu). */
     trophiesGained?: number;
     /** PROG-F1 — srubki zdobyte (run + milestony). */
@@ -2881,8 +3040,11 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     const accent = isVictory ? '#f1c40f' : '#e74c3c';
     const subBg = isVictory ? '#27ae60' : '#c0392b';
     const icon = isVictory ? '🏆' : '💀';
-    const title = isVictory ? t('end.victory.title') : t('end.defeat.title');
-    const subtitle = isVictory ? t('end.victory.subtitle') : t('end.defeat.subtitle');
+    // SAVE THE QUEEN Q2: OCALONA! / PORWANA! (podtytul per powod: timeout vs smierc — ton nadziei, nie porazki)
+    const title = d.queenResult ? (isVictory ? t('queen.end.rescued.title') : t('queen.end.captured.title'))
+        : isVictory ? t('end.victory.title') : t('end.defeat.title');
+    const subtitle = d.queenResult ? (isVictory ? t('queen.end.rescued.subtitle', { s: d.queenRescueSec ?? 0 }) : d.queenResult === 'death' ? t('queen.end.captured.death') : t('queen.end.captured.timeout'))
+        : isVictory ? t('end.victory.subtitle') : t('end.defeat.subtitle');
 
     const TITAN = "'Titan One', cursive";
     const SYS = 'system-ui, -apple-system, sans-serif';
@@ -2980,7 +3142,9 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
-    const victoryBadgeText = d.castleWaves !== null
+    const victoryBadgeText = d.queenResult
+        ? `👸 ${t('queen.end.rescued.title')} · ${t('queen.end.rescueTime')}: ${d.queenRescueSec ?? 0} s` // SAVE THE QUEEN Q2
+        : d.castleWaves !== null
         ? `🏰 ${t('end.waves')}: ${d.castleWaves}/${CASTLE_WAVES_TOTAL}` // OBRON ZAMEK F5
         : d.ctfFlags !== null
         ? `🚩 ${t('end.flags')}: ${d.ctfFlags}/3`
@@ -3124,7 +3288,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile(bossIconSm, d.bosses, t('end.bosses'))}
                         ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
                         ${statTile(cubeIconSm, d.cubesTotal, t('end.cubes'))}
-                        ${d.castleWaves !== null ? statTile('🏰', `${d.castleWaves}/${CASTLE_WAVES_TOTAL}`, t('end.waves')) : d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
+                        ${d.queenBricks !== undefined ? statTile('🧱', d.queenBricks, t('queen.end.bricks')) : d.castleWaves !== null ? statTile('🏰', `${d.castleWaves}/${CASTLE_WAVES_TOTAL}`, t('end.waves')) : d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
                         ${statTile('💥', d.supers, t('end.supers'))}
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
                     </div>
@@ -3210,6 +3374,11 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
         const ct = castleSystem.targetFor(enemy, localPlayer!, castleFrameDelta);
         if (ct) return ct;
     }
+    // SAVE THE QUEEN Q4: Budowniczy jedzie do slotu muru (raiderzy: null => gracz).
+    if (queenSystem) {
+        const qt = queenSystem.targetFor(enemy);
+        if (qt) return qt;
+    }
     // Z0.3: najblizszy ZYWY gracz z players[] (dzis 1 element => identycznie jak alias).
     let best = localPlayer!;
     let bestDistSq = Infinity;
@@ -3219,6 +3388,23 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
         if (dSq < bestDistSq) { bestDistSq = dSq; best = p; }
     }
     return best;
+}
+
+/**
+ * SAVE THE QUEEN Q4 — obrazenia srodowiskowe dla wroga (lawa / gejzer / dynamit). Kill-path 1:1
+ * z generycznej eksplozji AoE mocy: registerKill + score + frozen bonus + drop (bez combo/celnosci).
+ */
+function applyHazardDamageToEnemy(enemy: Enemy, dmg: number, src: DamageSource): boolean {
+    if (!enemy.active || !effects || !spawnSystem || !currentSession) return false;
+    const wasFrozen = Date.now() < enemy.frozenUntil;
+    const killed = enemy.takeDamage(dmg, enemy.x, enemy.y, worldContainer, effects, src);
+    if (killed) {
+        spawnSystem.registerKill(enemy);
+        currentSession.addKillScore(enemy.scoreValue);
+        if (wasFrozen) currentSession.addFrozenKillBonus(enemy.scoreValue);
+        handleEnemyDrop(enemy);
+    }
+    return killed;
 }
 
 async function triggerGameOver(): Promise<void> {
@@ -3248,7 +3434,7 @@ async function triggerGameOver(): Promise<void> {
         try {
             // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
             // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
-            if (currentSession.config.scenario !== 'castle') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            if (currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
             console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -3293,6 +3479,9 @@ async function triggerGameOver(): Promise<void> {
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
         castleWaves: currentSession?.castle ? currentSession.castle.wavesCleared : null, // OBRON ZAMEK F5
         castleDeaths: currentSession?.castle?.deaths ?? 0,
+        queenResult: currentSession?.queen?.result ?? undefined, // SAVE THE QUEEN Q2
+        queenBricks: currentSession?.queen ? currentSession.queen.bricks : undefined,
+        queenRescueSec: currentSession?.queen ? currentSession.queen.remainingSecAtEnd : undefined,
         trophiesGained: runProg?.trophiesGained,          // PROG-F1
         boltsGained: runProg?.boltsGained,
         milestoneBolts: runProg ? runProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
@@ -3343,7 +3532,7 @@ async function triggerVictory(): Promise<void> {
         try {
             // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
             // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
-            if (currentSession.config.scenario !== 'castle') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            if (currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
             console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -3384,6 +3573,9 @@ async function triggerVictory(): Promise<void> {
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
         castleWaves: currentSession?.castle ? currentSession.castle.wavesCleared : null, // OBRON ZAMEK F5
         castleDeaths: currentSession?.castle?.deaths ?? 0,
+        queenResult: currentSession?.queen?.result ?? undefined, // SAVE THE QUEEN Q2
+        queenBricks: currentSession?.queen ? currentSession.queen.bricks : undefined,
+        queenRescueSec: currentSession?.queen ? currentSession.queen.remainingSecAtEnd : undefined,
         trophiesGained: victoryRunProg?.trophiesGained,   // PROG-F1
         boltsGained: victoryRunProg?.boltsGained,
         milestoneBolts: victoryRunProg ? victoryRunProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
@@ -3634,7 +3826,8 @@ function runLogicStep(delta: number): void {
     // FAZA CTF F2 — carry penalty (x0.90/0.85/0.80 wg eskalacji) MULTIPLIKATYWNIE
     // ze slow-zone (fosa z flaga = 0.5 * carry) — legacy 1536 1:1.
     const ctfCarryMult = ctfSystem ? ctfSystem.getCarrySpeedMult() : 1.0;
-    localPlayer.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa || playerInRegolith) ? 0.5 : 1.0) * ctfCarryMult;
+    const playerInLava = !!queenSystem && queenSystem.isLavaAt(localPlayer.x, localPlayer.y); // SAVE THE QUEEN Q4
+    localPlayer.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa || playerInRegolith || playerInLava) ? 0.5 : 1.0) * ctfCarryMult;
     
     groundClutter?.update(); // v0.60.0 — para z 1-2 studzienek
     
@@ -3659,6 +3852,7 @@ function runLogicStep(delta: number): void {
                 if (rf.isPointInside(enemy.x, enemy.y)) { enemyInSlow = true; break; }
             }
         }
+        if (!enemyInSlow && queenSystem && queenSystem.isLavaAt(enemy.x, enemy.y)) enemyInSlow = true; // SAVE THE QUEEN Q4 — lawa spowalnia obie strony
         enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
     }
 
@@ -3787,6 +3981,19 @@ function runLogicStep(delta: number): void {
         if (cr.victory) { triggerVictory(); return; }
         if (cr.defeat) { triggerGameOver(); return; }
     }
+    // SAVE THE QUEEN Q2 — zegar, wiezienie, Krolowa; wygrana (dotkniecie) / przegrana (zegar).
+    if (queenSystem) {
+        const qr = queenSystem.update(delta, localPlayer, powerSystem.isInvulnerable);
+        if (qr.victory) { triggerVictory(); return; }
+        if (qr.defeat) { triggerGameOver(); return; }
+        if (queenDirector && !tutorialActive) { // Q3: spawn z lane'ow (tutorial Q6: OFF)
+            queenDirector.update(delta, localPlayer.x, localPlayer.y);
+            queenSystem.setActiveLanes(queenDirector.activeLanes);
+        }
+    }
+    for (const lv of dungeonLava) lv.update(delta, camera.x, camera.y, viewW, viewH); // SAVE THE QUEEN Q2 polish (cull do kamery)
+    if (dungeonTorches) dungeonTorches.update(delta, camera.x, camera.y, viewW, viewH); // Q5
+    if (dungeonBats) dungeonBats.update(delta, camera.x, camera.y, viewW, viewH);
 
     if (river) river.update(camera.x, camera.y, viewW, viewH);
     if (waterLife) waterLife.update(camera.x, camera.y, viewW, viewH);
@@ -4295,6 +4502,7 @@ function runLogicStep(delta: number): void {
     // wchodza do TEJ SAMEJ flagi co sanktuarium CTF (jedno zrodlo prawdy dla obu sciezek obrazen).
     const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(localPlayer.x, localPlayer.y)
         : castleSystem ? (castleSystem.isInSanctuary(localPlayer.x, localPlayer.y) || castleSystem.isSpawnInvul() || castleSystem.isPlayerDead())
+        : queenSystem ? queenSystem.isPlayerProtected() // SAVE THE QUEEN Q4.5/Q6: laska startowa 3 s + flourish OCALONA = realna nietykalnosc
         : false;
 
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
@@ -4365,7 +4573,7 @@ function runLogicStep(delta: number): void {
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING
-            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { triggerGameOver(); return; } } // OBRON ZAMEK F3: respawn zamiast konca
+            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { if (queenSystem) queenSystem.onPlayerDied(); triggerGameOver(); return; } } // OBRON ZAMEK F3: respawn zamiast konca
         }
     }
 
@@ -4482,7 +4690,7 @@ function runLogicStep(delta: number): void {
                     audio.playHit('player');
                 }
             }
-            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { triggerGameOver(); return; } } // OBRON ZAMEK F3
+            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { if (queenSystem) queenSystem.onPlayerDied(); triggerGameOver(); return; } } // OBRON ZAMEK F3
         }
 
         for (let j = bullets.length - 1; j >= 0; j--) {
@@ -4654,6 +4862,22 @@ function runLogicStep(delta: number): void {
     } else {
         hud.castleInfo = null;
         if (castleNextBtn && castleNextBtn.style.display !== 'none') castleNextBtn.style.display = 'none';
+    }
+    // SAVE THE QUEEN Q2 — feed HUD Krolowej (zegar, pasek drogi, strzalka do celi + lane'y)
+    if (queenSystem) {
+        const qi = queenSystem.getHudInfo();
+        queenHudInfo.phase = qi.phase; queenHudInfo.remainingMs = qi.remainingMs;
+        queenHudInfo.pathBroken = qi.pathBroken; queenHudInfo.pathTotal = qi.pathTotal; queenHudInfo.pathFlash = qi.pathFlash;
+        queenHudInfo.keystoneDown = qi.keystoneDown;
+        queenHudInfo.queen.wx = qi.queen.x; queenHudInfo.queen.wy = qi.queen.y;
+        queenHudInfo.lanes.length = 0;
+        for (const sp of qi.activeLanes) queenHudInfo.lanes.push({ wx: sp.x, wy: sp.y, label: '⚠' }); // Q6: punkt swiezego spawnu
+        queenHudInfo.hasKey = qi.hasKey;
+        if (qi.keyArrow) queenHudInfo.lanes.push({ wx: qi.keyArrow.x, wy: qi.keyArrow.y, label: '🔑' }); // Q4.6: strzalka do klucza po dotknieciu zamknietych drzwi
+        queenHudInfo.cameraX = camera.x; queenHudInfo.cameraY = camera.y; queenHudInfo.zoom = ZOOM;
+        hud.queenInfo = queenHudInfo;
+    } else {
+        hud.queenInfo = null;
     }
 
     // DEV-ONLY: mikro-profiler — czas hud.render() + calego callbacku (do rozbicia hitcha).

@@ -95,6 +95,10 @@
   REGULAR_BOSS.colors = derive(REGULAR_BOSS.color);
   const MEGA_BOSS = { id:'boss_mega', name:'Mega Boss', color:'#f1c40f', hp:60, dmg:5.0, size:1.36, hullW:100, hullH:58, hullShape:'monster', turretRadius:30, turretShape:'chamfered_cube_tech', barrelLen:42, muzzleDist:65, barrelType:'twin', emblem:'skull', hasYellowReflections:true, flag:null, asym:null, bullet:{type:'mega_shell',size:8,speed:300} };
   MEGA_BOSS.colors = derive(MEGA_BOSS.color);
+  // SAVE THE QUEEN Q6: BUDOWNICZY — brazowy kadlub 'wide' (paka), wysoka prostokatna wieza (kabina dzwigu),
+  // krotka lufa (kielnia). Wiekszy od grunta (Mariusz: "cos ala nasze czolgi, wieksze").
+  const BUILDER = { id:'builder', name:'Budowniczy', color:'#a8672e', hp:6, dmg:0, size:1.3, hullW:92, hullH:54, hullShape:'wide', turretRadius:24, turretShape:'tall_rect', barrelLen:20, muzzleDist:46, barrelType:'stubby', emblem:'none', flag:null, asym:null, bullet:{type:'enemy_basic',size:6,speed:280} };
+  BUILDER.colors = derive(BUILDER.color);
 
   const CAMERA_TILT_Y = 0.866; const Z_TO_SCREEN = 0.78;
   function applyTransform(ctx, x, y, zE, rot, sc, tiltMul=1) {
@@ -2156,7 +2160,7 @@
 // ---- ES exports (lab uzywa drawTank + drawBullet + configow + getMuzzlePos) ----
 export {
   drawTank, bakeHullLayer, bakeTurretLayer, drawBullet, bulletTrail, roundedPoly,
-  BRAWLERS, GRUNT, REGULAR_BOSS, MEGA_BOSS,
+  BRAWLERS, GRUNT, REGULAR_BOSS, MEGA_BOSS, BUILDER,
   derive, T, applyTransform, drawMuzzleCylinder, getMuzzlePos,
   CAMERA_TILT_Y, Z_TO_SCREEN, FLAGS, drawFlag,
 };

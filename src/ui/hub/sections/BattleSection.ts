@@ -1,6 +1,7 @@
 import { t, type TranslationKey } from '../../../i18n/i18n';
 import type { HubSection, HubSelection } from './HubSection';
 import { SCENARIO_CONFIGS, type ScenarioId } from '../../../types/Scenario';
+import { isQueenMode } from '../../../config/queenFlag'; // SAVE THE QUEEN Q1
 import { DIFFICULTY_CONFIGS, type DifficultyId } from '../../../types/GameConfig';
 import { MENU_MAP_CARDS, CTF_MAP_CARDS, type MapId, type MenuMapCard } from '../../../types/MapType';
 import { BRAWLERS } from '../../../config/brawlers';
@@ -19,7 +20,7 @@ import { isChooseMode } from '../../../config/hubChoose'; // GARAZ-2 — wybor c
  * `.bt-hub0-card` (media z lewej + tresc z prawej) dla trzech grup wyboru:
  *  - CZOLGI 3x3: zdjecie z poswiata w kolorze czolgu | nazwa + badge roli + 3 paski
  *    statow (label/pasek w kolorze/biala REALNA liczba). 9. slot = placeholder Enigma.
- *  - SCENARIUSZE 3x1: animowany podglad SVG | nazwa + opis (save_king wyciety z widoku).
+ *  - SCENARIUSZE 3x1: animowany podglad SVG | nazwa + opis (save_queen tylko za ?queen=1).
  *  - MAPY 3x2: podglad SVG | nazwa + tagline; sloty 5-6 = placeholdery WKROTCE.
  * Wybor = zloty ring + ✓ (wspolny), hover = zoom mediow (easing strony), GRAJ pokazuje
  * PODSUMOWANIE wyboru i startuje mecz natychmiast. Wybor pamietany przez LastSession.
@@ -39,8 +40,10 @@ export function tankName(b: Brawler): string {
     return translated === key ? b.name : translated;
 }
 
-const SCENARIO_ORDER: ScenarioId[] = ['ktb', 'ctf', 'castle']; // HUB-1.7: save_king wyciety z widoku
-const SCENARIO_EMOJI: Record<string, string> = { ktb: '👑', ctf: '🚩', castle: '🏰' };
+// HUB-1.7: save_king wyciety z widoku. SAVE THE QUEEN Q1: save_queen renderowany TYLKO za ?queen=1
+// (bez flagi hub bit-identyczny z v0.163.0); po flipie QUEEN_LIVE kafel wchodzi jako 4. (grid 3 kol -> 2 rzedy).
+const SCENARIO_ORDER: ScenarioId[] = isQueenMode() ? ['ktb', 'ctf', 'castle', 'save_queen'] : ['ktb', 'ctf', 'castle'];
+const SCENARIO_EMOJI: Record<string, string> = { ktb: '👑', ctf: '🚩', castle: '🏰', save_queen: '👸' };
 const AVAILABLE_MAPS = MENU_MAP_CARDS.filter(m => m.available);
 const DIFFICULTY_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare'];
 const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle'];
@@ -121,6 +124,7 @@ export class BattleSection implements HubSection {
     private currentMapId(): MapId {
         // OBRON ZAMEK F1: castle ma mape zaszyta (fixedMapId) i ZERO kart do wyboru.
         if (this.selectedScenario === 'castle') return 'castle_grounds';
+        if (this.selectedScenario === 'save_queen') return 'dungeon'; // SAVE THE QUEEN Q1: jedna mapa, bez kart
         return this.selectedScenario === 'ctf' ? this.selectedCtfMap : this.selectedMap;
     }
 
@@ -257,7 +261,7 @@ export class BattleSection implements HubSection {
         }).join('');
         const scenarios = `
             <div class="bt-hub0-subhead">⚔️ ${t('picker.scenarioTitle')}</div>
-            <div class="bt-hub0-cards">${scenCards}</div>`;
+            <div class="bt-hub0-cards${SCENARIO_ORDER.length === 4 ? ' bt-hub0-cards--scen' : ''}">${scenCards}</div>`;
 
         // v0.128.0 — SEKCJA MAPY NIE ISTNIEJE. Wybor mapy zyje na karcie KTB (wyzej)
         // i w popupie `MapPickerOverlay`. Iteracja 7: CTF nigdy nie mial boxa mapy,
@@ -287,6 +291,8 @@ export class BattleSection implements HubSection {
             summaryParts.push(t(m.nameKey));
         } else if (this.selectedScenario === 'castle') {
             summaryParts.push(t('map.castleGrounds.name')); // OBRON ZAMEK F1: jedna mapa, bez kart
+        } else if (this.selectedScenario === 'save_queen') {
+            summaryParts.push(t('map.dungeon.name')); // SAVE THE QUEEN Q1: jedna mapa, bez kart
         }
         summaryParts.push(t(DIFFICULTY_CONFIGS[this.selectedDifficulty].labelKey));
         const summary = summaryParts.join(' · ');

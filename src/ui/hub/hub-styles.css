@@ -2959,3 +2959,15 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 @media (prefers-reduced-motion: reduce) {
     .bt-gr2-canvas { transition: none; }
 }
+
+/* SAVE THE QUEEN Q2 (uwaga Mariusza): scenariusze w gridzie 4x1, WYROWNANE do szerokosci
+   pigulek trudnosci (te maja gap 6 i zero padding-right). Klasa wchodzi TYLKO przy 4 kartach
+   (?queen=1 / po flipie) — bez flagi grid 3 kolumny zostaje bit-identyczny. Znaczek ✓ wchodzi
+   do srodka karty (karty scenariuszy nie maja badge'a roli w rogu), wiec 8 px zapasu na nawis
+   nie jest potrzebne i szerokosc rzedu = szerokosc rzedu trudnosci. */
+.bt-hub0-cards--scen { grid-template-columns: repeat(4, 1fr); gap: 6px; padding-right: 0; }
+.bt-hub0-cards--scen .bt-hub0-card { gap: 8px; padding: 8px 6px; }
+.bt-hub0-cards--scen .bt-hub0-card.is-selected::after { right: 4px; top: 4px; }
+@media (max-width: 700px) {
+    .bt-hub0-cards--scen { grid-template-columns: repeat(2, 1fr); }
+}

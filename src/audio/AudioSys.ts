@@ -71,6 +71,7 @@ const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
     fortified_ruins: ['ctf.ogg'],  // FAZA CTF F1 — track eksploracji. Carry-state (ctf_flag_captured.ogg) jest osobnym Howlem (patrz ctfCarryMusic), F4.
     mars:    ['mars1.ogg', 'mars2.ogg'],  // FAZA MARS — 2-track pool (smart-random), jak arctic
     castle_grounds: ['castle/Castle1.ogg', 'castle/Castle2.ogg', 'castle/Castle3.mp3'],  // OBRON ZAMEK — 3-track pool (smart-random), assety Mariusza 2026-09-11
+    dungeon: ['castle/Castle1.ogg'],  // SAVE THE QUEEN Q1 — PLACEHOLDER do czasu assetow q_calm/q_siege/q_panic (public/sfx/queen/). Warstwy faz = QueenSystem (wzorzec ctfCarryMusic), Q3.
 };
 
 /**
@@ -181,9 +182,9 @@ export class AudioSys {
     private ownedSounds: Map<string, Howl> = new Map();
 
     // Music: per-map pool z Howl instancjami
-    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [], fortified_ruins: [], mars: [], castle_grounds: [] };
+    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [], fortified_ruins: [], mars: [], castle_grounds: [], dungeon: [] };
     private currentMusicTrack: Howl | null = null;
-    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1, arctic: -1, fortified_ruins: -1, mars: -1, castle_grounds: -1 };
+    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1, arctic: -1, fortified_ruins: -1, mars: -1, castle_grounds: -1, dungeon: -1 };
 
     // FAZA CTF F4: dedykowany track carry-state (ctf_flag_captured.ogg) — gra gdy gracz
     // NIESIE flage; track mapy (ctf.ogg) jest wtedy zapauzowany i wznawiany po dostawie.

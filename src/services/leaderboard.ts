@@ -68,6 +68,15 @@ export const LEADERBOARD_BOARDS: readonly BoardDefinition[] = [
         sortDir: 'desc',
         enabled: false, // locked (scenariusz jeszcze niegrywalny)
     },
+    {
+        id: 'save_queen',
+        scenario: 'save_queen',
+        icon: '👸',
+        mapChips: null,
+        metric: 'score',
+        sortDir: 'desc',
+        enabled: false, // SAVE THE QUEEN Q1: locked do Q7 (whitelist Edge po 23.09)
+    },
 ] as const;
 
 /** Wiersz leaderboardu gotowy do renderu (po dedupie + joinie profilu + name-safety). */

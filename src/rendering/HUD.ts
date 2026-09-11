@@ -98,6 +98,28 @@ export interface HudCastleInfo {
     zoom: number;
 }
 
+/**
+ * SAVE THE QUEEN Q2 — dane scenariusza Krolowej dla HUD, per klatke z main.ts.
+ * null = inny scenariusz (zero kosztu). Zegar w ms, droga = sloty rozbite / 8.
+ */
+export interface HudQueenInfo {
+    phase: 'calm' | 'siege' | 'panic' | 'rescued' | 'captured';
+    remainingMs: number;
+    pathBroken: number;
+    pathTotal: number;
+    pathFlash: boolean;
+    keystoneDown: boolean;
+    /** Krolowa (strzalka krawedziowa, gdy poza ekranem) */
+    queen: { wx: number; wy: number };
+    /** aktywne lane'y (telegraf) */
+    lanes: Array<{ wx: number; wy: number; label: string }>;
+    /** Q6: gracz niesie Zloty Klucz — odznaka przy zegarze */
+    hasKey: boolean;
+    cameraX: number;
+    cameraY: number;
+    zoom: number;
+}
+
 export interface MouseState {
     screenX: number;
     screenY: number;
@@ -147,6 +169,8 @@ export class HUD {
     public ctfInfo: HudCtfInfo | null = null;
     /** OBRON ZAMEK F5 — dane Zamku (null poza scenariuszem castle). Ustawiane per klatke z main.ts. */
     public castleInfo: HudCastleInfo | null = null;
+    /** SAVE THE QUEEN Q2 — dane Krolowej (null poza scenariuszem). Ustawiane per klatke z main.ts. */
+    public queenInfo: HudQueenInfo | null = null;
     /** OBRON ZAMEK F5 — baner scenariusza (fala / wylom / brama / mega). Wzorzec ctfBreach. */
     public castleBannerTimer: number = 0;
     private castleBannerText: string = '';
@@ -293,6 +317,92 @@ export class HUD {
         }
     }
 
+    // ── SAVE THE QUEEN Q2 — zegar + pasek drogi (przestrzen skalowana uiScale) ─────
+
+    /**
+     * Pigulka ZEGARA — srodek gory pod WYNIKIEM (y 66, jak pigulka FALI Zamku), 230x44,
+     * cyfry 22 px Titan One (najwazniejsza liczba trybu; podloga czytelnosci 10 px).
+     * Kolor: SPOKOJ bialy -> OBLEZENIE pomarancz -> PANIKA czerwony pulsujacy (ostatnie
+     * 10 s "stuk" skali co sekunde). Pod nia pasek DROGI 120x8 (sloty rozbite / 8),
+     * miga brazowo, gdy Budowniczy cofa (Q4). @375 landscape (uiScale 0.7): nie koliduje
+     * z SCORE (y 8..62), SUPER (14,70,172,54 — lewa kolumna) ani prawa kolumna (KILLS/sezon).
+     */
+    private drawQueenPanel(): void {
+        const info = this.queenInfo;
+        if (!info) return;
+        const c = this.ctx;
+        const now = Date.now();
+        const WW = 230, WH = 44;
+        const wx = Math.round((this.screenW / this.uiScale) / 2 - WW / 2);
+        const wy = 66;
+        const secTotal = Math.ceil(info.remainingMs / 1000);
+        const mm = Math.floor(secTotal / 60), ss = secTotal % 60;
+        const txt = info.phase === 'rescued' ? tr('queen.rescued') : info.phase === 'captured' ? tr('queen.captured') : `${mm}:${ss < 10 ? '0' : ''}${ss}`;
+        const col = info.phase === 'calm' ? '#ffffff' : info.phase === 'siege' ? '#ff9f1a' : info.phase === 'panic' || info.phase === 'captured' ? '#ff3b3b' : '#ff5fb0';
+        let scale = 1;
+        if (info.phase === 'panic') {
+            scale = 1 + 0.06 * (0.5 + 0.5 * Math.sin(now / 160));
+            if (secTotal <= 10) scale += 0.08 * Math.max(0, 1 - ((info.remainingMs % 1000) / 1000) * 3); // "stuk" na kazda sekunde
+        }
+        c.save();
+        c.translate(wx + WW / 2, wy + WH / 2);
+        c.scale(scale, scale);
+        c.fillStyle = 'rgba(0,0,0,0.66)';
+        c.beginPath(); c.roundRect(-WW / 2, -WH / 2, WW, WH, 12); c.fill();
+        c.strokeStyle = col; c.lineWidth = 2.5;
+        c.beginPath(); c.roundRect(-WW / 2, -WH / 2, WW, WH, 12); c.stroke();
+        c.font = `22px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.strokeStyle = '#000'; c.lineWidth = 4;
+        c.strokeText(`⏳ ${txt}`, 0, 1);
+        c.fillStyle = col;
+        c.fillText(`⏳ ${txt}`, 0, 1);
+        c.restore();
+
+        // Q6: odznaka KLUCZA (zlota pigulka po prawej od zegara, puls) — gracz WIDZI, ze ma klucz
+        if (info.hasKey) {
+            const KW = 108, KH = 34, kx = wx + WW + 10, ky = wy + (WH - KH) / 2;
+            const kp = 1 + 0.05 * Math.sin(now / 140);
+            c.save(); c.translate(kx + KW / 2, ky + KH / 2); c.scale(kp, kp);
+            c.fillStyle = 'rgba(0,0,0,0.66)'; c.beginPath(); c.roundRect(-KW / 2, -KH / 2, KW, KH, 10); c.fill();
+            c.strokeStyle = '#ffd54a'; c.lineWidth = 2.5; c.beginPath(); c.roundRect(-KW / 2, -KH / 2, KW, KH, 10); c.stroke();
+            c.font = `16px "${FONT_FAMILY}",cursive`; c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.strokeStyle = '#000'; c.lineWidth = 4; c.strokeText(`🔑 ${tr('hud.queen.key')}`, 0, 1);
+            c.fillStyle = '#ffd54a'; c.fillText(`🔑 ${tr('hud.queen.key')}`, 0, 1);
+            c.restore();
+        }
+
+        // pasek DROGI
+        const BW = 160, BH = 8, bx = wx + WW / 2 - BW / 2, by = wy + WH + 6;
+        const flash = info.pathFlash && Math.floor(now / 120) % 2 === 0;
+        c.fillStyle = 'rgba(0,0,0,0.55)';
+        c.beginPath(); c.roundRect(bx - 4, by - 3, BW + 8, BH + 6, 6); c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.12)';
+        c.beginPath(); c.roundRect(bx, by, BW, BH, 4); c.fill();
+        const seg = BW / info.pathTotal;
+        for (let i = 0; i < info.pathTotal; i++) {
+            const done = i < info.pathBroken;
+            c.fillStyle = flash ? '#8d5a2b' : done ? (info.keystoneDown ? '#ff5fb0' : '#d97a5a') : 'rgba(255,255,255,0.08)';
+            c.beginPath(); c.roundRect(bx + i * seg + 1, by + 1, seg - 2, BH - 2, 2); c.fill();
+        }
+        c.font = `10px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'left'; c.textBaseline = 'middle';
+        c.strokeStyle = '#000'; c.lineWidth = 3;
+        c.strokeText(`🧱 ${tr('hud.queen.path')}`, bx + BW + 8, by + BH / 2);
+        c.fillStyle = '#fff';
+        c.fillText(`🧱 ${tr('hud.queen.path')}`, bx + BW + 8, by + BH / 2);
+    }
+
+    /** Strzalki krawedziowe Krolowej: cela (magenta, pulsuje gdy Zwornik pekl) + aktywne lane'y. Nieskalowane. */
+    private drawQueenEdgeArrows(): void {
+        const info = this.queenInfo;
+        if (!info) return;
+        const targets: Array<{ wx: number; wy: number; color: number; label: string; pulse: boolean }> = [];
+        targets.push({ wx: info.queen.wx, wy: info.queen.wy, color: 0xff5fb0, label: '👸', pulse: info.keystoneDown });
+        for (const l of info.lanes) targets.push({ wx: l.wx, wy: l.wy, color: 0xff4d4d, label: l.label, pulse: true });
+        this.drawEdgeArrowTargets(targets, info.cameraX, info.cameraY, info.zoom);
+    }
+
     /** Licznik respawnu — srodek ekranu (nieskalowany). */
     private drawCastleRespawn(): void {
         const info = this.castleInfo;
@@ -385,15 +495,20 @@ export class HUD {
     private drawCastleEdgeArrows(): void {
         const info = this.castleInfo;
         if (!info) return;
-        const c = this.ctx;
-        const M = 34, ON_SCREEN_PAD = 20;
         const targets: Array<{ wx: number; wy: number; color: number; label: string; pulse: boolean }> = [];
         for (const l of info.lanes) targets.push({ wx: l.wx, wy: l.wy, color: 0xff4d4d, label: l.label, pulse: true });
         for (const b of info.breaches) targets.push({ wx: b.wx, wy: b.wy, color: 0xff9f1a, label: '💥', pulse: false });
         for (const m of info.machines) targets.push({ wx: m.wx, wy: m.wy, color: 0xf1c40f, label: m.label, pulse: true });
+        this.drawEdgeArrowTargets(targets, info.cameraX, info.cameraY, info.zoom);
+    }
+
+    /** Wspolny rysownik strzalek krawedziowych (Zamek F5, Krolowa Q2): world->screen, klamra do marginesu M, trojkat + badge. */
+    private drawEdgeArrowTargets(targets: Array<{ wx: number; wy: number; color: number; label: string; pulse: boolean }>, cameraX: number, cameraY: number, zoom: number): void {
+        const c = this.ctx;
+        const M = 34, ON_SCREEN_PAD = 20;
         for (const tgt of targets) {
-            const sx = (tgt.wx - info.cameraX) * info.zoom;
-            const sy = (tgt.wy - info.cameraY) * info.zoom;
+            const sx = (tgt.wx - cameraX) * zoom;
+            const sy = (tgt.wy - cameraY) * zoom;
             const onScreen = sx >= -ON_SCREEN_PAD && sx <= this.screenW + ON_SCREEN_PAD && sy >= -ON_SCREEN_PAD && sy <= this.screenH + ON_SCREEN_PAD;
             if (onScreen) continue;
             const cx = this.screenW / 2, cyS = this.screenH / 2;
@@ -1593,6 +1708,7 @@ export class HUD {
         this.drawCtfFlagPanel();
         this.drawCtfCarryBanner();
         this.drawCastlePanel(); // OBRON ZAMEK F5
+        this.drawQueenPanel(); // SAVE THE QUEEN Q2
 
         this.drawNotifs();
 
@@ -1616,6 +1732,7 @@ export class HUD {
         // FAZA CTF F3 — strzalki krawedziowe (full-screen space, po restore)
         this.drawCtfEdgeArrows();
         this.drawCastleEdgeArrows(); // OBRON ZAMEK F5
+        this.drawQueenEdgeArrows();  // SAVE THE QUEEN Q2
         this.drawCastleRespawn();    // OBRON ZAMEK F5
         this.drawCastleBuildCountdown(); // P1
         this.drawCastleKeepAlarm();      // P1

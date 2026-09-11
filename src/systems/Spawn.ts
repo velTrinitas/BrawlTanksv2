@@ -24,6 +24,8 @@ export interface SpawnResult {
  */
 /** OBRON ZAMEK F3: tryb zamku — fale spawnuje WaveDirector; SpawnSystem daje tylko serca/magnesy. */
 export interface CastleSpawnMode { castleMode: true }
+/** SAVE THE QUEEN Q3: spawn z lane'ow = QueenDirector; SpawnSystem daje tylko serca/magnesy (jak Zamek). */
+export interface QueenSpawnMode { queenMode: true }
 
 export interface CtfSpawnMode {
     roamerCap: number;
@@ -86,9 +88,9 @@ export class SpawnSystem {
     /** OBRON ZAMEK F3: faza budowy — bez serc/magnesow (main ustawia per klatke). */
     public pickupsSuppressed: boolean = false;
 
-    constructor(modifiers: DifficultyModifiers, mode: CtfSpawnMode | CastleSpawnMode | null = null) {
+    constructor(modifiers: DifficultyModifiers, mode: CtfSpawnMode | CastleSpawnMode | QueenSpawnMode | null = null) {
         const ctfMode = mode && 'roamerCap' in mode ? mode : null;
-        this.castleMode = !!(mode && 'castleMode' in mode);
+        this.castleMode = !!(mode && ('castleMode' in mode || 'queenMode' in mode)); // Q3: Krolowa dzieli galaz Zamku
         this.modifiers = modifiers;
         this.ctfMode = ctfMode;
     }

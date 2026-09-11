@@ -807,7 +807,7 @@ export const ALLOWED_POWERS: Record<ScenarioId, readonly PowerId[] | null> = {
     ktb: null,
     ctf: null,
     castle: null,
-    save_king: null,
+    save_queen: null, // SAVE THE QUEEN Q1: pelna pula (Mur/Freeze/Widmo maja tam ciekawe interakcje)
 };
 
 /**

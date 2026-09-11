@@ -31,6 +31,7 @@ export const MAP_TROPHY_DIVISOR: Record<MapId, number> = {
     fortified_ruins: 1.8,
     mars: 1.8, // FAZA MARS M2: provisional (jak tropics) — kalibrowac po pierwszych danych
     castle_grounds: 1.8, // OBRON ZAMEK F1: provisional — ranking Zamku wlaczany po 23.09
+    dungeon: 1.8, // SAVE THE QUEEN Q1: provisional — ranking Krolowej wlaczany po 23.09 (Q7)
 };
 const DEFAULT_DIVISOR = 1.8; // mapa bez wpisu (nie powinno sie zdarzyc — MapId jest zamkniety)
 

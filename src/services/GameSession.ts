@@ -213,6 +213,29 @@ export interface ScoreBreakdown {
 }
 
 /**
+ * OBRON ZAMEK F3 — stan runtime scenariusza Zamku (zyje w GameSession — 3 warstwy;
+ * CastleSystem trzyma tylko referencje obiektow). Liczniki ida do bonusow koncowych
+ * (addCastleEndBonuses) i do ekranu konca / metryk questowych.
+ */
+export interface CastleSessionState {
+    wave: number;
+    wavesCleared: number;
+    deaths: number;
+    /** Naprawy "zaliczone" (kazde 25% maxHp czesci = 1 naprawa; moc NAPRAWA = 1). */
+    repairsDone: number;
+    repairHp: number;
+    repairCounted: number;
+    earlyStarts: number;
+    taranKills: number;
+    katapultaKills: number;
+    trebuchetKills: number;
+    megaKilled: boolean;
+    gateIntact: boolean;
+    wallPctAtEnd: number;
+    keepPctAtEnd: number;
+}
+
+/**
  * FAZA CTF F2 — stan runtime scenariusza CTF (zyje w GameSession, nie w
  * globalach main.ts — architektura 3 warstw). Tworzone TYLKO gdy
  * config.scenario === 'ctf'.
@@ -242,6 +265,8 @@ export class GameSession {
 
     /** FAZA CTF F2 — stan CTF (null poza scenariuszem ctf). */
     public ctf: CtfSessionState | null = null;
+    /** OBRON ZAMEK F3 — stan zamku (null poza scenariuszem castle). */
+    public castle: CastleSessionState | null = null;
 
     /**
      * Akumulowany score (computed: subtotal * difficulty multiplier).
@@ -396,6 +421,14 @@ export class GameSession {
                 bossRespawnAt: [0, 0, 0],
                 startedCarryAt: null,
                 baseShieldUntil: 0, // ustawiane przez CtfSystem przy starcie meczu
+            };
+        }
+        if (config.scenario === 'castle') {
+            this.castle = {
+                wave: 0, wavesCleared: 0, deaths: 0,
+                repairsDone: 0, repairHp: 0, repairCounted: 0, earlyStarts: 0,
+                taranKills: 0, katapultaKills: 0, trebuchetKills: 0,
+                megaKilled: false, gateIntact: true, wallPctAtEnd: 1, keepPctAtEnd: 1,
             };
         }
     }
@@ -625,6 +658,47 @@ export class GameSession {
         this.bonusFlagCapture += bonus;
         this.recomputeScore();
         return { added: bonus };
+    }
+
+    /**
+     * OBRON ZAMEK F3 — bonusy statyczne scenariusza Zamku (fala odparta, wczesny start,
+     * bonusy koncowe). Laduja w scoreFromStaticBonus (PO mnozniku trudnosci — jak flagi),
+     * sumowane osobno w bonusCastle do breakdownu. Wzorzec addFlagCaptureBonus.
+     */
+    public bonusCastle: number = 0;
+    addCastleStaticBonus(amount: number, _reason: 'wave' | 'earlyStart' | 'end' | 'machine'): void {
+        if (amount <= 0) return;
+        this.scoreFromStaticBonus += amount;
+        this.bonusCastle += amount;
+        this.recomputeScore();
+    }
+
+    /** Bonusy koncowe Zamku (wolane RAZ w finishVictory PRZED submitem). */
+    addCastleEndBonuses(): number {
+        const c = this.castle;
+        if (!c) return 0;
+        let sum = 0;
+        if (c.keepPctAtEnd > 0.5) sum += 50;
+        if (c.gateIntact) sum += 40;
+        if (c.wallPctAtEnd > 0.5) sum += 40;
+        if (c.megaKilled) sum += 100;
+        if (c.repairsDone >= 3) sum += 20;
+        this.addCastleStaticBonus(sum, 'end');
+        return sum;
+    }
+
+    /**
+     * Perfect Run Zamku = ZERO smierci (nie "zero obrazen" — respawn jest czescia
+     * pętli). tookDamageThisMatch zostaje dla KTB/CTF.
+     */
+    applyCastlePerfectRunBonus(): { applied: boolean; bonus: number } {
+        const c = this.castle;
+        if (!c || c.deaths > 0) return { applied: false, bonus: 0 };
+        const bonus = PERFECT_RUN_BONUS_PER_DIFFICULTY[this.config.difficulty];
+        this.scoreFromStaticBonus += bonus;
+        this.bonusPerfectRun += bonus;
+        this.recomputeScore();
+        return { applied: true, bonus };
     }
 
     /**

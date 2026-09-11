@@ -119,6 +119,8 @@ export class BattleSection implements HubSection {
      */
     /** v0.143.0 — mapa biezacego wyboru: CTF ma wlasna liste kart, reszta uzywa KTB. */
     private currentMapId(): MapId {
+        // OBRON ZAMEK F1: castle ma mape zaszyta (fixedMapId) i ZERO kart do wyboru.
+        if (this.selectedScenario === 'castle') return 'castle_grounds';
         return this.selectedScenario === 'ctf' ? this.selectedCtfMap : this.selectedMap;
     }
 
@@ -283,6 +285,8 @@ export class BattleSection implements HubSection {
             // poza i18n, wiec po polsku tez pokazywal sie po angielsku.
             const m = CTF_MAP_CARDS.find(x => x.id === this.selectedCtfMap) ?? CTF_MAP_CARDS[0];
             summaryParts.push(t(m.nameKey));
+        } else if (this.selectedScenario === 'castle') {
+            summaryParts.push(t('map.castleGrounds.name')); // OBRON ZAMEK F1: jedna mapa, bez kart
         }
         summaryParts.push(t(DIFFICULTY_CONFIGS[this.selectedDifficulty].labelKey));
         const summary = summaryParts.join(' · ');

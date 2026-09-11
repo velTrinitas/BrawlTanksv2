@@ -180,6 +180,8 @@ export class PowerSystem {
      * null = miejsce niedozwolone (kolizja z budynkiem / wrog w srodku) => segment pominiety.
      */
     private readonly wallSpawner: (x: number, y: number) => (() => void) | null;
+    /** OBRON ZAMEK F3: opcjonalny hook — NAPRAWA naprawia najblizsza czesc zamku (CastleSystem). */
+    public onRepairActivated: ((x: number, y: number) => void) | null;
     // ═══ TIER 2 (v0.111.0) — wszystkie fire-and-forget, wlasne timery ═══
     // NALOT: eskadra cieni + bomby detonowane fala wzdluz linii celowania.
     // v2: 5 maszyn +50% + doppler przelotu + KRATERY (decal gruntu 1:1 z BossBomb CTF,
@@ -307,6 +309,7 @@ export class PowerSystem {
         this.towerBulletSpawner = towerBulletSpawner;
         this.aoeExplode = aoeExplode;
         this.wallSpawner = wallSpawner;
+        this.onRepairActivated = null;
         this.powerCooldowns = Object.fromEntries(
             POWER_ORDER.map(id => [id, 0]),
         ) as Record<PowerId, number>;
@@ -455,7 +458,14 @@ export class PowerSystem {
         const def = POWERS[id];
         console.log(`[PowerSystem] Activating ${id} (slot ${slot + 1}), cooldown ${def.cooldownMs}ms`);
         this.powerCooldowns[id] = Date.now() + def.cooldownMs;
-        return def.onActivate({ ...ctx, system: this });
+        const res = def.onActivate({ ...ctx, system: this });
+        // OBRON ZAMEK F3: NAPRAWA naprawia tez STRUKTURY (hook systemu scenariusza, nie if-chain
+        // logiki mocy — sam heal gracza zostaje w rejestrze). null poza zamkiem = brak akcji.
+        if (id === 'repair' && res.activated && this.onRepairActivated) {
+            try { this.onRepairActivated(ctx.player.x, ctx.player.y); }
+            catch (e) { console.error('[PowerSystem] onRepairActivated failed:', (e as Error).stack ?? e); }
+        }
+        return res;
     }
 
     /**

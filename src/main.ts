@@ -56,6 +56,27 @@ import {
     MARS_ROVER_ROUTE, MARS_ROVER_ROUTE_SE,
 } from './maps/MarsMap'; // FAZA MARS M2/M3/M4
 import { DuststormBorder } from './maps/mars/DuststormBorder'; // FAZA MARS M2
+import {
+    buildCastleTexture, CASTLE_PLAYER_SPAWN, CASTLE_ROCK_PALETTE, CASTLE_ROCKS,
+    CASTLE_MEDI_PAD_POSITIONS, CASTLE_POWER_PAD_POSITIONS,
+    CASTLE_TOWERS, CASTLE_WALLS, CASTLE_GATES, CASTLE_GATE_TURRETS, CASTLE_KEEP,
+    CASTLE_MOAT, CASTLE_FORESTS, CASTLE_CHAPEL, CASTLE_STEALTH, CASTLE_LANES, CASTLE_COTTAGES, CASTLE_HAY,
+} from './maps/CastleMap'; // OBRON ZAMEK F1/F2/F5/F6
+import { CastleBorder } from './maps/castle/CastleBorder'; // OBRON ZAMEK F1
+import { CastlePart } from './maps/castle/CastlePart'; // OBRON ZAMEK F2
+import type { DamageTier as CastleDamageTier } from './maps/castle/castleBake'; // OBRON ZAMEK F2
+import { CastleMoat } from './maps/castle/CastleMoat'; // OBRON ZAMEK F2
+import { CastleSolidProp } from './maps/castle/CastleSolidProp'; // OBRON ZAMEK F2
+import { CastleWheatField } from './maps/castle/CastleWheatField'; // OBRON ZAMEK F2
+import { CastlePennants, type PennantAnchor } from './maps/castle/CastlePennants'; // OBRON ZAMEK F2
+import { prebakeCastle, towerSquarePennantAnchor, keepPennantAnchor } from './maps/castle/castleBake'; // OBRON ZAMEK F2/F6
+import { CastleMediPad } from './maps/castle/CastleMediPad'; // OBRON ZAMEK F6
+import { CastlePowerPad } from './maps/castle/CastlePowerPad'; // OBRON ZAMEK F6
+import { CastleHayBale } from './maps/castle/CastleHayBale'; // OBRON ZAMEK F6
+import { CastleCrows } from './maps/castle/CastleCrows'; // OBRON ZAMEK F6
+import { isCastleMode } from './config/castleFlag'; // OBRON ZAMEK F1
+import { CastleSystem } from './systems/castle/CastleSystem'; // OBRON ZAMEK F3
+import { CASTLE_TUNING } from './systems/castle/castleWaves'; // OBRON ZAMEK F3
 import { MarsBase } from './maps/mars/MarsBase'; // FAZA MARS M3 (landmark)
 import { MarsCargo } from './maps/mars/MarsCargo'; // FAZA MARS M3 (niszczalne)
 import { RegolithField } from './maps/mars/RegolithField'; // FAZA MARS M4 (slow)
@@ -150,7 +171,7 @@ import { getSeasonContent, getItemByValue, rollSeasonItem, type SeasonContentDef
 import { getCurrentSeason } from './config/season';
 import { HoverRepairPad } from './maps/HoverRepairPad';
 import { PowerHoverPad } from './maps/PowerHoverPad';
-import { HUD, type HudCtfInfo } from './rendering/HUD';
+import { HUD, type HudCastleInfo, type HudCtfInfo } from './rendering/HUD';
 import { EffectsManager } from './rendering/Effects';
 import { SpawnSystem } from './systems/Spawn';
 import { PowerSystem } from './systems/PowerSystem';
@@ -332,8 +353,8 @@ let seasonNextSpawnAt = 0;
 let seasonMissStreak = 0;          // proby bez przedmiotu o wartosci 6 (pity)
 let seasonContentCache: SeasonContentDef | null = null;
 let powerCubes: PowerCube[] = []; // v0.44.0 FAZA 8.6
-let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad | MarsMediPad> = [];
-let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad | MarsPowerPad> = [];
+let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad | MarsMediPad | CastleMediPad> = [];
+let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad | MarsPowerPad | CastlePowerPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
@@ -343,6 +364,26 @@ let tropicalBorder: TropicalBorder | null = null;
 let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
 let arcticBorder: ArcticBorder | null = null; // ARC-R1 (Arctic)
 let marsBorder: DuststormBorder | null = null; // FAZA MARS M2
+let castleBorder: CastleBorder | null = null; // OBRON ZAMEK F1
+// OBRON ZAMEK F2 — czesci zamku (mur/wieze/brama/donzon), fosa, las/kaplica, pola, proporce.
+let castleParts: CastlePart[] = [];
+let castleMoat: CastleMoat | null = null;
+let castleSolids: CastleSolidProp[] = [];
+let castleWheat: CastleWheatField[] = [];
+let castlePennants: CastlePennants | null = null;
+let castleHay: CastleHayBale[] = []; // F6
+let castleCrows: CastleCrows | null = null; // F6
+/** Furtki N/E/W: bariery TYLKO dla wrogow (gracz przejezdza) — wzorzec ctfEnemyBarriers. */
+let castleEnemyBarriers: ICollidable[] = [];
+/** Precomputed RAZ na mecz: kolizja ruchu wrogow (buildings + furtki). */
+let castleEnemyBuildings: ICollidable[] | null = null;
+/** Precomputed RAZ na mecz: kolizja POCISKOW WROGA (solidBuildings z proxy zamku, ktore
+ *  przyjmuja obrazenia). Pociski gracza dostaja zwykle solidBuildings (friendly fire OFF). */
+let castleEnemyBulletSolids: ICollidable[] | null = null;
+let wasInWheatLastFrame = false; // OBRON ZAMEK F2 — stealth w zbozu
+/** OBRON ZAMEK F3 — rdzen scenariusza (fale, cele, obrazenia struktur, respawn). */
+let castleSystem: CastleSystem | null = null;
+let castleFrameDelta = 1; // delta biezacej klatki dla targetFor (anti-grind liczony w klatkach)
 let marsCargo: MarsCargo[] = []; // FAZA MARS M3 (niszczalne kontenery — wlasna petla)
 let regolithFields: RegolithField[] = []; // FAZA MARS M4 (slow 0.5x)
 let solarFarm: SolarFarm | null = null; // FAZA MARS M4b
@@ -386,6 +427,32 @@ const ctfHudInfo: HudCtfInfo = {
     flagsCaptured: 0, cameraX: 0, cameraY: 0, zoom: 1,
     shieldSecondsLeft: 0,
 };
+// OBRON ZAMEK F5 — dane HUD zamku (obiekt reuzywany per klatke, zero alokacji)
+const castleHudInfo: HudCastleInfo = {
+    phase: 'intro', wave: 0, wavesTotal: 6, phaseSecondsLeft: 0, wallPct: 1, gatePct: 1, gateDestroyed: false, gatesAlive: 4, gatesTotal: 4,
+    keepPct: 1, respawnSecondsLeft: 0, enemiesAlive: 0, megaAlive: false, lanes: [], breaches: [],
+    cameraX: 0, cameraY: 0, zoom: 1,
+};
+// OBRON ZAMEK F5 — przycisk "NASTEPNA FALA" (DOM; dotyk + mysz; klawisz N = alias). Tworzony raz,
+// pokazywany TYLKO w fazie budowy. Rozmiar kciuka, nad paskiem mocy (12 px luzu px).
+function castleTutorialDone(): boolean { try { return localStorage.getItem('bt2:castle_tut_done') === '1'; } catch { return true; } }
+function castleTutorialForced(): boolean { try { return new URLSearchParams(location.search).get('castletut') === '1'; } catch { return false; } }
+let castleNextBtn: HTMLButtonElement | null = null;
+function ensureCastleNextBtn(): HTMLButtonElement {
+    if (castleNextBtn) return castleNextBtn;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'castleNextWave';
+    b.style.cssText = 'position:fixed;left:50%;bottom:calc(24% + 80px);transform:translateX(-50%);z-index:60;'
+        + 'display:none;padding:12px 26px;min-height:48px;border:3px solid #e0b53c;border-radius:16px;'
+        + 'background:linear-gradient(180deg,#3a3f55,#1f2231);color:#ffd94d;font-family:"Titan One",cursive;'
+        + 'font-size:18px;letter-spacing:.5px;text-shadow:0 2px 0 #000;box-shadow:0 6px 18px rgba(0,0,0,.5);'
+        + 'cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (castleSystem && gameState === 'PLAYING') castleSystem.startNextWaveNow(); });
+    document.body.appendChild(b);
+    castleNextBtn = b;
+    return b;
+}
 let farmFields: IFarmField[] = [];
 let caravan: Caravan | null = null;
 
@@ -698,6 +765,7 @@ const spawnBlocked = (x: number, y: number): boolean => {
     for (const o of oases) if (o.isPointInside(x, y)) return true;
     for (const sp of sludgePools) if (sp.isPointInside(x, y)) return true;
     if (ruinsFosa && ruinsFosa.isPointInside(x, y)) return true;
+    if (castleMoat && castleMoat.isPointInside(x, y)) return true; // OBRON ZAMEK F2: nie w fosie
     for (const ih of iceHoles) if (ih.isPointInside(x, y)) return true; // ARC-R2: nie spawnuj w wodzie
     // v0.143.0 (CTF): NIGDY nie spawnuj w obrysie bazy gracza. Do teraz findSafeSpawnPos
     // dostawal `buildings`, a strefa hangaru siedzi wylacznie w `ctfEnemyBuildings` —
@@ -896,7 +964,8 @@ function resetPlayerStateForMatch(matchConfig: GameConfig): void {
 
 menu.onGameRequested = (config: GameConfig) => {
     // FAZA CTF F1: ctf odblokowane (mapa fortified_ruins zintegrowana modularnie)
-    if (config.scenario === 'castle') {
+    // OBRON ZAMEK F1: castle odblokowany TYLKO za ?castle=1 (castleFlag.ts).
+    if (config.scenario === 'castle' && !isCastleMode()) {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
         return;
@@ -911,7 +980,7 @@ menu.onGameRequested = (config: GameConfig) => {
                 if (cont) {
                     resetPlayerStateForMatch(config); // stan od zera (super/score) — sprawiedliwosc
                     if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
-                    if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
+                    if (lastGameConfig && (lastGameConfig.scenario === 'ktb' || lastGameConfig.scenario === 'ctf' || lastGameConfig.scenario === 'castle')) showModeGoal(lastGameConfig.scenario, touchManager.isActive);
                 } else returnToMenuFromEnd();
             });
         });
@@ -923,10 +992,14 @@ menu.onGameRequested = (config: GameConfig) => {
 menu.onContinueRequested = (lastSession: LastSession) => {
     // FAZA CTF F1: ctf odblokowane. Guard na stale sesje sprzed odblokowania:
     // ctf z placeholderowa mapa != fortified_ruins naprawiamy na wlasciwa.
-    if (lastSession.scenario === 'castle') {
+    if (lastSession.scenario === 'castle' && !isCastleMode()) {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
         return;
+    }
+    // OBRON ZAMEK F1: stale sesje castle sprzed odblokowania moga niesc mape KTB.
+    if (lastSession.scenario === 'castle' && lastSession.map !== 'castle_grounds') {
+        lastSession.map = 'castle_grounds';
     }
     if (lastSession.scenario === 'ctf' && lastSession.map !== 'fortified_ruins') {
         lastSession.map = 'fortified_ruins';
@@ -967,7 +1040,7 @@ menu.onHowToPlayRequested = () => {
             if (cont) {
                 resetPlayerStateForMatch(cfg); // stan od zera (super/score) — sprawiedliwosc
                 if (cfg.scenario === 'ctf') spawnCtfMatchForces();
-                if (cfg.scenario === 'ktb' || cfg.scenario === 'ctf') showModeGoal(cfg.scenario, touchManager.isActive);
+                if (cfg.scenario === 'ktb' || cfg.scenario === 'ctf' || cfg.scenario === 'castle') showModeGoal(cfg.scenario, touchManager.isActive);
             } else returnToMenuFromEnd();
         });
     });
@@ -1182,6 +1255,10 @@ window.addEventListener('keydown', e => {
     }
     if (k === '1') {
         tryActivateSuper(0);
+    }
+    // OBRON ZAMEK F3: N = nastepna fala teraz (faza budowy; bonus za pozostale sekundy)
+    if (k === 'n' && castleSystem && gameState === 'PLAYING') {
+        castleSystem.startNextWaveNow();
     }
     if (k === '2' || k === 'q') {
         tryActivateSuper(1);
@@ -1476,6 +1553,21 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     cyberpunkBorder = null; // v0.52.0 fix #21
     arcticBorder = null; // ARC-R1 (Arctic)
     marsBorder = null; // FAZA MARS M2
+    castleBorder = null; // OBRON ZAMEK F1
+    for (const p of castleParts) p.destroy(); // OBRON ZAMEK F2
+    castleParts = [];
+    castleMoat?.destroy(); castleMoat = null;
+    castleSolids = [];
+    for (const wf of castleWheat) wf.destroy(); castleWheat = [];
+    castlePennants?.destroy(); castlePennants = null;
+    for (const hb of castleHay) hb.destroy(); castleHay = [];
+    castleCrows?.destroy(); castleCrows = null;
+    castleEnemyBarriers = [];
+    castleEnemyBuildings = null;
+    castleEnemyBulletSolids = null;
+    wasInWheatLastFrame = false;
+    castleSystem?.destroy(); castleSystem = null; // OBRON ZAMEK F3
+    if (castleNextBtn) castleNextBtn.style.display = 'none'; // F5
     marsCargo = []; // FAZA MARS M3
     regolithFields = []; // FAZA MARS M4
     solarFarm = null; // FAZA MARS M4b
@@ -2116,15 +2208,106 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // 3000x3000 gracz ich po prostu nie spotykal.
         mediPads = MARS_MEDI_PAD_POSITIONS.map(p => new MarsMediPad(p.x, p.y, worldContainer));
         powerPads = MARS_POWER_PAD_POSITIONS.map(p => new MarsPowerPad(p.x, p.y, worldContainer));
+    } else if (config.map === 'castle_grounds') {
+        // ── OBRON ZAMEK F1 "ZIELONA DOLINA" — szkielet mapy za ?castle=1 ──
+        // Layout FROZEN + AABB-verified: tools/castle_c1_layout.mjs (V1-V9 PASS).
+        // F1 = grunt (laka + droga pierscieniowa + fosa + mosty + bruk) + border +
+        // glazy + pady Ruin jako placeholder. F2: zamek (CastlePart), fosa-strefa,
+        // las, kaplica, pelny bake. F3: CastleSystem + fale.
+        const castleTex = buildCastleTexture();
+        const castleSprite = new PIXI.Sprite(castleTex);
+        castleSprite.zIndex = -100;
+        worldContainer.addChild(castleSprite);
+
+        castleBorder = new CastleBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...castleBorder.getCollisionRects());
+        solidBuildings.push(...castleBorder.getCollisionRects());
+
+        // Glazy granitowe (reuse silnika Rock, paleta granitowa — jak Mars).
+        // Layout trzyma TOP-LEFT AABB 120x120, Rock chce SRODEK + size 60.
+        for (const r of CASTLE_ROCKS) {
+            const seed = ((r.x * 31 + r.y * 17) % 997) + 1;
+            const rock = new Rock(r.x + 60, r.y + 60, 60, 'large', seed, worldContainer, CASTLE_ROCK_PALETTE);
+            buildings.push(rock);
+            solidBuildings.push(rock);
+        }
+
+        // Pady: F1 = Ruins (kamienne — pasuja do granitu); F6 reskin CastleMediPad/CastlePowerPad.
+        mediPads = CASTLE_MEDI_PAD_POSITIONS.map(p => new CastleMediPad(p.x, p.y, worldContainer)); // F6 reskin
+        powerPads = CASTLE_POWER_PAD_POSITIONS.map(p => new CastlePowerPad(p.x, p.y, worldContainer)); // F6 reskin
+
+        // ── F2: ZAMEK — czesci z pieczonym artem (castleBake), hitbox == AABB z layoutu ──
+        // Prebake calego kompletu tekstur TERAZ (jedna kosztowna chwila na starcie,
+        // zero hitchu przy pierwszej zmianie tieru w walce).
+        prebakeCastle(CASTLE_WALLS[0].w, CASTLE_WALLS[0].h, CASTLE_TOWERS[0].w, CASTLE_KEEP.w, CASTLE_KEEP.h,
+            { w: CASTLE_GATES[0].w, h: CASTLE_GATES[0].h }, { w: CASTLE_GATE_TURRETS[0].w, h: CASTLE_GATE_TURRETS[0].h });
+        castleParts = [];
+        for (const t of CASTLE_TOWERS) castleParts.push(new CastlePart({ id: t.id, kind: 'tower', ...t, maxHp: 0 }, worldContainer));
+        for (const w of CASTLE_WALLS) castleParts.push(new CastlePart({ id: w.id, kind: 'wall', x: w.x, y: w.y, w: w.w, h: w.h, side: w.side, maxHp: CASTLE_TUNING.wallHp }, worldContainer));
+        for (const g of CASTLE_GATES) castleParts.push(new CastlePart({ id: g.id, kind: 'gate', x: g.x, y: g.y, w: g.w, h: g.h, side: g.side, maxHp: CASTLE_TUNING.gateHp }, worldContainer)); // 4 bramy
+        for (const tu of CASTLE_GATE_TURRETS) castleParts.push(new CastlePart({ id: tu.id, kind: 'turret', ...tu, maxHp: 0 }, worldContainer));
+        castleParts.push(new CastlePart({ id: CASTLE_KEEP.id, kind: 'keep', ...CASTLE_KEEP, maxHp: CASTLE_TUNING.keepHp }, worldContainer));
+        // solidProxy (BEZ takeDamage): czolg gracza + pociski gracza — friendly fire OFF.
+        // enemyBulletProxy trafia do castleEnemyBulletSolids (nizej, po finalizacji solidBuildings).
+        for (const p of castleParts) { buildings.push(p.solidProxy); solidBuildings.push(p.solidProxy); }
+        // 4 BRAMY: kazda otwiera sie dla GRACZA (solidProxy=0 w poblizu), wrogow trzyma enemyProxy (solid dopoki zyje)
+        castleEnemyBarriers = castleParts.filter(p => p.kind === 'gate').map(p => p.enemyProxy);
+
+        // Fosa (slow 0.5x, passable; woda w bake, ramka+zmarszczki w runtime)
+        castleMoat = new CastleMoat(CASTLE_MOAT, worldContainer);
+        // Las (bloki solid) + ruina kaplicy — pieczone RAZ, cache per seed
+        castleSolids = [];
+        for (const f of CASTLE_FORESTS) {
+            const seed = ((f.x * 31 + f.y * 17) % 997) + 1;
+            const prop = new CastleSolidProp('forest', f.x, f.y, f.w, f.h, seed, worldContainer);
+            castleSolids.push(prop); buildings.push(prop); solidBuildings.push(prop);
+        }
+        {
+            const ch = new CastleSolidProp('chapel', CASTLE_CHAPEL.x, CASTLE_CHAPEL.y, CASTLE_CHAPEL.w, CASTLE_CHAPEL.h, 0x43484150, worldContainer);
+            castleSolids.push(ch); buildings.push(ch); solidBuildings.push(ch);
+        }
+        // Pola zboza — stealth
+        castleWheat = CASTLE_STEALTH.map(s => new CastleWheatField(s.x, s.y, s.w, s.h, worldContainer));
+        // Proporce: 4 wieze (szkarlat) + sztandar donzonu (zloto)
+        {
+            const anchors: PennantAnchor[] = CASTLE_TOWERS.map(t => {
+                const a = towerSquarePennantAnchor(t.w);
+                return { x: t.x + a.dx, y: t.y + a.dy, color: 'crimson' as const };
+            });
+            const k = keepPennantAnchor(CASTLE_KEEP.w, CASTLE_KEEP.h);
+            anchors.push({ x: CASTLE_KEEP.x + k.dx, y: CASTLE_KEEP.y + k.dy, color: 'gold', scale: 1.5 });
+            castlePennants = new CastlePennants(anchors, worldContainer);
+        }
+        // F6 (#9): wioska (3 chatki solid) — pieczone jak las/kaplica
+        for (const ct of CASTLE_COTTAGES) {
+            const seed = ((ct.x * 7 + ct.y * 13) % 997) + 1;
+            const prop = new CastleSolidProp('cottage', ct.x, ct.y, ct.w, ct.h, seed, worldContainer);
+            castleSolids.push(prop); buildings.push(prop); solidBuildings.push(prop);
+        }
+        // F6: kruki nad donzonem (ambient A, cull)
+        castleCrows = new CastleCrows(CASTLE_KEEP.x + CASTLE_KEEP.w / 2, CASTLE_KEEP.y + CASTLE_KEEP.h / 2, worldContainer);
+        // debug F12: castleTier(2) -> wszystkie zniszczalne czesci na tier 2; castleTier(3,'gate')
+        (window as any).castleTier = (tier: CastleDamageTier, id?: string) => {
+            for (const p of castleParts) if (!id || p.id === id) p.setTierDebug(tier);
+        };
     }
 
     effects = new EffectsManager(worldContainer);
+    // OBRON ZAMEK F6 (#9): snopy siana — niszczalne, gem po rozwaleniu (konstrukcja PO effects, jak crates)
+    if (config.map === 'castle_grounds') {
+        for (const hb of CASTLE_HAY) {
+            const bale = new CastleHayBale(hb.x, hb.y, hb.w, hb.h, worldContainer, effects, (cx, cy) => spawnGem(cx, cy));
+            castleHay.push(bale); buildings.push(bale); solidBuildings.push(bale);
+        }
+    }
     // v0.50.0 Difficulty Balance v1: SpawnSystem dostaje per-difficulty modifiers
     // (enemy HP/dmg/speed mults + spawn interval + max enemies + boss thresholds).
     // FAZA CTF F2 (D7): dla ctf tryb roamer-cap 10 (bossy/mega/hearty/magnesy off).
     spawnSystem = new SpawnSystem(
         getDifficultyModifiers(config.difficulty),
-        config.scenario === 'ctf' ? { roamerCap: 10 } : null,
+        config.scenario === 'ctf' ? { roamerCap: 10 }
+            : config.scenario === 'castle' ? { castleMode: true } // OBRON ZAMEK F3: fale = WaveDirector
+            : null,
     );
     // PROG-F7a/b: loadout z GARAZU, rozwiazany pod scenariusz + WLASNOSC (filtr po owned
     // = bramka progow trofeow — reczna edycja localStorage/chmury nie daje mocy zza progu).
@@ -2336,6 +2519,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     if (config.scenario === 'ctf') {
         localPlayer.x = FORTIFIED_PLAYER_SPAWN.x;
         localPlayer.y = FORTIFIED_PLAYER_SPAWN.y;
+    } else if (config.scenario === 'castle') {
+        // OBRON ZAMEK F1: start na apronie donzonu (ten sam punkt = respawn w F3).
+        localPlayer.x = CASTLE_PLAYER_SPAWN.x;
+        localPlayer.y = CASTLE_PLAYER_SPAWN.y;
     }
 
     enemies = [];
@@ -2422,6 +2609,67 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         }
     }
 
+    // OBRON ZAMEK F2 — tablice kolizji wrogow liczone RAZ, po finalizacji buildings/
+    // solidBuildings (skrzynki/sciany mocy dochodza pozniej do `buildings` — ruch
+    // wrogow uzywa kopii z furtkami, jak CTF; pociski wroga dostaja proxy z takeDamage).
+    if (config.scenario === 'castle' && castleParts.length > 0) {
+        castleEnemyBuildings = [...buildings, ...castleEnemyBarriers];
+        const castleProxies = new Set<ICollidable>(castleParts.map(p => p.solidProxy));
+        castleEnemyBulletSolids = [
+            ...solidBuildings.filter(b => !castleProxies.has(b)),
+            ...castleParts.filter(p => p.destructible).map(p => p.enemyBulletProxy),
+            ...castleParts.filter(p => !p.destructible).map(p => p.solidProxy),
+        ];
+
+        // F3: rdzen scenariusza — po effects/audio/powerSystem (konstrukcja jak CtfSystem).
+        castleSystem = new CastleSystem({
+            session: currentSession,
+            worldContainer,
+            enemies,
+            effects,
+            audio,
+            difficulty: getDifficultyModifiers(config.difficulty),
+            parts: castleParts,
+            hudNotif: (text, color) => hud.addNotif(text, color),
+            banner: (text, color, frames) => hud.triggerCastleBanner(text, color, frames),
+            onEnemySpawned: (enemy) => {
+                attachEnemyCubeStolenCallback(enemy);
+                if (powerSystem.isFreezeActive) enemy.freeze(powerSystem.freezeUntil);
+            },
+            onWaveStart: () => { audio.playShockwave(); },
+            onWaveCleared: (_wave, bonus) => {
+                if (bonus > 0) effects.spawnFloatingText(localPlayer!.x, localPlayer!.y - 40, `+${bonus}`, 0xe0b53c);
+                audio.playVictory();
+            },
+            onBuildPhase: () => {},
+            onMegaSpawned: () => { hud.triggerMegaBossAlert(); },
+            onPlayerRespawn: () => { audio.playHeartPickup(); },
+            onCastleDestroyed: () => {},
+            // F6: telegraf lane'u — portal w kolorze wroga na obozie, z ktorego rusza batch (Czytelnosc: skad ida)
+            onLaneBatch: (lane) => { const l = CASTLE_LANES.find(x => x.id === lane); if (l) effects.spawnPortal(l.x, l.y, 0xff4d4d); },
+            // TUTORIAL scenariusza: raz per urzadzenie (wzorzec GoalCard bt2:goal_*), ?castletut=1 wymusza
+            tutorial: !tutorialMode && (castleTutorialForced() || !castleTutorialDone()),
+            onTutorialDone: () => { try { localStorage.setItem('bt2:castle_tut_done', '1'); } catch { /* prywatny tryb */ } },
+        });
+        powerSystem.onRepairActivated = (x, y) => castleSystem?.onRepairPower(x, y);
+        // debug F12: castleInfo() -> stan HUD scenariusza; castleWave(n) -> natychmiastowy start fali n
+        (window as any).castleInfo = () => castleSystem?.getHudInfo();
+        (window as any).castleSys = () => castleSystem;
+        (window as any).castlePlayerPos = () => localPlayer ? [Math.round(localPlayer.x), Math.round(localPlayer.y)] : null;
+        (window as any).castleTut = () => (castleSystem as unknown as { tutStep: number; tutWentOut: boolean } | null)?.tutStep;
+        (window as any).castleTeleport = (x: number, y: number) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } };
+        (window as any).castleKillAll = () => { for (const e of enemies) if (e.castleRole && e.active) { e.active = false; if (e.container.parent) e.container.parent.removeChild(e.container); e.container.destroy({ children: true }); } };
+        (window as any).castleOnlyMachines = (on: boolean) => { if (castleSystem) castleSystem.debugOnlyMachines = on; };
+        // debug: castleStep(n) -> recznie pompuje n klatek tickera (testy w karcie w tle, gdzie rAF stoi)
+        (window as any).castleStep = (n: number) => { let tNow = performance.now(); for (let i = 0; i < n; i++) { tNow += 1000 / 60; app.ticker.update(tNow); } };
+        (window as any).castleRoles = () => enemies.filter(e => e.active && e.castleRole).map(e => ({ r: e.castleRole, x: Math.round(e.x), y: Math.round(e.y), node: e.castleNode, arr: e.castleArrived, st: e.taranState, sm: e.castleSpeedMult }));
+        (window as any).castleWave = (n: number) => {
+            if (!castleSystem) return;
+            (castleSystem as unknown as { wave: number }).wave = Math.max(0, n - 1);
+            castleSystem.startNextWaveNow();
+        };
+    }
+
     audio.startMusic(config.map);
 
     // SHOP-1 — PACZKA GLOSOWA. Latch 50% HP zerujemy na kazdy mecz, potem kwestia
@@ -2456,7 +2704,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
-    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf')) {
+    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle')) { // OBRON ZAMEK F5
         showModeGoal(config.scenario, touchManager.isActive);
     }
 }
@@ -2584,6 +2832,9 @@ interface EndScreenData {
     tankImg: string;
     /** FAZA CTF F2 — zdobyte flagi (null = scenariusz bez flag, tile heartow zostaje). */
     ctfFlags: number | null;
+    /** OBRON ZAMEK F5: odparte fale (null poza zamkiem) + smierci. */
+    castleWaves: number | null;
+    castleDeaths: number;
     /** PROG-F1 — trofea zdobyte w tym runie (undefined = brak progresji, np. sesja bez profilu). */
     trophiesGained?: number;
     /** PROG-F1 — srubki zdobyte (run + milestony). */
@@ -2725,7 +2976,9 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
-    const victoryBadgeText = d.ctfFlags !== null
+    const victoryBadgeText = d.castleWaves !== null
+        ? `🏰 ${t('end.waves')}: ${d.castleWaves}/6` // OBRON ZAMEK F5
+        : d.ctfFlags !== null
         ? `🚩 ${t('end.flags')}: ${d.ctfFlags}/3`
         : `🏆 ${t('end.megaBoss')} — ${t('end.megaBossDefeated')}`;
     const victoryBadge = isVictory ? `
@@ -2867,7 +3120,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile(bossIconSm, d.bosses, t('end.bosses'))}
                         ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
                         ${statTile(cubeIconSm, d.cubesTotal, t('end.cubes'))}
-                        ${d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
+                        ${d.castleWaves !== null ? statTile('🏰', `${d.castleWaves}/6`, t('end.waves')) : d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
                         ${statTile('💥', d.supers, t('end.supers'))}
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
                     </div>
@@ -2897,7 +3150,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                 ${chip(bossIcon, d.bosses, t('end.bosses'))}
                 ${chip('🔥', `${d.maxCombo}x`, t('end.combo'))}
                 ${chip(cubeIcon, d.cubesTotal, t('end.cubes'))}
-                ${d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
+                ${d.castleWaves !== null ? chip('🏰', `${d.castleWaves}/6`, t('end.waves')) : d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
                 ${chip('💥', d.supers, t('end.supers'))}
                 ${chip('⏱️', `${d.seconds}s`, t('end.time'))}
             </div>
@@ -2948,6 +3201,11 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
         ?? powerSystem!.grannyFearFor(enemy)
         ?? powerSystem!.ghostTauntFor(enemy);
     if (steer) return steer;
+    // OBRON ZAMEK F3: oblegajacy/maszyny ida trasa do struktur (raiderzy: null => gracz).
+    if (castleSystem) {
+        const ct = castleSystem.targetFor(enemy, localPlayer!, castleFrameDelta);
+        if (ct) return ct;
+    }
     // Z0.3: najblizszy ZYWY gracz z players[] (dzis 1 element => identycznie jak alias).
     let best = localPlayer!;
     let bestDistSq = Infinity;
@@ -2984,7 +3242,9 @@ async function triggerGameOver(): Promise<void> {
     // Edge Function mial ctf/fortified_ruins na whitelscie, a mimo to swiecil pustka.
     if (currentSession) {
         try {
-            await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
+            // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
+            if (currentSession.config.scenario !== 'castle') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
             console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -3027,6 +3287,8 @@ async function triggerGameOver(): Promise<void> {
         supers: currentSession?.superPowersUsed ?? 0,
         tankImg,
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
+        castleWaves: currentSession?.castle ? currentSession.castle.wavesCleared : null, // OBRON ZAMEK F5
+        castleDeaths: currentSession?.castle?.deaths ?? 0,
         trophiesGained: runProg?.trophiesGained,          // PROG-F1
         boltsGained: runProg?.boltsGained,
         milestoneBolts: runProg ? runProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
@@ -3065,7 +3327,8 @@ async function triggerVictory(): Promise<void> {
     if (currentSession) {
         // v0.50.0 Scoring v2.2: Perfect Run check + apply bonus PRZED submit, zeby
         // submitowany score juz uwzglednial bonus. Wolane RAZ na koncu matchu.
-        const perfectRun = currentSession.applyPerfectRunBonus();
+        // OBRON ZAMEK F3: Perfect Run zamku = zero smierci (respawn jest czescia petli), nie "zero obrazen".
+        const perfectRun = castleSystem ? currentSession.applyCastlePerfectRunBonus() : currentSession.applyPerfectRunBonus();
         victoryPerfectRun = perfectRun.applied;
         if (perfectRun.applied) {
             console.log(`[Score] PERFECT RUN bonus applied: +${perfectRun.bonus} pts`);
@@ -3074,7 +3337,9 @@ async function triggerVictory(): Promise<void> {
 
         // v0.136.0: submit dla WSZYSTKICH scenariuszy (patrz notka w triggerGameOver).
         try {
-            await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
+            // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
+            if (currentSession.config.scenario !== 'castle') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
             console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -3113,6 +3378,8 @@ async function triggerVictory(): Promise<void> {
         supers: currentSession?.superPowersUsed ?? 0,
         tankImg,
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
+        castleWaves: currentSession?.castle ? currentSession.castle.wavesCleared : null, // OBRON ZAMEK F5
+        castleDeaths: currentSession?.castle?.deaths ?? 0,
         trophiesGained: victoryRunProg?.trophiesGained,   // PROG-F1
         boltsGained: victoryRunProg?.boltsGained,
         milestoneBolts: victoryRunProg ? victoryRunProg.milestonesCrossed.reduce((s, m) => s + m.bolts, 0) : 0,
@@ -3352,6 +3619,14 @@ function runLogicStep(delta: number): void {
             playerInFosa = true;
         }
     }
+    // OBRON ZAMEK F2 — fosa zamku: slow 0.5x (mosty = wyciecia, pelna predkosc)
+    if (castleMoat) {
+        castleMoat.update();
+        if (castleMoat.isPointInside(localPlayer.x, localPlayer.y)) playerInFosa = true;
+    }
+    for (const wf of castleWheat) wf.update();
+    if (castlePennants) castlePennants.update(camera.x, camera.y, viewW, viewH);
+    if (castleCrows) castleCrows.update(camera.x, camera.y, viewW, viewH); // F6
     // FAZA CTF F2 — carry penalty (x0.90/0.85/0.80 wg eskalacji) MULTIPLIKATYWNIE
     // ze slow-zone (fosa z flaga = 0.5 * carry) — legacy 1536 1:1.
     const ctfCarryMult = ctfSystem ? ctfSystem.getCarrySpeedMult() : 1.0;
@@ -3371,6 +3646,9 @@ function runLogicStep(delta: number): void {
         }
         if (!enemyInSlow && ruinsFosa && ruinsFosa.isPointInside(enemy.x, enemy.y)) {
             enemyInSlow = true; // FAZA CTF F1 — fosa spowalnia tez wrogow (fair play)
+        }
+        if (!enemyInSlow && castleMoat && castleMoat.isPointInside(enemy.x, enemy.y)) {
+            enemyInSlow = true; // OBRON ZAMEK F2 — fosa zamku spowalnia obie strony
         }
         if (!enemyInSlow) {
             for (const rf of regolithFields) {   // MARS M4 — regolit spowalnia obie strony
@@ -3429,9 +3707,15 @@ function runLogicStep(delta: number): void {
     }
     const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
 
+    // OBRON ZAMEK F2 — pola zboza (stealth; wzorzec hydroponika)
+    let playerInWheat = false;
+    for (const wf of castleWheat) {
+        if (wf.isPointInside(localPlayer.x, localPlayer.y)) { playerInWheat = true; break; }
+    }
+
     const nowMs = Date.now();
-    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden;
-    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame || wasInHydroGardenLastFrame;
+    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden || playerInWheat;
+    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame || wasInHydroGardenLastFrame || wasInWheatLastFrame;
 
     if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
         oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
@@ -3451,6 +3735,8 @@ function runLogicStep(delta: number): void {
             hud.addNotif(t('hud.stealthBush'), '#76ab63'); // FAZA CTF F1
         } else if (playerInHydroGarden) {
             hud.addNotif(t('hud.stealthHydro'), '#5fd489'); // FAZA MARS M4
+        } else if (playerInWheat) {
+            hud.addNotif(t('hud.stealthWheat'), '#d8b855'); // OBRON ZAMEK F2
         } else {
             hud.addNotif(t('hud.stealthOasis'), '#a8c878');
         }
@@ -3473,6 +3759,7 @@ function runLogicStep(delta: number): void {
     wasInNeonLastFrame = playerInNeonStation; // v0.60.0
     wasInRuinsBushLastFrame = playerInRuinsBush; // FAZA CTF F1
     wasInHydroGardenLastFrame = playerInHydroGarden; // FAZA MARS M4
+    wasInWheatLastFrame = playerInWheat; // OBRON ZAMEK F2
     wasStealthActiveLastFrame = isStealthActive;
     // v0.50.1: catch-all reset flag stealthBrokenByShot gdy stealth nieaktywne.
     // Pokrywa edge case: gracz strzelil ze strefy ale wyszedl ZARAZ -> flag bez reset
@@ -3487,6 +3774,14 @@ function runLogicStep(delta: number): void {
         const ctfResult = ctfSystem.update(delta, localPlayer, powerSystem.isInvulnerable);
         if (ctfResult.victory) { triggerVictory(); return; }
         if (ctfResult.playerDied) { triggerGameOver(); return; }
+    }
+    // OBRON ZAMEK F3 — rdzen zamku: fazy/fale/cele/kontakt/respawn. Serca wstrzymane w budowie.
+    if (castleSystem) {
+        castleFrameDelta = delta;
+        spawnSystem.pickupsSuppressed = castleSystem.isBuildPhase();
+        const cr = castleSystem.update(delta, localPlayer, powerSystem.isInvulnerable);
+        if (cr.victory) { triggerVictory(); return; }
+        if (cr.defeat) { triggerGameOver(); return; }
     }
 
     if (river) river.update(camera.x, camera.y, viewW, viewH);
@@ -3678,8 +3973,13 @@ function runLogicStep(delta: number): void {
 
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH));
 
-    localPlayer.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
-    localPlayer.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
+    // OBRON ZAMEK F3: martwy gracz (czeka na respawn) — zero inputu/ruchu/strzalu.
+    const castlePlayerDead = castleSystem ? castleSystem.isPlayerDead() : false;
+    if (castlePlayerDead) { isMouseDown = false; localPlayer.firing = false; }
+    else {
+        localPlayer.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
+        localPlayer.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
+    }
 
     if (currentSession.config.map === 'desert' && localPlayer.isMoving) {
         sandKickFrameCounter++;
@@ -3987,13 +4287,18 @@ function runLogicStep(delta: number): void {
     // na klatke i uzywane w OBU sciezkach obrazen ponizej (pocisk + taran); trzecia
     // sciezka (bomba bossa) sprawdza to sama w CtfSystem. Bez taranu i bomb "bezpieczna
     // baza" bylaby klamstwem — Michal zginal wlasnie w garazu.
-    const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(localPlayer.x, localPlayer.y) : false;
+    // OBRON ZAMEK F3: sanktuarium apronu donzonu + nietykalnosc po respawnie + martwy gracz
+    // wchodza do TEJ SAMEJ flagi co sanktuarium CTF (jedno zrodlo prawdy dla obu sciezek obrazen).
+    const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(localPlayer.x, localPlayer.y)
+        : castleSystem ? (castleSystem.isInSanctuary(localPlayer.x, localPlayer.y) || castleSystem.isSpawnInvul() || castleSystem.isPlayerDead())
+        : false;
 
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         // FREEZE: pociski wroga stoja w miejscu i NIE trafiaja (wznawiaja lot po mrozie).
         if (powerSystem.isFreezeActive) continue;
-        eb.update(delta, solidBuildings, effects);
+        // OBRON ZAMEK F2: pociski wroga trafiaja proxy zamku z takeDamage (gracz — zwykle solidBuildings).
+        eb.update(delta, castleEnemyBulletSolids ?? solidBuildings, effects);
         if (!eb.active) { enemyBullets.splice(i, 1); enemyBulletPool.push(eb); continue; } // POOLING
         // v0.143.0 — SANKTUARIUM zamiast linii x<450. Stara linia biegla przez cala
         // wysokosc mapy (korytarz kampingowy) i konczyla sie 80 px PRZED wschodnia
@@ -4001,7 +4306,8 @@ function runLogicStep(delta: number): void {
         // i tylko dopoki trwa tarcza.
         // F3 (playtest): + "swiete altary" — pociski gina takze w kieszeni flagi
         // (100 px), zeby boss nie zestrzeliwal gracza podczas podnoszenia flagi.
-        if (ctfSystem && (ctfSystem.isInHomeSanctuary(eb.x, eb.y) || ctfSystem.isInFlagSafePocket(eb.x, eb.y))) {
+        if ((ctfSystem && (ctfSystem.isInHomeSanctuary(eb.x, eb.y) || ctfSystem.isInFlagSafePocket(eb.x, eb.y)))
+            || (castleSystem && castleSystem.isInSanctuary(eb.x, eb.y))) { // OBRON ZAMEK F3: apron donzonu
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING
@@ -4055,7 +4361,7 @@ function runLogicStep(delta: number): void {
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING
-            if (playerDied) { triggerGameOver(); return; }
+            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { triggerGameOver(); return; } } // OBRON ZAMEK F3: respawn zamiast konca
         }
     }
 
@@ -4095,7 +4401,8 @@ function runLogicStep(delta: number): void {
     // F3 — wrogowie (roamerzy + straznicy) koliduja z bariera strefy domowej;
     // gracz uzywa czystego `buildings`, wiec wjezdza do bazy z flaga swobodnie.
     // F3 perf: tablica PRECOMPUTED w startGame (zero alokacji per-klatka).
-    const enemyBuildings = ctfEnemyBuildings ?? buildings;
+    // OBRON ZAMEK F2: kopia z furtkami (wrogowie NIE przejezdzaja przez N/E/W, gracz tak).
+    const enemyBuildings = ctfEnemyBuildings ?? castleEnemyBuildings ?? buildings;
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         // KRYTYCZNY GUARD (crash-fix v0.112): moce zabijajace w powerSystem.update
@@ -4126,7 +4433,9 @@ function runLogicStep(delta: number): void {
 
         const dP = (localPlayer.x - enemy.x) ** 2 + (localPlayer.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
-        if (!enemy.playerStealthed && dP < collisionDist * collisionDist) {
+        // OBRON ZAMEK F3: przy nietykalnosci (sanktuarium/respawn/martwy) ZERO interakcji taranu —
+        // inaczej oblegajacy gina o nietykalnego gracza za darmo (legacy bug #7).
+        if (!enemy.playerStealthed && dP < collisionDist * collisionDist && !(castleSystem && ctfSanctuary)) {
             // TIER 3 DISCO v2: taran zmeczonego tancerza tez -20%
             const collDmg = powerSystem.isDiscoTired(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
@@ -4169,7 +4478,7 @@ function runLogicStep(delta: number): void {
                     audio.playHit('player');
                 }
             }
-            if (playerDied) { triggerGameOver(); return; }
+            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { triggerGameOver(); return; } } // OBRON ZAMEK F3
         }
 
         for (let j = bullets.length - 1; j >= 0; j--) {
@@ -4315,6 +4624,29 @@ function runLogicStep(delta: number): void {
         hud.ctfInfo = ctfHudInfo;
     } else {
         hud.ctfInfo = null;
+    }
+    // OBRON ZAMEK F5 — dane HUD zamku (pigulki, fala, respawn, strzalki lane'ow/wylomow)
+    if (castleSystem) {
+        const ci = castleSystem.getHudInfo();
+        castleHudInfo.phase = ci.phase; castleHudInfo.wave = ci.wave; castleHudInfo.wavesTotal = ci.wavesTotal;
+        castleHudInfo.phaseSecondsLeft = ci.phaseSecondsLeft; castleHudInfo.wallPct = ci.wallPct;
+        castleHudInfo.gatePct = ci.gatePct; castleHudInfo.gateDestroyed = ci.gateDestroyed; castleHudInfo.keepPct = ci.keepPct;
+        castleHudInfo.gatesAlive = ci.gatesAlive; castleHudInfo.gatesTotal = ci.gatesTotal;
+        castleHudInfo.respawnSecondsLeft = ci.respawnSecondsLeft; castleHudInfo.enemiesAlive = ci.enemiesAlive; castleHudInfo.megaAlive = ci.megaAlive;
+        castleHudInfo.lanes.length = 0;
+        for (const id of ci.activeLanes) { const l = CASTLE_LANES.find(x => x.id === id); if (l) castleHudInfo.lanes.push({ wx: l.x, wy: l.y, label: id }); }
+        castleHudInfo.breaches.length = 0;
+        for (const b of ci.breaches) castleHudInfo.breaches.push({ wx: b.x, wy: b.y });
+        castleHudInfo.cameraX = camera.x; castleHudInfo.cameraY = camera.y; castleHudInfo.zoom = ZOOM;
+        hud.castleInfo = castleHudInfo;
+        const btn = ensureCastleNextBtn();
+        const showBtn = (ci.phase === 'build' || ci.phase === 'tutorial') && gameState === 'PLAYING';
+        const label = ci.phase === 'tutorial' ? t('castle.tut.skip') : t('hud.castle.nextWave');
+        if (showBtn) { if (btn.style.display !== 'block' || btn.textContent !== label) { btn.textContent = label; btn.style.display = 'block'; } }
+        else if (btn.style.display !== 'none') btn.style.display = 'none';
+    } else {
+        hud.castleInfo = null;
+        if (castleNextBtn && castleNextBtn.style.display !== 'none') castleNextBtn.style.display = 'none';
     }
 
     // DEV-ONLY: mikro-profiler — czas hud.render() + calego callbacku (do rozbicia hitcha).

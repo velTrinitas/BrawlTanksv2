@@ -11,6 +11,9 @@ import type { EffectsManager } from '../rendering/Effects';
 import type { EnemyConfig } from '../config/enemies';
 import type { ICollidable } from '../types/MapType';
 import type { PowerCube } from './pickups/PowerCube';
+import type { CastleRole } from '../systems/castle/castleWaves'; // OBRON ZAMEK F3
+import type { CastleLaneId } from '../maps/CastleMap'; // OBRON ZAMEK F3
+import type { CastlePart } from '../maps/castle/CastlePart'; // OBRON ZAMEK F3
 
 /**
  * FAZA CTF F2 — stan straznika flagi.
@@ -72,6 +75,7 @@ const CUBE_SEARCH_RADIUS_SQ = 160 * 160;
 const CUBE_CHASE_THRESHOLD = 0.49;  // 0.7² — switch jeśli cube < 70% playerDist
 const CUBE_STEAL_TOUCH_DIST = 30;   // + cube.radius (20) → real touch ~50px
 const CUBE_CHASE_MIN_MOVE_DIST = 5; // v0.44.1: override MIN_DIST_TO_PLAYER dla cube chase
+const CASTLE_MOVE_MIN_DIST = 6;     // OBRON ZAMEK F3: dojazd do wezla trasy
 
 /**
  * v0.58.0 Warstwa C2 — pursuit vehicle AI constants (strafe-dodge).
@@ -131,6 +135,41 @@ export class Enemy {
     // v0.18.3-fix1 FAZA 4c — stealth flag
     public playerStealthed: boolean = false;
     private confusedRotation: number = 0;
+
+    // OBRON ZAMEK F3 — rola w scenariuszu zamku (null = zwykle AI KTB). Ustawia
+    // WaveDirector przy spawnie; stan trasy mutuje CastleSystem.targetFor per klatke
+    // (scratch-obiekty = zero alokacji, wzorzec _stealTX/_stealTY).
+    public castleRole: CastleRole | null = null;
+    public castleLane: CastleLaneId | null = null;
+    public castleRouteId: string = '';
+    public castleNode: number = 0;
+    public castleArrived: boolean = false;
+    public castleTargetPart: CastlePart | null = null;
+    public castleContactAt: number = 0;
+    public castleJx: number = 0;
+    public castleJy: number = 0;
+    public castleLastX: number = 0;
+    public castleLastY: number = 0;
+    public castleStuckFrames: number = 0;
+    /** AI oblezenia: zapamietany cel + czas decyzji (commit, zero drgania miedzy bramami). */
+    public castleObjId: string = '';
+    public castleObjAt: number = 0;
+    /** Cel WIEZYCZKI/strzalu rozdzielony od celu RUCHU (sieger jedzie trasa, strzela w mur/gracza). */
+    public castleAim: { x: number; y: number } | null = null;
+    public readonly castleAimScratch: { x: number; y: number } = { x: 0, y: 0 };
+    public readonly castleTargetScratch: { x: number; y: number } = { x: 0, y: 0 };
+    /** F4 maszyny: mnoznik predkosci (0 = stoi: windup/recoil/stanowisko; 2.5 = szarza taranu). */
+    public castleSpeedMult: number = 1;
+    /** F4: mnoznik obrazen otrzymywanych (taran po uderzeniu x2 = okno Flex). */
+    public damageTakenMult: number = 1;
+    /** F4: maszyny nie strzelaja pociskami (lob = CastleSystem). */
+    public castleNoShoot: boolean = false;
+    /** F4 taran: stan szarzy (steruje CastleSystem). */
+    public taranState: 'travel' | 'windup' | 'charge' | 'recoil' = 'travel';
+    public taranStateAt: number = 0;
+    public taranImpactPending: boolean = false;
+    /** F4 katapulta/trebuchet: czas ostatniego lobu. */
+    public lastLobAt: number = 0;
 
     /**
      * v0.44.0 FAZA 8.6: callback wywoływany gdy enemy kradnie cube.
@@ -427,6 +466,28 @@ export class Enemy {
         return null;
     }
 
+    /**
+     * OBRON ZAMEK F4 — maszyna obleznicza: podmien hull na plaski pieczony sprite
+     * (obracany rotacja jak flat path), schowaj wieze. Wolane po konstruktorze przez
+     * WaveDirector. Dziala w OBU sciezkach (bake/flat): bakerArch = null => flat logic
+     * rotacji (hull.rotation), a tint 0xffffff = art wpieczony.
+     */
+    /** F4: interwal strzalu/lobu (odczyt dla CastleSystem). */
+    public get shootInterval(): number { return this.shootIntervalMs; }
+
+    public useCustomSprite(tex: PIXI.Texture, displayScale: number): void {
+        this.bakerArch = null;
+        this.tintHex = 0xffffff;
+        this.hull.texture = tex;
+        this.hull.anchor.set(0.5);
+        this.hull.scale.set(displayScale);
+        this.hull.rotation = 0;
+        this.hull.tint = 0xffffff;
+        this.turret.visible = false;
+        if (this.flashOverlay) { this.flashOverlay.visible = false; this.flashOverlay.texture = tex; this.flashOverlay.scale.set(displayScale); }
+        this.hpBar.y = -(tex.height * displayScale) / 2 - 12;
+    }
+
     private drawHp(): void {
         this.hpBar.clear();
         const barW = this.isMegaBoss ? 100 : (this.isBoss ? 70 : (this.isPursuit ? 55 : 40));
@@ -627,7 +688,8 @@ export class Enemy {
             return this.updateGuard(delta, targetX, targetY, buildings);
         }
 
-        if (this.playerStealthed) {
+        // OBRON ZAMEK F3: oblegajacy/maszyny celuja w struktury — stealth gracza ich nie myli.
+        if (this.playerStealthed && (this.castleRole === null || this.castleRole === 'raider')) {
             this.confusedRotation += 0.045 * delta;
             if (this.bakerArch) {
                 // Combined bake: caly czolg kreci sie confusedRotation (traci niezalezny wobble wiezy — pomijalne).
@@ -652,7 +714,8 @@ export class Enemy {
 
         // v0.44.0 FAZA 8.6: cube stealing override
         // v0.73.7 PERF: wynik przez pola _stealTX/_stealTY (zero alokacji per klatke).
-        this.tryStealCube(targetX, targetY, powerCubes);
+        if (this.castleRole) { this._stealTX = targetX; this._stealTY = targetY; } // OBRON ZAMEK F3: trasa > kostki
+        else this.tryStealCube(targetX, targetY, powerCubes);
         const effTargetX = this._stealTX;
         const effTargetY = this._stealTY;
 
@@ -663,8 +726,15 @@ export class Enemy {
         const dy = effTargetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const angleToTarget = Math.atan2(dy, dx);
+        // OBRON ZAMEK F3: cel wiezyczki/strzalu moze byc INNY niz cel ruchu (castleAim).
+        let aimAngle = angleToTarget, aimDist = dist;
+        if (this.castleAim) {
+            const ax = this.castleAim.x - this.x, ay = this.castleAim.y - this.y;
+            aimDist = Math.sqrt(ax * ax + ay * ay);
+            aimAngle = Math.atan2(ay, ax);
+        }
 
-        const effectiveSpeed = this.speed * this.speedModifier;
+        const effectiveSpeed = this.speed * this.speedModifier * this.castleSpeedMult;
 
         if (this.isMegaBoss) {
             const hpPct = this.hp / this.maxHp;
@@ -757,7 +827,8 @@ export class Enemy {
             // v0.44.1 FIX: cube chase wymaga niskiego minMoveDist (5px zamiast 60)
             // żeby enemy DOSZEDŁ do touch range (50px) i ukradł cube.
             // Bez tego override'u enemy parkował na 60px od cube'a i stał wiecznie.
-            const minMoveDist = isChasingCube ? CUBE_CHASE_MIN_MOVE_DIST : Enemy.MIN_DIST_TO_PLAYER;
+            // OBRON ZAMEK F3: wezly trasy (reach 40) wymagaja dojazdu blizej niz 60 px.
+            const minMoveDist = isChasingCube ? CUBE_CHASE_MIN_MOVE_DIST : (this.castleRole ? CASTLE_MOVE_MIN_DIST : Enemy.MIN_DIST_TO_PLAYER);
 
             if (dist > minMoveDist) {
                 const nx = this.x + (dx / dist) * effectiveSpeed * delta;
@@ -775,10 +846,10 @@ export class Enemy {
 
         // FAZA P4 — bake: swap tekstury (rotacja wpieczona); flat: rotacja sprite'ow jak dotad.
         if (this.bakerArch) {
-            this.applyBakedAngle(angleToTarget);
+            this.applyBakedAngle(aimAngle);
         } else {
-            this.hull.rotation = angleToTarget;
-            this.turret.rotation = angleToTarget;
+            this.hull.rotation = aimAngle;
+            this.turret.rotation = aimAngle;
         }
         this.confusedRotation = angleToTarget;
 
@@ -787,18 +858,18 @@ export class Enemy {
         this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : (this.isPursuit ? 24 : 19));
 
         // Strzelanie: TYLKO gdy chasing player, NIE w trakcie chase cube
-        if (!isChasingCube) {
+        if (!isChasingCube && !this.castleNoShoot) {
             const now = Date.now();
             // v0.58.0: pursuit ma wlasny shoot range (700, bo karabin daleko siegajacy)
             // FAZA CTF F2: shootRangeOverride (ctf boss = 400, legacy 1:1) ma pierwszenstwo.
             const shootRange = this.shootRangeOverride ?? (this.isPursuit ? PURSUIT_SHOOT_RANGE : 640);
-            if (now - this.lastShotTime >= this.shootIntervalMs && dist < shootRange) {
+            if (now - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange) {
                 this.lastShotTime = now;
                 const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : (this.isPursuit ? 48 : 40);
                 return {
-                    x: this.x + Math.cos(angleToTarget) * muzzleOffset,
-                    y: this.y + Math.sin(angleToTarget) * muzzleOffset,
-                    angle: angleToTarget,
+                    x: this.x + Math.cos(aimAngle) * muzzleOffset,
+                    y: this.y + Math.sin(aimAngle) * muzzleOffset,
+                    angle: aimAngle,
                     speed: this.bulletSpeed,
                     dmg: this.bulletDmg,
                     color: this.bulletColor,
@@ -820,7 +891,7 @@ export class Enemy {
         }
 
         this.lastDamageSource = source;
-        this.hp -= amount;
+        this.hp -= amount * this.damageTakenMult; // OBRON ZAMEK F4: taran w recoilu x2
         this.drawHp();
 
         if (this.bakerArch) {

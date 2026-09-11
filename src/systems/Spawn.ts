@@ -22,6 +22,9 @@ export interface SpawnResult {
  * Zwykly spawn roamerow z capem (legacy top-up do 10); bossy z killi, mega boss,
  * hearty i magnesy WYLACZONE (legacy: martwe tablice; heal = dostawa flagi).
  */
+/** OBRON ZAMEK F3: tryb zamku — fale spawnuje WaveDirector; SpawnSystem daje tylko serca/magnesy. */
+export interface CastleSpawnMode { castleMode: true }
+
 export interface CtfSpawnMode {
     roamerCap: number;
 }
@@ -79,8 +82,13 @@ export class SpawnSystem {
 
     private readonly modifiers: DifficultyModifiers;
     private readonly ctfMode: CtfSpawnMode | null;
+    private readonly castleMode: boolean;
+    /** OBRON ZAMEK F3: faza budowy — bez serc/magnesow (main ustawia per klatke). */
+    public pickupsSuppressed: boolean = false;
 
-    constructor(modifiers: DifficultyModifiers, ctfMode: CtfSpawnMode | null = null) {
+    constructor(modifiers: DifficultyModifiers, mode: CtfSpawnMode | CastleSpawnMode | null = null) {
+        const ctfMode = mode && 'roamerCap' in mode ? mode : null;
+        this.castleMode = !!(mode && 'castleMode' in mode);
         this.modifiers = modifiers;
         this.ctfMode = ctfMode;
     }
@@ -136,6 +144,24 @@ export class SpawnSystem {
         // FAZA CTF F2 (D7): tryb CTF — top-up roamerow do capa (legacy 4700-4701).
         // Bossy z killi / mega boss / magnesy wylaczone. F3 (playtest): SERCA WLACZONE
         // (bez nich za trudno) — heal glowny dalej = dostawa flagi, serca to wsparcie.
+        // OBRON ZAMEK F3: fale spawnuje WaveDirector (CastleSystem). Tu TYLKO serca (cap 4,
+        // co ~7 s) i magnesy — wstrzymane w fazie budowy (pickupsSuppressed z main.ts).
+        if (this.castleMode) {
+            if (!this.pickupsSuppressed) {
+                if (this.heartFrameCounter >= 420 && currentHearts.length < 4) {
+                    this.heartFrameCounter = 0;
+                    const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200, extraBlocked);
+                    if (pos) newHearts.push(new Heart(pos.x, pos.y, worldContainer));
+                }
+                if (this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
+                    this.magnetFrameCounter = 0;
+                    const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250, extraBlocked);
+                    if (pos) newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
+                }
+            }
+            this._outResult.megaBossJustSpawned = false; return this._outResult;
+        }
+
         if (this.ctfMode) {
             let roamerCount = 0; // v0.73.7 PERF: licznik zamiast filter().length (bez domkniecia+tablicy)
             for (let i = 0; i < currentEnemies.length; i++) { const e = currentEnemies[i]; if (!e.isBoss && !e.guard) roamerCount++; }

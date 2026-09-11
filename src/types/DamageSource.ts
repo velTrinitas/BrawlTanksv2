@@ -22,6 +22,7 @@ export type DamageSourceKind =
     | 'enemy_ram'      // taran / kolizja z wrogiem (attackerRef: Enemy)
     | 'snowball'       // sniezka yeti (Arktyka)
     | 'boss_bomb'      // bomba bossa CTF
+    | 'catapult'       // glaz katapulty/trebucheta (OBRON ZAMEK)
     // -> wrogowie
     | 'player_bullet'  // pocisk gracza (takze super shot)
     | 'power'          // super moc (mega bomba, miny, rakiety, Dziura, Laser, wieza...)
@@ -41,6 +42,7 @@ export interface DamageSource {
 // przy wielu trafieniach na sekunde. Zrodla Z referencja buduje sie literalem.
 export const SRC_SNOWBALL: DamageSource = Object.freeze({ kind: 'snowball' as const });
 export const SRC_BOSS_BOMB: DamageSource = Object.freeze({ kind: 'boss_bomb' as const });
+export const SRC_CATAPULT: DamageSource = Object.freeze({ kind: 'catapult' as const }); // OBRON ZAMEK F4
 export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bullet' as const, playerIndex: 0 });
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });

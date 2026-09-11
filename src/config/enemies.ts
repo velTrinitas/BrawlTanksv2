@@ -170,3 +170,49 @@ export const HEART_CONFIG = {
     healAmount: 100,
     maxOnMap: 3,
 };
+/**
+ * OBRON ZAMEK F4 — maszyny oblezenicze. Ruch/AI/celowanie = rola `castleRole` w Enemy
+ * (nie osobne propy: moce/freeze/paski HP/dropy/questy dzialaja za darmo, precedens
+ * Pursuit). Sprite = plaski bake (castleBake.bakeSiegeMachine) podpiety przez
+ * Enemy.useCustomSprite. tint 0xffffff = art wpieczony; dmg 0 = nie rania gracza taranem;
+ * shootIntervalMs = interwal LOBU (katapulta/trebuchet), taran nie strzela.
+ */
+export const ENEMY_TARAN: EnemyConfig = {
+    hp: 1800,
+    speedMin: 1.2,
+    speedMax: 1.4,
+    scale: 1.0,
+    tint: 0xffffff,
+    dmg: 0,
+    shootIntervalMs: 999999,
+    bulletSpeed: 0,
+    bulletDmg: 0,
+    bulletColor: 0x000000,
+    scoreValue: 15,
+};
+export const ENEMY_KATAPULTA: EnemyConfig = {
+    hp: 1400,
+    speedMin: 0.95,
+    speedMax: 1.1,
+    scale: 1.0,
+    tint: 0xffffff,
+    dmg: 0,
+    shootIntervalMs: 3000,   // interwal lobu (uwaga Mariusza: szybciej)
+    bulletSpeed: 0,
+    bulletDmg: 0,
+    bulletColor: 0x000000,
+    scoreValue: 15,
+};
+export const ENEMY_TREBUCHET: EnemyConfig = {
+    hp: 2600,
+    speedMin: 0.75,
+    speedMax: 0.85,
+    scale: 1.0,
+    tint: 0xffffff,
+    dmg: 0,
+    shootIntervalMs: 5000,   // interwal salwy (uwaga Mariusza: szybciej)
+    bulletSpeed: 0,
+    bulletDmg: 0,
+    bulletColor: 0x000000,
+    scoreValue: 40,
+};

@@ -18,6 +18,7 @@
 
 import type { MapId } from './MapType';
 import type { TranslationKey } from '../i18n/i18n';
+import { isCastleMode } from '../config/castleFlag'; // OBRON ZAMEK F1
 
 export type ScenarioId = 'ktb' | 'ctf' | 'castle' | 'save_king';
 
@@ -71,12 +72,12 @@ export const SCENARIO_CONFIGS: Record<ScenarioId, ScenarioConfig> = {
         descKey: 'scenario.castle.desc',
         emoji: '🏰',
         color: '#2d5016',
-        // v0.20.2-fix2: locked - main.ts nie obsluguje jeszcze map 'castle_grounds'.
-        // Implementacja w FAZA 9+ (port mechaniki z castle.html lub modularny rewrite).
-        available: false,
+        // OBRON ZAMEK F1 (2026-09-10): odblokowany TYLKO za ?castle=1 (castleFlag.ts).
+        // Modularny rewrite (nie port castle.html — legacy bridge usuniety). Bez flagi
+        // karta zostaje z klodka i toastem "wkrotce" — hub bit-identyczny z v0.161.0.
+        available: isCastleMode(),
         comingSoonKey: 'common.locked',
         fixedMapId: 'castle_grounds',
-        externalFile: 'castle.html',
     },
     save_king: {
         id: 'save_king',

@@ -23,7 +23,8 @@ import type { TranslationKey } from '../i18n/i18n';
 // PLAYABLE maps — uzywane przez game logic (main.ts, AudioSys, Spawn, etc.)
 // FAZA CTF F1: 'fortified_ruins' — mapa scenariusza CTF (bez karty w MENU_MAP_CARDS,
 // wybierana wylacznie przez scenario.fixedMapId).
-export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars';
+// OBRON ZAMEK F1: 'castle_grounds' — mapa scenariusza Castle (bez karty; scenario.fixedMapId).
+export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars' | 'castle_grounds';
 
 export interface MapConfig {
     id: MapId;
@@ -40,6 +41,7 @@ export const MAP_CONFIGS: Record<MapId, MapConfig> = {
     arctic:  { id: 'arctic',  name: 'ARKTYKA',   bg: '#bcdfec', musicTrack: 'arktyka1.ogg',  badge: '#1a6ea8' },
     fortified_ruins: { id: 'fortified_ruins', name: 'FORTIFIED RUINS', bg: '#a08a64', musicTrack: 'ctf.ogg', badge: '#b8956a' },
     mars:    { id: 'mars',    name: 'MARS',      bg: '#c97b62', musicTrack: 'mars1.ogg',     badge: '#a34a3a' },
+    castle_grounds: { id: 'castle_grounds', name: 'CASTLE GROUNDS', bg: '#7cbf58', musicTrack: 'castle.ogg', badge: '#2d5016' },
 };
 
 /**
@@ -55,6 +57,7 @@ export function getMapIdFromUrl(): MapId {
     if (m === 'arctic') return 'arctic';
     if (m === 'fortified_ruins') return 'fortified_ruins';
     if (m === 'mars') return 'mars';
+    if (m === 'castle_grounds') return 'castle_grounds';
     return 'city';
 }
 
@@ -243,7 +246,7 @@ export const CTF_MAP_CARDS: MenuMapCard[] = [
  */
 export function isPlayableMapId(id: MenuMapCardId): id is MapId {
     return id === 'city' || id === 'desert' || id === 'tropics' || id === 'arctic'
-        || id === 'fortified_ruins' || id === 'mars';
+        || id === 'fortified_ruins' || id === 'mars' || id === 'castle_grounds';
 }
 
 /**

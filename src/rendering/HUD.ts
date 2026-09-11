@@ -66,6 +66,33 @@ export interface HudCtfInfo {
     shieldSecondsLeft: number;
 }
 
+/**
+ * OBRON ZAMEK F5 — dane scenariusza Zamku dla HUD, ustawiane per klatke przez main.ts.
+ * null = inny scenariusz (zero kosztu). Procenty 0..1, sekundy zaokraglone w gore.
+ */
+export interface HudCastleInfo {
+    phase: 'tutorial' | 'intro' | 'combat' | 'build' | 'victory' | 'defeat';
+    wave: number;
+    wavesTotal: number;
+    phaseSecondsLeft: number;
+    wallPct: number;
+    gatePct: number;
+    gateDestroyed: boolean;
+    gatesAlive: number;
+    gatesTotal: number;
+    keepPct: number;
+    respawnSecondsLeft: number;
+    enemiesAlive: number;
+    megaAlive: boolean;
+    /** Aktywne lane'y (obozy, z ktorych wlasnie wyjezdzaja batche) — strzalki krawedziowe. */
+    lanes: Array<{ wx: number; wy: number; label: string }>;
+    /** Wylomy w murze / zniszczona brama — strzalki krawedziowe (pomaranczowe). */
+    breaches: Array<{ wx: number; wy: number }>;
+    cameraX: number;
+    cameraY: number;
+    zoom: number;
+}
+
 export interface MouseState {
     screenX: number;
     screenY: number;
@@ -113,6 +140,13 @@ export class HUD {
 
     /** FAZA CTF F3 — dane CTF (null poza scenariuszem ctf). Ustawiane per klatke z main.ts. */
     public ctfInfo: HudCtfInfo | null = null;
+    /** OBRON ZAMEK F5 — dane Zamku (null poza scenariuszem castle). Ustawiane per klatke z main.ts. */
+    public castleInfo: HudCastleInfo | null = null;
+    /** OBRON ZAMEK F5 — baner scenariusza (fala / wylom / brama / mega). Wzorzec ctfBreach. */
+    public castleBannerTimer: number = 0;
+    private castleBannerText: string = '';
+    private castleBannerColor: string = '#f5a623';
+    private castleBannerMax: number = 120;
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -151,6 +185,187 @@ export class HUD {
      */
     triggerCtfBreach(): void {
         this.ctfBreachTimer = 120;
+    }
+
+    /** OBRON ZAMEK F5 — glosny baner zdarzenia scenariusza (tekst + kolor + czas w klatkach). */
+    triggerCastleBanner(text: string, color: string, frames: number = 120): void {
+        this.castleBannerText = text;
+        this.castleBannerColor = color;
+        this.castleBannerMax = frames;
+        this.castleBannerTimer = frames;
+    }
+
+    // ── OBRON ZAMEK F5 — panele scenariusza (przestrzen skalowana uiScale) ──────
+
+    /**
+     * 3 pigulki MUR / ZAMEK / BRAMA + pigulka FALI. Kompaktowo w lewej kolumnie pod
+     * pigulka SUPER (y=132) — @375px landscape z uiScale 0.7 to pas 172x66 px,
+     * zajmuje slot, ktory KTB/CTF zostawiaja pusty (magnes/turbo ida prawa kolumna).
+     */
+    private drawCastlePanel(): void {
+        const info = this.castleInfo;
+        if (!info) return;
+        const c = this.ctx;
+        const px = 14, py = 132, PW = 172, ROW = 20, PAD = 6;
+        const PH = PAD * 2 + ROW * 3;
+        c.fillStyle = 'rgba(0,0,0,0.62)';
+        c.beginPath(); c.roundRect(px, py, PW, PH, 12); c.fill();
+        c.strokeStyle = 'rgba(224,181,60,0.55)';
+        c.lineWidth = 2;
+        c.beginPath(); c.roundRect(px, py, PW, PH, 12); c.stroke();
+
+        const rows: Array<{ icon: string; label: string; pct: number; dead: boolean; critical: boolean }> = [
+            { icon: '🧱', label: tr('hud.castle.wall'), pct: info.wallPct, dead: false, critical: info.wallPct < 0.25 },
+            { icon: '🏰', label: tr('hud.castle.keep'), pct: info.keepPct, dead: false, critical: info.keepPct < 0.25 },
+            // 4 bramy: pasek = najslabsza brama, etykieta z licznikiem calych (np. BRAMY 3/4)
+            { icon: '🚪', label: `${tr('hud.castle.gate')} ${info.gatesAlive}/${info.gatesTotal}`, pct: info.gatePct, dead: info.gatesAlive === 0, critical: info.gatePct < 0.25 || info.gateDestroyed },
+        ];
+        const now = Date.now();
+        c.textBaseline = 'middle';
+        rows.forEach((r, i) => {
+            const y = py + PAD + i * ROW + ROW / 2;
+            c.font = `12px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'left';
+            c.fillStyle = '#fff';
+            c.fillText(`${r.icon} ${r.label}`, px + 8, y);
+            const bx = px + 78, bw = PW - 78 - 8, bh = 9;
+            c.fillStyle = 'rgba(255,255,255,0.10)';
+            c.beginPath(); c.roundRect(bx, y - bh / 2, bw, bh, bh / 2); c.fill();
+            if (r.dead) {
+                const pulse = 0.55 + Math.sin(now / 120) * 0.45;
+                c.save(); c.globalAlpha = pulse;
+                c.font = `11px "${FONT_FAMILY}",cursive`;
+                c.textAlign = 'center';
+                c.fillStyle = '#ff5a5a';
+                c.fillText(tr('hud.castle.gateBroken'), bx + bw / 2, y + 1);
+                c.restore();
+            } else {
+                const col = r.pct > 0.5 ? '#2ecc71' : r.pct > 0.25 ? '#f1c40f' : '#ff3b3b';
+                c.save();
+                if (r.critical) c.globalAlpha = 0.7 + Math.sin(now / 110) * 0.3;
+                c.fillStyle = col;
+                c.beginPath(); c.roundRect(bx, y - bh / 2, Math.max(2, bw * r.pct), bh, bh / 2); c.fill();
+                c.restore();
+            }
+        });
+
+        // Pigulka FALI — srodek gory, pod WYNIKIEM (y 66); gdy mega boss zyje jego pasek
+        // siedzi na y 78, wiec pigulka schodzi nizej (112), zeby sie nie nakladaly.
+        const WW = 230, WH = 30;
+        const wx = Math.round((this.screenW / this.uiScale) / 2 - WW / 2);
+        const wy = info.megaAlive ? 112 : 66;
+        let txt = '';
+        let col = '#e0b53c';
+        if (info.phase === 'tutorial') { txt = tr('hud.castle.tutorial'); col = '#e0b53c'; }
+        else if (info.phase === 'intro') { txt = tr('hud.castle.intro', { s: info.phaseSecondsLeft }); col = '#e0b53c'; }
+        else if (info.phase === 'combat') { txt = tr('hud.castle.wave', { n: info.wave, total: info.wavesTotal, left: info.enemiesAlive }); col = '#ff5a5a'; }
+        else if (info.phase === 'build') { txt = tr('hud.castle.build', { s: info.phaseSecondsLeft }); col = info.phaseSecondsLeft <= 5 ? '#ff5a5a' : '#2ecc71'; }
+        else if (info.phase === 'victory') { txt = tr('hud.castle.allWaves'); col = '#e0b53c'; }
+        if (txt) {
+            c.fillStyle = 'rgba(0,0,0,0.62)';
+            c.beginPath(); c.roundRect(wx, wy, WW, WH, 10); c.fill();
+            c.strokeStyle = col; c.lineWidth = 2;
+            c.beginPath(); c.roundRect(wx, wy, WW, WH, 10); c.stroke();
+            c.font = `15px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.strokeStyle = '#000'; c.lineWidth = 3;
+            c.strokeText(txt, wx + WW / 2, wy + WH / 2 + 1);
+            c.fillStyle = info.phase === 'build' && info.phaseSecondsLeft <= 5 ? '#ff8a8a' : '#fff';
+            c.fillText(txt, wx + WW / 2, wy + WH / 2 + 1);
+        }
+    }
+
+    /** Licznik respawnu — srodek ekranu (nieskalowany). */
+    private drawCastleRespawn(): void {
+        const info = this.castleInfo;
+        if (!info || info.respawnSecondsLeft <= 0) return;
+        const c = this.ctx;
+        c.save();
+        c.translate(this.screenW / 2, this.screenH / 2 - 40);
+        c.fillStyle = 'rgba(0,0,0,0.7)';
+        c.beginPath(); c.roundRect(-170, -46, 340, 92, 18); c.fill();
+        c.strokeStyle = '#ff6b6b'; c.lineWidth = 3;
+        c.beginPath(); c.roundRect(-170, -46, 340, 92, 18); c.stroke();
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = `18px "${FONT_FAMILY}",cursive`;
+        c.fillStyle = '#ffb3b3';
+        c.fillText(tr('hud.castle.respawn'), 0, -18);
+        c.font = `44px "${FONT_FAMILY}",cursive`;
+        c.strokeStyle = '#000'; c.lineWidth = 6;
+        c.strokeText(String(info.respawnSecondsLeft), 0, 18);
+        c.fillStyle = '#fff';
+        c.fillText(String(info.respawnSecondsLeft), 0, 18);
+        c.restore();
+    }
+
+    /** Baner zdarzenia (wzorzec drawCtfBreachBanner, ale tekst/kolor z triggera). */
+    private drawCastleBanner(): void {
+        if (this.castleBannerTimer <= 0) return;
+        const c = this.ctx;
+        const t = this.castleBannerTimer;
+        const max = this.castleBannerMax;
+        this.castleBannerTimer--;
+        const alpha = t > max - 30 ? (max - t) / 30 : t < 30 ? t / 30 : 1;
+        c.save();
+        c.globalAlpha = alpha;
+        c.translate(this.screenW / 2, this.screenH / 2 - 110);
+        const pulse = 1 + Math.sin(Date.now() / 80) * 0.07;
+        c.scale(pulse, pulse);
+        // F6: dlugie podpowiedzi intro — czcionka dopasowana do szerokosci ekranu (min 20 px)
+        let fs = 38;
+        c.font = `${fs}px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        while (fs > 20 && c.measureText(this.castleBannerText).width + 80 > this.screenW - 40) { fs -= 2; c.font = `${fs}px "${FONT_FAMILY}",cursive`; }
+        const tw = Math.min(this.screenW - 40, c.measureText(this.castleBannerText).width + 80);
+        c.fillStyle = 'rgba(0,0,0,0.85)';
+        c.beginPath(); c.roundRect(-tw / 2, -40, tw, 80, 16); c.fill();
+        c.strokeStyle = this.castleBannerColor; c.lineWidth = 4;
+        c.stroke();
+        c.strokeStyle = '#000'; c.lineWidth = 6;
+        c.strokeText(this.castleBannerText, 0, 0);
+        c.fillStyle = this.castleBannerColor;
+        c.fillText(this.castleBannerText, 0, 0);
+        c.restore();
+    }
+
+    /** Strzalki krawedziowe: aktywne lane'y (czerwone) + wylomy (pomaranczowe). Nieskalowane. */
+    private drawCastleEdgeArrows(): void {
+        const info = this.castleInfo;
+        if (!info) return;
+        const c = this.ctx;
+        const M = 34, ON_SCREEN_PAD = 20;
+        const targets: Array<{ wx: number; wy: number; color: number; label: string; pulse: boolean }> = [];
+        for (const l of info.lanes) targets.push({ wx: l.wx, wy: l.wy, color: 0xff4d4d, label: l.label, pulse: true });
+        for (const b of info.breaches) targets.push({ wx: b.wx, wy: b.wy, color: 0xff9f1a, label: '💥', pulse: false });
+        for (const tgt of targets) {
+            const sx = (tgt.wx - info.cameraX) * info.zoom;
+            const sy = (tgt.wy - info.cameraY) * info.zoom;
+            const onScreen = sx >= -ON_SCREEN_PAD && sx <= this.screenW + ON_SCREEN_PAD && sy >= -ON_SCREEN_PAD && sy <= this.screenH + ON_SCREEN_PAD;
+            if (onScreen) continue;
+            const cx = this.screenW / 2, cyS = this.screenH / 2;
+            const dx = sx - cx, dy = sy - cyS;
+            const scale = Math.min((this.screenW / 2 - M) / Math.abs(dx || 0.0001), (this.screenH / 2 - M) / Math.abs(dy || 0.0001));
+            const ax = cx + dx * scale, ay = cyS + dy * scale;
+            const ang = Math.atan2(dy, dx);
+            const col = '#' + tgt.color.toString(16).padStart(6, '0');
+            c.save();
+            c.globalAlpha = tgt.pulse ? 0.7 + Math.sin(Date.now() / 130) * 0.3 : 0.85;
+            c.translate(ax, ay);
+            c.rotate(ang);
+            c.fillStyle = col; c.strokeStyle = 'rgba(0,0,0,0.75)'; c.lineWidth = 2.5;
+            c.beginPath(); c.moveTo(16, 0); c.lineTo(-4, -10); c.lineTo(-4, 10); c.closePath(); c.fill(); c.stroke();
+            c.rotate(-ang);
+            const bx = -Math.cos(ang) * 22, byA = -Math.sin(ang) * 22;
+            c.fillStyle = 'rgba(0,0,0,0.65)';
+            c.beginPath(); c.arc(bx, byA, 15, 0, Math.PI * 2); c.fill();
+            c.strokeStyle = col; c.lineWidth = 2.5; c.stroke();
+            c.font = `15px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.fillStyle = '#fff';
+            c.fillText(tgt.label, bx, byA + 1);
+            c.restore();
+        }
     }
     
     private drawNotifs(): void {
@@ -1324,6 +1539,7 @@ export class HUD {
         // FAZA CTF F3 — panel flag (lewa kolumna, trzeci rzad) + carry banner (top-center)
         this.drawCtfFlagPanel();
         this.drawCtfCarryBanner();
+        this.drawCastlePanel(); // OBRON ZAMEK F5
 
         this.drawNotifs();
 
@@ -1346,6 +1562,8 @@ export class HUD {
 
         // FAZA CTF F3 — strzalki krawedziowe (full-screen space, po restore)
         this.drawCtfEdgeArrows();
+        this.drawCastleEdgeArrows(); // OBRON ZAMEK F5
+        this.drawCastleRespawn();    // OBRON ZAMEK F5
         // v0.143.0 — licznik tarczy bazy (world-space, ta sama projekcja co strzalki)
         this.drawCtfShieldCountdown();
 
@@ -1372,6 +1590,7 @@ export class HUD {
         this.drawMegaBossAlert();
         this.drawCtfEnrageBanner();
         this.drawCtfBreachBanner();
+        this.drawCastleBanner(); // OBRON ZAMEK F5
     }
     
     clear(): void {

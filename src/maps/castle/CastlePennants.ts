@@ -1,0 +1,50 @@
+import * as PIXI from 'pixi.js';
+import { bakePennant } from './castleBake';
+import { isPointInView } from '../cullGate';
+
+/**
+ * CastlePennants — proporce na wiezach + sztandar glowny donzonu (OBRON ZAMEK F2).
+ * 2 pieczone tekstury, animacja WYLACZNIE transformami (T9): skew.x + scale.x
+ * (lopot), amplituda 2x "za duza" (T12). Culling przez isPointInView (kotwice
+ * poza ekranem nie sa dotykane). Klasa A.
+ */
+
+export interface PennantAnchor { x: number; y: number; color: 'crimson' | 'gold'; scale?: number }
+
+export class CastlePennants {
+    private container: PIXI.Container;
+    private sprites: PIXI.Sprite[];
+    private anchors: PennantAnchor[];
+
+    constructor(anchors: PennantAnchor[], worldContainer: PIXI.Container) {
+        this.anchors = anchors;
+        this.container = new PIXI.Container();
+        this.container.zIndex = 5000; // nad dachami (wyzej niz kazda bryla, ponizej overlayow 1e6)
+        worldContainer.addChild(this.container);
+        this.sprites = anchors.map(a => {
+            const s = new PIXI.Sprite(bakePennant(a.color));
+            s.anchor.set(0, 0.5);
+            s.x = a.x; s.y = a.y;
+            s.scale.set(a.scale ?? 1);
+            this.container.addChild(s);
+            return s;
+        });
+    }
+
+    public update(camX: number, camY: number, viewW: number, viewH: number): void {
+        const t = Date.now() / 1000;
+        for (let i = 0; i < this.sprites.length; i++) {
+            const s = this.sprites[i], a = this.anchors[i];
+            const visible = isPointInView(a.x, a.y, camX, camY, viewW, viewH, 40);
+            s.renderable = visible;
+            if (!visible) continue;
+            const base = a.scale ?? 1;
+            s.skew.y = Math.sin(t * 4 + i * 1.3) * 0.28;
+            s.scale.x = base * (0.85 + (Math.sin(t * 5.2 + i) + 1) * 0.1);
+        }
+    }
+
+    public destroy(): void {
+        this.container.destroy({ children: true });
+    }
+}

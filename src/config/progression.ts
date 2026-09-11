@@ -30,6 +30,7 @@ export const MAP_TROPHY_DIVISOR: Record<MapId, number> = {
     arctic: 5.3,
     fortified_ruins: 1.8,
     mars: 1.8, // FAZA MARS M2: provisional (jak tropics) — kalibrowac po pierwszych danych
+    castle_grounds: 1.8, // OBRON ZAMEK F1: provisional — ranking Zamku wlaczany po 23.09
 };
 const DEFAULT_DIVISOR = 1.8; // mapa bez wpisu (nie powinno sie zdarzyc — MapId jest zamkniety)
 

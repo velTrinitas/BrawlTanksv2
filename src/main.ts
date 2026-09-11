@@ -76,7 +76,7 @@ import { CastleHayBale } from './maps/castle/CastleHayBale'; // OBRON ZAMEK F6
 import { CastleCrows } from './maps/castle/CastleCrows'; // OBRON ZAMEK F6
 import { isCastleMode } from './config/castleFlag'; // OBRON ZAMEK F1
 import { CastleSystem } from './systems/castle/CastleSystem'; // OBRON ZAMEK F3
-import { CASTLE_TUNING } from './systems/castle/castleWaves'; // OBRON ZAMEK F3
+import { CASTLE_TUNING, CASTLE_WAVES_TOTAL } from './systems/castle/castleWaves'; // OBRON ZAMEK F3
 import { MarsBase } from './maps/mars/MarsBase'; // FAZA MARS M3 (landmark)
 import { MarsCargo } from './maps/mars/MarsCargo'; // FAZA MARS M3 (niszczalne)
 import { RegolithField } from './maps/mars/RegolithField'; // FAZA MARS M4 (slow)
@@ -429,8 +429,8 @@ const ctfHudInfo: HudCtfInfo = {
 };
 // OBRON ZAMEK F5 — dane HUD zamku (obiekt reuzywany per klatke, zero alokacji)
 const castleHudInfo: HudCastleInfo = {
-    phase: 'intro', wave: 0, wavesTotal: 6, phaseSecondsLeft: 0, wallPct: 1, gatePct: 1, gateDestroyed: false, gatesAlive: 4, gatesTotal: 4,
-    keepPct: 1, respawnSecondsLeft: 0, enemiesAlive: 0, megaAlive: false, lanes: [], breaches: [],
+    phase: 'intro', wave: 0, wavesTotal: 6, phaseSecondsLeft: 0, wallPct: 1, gatePct: 1, gateDestroyed: false, gatesAlive: 4, gatesTotal: 4, wallsDestroyed: 0,
+    keepPct: 1, respawnSecondsLeft: 0, enemiesAlive: 0, megaAlive: false, lanes: [], breaches: [], machines: [], keepAlarm: false,
     cameraX: 0, cameraY: 0, zoom: 1,
 };
 // OBRON ZAMEK F5 — przycisk "NASTEPNA FALA" (DOM; dotyk + mysz; klawisz N = alias). Tworzony raz,
@@ -673,6 +673,8 @@ if (HARNESS_NOHUD) { const _hc = document.getElementById('hudCanvas'); if (_hc) 
 // Cel: znalezc co koreluje z oscylacja "zwalnia/przyspiesza" na mobile bez
 // czytania kodu (zasada mobile-first: dane z realnego urzadzenia, nie zgadywanie).
 const PERF_ENABLED = new URLSearchParams(window.location.search).has('perf');
+// P0.13: hooki debug scenariusza OBRON ZAMEK na window tylko w DEV albo z ?perf=1
+const CASTLE_DEBUG_HOOKS = import.meta.env.DEV || PERF_ENABLED;
 
 // F5 harness: Long Animation Frame observer — atrybuuje DLUGA klatke do SCRIPT (nasz JS) vs
 // RENDER/compositor. KLUCZOWE: jesli duration >> sum(scripts) => judder jest w renderze/present,
@@ -1557,7 +1559,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     for (const p of castleParts) p.destroy(); // OBRON ZAMEK F2
     castleParts = [];
     castleMoat?.destroy(); castleMoat = null;
-    castleSolids = [];
+    for (const s of castleSolids) s.destroy(); castleSolids = []; // P0.6: destroy jak sasiedzi
     for (const wf of castleWheat) wf.destroy(); castleWheat = [];
     castlePennants?.destroy(); castlePennants = null;
     for (const hb of castleHay) hb.destroy(); castleHay = [];
@@ -2286,8 +2288,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         }
         // F6: kruki nad donzonem (ambient A, cull)
         castleCrows = new CastleCrows(CASTLE_KEEP.x + CASTLE_KEEP.w / 2, CASTLE_KEEP.y + CASTLE_KEEP.h / 2, worldContainer);
-        // debug F12: castleTier(2) -> wszystkie zniszczalne czesci na tier 2; castleTier(3,'gate')
-        (window as any).castleTier = (tier: CastleDamageTier, id?: string) => {
+        // debug F12 (P0.13: tylko DEV / ?perf=1 — hooki na window to ryzyko dla uczciwosci wyniku po F7): castleTier(2) -> wszystkie zniszczalne czesci na tier 2; castleTier(3,'gate')
+        if (CASTLE_DEBUG_HOOKS) (window as any).castleTier = (tier: CastleDamageTier, id?: string) => {
             for (const p of castleParts) if (!id || p.id === id) p.setTierDebug(tier);
         };
     }
@@ -2296,7 +2298,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // OBRON ZAMEK F6 (#9): snopy siana — niszczalne, gem po rozwaleniu (konstrukcja PO effects, jak crates)
     if (config.map === 'castle_grounds') {
         for (const hb of CASTLE_HAY) {
-            const bale = new CastleHayBale(hb.x, hb.y, hb.w, hb.h, worldContainer, effects, (cx, cy) => spawnGem(cx, cy));
+            const bale = new CastleHayBale(hb.x, hb.y, hb.w, hb.h, worldContainer, effects, (cx, cy) => { spawnGem(cx, cy); audio.playCrateBreak(); }); // P1: snop chrupie
             castleHay.push(bale); buildings.push(bale); solidBuildings.push(bale);
         }
     }
@@ -2646,13 +2648,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             onPlayerRespawn: () => { audio.playHeartPickup(); },
             onCastleDestroyed: () => {},
             // F6: telegraf lane'u — portal w kolorze wroga na obozie, z ktorego rusza batch (Czytelnosc: skad ida)
-            onLaneBatch: (lane) => { const l = CASTLE_LANES.find(x => x.id === lane); if (l) effects.spawnPortal(l.x, l.y, 0xff4d4d); },
+            onLaneBatch: (lane) => { const l = CASTLE_LANES.find(x => x.id === lane); if (l) effects.spawnPortal(l.x, l.y, 0xff4d4d); audio.playMineDrop(); }, // P1: telegraf slyszalny
             // TUTORIAL scenariusza: raz per urzadzenie (wzorzec GoalCard bt2:goal_*), ?castletut=1 wymusza
             tutorial: !tutorialMode && (castleTutorialForced() || !castleTutorialDone()),
             onTutorialDone: () => { try { localStorage.setItem('bt2:castle_tut_done', '1'); } catch { /* prywatny tryb */ } },
         });
         powerSystem.onRepairActivated = (x, y) => castleSystem?.onRepairPower(x, y);
-        // debug F12: castleInfo() -> stan HUD scenariusza; castleWave(n) -> natychmiastowy start fali n
+        // debug F12 (P0.13: tylko DEV / ?perf=1): castleInfo() -> stan HUD scenariusza; castleWave(n) -> natychmiastowy start fali n
+        if (CASTLE_DEBUG_HOOKS) {
         (window as any).castleInfo = () => castleSystem?.getHudInfo();
         (window as any).castleSys = () => castleSystem;
         (window as any).castlePlayerPos = () => localPlayer ? [Math.round(localPlayer.x), Math.round(localPlayer.y)] : null;
@@ -2668,6 +2671,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             (castleSystem as unknown as { wave: number }).wave = Math.max(0, n - 1);
             castleSystem.startNextWaveNow();
         };
+        }
     }
 
     audio.startMusic(config.map);
@@ -2977,7 +2981,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
     const victoryBadgeText = d.castleWaves !== null
-        ? `🏰 ${t('end.waves')}: ${d.castleWaves}/6` // OBRON ZAMEK F5
+        ? `🏰 ${t('end.waves')}: ${d.castleWaves}/${CASTLE_WAVES_TOTAL}` // OBRON ZAMEK F5
         : d.ctfFlags !== null
         ? `🚩 ${t('end.flags')}: ${d.ctfFlags}/3`
         : `🏆 ${t('end.megaBoss')} — ${t('end.megaBossDefeated')}`;
@@ -3120,7 +3124,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                         ${statTile(bossIconSm, d.bosses, t('end.bosses'))}
                         ${statTile('🔥', `${d.maxCombo}x`, t('end.combo'))}
                         ${statTile(cubeIconSm, d.cubesTotal, t('end.cubes'))}
-                        ${d.castleWaves !== null ? statTile('🏰', `${d.castleWaves}/6`, t('end.waves')) : d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
+                        ${d.castleWaves !== null ? statTile('🏰', `${d.castleWaves}/${CASTLE_WAVES_TOTAL}`, t('end.waves')) : d.ctfFlags !== null ? statTile('🚩', `${d.ctfFlags}/3`, t('end.flags')) : statTile('❤️', d.hearts, t('end.hearts'))}
                         ${statTile('💥', d.supers, t('end.supers'))}
                         ${statTile('⏱️', `${d.seconds}s`, t('end.time'))}
                     </div>
@@ -3150,7 +3154,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                 ${chip(bossIcon, d.bosses, t('end.bosses'))}
                 ${chip('🔥', `${d.maxCombo}x`, t('end.combo'))}
                 ${chip(cubeIcon, d.cubesTotal, t('end.cubes'))}
-                ${d.castleWaves !== null ? chip('🏰', `${d.castleWaves}/6`, t('end.waves')) : d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
+                ${d.castleWaves !== null ? chip('🏰', `${d.castleWaves}/${CASTLE_WAVES_TOTAL}`, t('end.waves')) : d.ctfFlags !== null ? chip('🚩', `${d.ctfFlags}/3`, t('end.flags')) : chip('❤️', d.hearts, t('end.hearts'))}
                 ${chip('💥', d.supers, t('end.supers'))}
                 ${chip('⏱️', `${d.seconds}s`, t('end.time'))}
             </div>
@@ -4631,12 +4635,15 @@ function runLogicStep(delta: number): void {
         castleHudInfo.phase = ci.phase; castleHudInfo.wave = ci.wave; castleHudInfo.wavesTotal = ci.wavesTotal;
         castleHudInfo.phaseSecondsLeft = ci.phaseSecondsLeft; castleHudInfo.wallPct = ci.wallPct;
         castleHudInfo.gatePct = ci.gatePct; castleHudInfo.gateDestroyed = ci.gateDestroyed; castleHudInfo.keepPct = ci.keepPct;
-        castleHudInfo.gatesAlive = ci.gatesAlive; castleHudInfo.gatesTotal = ci.gatesTotal;
+        castleHudInfo.gatesAlive = ci.gatesAlive; castleHudInfo.gatesTotal = ci.gatesTotal; castleHudInfo.wallsDestroyed = ci.wallsDestroyed;
         castleHudInfo.respawnSecondsLeft = ci.respawnSecondsLeft; castleHudInfo.enemiesAlive = ci.enemiesAlive; castleHudInfo.megaAlive = ci.megaAlive;
         castleHudInfo.lanes.length = 0;
         for (const id of ci.activeLanes) { const l = CASTLE_LANES.find(x => x.id === id); if (l) castleHudInfo.lanes.push({ wx: l.x, wy: l.y, label: id }); }
         castleHudInfo.breaches.length = 0;
         for (const b of ci.breaches) castleHudInfo.breaches.push({ wx: b.x, wy: b.y });
+        castleHudInfo.machines.length = 0;
+        for (const m of ci.machines) castleHudInfo.machines.push({ wx: m.x, wy: m.y, label: m.role === 'taran' ? '🪵' : '🪨' });
+        castleHudInfo.keepAlarm = ci.keepAlarm;
         castleHudInfo.cameraX = camera.x; castleHudInfo.cameraY = camera.y; castleHudInfo.zoom = ZOOM;
         hud.castleInfo = castleHudInfo;
         const btn = ensureCastleNextBtn();

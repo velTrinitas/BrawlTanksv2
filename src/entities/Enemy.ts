@@ -167,7 +167,6 @@ export class Enemy {
     /** F4 taran: stan szarzy (steruje CastleSystem). */
     public taranState: 'travel' | 'windup' | 'charge' | 'recoil' = 'travel';
     public taranStateAt: number = 0;
-    public taranImpactPending: boolean = false;
     /** F4 katapulta/trebuchet: czas ostatniego lobu. */
     public lastLobAt: number = 0;
 

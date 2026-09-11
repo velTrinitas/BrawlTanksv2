@@ -306,114 +306,6 @@ export function bakeWall(w: number, h: number, side: WallSide, tier: DamageTier)
 }
 
 // =================================================================
-// TOWER — okragly beben + stozkowy szkarlatny dach (niezniszczalna, 1 tier)
-// =================================================================
-
-const TOWER_M = 18;
-export function bakeTower(aabb: number): BakedPart {
-    const key = `tower:${aabb}`;
-    const r = TOWER_R;
-    const roofR = r + 9;
-    const tw = roofR * 2 + TOWER_M * 2;
-    const topM = TOWER_H + roofR + 30 + TOWER_M; // miejsce na maszt
-    const th = topM + r + TOWER_M;
-    const cx = tw / 2, cy = topM; // srodek footprintu
-    const ox = cx - aabb / 2, oy = cy - aabb / 2;
-    return baked(key, tw, th, ox, oy, (c) => {
-        const rng = makeRng(0x544f5745);
-        // cien kontaktowy (elipsa SE)
-        c.fillStyle = `rgba(10,20,12,${L.shadowAlpha * 0.55})`;
-        c.beginPath(); c.ellipse(cx + 8, cy + 10, r + 10, r * 0.75, 0, 0, Math.PI * 2); c.fill();
-        // beben: prostokat + dolny polokrag, gradient poziomy (NW lit)
-        const g = c.createLinearGradient(cx - r, 0, cx + r, 0);
-        g.addColorStop(0, P.graniteTop);
-        g.addColorStop(0.45, P.granite);
-        g.addColorStop(1, P.graniteDeep);
-        c.fillStyle = g;
-        c.beginPath();
-        c.moveTo(cx - r, cy - TOWER_H);
-        c.lineTo(cx - r, cy);
-        c.arc(cx, cy, r, Math.PI, 0, true);
-        c.lineTo(cx + r, cy - TOWER_H);
-        c.closePath(); c.fill();
-        // cegly na bebnie (zakrzywione = rzedy z lekkim lukiem)
-        c.save();
-        c.beginPath();
-        c.moveTo(cx - r, cy - TOWER_H); c.lineTo(cx - r, cy); c.arc(cx, cy, r, Math.PI, 0, true); c.lineTo(cx + r, cy - TOWER_H); c.closePath();
-        c.clip();
-        c.strokeStyle = P.graniteJoint; c.lineWidth = 1; c.globalAlpha = 0.5;
-        for (let row = 0; row < 14; row++) {
-            const yy = cy - TOWER_H + row * 8;
-            c.beginPath(); c.moveTo(cx - r, yy); c.quadraticCurveTo(cx, yy + 6, cx + r, yy); c.stroke();
-            const off = (row % 2) * 9;
-            for (let bx = cx - r + off; bx < cx + r; bx += 18) { c.beginPath(); c.moveTo(bx, yy); c.lineTo(bx, yy + 8); c.stroke(); }
-        }
-        c.globalAlpha = 1;
-        // AO przy ziemi
-        const ao = c.createLinearGradient(0, cy - 10, 0, cy + r);
-        ao.addColorStop(0, 'rgba(0,0,0,0)'); ao.addColorStop(1, 'rgba(0,0,0,0.4)');
-        c.fillStyle = ao; c.fillRect(cx - r, cy - 10, r * 2, r + 10);
-        c.restore();
-        // strzelnice
-        arrowSlit(c, cx - 14, cy - TOWER_H + 14, 12);
-        arrowSlit(c, cx + 2, cy - TOWER_H + 24, 12);
-        arrowSlit(c, cx + 18, cy - TOWER_H + 12, 12);
-        // wieko bebna (parapet) — ELIPSA (kamera z gory-przodu, ry = 0.78 r) + blanki po obwodzie
-        const topY = cy - TOWER_H;
-        const RY = 0.78;
-        const tg = c.createRadialGradient(cx - r * 0.4, topY - r * 0.3, 4, cx, topY, r);
-        tg.addColorStop(0, '#bcc1c5'); tg.addColorStop(1, P.granite);
-        c.fillStyle = tg;
-        c.beginPath(); c.ellipse(cx, topY, r, r * RY, 0, 0, Math.PI * 2); c.fill();
-        c.strokeStyle = P.graniteJoint; c.lineWidth = 1.5;
-        c.beginPath(); c.ellipse(cx, topY, r - 1, (r - 1) * RY, 0, 0, Math.PI * 2); c.stroke();
-        for (let i = 0; i < 12; i++) {
-            const a = (i / 12) * Math.PI * 2;
-            const mx = cx + Math.cos(a) * (r - 5), my = topY + Math.sin(a) * (r - 5) * RY;
-            c.fillStyle = P.graniteDark; c.fillRect(mx - 4, my - 2, 8, 8);
-            c.fillStyle = P.graniteTop; c.fillRect(mx - 4, my - 7, 8, 7);
-        }
-        // dach: stozek szkarlatny — ELIPSA uniesiona nad parapet (widac beben pod okapem),
-        // ciemniejsza dolna polowa = spad stozka w cieniu, jasny klin NW = swiatlo T1
-        const roofY = topY - 16;
-        const roofRY = roofR * 0.72;
-        c.fillStyle = 'rgba(0,0,0,0.25)';
-        c.beginPath(); c.ellipse(cx + 3, roofY + 8, roofR, roofRY, 0, 0, Math.PI * 2); c.fill();
-        const rg = c.createRadialGradient(cx - roofR * 0.35, roofY - roofRY * 0.45, 3, cx, roofY, roofR);
-        rg.addColorStop(0, P.crimsonLight); rg.addColorStop(0.55, P.crimson); rg.addColorStop(1, P.crimsonDark);
-        c.fillStyle = rg;
-        c.beginPath(); c.ellipse(cx, roofY, roofR, roofRY, 0, 0, Math.PI * 2); c.fill();
-        // dolna polowa stozka ciemniejsza (spad w cien)
-        c.fillStyle = 'rgba(0,0,0,0.18)';
-        c.beginPath(); c.ellipse(cx, roofY, roofR, roofRY, 0, 0, Math.PI); c.fill();
-        // szwy dachowek (promienie do wierzcholka przesunietego w gore) + okap zloty
-        const apexY = roofY - roofRY * 0.35;
-        c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 1;
-        for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; c.beginPath(); c.moveTo(cx, apexY); c.lineTo(cx + Math.cos(a) * roofR, roofY + Math.sin(a) * roofRY); c.stroke(); }
-        c.strokeStyle = P.gold; c.lineWidth = 2;
-        c.beginPath(); c.ellipse(cx, roofY, roofR - 1, roofRY - 1, 0, 0, Math.PI * 2); c.stroke();
-        // finial + maszt (proporzec = osobny sprite, kotwica = szczyt masztu)
-        c.fillStyle = P.gold;
-        c.beginPath(); c.arc(cx, apexY, 5, 0, Math.PI * 2); c.fill();
-        c.strokeStyle = P.goldDark; c.lineWidth = 2;
-        c.beginPath(); c.moveTo(cx, apexY - 4); c.lineTo(cx, apexY - 26); c.stroke();
-        c.fillStyle = P.gold;
-        c.beginPath(); c.arc(cx, apexY - 27, 2.5, 0, Math.PI * 2); c.fill();
-        void rng;
-    });
-}
-/** Kotwica proporca wiezy w ukladzie tekstury (offset od AABB top-left). */
-export function towerPennantAnchor(aabb: number): { dx: number; dy: number } {
-    const r = TOWER_R, roofR = r + 9;
-    const topM = TOWER_H + roofR + 30 + TOWER_M;
-    const cx = roofR + TOWER_M, cy = topM;
-    const ox = cx - aabb / 2, oy = cy - aabb / 2;
-    const roofRY = roofR * 0.72;
-    const apexY = (cy - TOWER_H - 16) - roofRY * 0.35;
-    return { dx: cx - ox, dy: (apexY - 27) - oy };
-}
-
-// =================================================================
 // KEEP — donzon: 2-stopniowa ekstruzja + dach piramidowy + bartyzany + sztandar
 // =================================================================
 
@@ -636,26 +528,6 @@ export function bakePennant(color: 'crimson' | 'gold'): PIXI.Texture {
     return part.tex;
 }
 
-// =================================================================
-// SMOKE PUFF (tier 2) — biala, tintowalna
-// =================================================================
-
-export function bakeSmokePuff(): PIXI.Texture {
-    const key = 'smokepuff';
-    const hit = cache.get(key);
-    if (hit) return hit.tex;
-    const s = 48;
-    const part = baked(key, s, s, 0, 0, (c) => {
-        const g = c.createRadialGradient(s / 2, s / 2, 2, s / 2, s / 2, s / 2);
-        g.addColorStop(0, 'rgba(255,255,255,0.55)');
-        g.addColorStop(0.6, 'rgba(255,255,255,0.22)');
-        g.addColorStop(1, 'rgba(255,255,255,0)');
-        c.fillStyle = g;
-        c.beginPath(); c.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); c.fill();
-    });
-    return part.tex;
-}
-
 /** Wymusza upieczenie kompletu tekstur (start meczu = jedna kosztowna chwila, nie hitch w walce). */
 export function prebakeCastle(wallW: number, wallH: number, towerAabb: number, keepW: number, keepH: number,
     gate: { w: number; h: number }, turret: { w: number; h: number }): void {
@@ -669,7 +541,7 @@ export function prebakeCastle(wallW: number, wallH: number, towerAabb: number, k
     }
     bakeTowerSquare(towerAabb);
     bakeDoorLeaf(); bakeHay(0); bakeHay(1); bakeCrow(0); bakeCrow(1);
-    bakePennant('crimson'); bakePennant('gold'); bakeSmokePuff();
+    bakePennant('crimson'); bakePennant('gold');
     console.log(`[castleBake] prebake ${(performance.now() - t0).toFixed(1)} ms, ${cache.size} textures`);
 }
 

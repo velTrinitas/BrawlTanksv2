@@ -31,6 +31,8 @@ export const CASTLE_TUNING = Object.freeze({
     /** Naprawa w fazie budowy: % maxHp na sekunde, zasieg, minimalny wynik odbudowy. */
     repairPctPerSec: 0.08,
     repairRange: 110,
+    /** P1: strzalka krawedziowa wylomu gasnie po tym czasie (ms). */
+    breachArrowMs: 20000,
     rebuildCapPct: 0.4,
     /** Moc NAPRAWA: natychmiastowy % maxHp najblizszej czesci w zasiegu. */
     powerRepairPct: 0.30,

@@ -9,7 +9,7 @@ import { worldRng } from '../Rng';
 import { CastlePart, type CastleDamageSource } from '../../maps/castle/CastlePart';
 import {
     CASTLE_LANES, CASTLE_RING, CASTLE_BRIDGE_CENTERS, CASTLE_ATTACK, CASTLE_RESPAWN,
-    CASTLE_SANCTUARY, CASTLE_KEEP, CASTLE_SIEGE_POS, type CastleLaneId, type CastlePoint,
+    CASTLE_SANCTUARY, CASTLE_SIEGE_POS, type CastleLaneId, type CastlePoint,
 } from '../../maps/CastleMap';
 import { CASTLE_TUNING as T, CASTLE_WAVES_TOTAL, type CastleRole } from './castleWaves';
 import { WaveDirector } from './WaveDirector';
@@ -63,6 +63,12 @@ export interface CastleHudInfo {
     megaAlive: boolean;
     /** F4: glazy w locie (debug/HUD). */
     stonesInFlight: number;
+    /** P0.7: zniszczone segmenty muru (licznik w pigulce MUR). */
+    wallsDestroyed: number;
+    /** P1: maszyny obleznicze (strzalki krawedziowe — "strzela znikad" = bug czytelnosci). */
+    machines: Array<{ x: number; y: number; role: CastleRole }>;
+    /** P1: donzon < 33% — czerwona winieta krawedzi przez ~1 s. */
+    keepAlarm: boolean;
 }
 
 export interface CastleSystemOpts {
@@ -134,6 +140,14 @@ export class CastleSystem {
     private repairGfx: PIXI.Graphics;
     /** F6: odlatujace wrota. */
     private debris: CastleDebris;
+    /** P1: markery taktyczne — linia szarzy taranu + czerwony pierscien na bramie z >=2 commitami. 1 Graphics. */
+    private machineGfx: PIXI.Graphics;
+    private machineGfxEmpty = true;
+    /** P1: kiedy czesc padla — strzalka wylomu gasnie po breachArrowMs. */
+    private destroyedAt = new Map<CastlePart, number>();
+    private lastBuildTick = -1;
+    private lastStopHintAt = 0;
+    private keepAlarmUntil = 0;
     /** F6: podpowiedzi intro (3 banery po kolei). */
     private hintIdx = 0;
     private nextHintAt = 0;
@@ -154,12 +168,15 @@ export class CastleSystem {
             enemies: opts.enemies,
             difficulty: opts.difficulty,
             onSpawn: (e) => { this.tracked.add(e); opts.onEnemySpawned(e); },
-            onMegaSpawned: (e) => { opts.onMegaSpawned(e); opts.banner(t('castle.mega'), '#ff3366', 150); },
+            onMegaSpawned: (e) => { opts.onMegaSpawned(e); opts.banner(t('castle.mega'), '#ff3366', 150); opts.audio.playYetiRoar(); },
             onLaneBatch: (lane) => { this.noteLane(lane); opts.onLaneBatch(lane); },
         });
         this.repairGfx = new PIXI.Graphics();
         this.repairGfx.zIndex = 5300;
         opts.worldContainer.addChild(this.repairGfx);
+        this.machineGfx = new PIXI.Graphics();
+        this.machineGfx.zIndex = 5290;
+        opts.worldContainer.addChild(this.machineGfx);
         this.debris = new CastleDebris(opts.worldContainer);
         const now = Date.now();
         if (opts.session.castle) opts.session.castle.wave = 0;
@@ -187,6 +204,7 @@ export class CastleSystem {
     private tutAdvance(next: number, now: number): void {
         this.tutStep = next;
         this.tutStepAt = now;
+        this.opts.audio.playMenuClick();
         const key = next === 2 ? 'castle.tut.step2' : next === 3 ? 'castle.tut.step3' : 'castle.tut.step4';
         this.opts.banner(t(key), '#e0b53c', 170);
         this.opts.hudNotif(t(key), '#e0b53c');
@@ -263,6 +281,7 @@ export class CastleSystem {
         if (this.phase === 'build' && c) {
             const bonus = Math.min(T.earlyStartMax, secLeft * T.earlyStartPerSec);
             if (bonus > 0) {
+                this.opts.audio.playSuperShotActivate();
                 this.opts.session.addCastleStaticBonus(bonus, 'earlyStart');
                 c.earlyStarts++;
                 this.opts.hudNotif(t('castle.earlyStart', { n: String(bonus) }), '#e0b53c');
@@ -292,6 +311,7 @@ export class CastleSystem {
         if (!part) return;
         const added = part.repair(Math.round(part.maxHp * T.powerRepairPct));
         if (added > 0) {
+            this.opts.audio.playHeartPickup();
             const c = this.opts.session.castle;
             if (c) c.repairsDone++;
             this.opts.effects.spawnFloatingText(part.centerX, part.y - 20, `+${Math.round(added / 100)} 🔧`, 0x2ecc71);
@@ -304,10 +324,17 @@ export class CastleSystem {
         let wallHp = 0, wallMax = 0;
         for (const w of this.walls) { wallHp += w.hp; wallMax += w.maxHp; }
         const breaches: CastlePoint[] = [];
-        for (const w of this.walls) if (w.isDestroyed) breaches.push({ x: w.centerX, y: w.centerY });
-        for (const g of this.gates) if (g.isDestroyed) breaches.push({ x: g.centerX, y: g.centerY });
-        let gateMin = 1, gatesAlive = 0;
-        for (const g of this.gates) { if (!g.isDestroyed) gatesAlive++; if (g.hpPct < gateMin) gateMin = g.hpPct; }
+        // P1: strzalka wylomu gasnie po 20 s (wieczna = szum; sam wylom zostaje na mapie)
+        const fresh = (p: CastlePart): boolean => p.isDestroyed && now - (this.destroyedAt.get(p) ?? 0) < T.breachArrowMs;
+        for (const w of this.walls) if (fresh(w)) breaches.push({ x: w.centerX, y: w.centerY });
+        for (const g of this.gates) if (fresh(g)) breaches.push({ x: g.centerX, y: g.centerY });
+        const machines: CastleHudInfo['machines'] = [];
+        for (const e of this.opts.enemies) if (e.active && e.castleRole && CastleSystem.isMachine(e.castleRole)) machines.push({ x: e.x, y: e.y, role: e.castleRole });
+        // P0.7: pasek = najslabsza ZYWA brama (zniszczona ma licznik, nie pasek 0%)
+        let gateMin = 1, gatesAlive = 0, wallsDestroyed = 0;
+        for (const g of this.gates) { if (!g.isDestroyed) { gatesAlive++; if (g.hpPct < gateMin) gateMin = g.hpPct; } }
+        if (gatesAlive === 0) gateMin = 0;
+        for (const w of this.walls) if (w.isDestroyed) wallsDestroyed++;
         const mega = this.director.megaSpawned;
         return {
             phase: this.phase,
@@ -326,13 +353,16 @@ export class CastleSystem {
             breaches,
             megaAlive: !!(mega && mega.active),
             stonesInFlight: this.stones.length,
+            wallsDestroyed,
+            machines,
+            keepAlarm: now < this.keepAlarmUntil,
         };
     }
 
     // ── UPDATE ─────────────────────────────────────────────────────────────
 
     public update(delta: number, player: Player, isInvulnerable: boolean): CastleUpdateResult {
-        void isInvulnerable;
+
         this.playerX = player.x; this.playerY = player.y;
         const now = Date.now();
         const dtSec = delta / 60;
@@ -365,6 +395,7 @@ export class CastleSystem {
         this.updateGate(player);
         this.debris.update(delta);
         this.drawRepairMarkers(player, now);
+        this.drawTacticalMarkers(now);
         // fazy
         if (this.phase === 'tutorial') {
             this.updateTutorial(player, now);
@@ -372,6 +403,11 @@ export class CastleSystem {
             if (this.tutStep === 3) this.contactDamage(now);
         } else if (this.phase === 'intro' || this.phase === 'build') {
             if (this.phase === 'build' && !this.playerDead) this.proximityRepair(player, dtSec, now);
+            // P1: ostatnie 5 s budowy — tik na kazda sekunde (HUD rysuje duzy licznik)
+            if (this.phase === 'build') {
+                const sl = Math.ceil((this.phaseUntil - now) / 1000);
+                if (sl <= 5 && sl !== this.lastBuildTick) { this.lastBuildTick = sl; if (sl > 0) this.opts.audio.playCrateTap(Math.max(0, 3 - sl)); } // pitch rosnie ku zeru
+            }
             if (now >= this.phaseUntil) this.beginWave(this.wave + 1, now);
         } else if (this.phase === 'combat') {
             this.director.update(now);
@@ -430,6 +466,10 @@ export class CastleSystem {
         if (this.wave >= CASTLE_WAVES_TOTAL) { this.finishVictory(); return; }
         this.phase = 'build';
         this.phaseUntil = now + T.buildPhaseMs;
+        this.lastBuildTick = -1;
+        // P1: start budowy musi byc SLYSZALNY i widoczny (zielony pierscien na graczu)
+        this.opts.audio.playShockwave();
+        this.opts.effects.spawnShockwaveRing(this.playerX, this.playerY, 160, 0x2ecc71);
         this.opts.hudNotif(t('castle.buildPhase', { s: String(Math.round(T.buildPhaseMs / 1000)) }), '#e0b53c');
         // F6 (#5): naprawa musi byc ZAKOMUNIKOWANA — baner + markery na uszkodzonych czesciach
         if (this.opts.parts.some(p => p.destructible && p.hp < p.maxHp)) this.opts.banner(t('castle.repairHint'), '#2ecc71', 150);
@@ -557,7 +597,7 @@ export class CastleSystem {
 
     /** F4: katapulta/trebuchet zatrzymuja sie na WEZLE PIERSCIENIA strony celu (stanowisko ~240 px od muru). */
     private routeForMachine(lane: CastleLaneId, obj: Objective): RouteNode[] {
-        const key = `M:>`;
+        const key = `M:${lane}>${obj.side}`;
         const hit = this.routeCache.get(key);
         if (hit) return hit;
         const laneDef = CASTLE_LANES.find(l => l.id === lane)!;
@@ -614,7 +654,7 @@ export class CastleSystem {
         const dist = Math.hypot(dx, dy);
         if (dist < T.nodeReach) {
             if (!last) { enemy.castleNode++; node = route[enemy.castleNode]; }
-            else if (!enemy.castleArrived) { enemy.castleArrived = true; enemy.castleTargetPart = obj.part; }
+            else if (!enemy.castleArrived) { enemy.castleArrived = true; enemy.castleTargetPart = obj.part; enemy.castleContactAt = 0; } // P1: pierwsze uderzenie OD RAZU (nie 3 s ciszy)
         }
         // anti-grind: brak ruchu > stuckMs => snap do nastepnego wezla
         // (liczone w KLATKACH, nie ms — hitch/throttle karty nie moze "przeskakiwac" wezlow)
@@ -662,9 +702,12 @@ export class CastleSystem {
             this.keepCriticalWarned = true;
             this.opts.banner(t('castle.keepCritical'), '#ff3366', 120);
             this.opts.effects.shake(6, 12);
+            this.opts.audio.playYetiRoar();
+            this.keepAlarmUntil = Date.now() + 1200;
         }
         if (part.isDestroyed) {
             this.objectivesDirty = true;
+            this.destroyedAt.set(part, Date.now());
             if (part.kind === 'keep') {
                 this.phase = 'defeat';
                 this.opts.effects.spawnShockwaveRing(part.centerX, part.centerY, 260, 0xff3366);
@@ -693,6 +736,7 @@ export class CastleSystem {
     private contactDamage(now: number): void {
         for (const e of this.opts.enemies) {
             if (!e.active || !e.castleArrived || !e.castleTargetPart) continue;
+            if (now < e.frozenUntil) continue; // P0.3: mroz = zero kontaktu
             const p = e.castleTargetPart;
             if (p.isDestroyed) { e.castleArrived = false; e.castleTargetPart = null; e.castleRouteId = ''; continue; }
             const cd = e.isBoss || e.isMegaBoss ? T.bossContactCooldownMs : T.contactCooldownMs;
@@ -742,7 +786,7 @@ export class CastleSystem {
             const ny = Math.max(part.y, Math.min(player.y, part.y + part.h));
             this.opts.effects.spawnEnemyHitSparks(nx, ny, 0xe0b53c);
             this.opts.effects.spawnFloatingText(nx, ny - 18, `+${Math.max(1, Math.round((part.maxHp * T.repairPctPerSec * 0.5) / 100))} 🔨`, 0x2ecc71);
-            this.opts.audio.playHit('wall');
+            this.opts.audio.playCrateTap(1); // P1: leczenie != dzwiek obrazen (metaliczny klik zamiast playHit)
             if (c && (c.repairHp - c.repairCounted) >= part.maxHp * 0.25) { c.repairCounted = c.repairHp; c.repairsDone++; }
         }
     }
@@ -764,6 +808,7 @@ export class CastleSystem {
     private updateMachines(now: number): void {
         for (const e of this.opts.enemies) {
             if (!e.active || !CastleSystem.isMachine(e.castleRole)) continue;
+            if (now < e.frozenUntil) continue; // P0.3: zamrozona maszyna nie strzela i nie taranuje
             if (e.castleRole === 'taran') this.updateTaran(e, now);
             else this.updateLobber(e, now);
         }
@@ -786,6 +831,7 @@ export class CastleSystem {
             case 'travel':
                 e.taranState = 'windup'; e.taranStateAt = now; e.castleSpeedMult = 0; e.damageTakenMult = 1;
                 this.opts.effects.spawnFloatingText(e.x, e.y - 40, '⚠', 0xf1c40f);
+                this.opts.audio.playRocketLaunch(); // P1: telegraf szarzy slyszalny
                 break;
             case 'windup':
                 if (now - e.taranStateAt >= 1200) { e.taranState = 'charge'; e.taranStateAt = now; e.castleSpeedMult = 2.5; }
@@ -803,7 +849,7 @@ export class CastleSystem {
                 }
                 break;
             case 'recoil':
-                if (now - e.taranStateAt >= 3000) { e.taranState = 'windup'; e.taranStateAt = now; e.damageTakenMult = 1; }
+                if (now - e.taranStateAt >= 3000) { e.taranState = 'windup'; e.taranStateAt = now; e.damageTakenMult = 1; this.opts.audio.playRocketLaunch(); }
                 break;
         }
         // cel ruchu podczas szarzy = srodek czesci (targetFor zwraca punkt ataku — nadpisujemy scratch)
@@ -852,7 +898,8 @@ export class CastleSystem {
                 }
             }
             // gracz pod glazem
-            const protectedNow = isInvulnerable || this.playerDead || this.isSpawnInvul() || this.isInSanctuary(player.x, player.y);
+            const protectedNow = isInvulnerable || this.playerDead || this.isSpawnInvul() || this.isInSanctuary(player.x, player.y)
+                || this.phase === 'victory' || this.phase === 'defeat'; // P0.4: po koncu meczu glazy nie rania
             if (Math.hypot(player.x - impact.x, player.y - impact.y) <= T.katapultaSplashR) {
                 const died = player.takeDamage(T.katapultaPlayerDmg, protectedNow, SRC_CATAPULT);
                 if (!protectedNow) {
@@ -883,6 +930,7 @@ export class CastleSystem {
                 this.opts.session.addCastleStaticBonus(T.trebuchetKillBonus, 'machine');
                 this.opts.banner(t('castle.trebuchetDown', { n: String(T.trebuchetKillBonus) }), '#e0b53c', 100);
                 this.opts.effects.spawnShockwaveRing(e.x, e.y, 120, 0xe0b53c);
+                this.opts.audio.playRocketBoom();
             }
         }
     }
@@ -892,13 +940,22 @@ export class CastleSystem {
         for (const g of this.gates) {
             if (g.isDestroyed) continue;
             const gx = g.centerX, gy = g.centerY;
-            let open = !this.playerDead && (player.x - gx) ** 2 + (player.y - gy) ** 2 < 150 * 150;
-            if (open) for (const e of this.opts.enemies) { if (e.active && (e.x - gx) ** 2 + (e.y - gy) ** 2 < 240 * 240) { open = false; break; } }
+            const dPlayer = (player.x - gx) ** 2 + (player.y - gy) ** 2;
+            let open = !this.playerDead && dPlayer < 150 * 150;
+            // P0.5 "WPUSC MNIE": blisko bramy (< 90 px) wystarczy, ze zaden wrog nie jest w 120 px —
+            // inaczej obronca wypchniety za mur podczas fali nie wraca do srodka (240 px = zawsze ktos jest).
+            const enemyRadius = dPlayer < 90 * 90 ? 120 : 240;
+            if (open) for (const e of this.opts.enemies) { if (e.active && (e.x - gx) ** 2 + (e.y - gy) ** 2 < enemyRadius * enemyRadius) { open = false; break; } }
             // ANTY-ZAMUROWANIE (zgloszenie Mariusza): wrota NIGDY nie zamykaja sie na graczu —
             // dopoki czolg (r~30) nachodzi na AABB bramy, brama zostaje otwarta mimo wrogow.
             const PAD = 34;
             const inside = player.x > g.x - PAD && player.x < g.x + g.w + PAD && player.y > g.y - PAD && player.y < g.y + g.h + PAD;
             if (inside && !this.playerDead) open = true;
+            if (open !== g.gateOpen) {
+                // P1 (Sensoryka): wrota slychac i widac — tepe uderzenie + pyl
+                this.opts.audio.playWallThunk();
+                this.opts.effects.spawnEnemyHitSparks(gx, gy, 0xc9ccd0);
+            }
             g.setGateOpen(open);
         }
     }
@@ -910,6 +967,16 @@ export class CastleSystem {
         if (this.phase !== 'build' && !(this.phase === 'tutorial' && this.tutStep >= 4)) return;
         const pulse = 0.55 + Math.sin(now / 220) * 0.35;
         const active = this.nearestDamagedPart(player.x, player.y, T.repairRange);
+        // P1 (Czytelnosc): zasieg naprawy widoczny — okrag wokol gracza; w zasiegu a jedzie => "STOJ"
+        if (!this.playerDead) {
+            g.lineStyle(2, active ? 0x2ecc71 : 0xe0b53c, active ? 0.55 : 0.3);
+            g.drawCircle(player.x, player.y, T.repairRange);
+            g.lineStyle(0);
+            if (active && player.isMoving && now - this.lastStopHintAt > 1500) {
+                this.lastStopHintAt = now;
+                this.opts.effects.spawnFloatingText(player.x, player.y - 46, t('castle.stopHint'), 0xe0b53c);
+            }
+        }
         for (const p of this.opts.parts) {
             if (!p.destructible || p.hp >= p.maxHp) continue;
             const isActive = p === active;
@@ -928,6 +995,40 @@ export class CastleSystem {
         }
     }
 
+    /** P1 (Czytelnosc): linia szarzy taranu (windup/charge) + pulsujacy czerwony pierscien na czesci,
+     *  do ktorej commit ma >= 2 wrogow (gracz widzi CEL fali, nie tylko wrogow). */
+    private drawTacticalMarkers(now: number): void {
+        const g = this.machineGfx;
+        if (this.phase !== 'combat' && !(this.phase === 'tutorial' && this.tutStep === 3)) {
+            if (!this.machineGfxEmpty) { g.clear(); this.machineGfxEmpty = true; }
+            return;
+        }
+        g.clear();
+        this.machineGfxEmpty = true;
+        const commits = new Map<string, number>();
+        for (const e of this.opts.enemies) {
+            if (!e.active || !e.castleRole) continue;
+            if (e.castleObjId) commits.set(e.castleObjId, (commits.get(e.castleObjId) ?? 0) + 1);
+            if (e.castleRole === 'taran' && e.castleTargetPart && (e.taranState === 'windup' || e.taranState === 'charge')) {
+                const p = e.castleTargetPart;
+                const a = e.taranState === 'charge' ? 0.9 : 0.35 + Math.abs(Math.sin(now / 90)) * 0.5;
+                g.lineStyle(e.taranState === 'charge' ? 6 : 4, 0xff3b3b, a);
+                g.moveTo(e.x, e.y); g.lineTo(p.centerX, p.centerY);
+                g.lineStyle(0);
+                this.machineGfxEmpty = false;
+            }
+        }
+        const pulse = 0.45 + Math.abs(Math.sin(now / 160)) * 0.5;
+        for (const o of this.objectives) {
+            if ((commits.get(o.id) ?? 0) < 2 || o.part.isDestroyed) continue;
+            const p = o.part;
+            g.lineStyle(5, 0xff3b3b, pulse);
+            g.drawRoundedRect(p.x - 10, p.y - 10, p.w + 20, p.h + 20, 10);
+            g.lineStyle(0);
+            this.machineGfxEmpty = false;
+        }
+    }
+
     private noteLane(lane: CastleLaneId): void {
         this.lastLaneAt = Date.now();
         if (!this.activeLanes.includes(lane)) this.activeLanes.push(lane);
@@ -941,6 +1042,7 @@ export class CastleSystem {
         for (const s of this.stones) s.destroy();
         this.stones = [];
         this.repairGfx.destroy();
+        this.machineGfx.destroy();
         this.debris.destroy();
         this.tracked.clear();
         this.director.reset();
@@ -950,4 +1052,4 @@ export class CastleSystem {
 }
 
 // keep unused-import guard for CASTLE_KEEP (uzywane przez atak donzonu w F4 katapult)
-void CASTLE_KEEP;
+

@@ -80,6 +80,7 @@ export interface HudCastleInfo {
     gateDestroyed: boolean;
     gatesAlive: number;
     gatesTotal: number;
+    wallsDestroyed: number;
     keepPct: number;
     respawnSecondsLeft: number;
     enemiesAlive: number;
@@ -88,6 +89,10 @@ export interface HudCastleInfo {
     lanes: Array<{ wx: number; wy: number; label: string }>;
     /** Wylomy w murze / zniszczona brama — strzalki krawedziowe (pomaranczowe). */
     breaches: Array<{ wx: number; wy: number }>;
+    /** P1: maszyny obleznicze — strzalki krawedziowe (zolte, etykieta = ikona roli). */
+    machines: Array<{ wx: number; wy: number; label: string }>;
+    /** P1: donzon krytyczny — czerwona winieta krawedzi. */
+    keepAlarm: boolean;
     cameraX: number;
     cameraY: number;
     zoom: number;
@@ -147,6 +152,8 @@ export class HUD {
     private castleBannerText: string = '';
     private castleBannerColor: string = '#f5a623';
     private castleBannerMax: number = 120;
+    /** P0.10: kolejka banerow — "FALA ODPARTA" nie ginie pod "STAN PRZY MURZE" z tej samej klatki (max 3). */
+    private castleBannerQueue: Array<{ text: string; color: string; frames: number }> = [];
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -189,6 +196,10 @@ export class HUD {
 
     /** OBRON ZAMEK F5 — glosny baner zdarzenia scenariusza (tekst + kolor + czas w klatkach). */
     triggerCastleBanner(text: string, color: string, frames: number = 120): void {
+        if (this.castleBannerTimer > 0 && this.castleBannerText !== text) {
+            if (this.castleBannerQueue.length < 3) this.castleBannerQueue.push({ text, color, frames });
+            return;
+        }
         this.castleBannerText = text;
         this.castleBannerColor = color;
         this.castleBannerMax = frames;
@@ -206,7 +217,7 @@ export class HUD {
         const info = this.castleInfo;
         if (!info) return;
         const c = this.ctx;
-        const px = 14, py = 132, PW = 172, ROW = 20, PAD = 6;
+        const px = 14, py = 132, PW = 186, ROW = 20, PAD = 6;
         const PH = PAD * 2 + ROW * 3;
         c.fillStyle = 'rgba(0,0,0,0.62)';
         c.beginPath(); c.roundRect(px, py, PW, PH, 12); c.fill();
@@ -215,20 +226,25 @@ export class HUD {
         c.beginPath(); c.roundRect(px, py, PW, PH, 12); c.stroke();
 
         const rows: Array<{ icon: string; label: string; pct: number; dead: boolean; critical: boolean }> = [
-            { icon: '🧱', label: tr('hud.castle.wall'), pct: info.wallPct, dead: false, critical: info.wallPct < 0.25 },
+            // P0.7: licznik zniszczonych segmentow muru (np. MUR -2) — pasek sam tego nie pokazuje
+            { icon: '🧱', label: info.wallsDestroyed > 0 ? `${tr('hud.castle.wall')} -${info.wallsDestroyed}` : tr('hud.castle.wall'), pct: info.wallPct, dead: false, critical: info.wallPct < 0.25 || info.wallsDestroyed > 0 },
             { icon: '🏰', label: tr('hud.castle.keep'), pct: info.keepPct, dead: false, critical: info.keepPct < 0.25 },
             // 4 bramy: pasek = najslabsza brama, etykieta z licznikiem calych (np. BRAMY 3/4)
             { icon: '🚪', label: `${tr('hud.castle.gate')} ${info.gatesAlive}/${info.gatesTotal}`, pct: info.gatePct, dead: info.gatesAlive === 0, critical: info.gatePct < 0.25 || info.gateDestroyed },
         ];
         const now = Date.now();
         c.textBaseline = 'middle';
+        // P0.7: pasek startuje ZA najszersza etykieta (BRAMY 3/4, MUR -2) — bez nachodzenia
+        c.font = `12px "${FONT_FAMILY}",cursive`;
+        let labelW = 64;
+        for (const r of rows) labelW = Math.max(labelW, c.measureText(`${r.icon} ${r.label}`).width);
+        const bx = px + 8 + labelW + 6, bw = PW - (bx - px) - 8, bh = 9;
         rows.forEach((r, i) => {
             const y = py + PAD + i * ROW + ROW / 2;
             c.font = `12px "${FONT_FAMILY}",cursive`;
             c.textAlign = 'left';
             c.fillStyle = '#fff';
             c.fillText(`${r.icon} ${r.label}`, px + 8, y);
-            const bx = px + 78, bw = PW - 78 - 8, bh = 9;
             c.fillStyle = 'rgba(255,255,255,0.10)';
             c.beginPath(); c.roundRect(bx, y - bh / 2, bw, bh, bh / 2); c.fill();
             if (r.dead) {
@@ -261,6 +277,7 @@ export class HUD {
         else if (info.phase === 'combat') { txt = tr('hud.castle.wave', { n: info.wave, total: info.wavesTotal, left: info.enemiesAlive }); col = '#ff5a5a'; }
         else if (info.phase === 'build') { txt = tr('hud.castle.build', { s: info.phaseSecondsLeft }); col = info.phaseSecondsLeft <= 5 ? '#ff5a5a' : '#2ecc71'; }
         else if (info.phase === 'victory') { txt = tr('hud.castle.allWaves'); col = '#e0b53c'; }
+        else if (info.phase === 'defeat') { txt = tr('hud.castle.defeat'); col = '#ff3b3b'; }
         if (txt) {
             c.fillStyle = 'rgba(0,0,0,0.62)';
             c.beginPath(); c.roundRect(wx, wy, WW, WH, 10); c.fill();
@@ -299,9 +316,44 @@ export class HUD {
         c.restore();
     }
 
+    /** P1: ostatnie 5 s budowy — duzy licznik na srodku (jak respawn), zeby wczesny start / koniec naprawy nie zaskakiwal. */
+    private drawCastleBuildCountdown(): void {
+        const info = this.castleInfo;
+        if (!info || info.phase !== 'build' || info.phaseSecondsLeft > 5 || info.respawnSecondsLeft > 0) return;
+        const c = this.ctx;
+        c.save();
+        c.translate(this.screenW / 2, this.screenH * 0.3); // nad czolgiem (srodek ekranu = gracz), pod pigulka fali
+        const pulse = 1 + (1 - (Date.now() % 1000) / 1000) * 0.25;
+        c.scale(pulse, pulse);
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = `64px "${FONT_FAMILY}",cursive`;
+        c.strokeStyle = '#000'; c.lineWidth = 8;
+        c.strokeText(String(info.phaseSecondsLeft), 0, 0);
+        c.fillStyle = '#ff5a5a';
+        c.fillText(String(info.phaseSecondsLeft), 0, 0);
+        c.restore();
+    }
+
+    /** P1: donzon < 33% — czerwona ramka krawedzi (stroke, nie fill: tanio na mobile). */
+    private drawCastleKeepAlarm(): void {
+        const info = this.castleInfo;
+        if (!info || !info.keepAlarm) return;
+        const c = this.ctx;
+        c.save();
+        c.globalAlpha = 0.5 + Math.abs(Math.sin(Date.now() / 90)) * 0.5;
+        c.strokeStyle = '#ff3366'; c.lineWidth = 22;
+        c.strokeRect(0, 0, this.screenW, this.screenH);
+        c.restore();
+    }
+
     /** Baner zdarzenia (wzorzec drawCtfBreachBanner, ale tekst/kolor z triggera). */
     private drawCastleBanner(): void {
-        if (this.castleBannerTimer <= 0) return;
+        if (this.castleBannerTimer <= 0) {
+            const next = this.castleBannerQueue.shift();
+            if (!next) return;
+            this.castleBannerText = next.text; this.castleBannerColor = next.color;
+            this.castleBannerMax = next.frames; this.castleBannerTimer = next.frames;
+        }
         const c = this.ctx;
         const t = this.castleBannerTimer;
         const max = this.castleBannerMax;
@@ -338,6 +390,7 @@ export class HUD {
         const targets: Array<{ wx: number; wy: number; color: number; label: string; pulse: boolean }> = [];
         for (const l of info.lanes) targets.push({ wx: l.wx, wy: l.wy, color: 0xff4d4d, label: l.label, pulse: true });
         for (const b of info.breaches) targets.push({ wx: b.wx, wy: b.wy, color: 0xff9f1a, label: '💥', pulse: false });
+        for (const m of info.machines) targets.push({ wx: m.wx, wy: m.wy, color: 0xf1c40f, label: m.label, pulse: true });
         for (const tgt of targets) {
             const sx = (tgt.wx - info.cameraX) * info.zoom;
             const sy = (tgt.wy - info.cameraY) * info.zoom;
@@ -1564,6 +1617,8 @@ export class HUD {
         this.drawCtfEdgeArrows();
         this.drawCastleEdgeArrows(); // OBRON ZAMEK F5
         this.drawCastleRespawn();    // OBRON ZAMEK F5
+        this.drawCastleBuildCountdown(); // P1
+        this.drawCastleKeepAlarm();      // P1
         // v0.143.0 — licznik tarczy bazy (world-space, ta sama projekcja co strzalki)
         this.drawCtfShieldCountdown();
 

@@ -2805,11 +2805,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             effects,
             audio,
             difficulty: getDifficultyModifiers(config.difficulty),
+            difficultyId: config.difficulty, // POLISH-2: wieza od TRUDNY, tempo odrostu muru
             buildings,
             solidBuildings,
             enemies,
             hudNotif: (text, color) => hud.addNotif(text, color),
-            banner: (text, color, frames) => hud.triggerCastleBanner(text, color, frames),
+            banner: (text, color, frames, pulse) => hud.triggerCastleBanner(text, color, frames, pulse),
             onGemDrop: (x, y) => spawnGem(x, y),
             // Q4 hazardy (lawa / gejzer / dynamit): kill-path 1:1 z AoE mocy (registerKill+score+drop), Perfect Run gasnie
             hurtPlayer: (dmg, src) => {

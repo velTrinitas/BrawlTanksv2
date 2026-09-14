@@ -361,37 +361,91 @@ export function buildDungeonTexture(): PIXI.Texture {
         c.restore();
         // rozlewiska (male, kosmetyczne — poza strefa)
         for (const sp of ol.spills) {
+            c.fillStyle = P.lavaCrustDark; c.globalAlpha = 0.5; c.beginPath(); c.ellipse(sp.x + 3, sp.y + 4, sp.rx + 7, sp.ry + 6, sp.rot, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; // cien (v0.180)
             c.fillStyle = P.lavaCrust; c.beginPath(); c.ellipse(sp.x, sp.y, sp.rx + 7, sp.ry + 6, sp.rot, 0, Math.PI * 2); c.fill();
+            c.strokeStyle = P.lavaCrustLight; c.lineWidth = 1.5; c.globalAlpha = 0.8; c.beginPath(); c.ellipse(sp.x, sp.y, sp.rx + 7, sp.ry + 6, sp.rot, Math.PI * 0.95, Math.PI * 1.85); c.stroke(); c.globalAlpha = 1; // grzbiet NW
             c.fillStyle = P.lavaDark; c.beginPath(); c.ellipse(sp.x, sp.y, sp.rx, sp.ry, sp.rot, 0, Math.PI * 2); c.fill();
             c.fillStyle = P.lava; c.beginPath(); c.ellipse(sp.x, sp.y, sp.rx * 0.6, sp.ry * 0.55, sp.rot, 0, Math.PI * 2); c.fill();
             c.fillStyle = P.lavaBright; c.globalAlpha = 0.7; c.beginPath(); c.ellipse(sp.x - sp.rx * 0.2, sp.y - sp.ry * 0.2, sp.rx * 0.22, sp.ry * 0.25, sp.rot, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
         }
-        // lawa wlasciwa (clip do obrysu)
+        // lawa wlasciwa (clip do obrysu) — v0.180.0 "REALNE PLACKI" (decyzja Mariusza: powrot do looku v0.166
+        // + wiecej fake-3D i roznorodnosci kolorow). Warstwy: magma z plamami koloru -> rzeki zaru (halo/zolty/bialy)
+        // -> aureole zaru -> PLACKI skorupy (cien rzucony, gradient NW->SE, grzbiet rim, szczelina zaru po obwodzie,
+        // pekniecia, pory) -> winieta wewnetrzna. Zero kosztu per klatke (bake).
         c.save(); c.beginPath(); traceSmooth(c, ol.pts); c.closePath(); c.clip();
-        const g = c.createLinearGradient(l.x, l.y, l.x + l.w, l.y + l.h);
-        g.addColorStop(0, P.lavaDark); g.addColorStop(0.5, P.lava); g.addColorStop(1, P.lavaDark);
-        c.fillStyle = g; c.fillRect(l.x - 40, l.y - 40, l.w + 80, l.h + 80);
-        // cieplejszy srodek (lawa glebsza w centrum)
-        const cg2 = c.createRadialGradient(l.x + l.w / 2, l.y + l.h / 2, 10, l.x + l.w / 2, l.y + l.h / 2, Math.max(l.w, l.h) * 0.55);
-        cg2.addColorStop(0, 'rgba(255,179,71,0.35)'); cg2.addColorStop(1, 'rgba(255,179,71,0)');
-        c.fillStyle = cg2; c.fillRect(l.x - 40, l.y - 40, l.w + 80, l.h + 80);
-        c.strokeStyle = P.lavaBright; c.lineWidth = 4; c.globalAlpha = 0.8;
-        for (let i = 0; i < 14; i++) {
-            let vx = l.x + rng() * l.w, vy = l.y + rng() * l.h;
-            c.beginPath(); c.moveTo(vx, vy);
-            for (let s2 = 0; s2 < 5; s2++) { vx += (rng() - 0.5) * 90; vy += (rng() - 0.5) * 60; c.lineTo(vx, vy); }
-            c.stroke();
+        // 1) magma bazowa: gradient NW->SE + 6-9 miekkich plam koloru
+        const mg = c.createLinearGradient(l.x, l.y, l.x + l.w, l.y + l.h);
+        mg.addColorStop(0, P.lavaDark); mg.addColorStop(0.5, P.lava); mg.addColorStop(1, P.lavaCoreMid);
+        c.fillStyle = mg; c.fillRect(l.x - 40, l.y - 40, l.w + 80, l.h + 80);
+        const blotches = ['#c8341a', '#ff7a1a', '#ffcc00', '#ff5a1a', '#b32a12'];
+        for (let i = 0; i < 6 + Math.floor(rng() * 4); i++) {
+            const bx = l.x + rng() * l.w, by = l.y + rng() * l.h, br = 30 + rng() * Math.min(l.w, l.h) * 0.35;
+            const bg = c.createRadialGradient(bx, by, 2, bx, by, br);
+            const col = blotches[Math.floor(rng() * blotches.length)];
+            bg.addColorStop(0, col); bg.addColorStop(1, col + '00');
+            c.globalAlpha = 0.35 + rng() * 0.25; c.fillStyle = bg; c.fillRect(bx - br, by - br, br * 2, br * 2); c.globalAlpha = 1;
         }
-        c.globalAlpha = 1;
-        // plyty skorupy dryfujace na powierzchni (ciemne wyspy z jasnym brzegiem)
-        for (let i = 0; i < 22; i++) {
-            const ex = l.x + rng() * l.w, ey = l.y + rng() * l.h, er = 10 + rng() * 26, e2 = 6 + rng() * 14, rot = rng() * Math.PI;
-            c.fillStyle = P.lavaBright; c.globalAlpha = 0.5; c.beginPath(); c.ellipse(ex, ey, er + 3, e2 + 3, rot, 0, Math.PI * 2); c.fill();
-            c.fillStyle = P.lavaCrust; c.globalAlpha = 0.85; c.beginPath(); c.ellipse(ex, ey, er, e2, rot, 0, Math.PI * 2); c.fill();
+        // 2) rzeki zaru: halo pomarancz -> zolty -> bialy rdzen
+        const rivers: number[][] = [];
+        for (let i = 0; i < 5 + Math.floor(rng() * 3); i++) {
+            const pts: number[] = []; let vx = l.x + rng() * l.w, vy = l.y + rng() * l.h; pts.push(vx, vy);
+            for (let s2 = 0; s2 < 4; s2++) { vx += (rng() - 0.5) * l.w * 0.45; vy += (rng() - 0.5) * l.h * 0.45; pts.push(Math.max(l.x, Math.min(l.x + l.w, vx)), Math.max(l.y, Math.min(l.y + l.h, vy))); }
+            rivers.push(pts);
         }
-        c.globalAlpha = 1;
-        // ciemniejszy brzeg wewnetrzny (glebia przy skorupie)
-        c.lineWidth = 10; c.strokeStyle = 'rgba(58,26,18,0.55)'; c.beginPath(); traceSmooth(c, ol.pts); c.closePath(); c.stroke();
+        const strokeRiver = (pts: number[], lw: number, color: string, alpha: number): void => {
+            c.strokeStyle = color; c.lineWidth = lw; c.globalAlpha = alpha; c.lineCap = 'round'; c.lineJoin = 'round';
+            c.beginPath(); c.moveTo(pts[0], pts[1]);
+            for (let k = 2; k + 3 < pts.length; k += 2) { const mx = (pts[k] + pts[k + 2]) / 2, my = (pts[k + 1] + pts[k + 3]) / 2; c.quadraticCurveTo(pts[k], pts[k + 1], mx, my); }
+            c.lineTo(pts[pts.length - 2], pts[pts.length - 1]); c.stroke(); c.globalAlpha = 1;
+        };
+        for (const r of rivers) { strokeRiver(r, 10, P.lavaCoreMid, 0.5); strokeRiver(r, 5, P.lavaCoreHot, 0.95); strokeRiver(r, 2, P.lavaWhite, 1); }
+        // 3) placki skorupy fake-3D (8-14, proporcjonalnie do pola), nie na mostach, >=12 px od obrysu
+        const plate = (px: number, py: number, rx: number, ry: number, rot: number): void => {
+            const n = 8 + Math.floor(rng() * 3); const poly: number[] = [];
+            for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2 + rot; const jit = 0.72 + rng() * 0.45; poly.push(px + Math.cos(a) * rx * jit, py + Math.sin(a) * ry * jit); }
+            const path = (dx: number, dy: number): void => { c.beginPath(); for (let k = 0; k < poly.length; k += 2) { if (k === 0) c.moveTo(poly[k] + dx, poly[k + 1] + dy); else c.lineTo(poly[k] + dx, poly[k + 1] + dy); } c.closePath(); };
+            // aureola zaru pod plackiem
+            const ag = c.createRadialGradient(px, py, Math.min(rx, ry) * 0.6, px, py, Math.max(rx, ry) * 1.35);
+            ag.addColorStop(0, 'rgba(255,204,0,0.45)'); ag.addColorStop(1, 'rgba(255,204,0,0)');
+            c.fillStyle = ag; c.fillRect(px - rx * 1.5, py - ry * 1.5, rx * 3, ry * 3);
+            // szczelina zaru po obwodzie (za korpusem)
+            path(0, 0); c.strokeStyle = P.lavaCoreHot; c.lineWidth = 5; c.globalAlpha = 0.9; c.lineJoin = 'round'; c.stroke();
+            c.strokeStyle = P.lavaWhite; c.lineWidth = 2; c.stroke(); c.globalAlpha = 1;
+            // cien rzucony
+            path(4, 6); c.fillStyle = P.lavaCrustDark; c.globalAlpha = 0.55; c.fill(); c.globalAlpha = 1;
+            // korpus: gradient NW->SE
+            const pg = c.createLinearGradient(px - rx, py - ry, px + rx, py + ry);
+            pg.addColorStop(0, P.lavaCrustLight); pg.addColorStop(0.5, P.lavaCrust); pg.addColorStop(1, P.lavaCrustDark);
+            path(0, 0); c.fillStyle = pg; c.fill();
+            // krawedz ciemna (caly obrys) + grzbiet rim NW (tylko wierzcholki z gornej-lewej polowy)
+            c.strokeStyle = P.lavaCrustDark; c.lineWidth = 2; c.stroke();
+            c.strokeStyle = P.lavaCrustLight; c.lineWidth = 2; c.globalAlpha = 0.85; c.beginPath();
+            let penDown = false;
+            for (let k = 0; k < poly.length; k += 2) {
+                const a = Math.atan2(poly[k + 1] - py, poly[k] - px); // -PI..PI, gora = ujemne
+                const nw = a > -Math.PI * 0.95 && a < -Math.PI * 0.05;
+                if (nw) { if (penDown) c.lineTo(poly[k], poly[k + 1]); else { c.moveTo(poly[k], poly[k + 1]); penDown = true; } } else penDown = false;
+            }
+            c.stroke(); c.globalAlpha = 1;
+            // pekniecia w placku (1-2) z jasnym rdzeniem + pory
+            for (let q = 0; q < 1 + Math.floor(rng() * 2); q++) {
+                let cx2 = px + (rng() - 0.5) * rx * 0.8, cy2 = py + (rng() - 0.5) * ry * 0.8;
+                const seg: number[] = [cx2, cy2]; for (let s2 = 0; s2 < 3; s2++) { cx2 += (rng() - 0.5) * rx * 0.7; cy2 += (rng() - 0.5) * ry * 0.7; seg.push(cx2, cy2); }
+                c.strokeStyle = P.lavaCoreMid; c.lineWidth = 1.8; c.beginPath(); c.moveTo(seg[0], seg[1]); for (let k = 2; k < seg.length; k += 2) c.lineTo(seg[k], seg[k + 1]); c.stroke();
+                c.strokeStyle = P.lavaWhite; c.lineWidth = 0.8; c.stroke();
+            }
+            c.fillStyle = 'rgba(0,0,0,0.35)';
+            for (let q = 0; q < 4 + Math.floor(rng() * 3); q++) { c.beginPath(); c.arc(px + (rng() - 0.5) * rx * 1.2, py + (rng() - 0.5) * ry * 1.2, 0.8 + rng() * 1.4, 0, Math.PI * 2); c.fill(); }
+        };
+        const plateCount = Math.max(8, Math.min(14, Math.round((l.w * l.h) / 16000)));
+        for (let i = 0, tries = 0; i < plateCount && tries < 60; tries++) {
+            const rx = 13 + rng() * 22, ry = rx * (0.6 + rng() * 0.5);
+            const px = l.x + 12 + rx + rng() * (l.w - 24 - rx * 2), py = l.y + 12 + ry + rng() * (l.h - 24 - ry * 2);
+            if (!isDungeonLavaPoint(px, py) || !isDungeonLavaPoint(px - rx, py) || !isDungeonLavaPoint(px + rx, py)) continue; // nie na moscie
+            plate(px, py, rx, ry, rng() * Math.PI); i++;
+        }
+        // 5) winieta wewnetrzna (glebia basenu)
+        c.lineWidth = 14; c.strokeStyle = P.lavaDark; c.globalAlpha = 0.45; c.beginPath(); traceSmooth(c, ol.pts); c.closePath(); c.stroke(); c.globalAlpha = 1;
         c.restore();
         // swiecace pekniecia skorupy na brzegu
         c.strokeStyle = P.lavaBright; c.lineWidth = 2; c.globalAlpha = 0.7;

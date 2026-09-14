@@ -71,13 +71,15 @@ export interface QueenSystemOpts {
     effects: EffectsManager;
     audio: AudioSys;
     difficulty: DifficultyModifiers;
+    /** POLISH-2: poziom trudnosci (wieza od TRUDNY, tempo odrostu muru) */
+    difficultyId: 'easy' | 'normal' | 'hard' | 'nightmare';
     /** tablice kolizji main.ts — system dopisuje swoje encje */
     buildings: ICollidable[];
     solidBuildings: ICollidable[];
     /** Q4: zywi wrogowie (lawa / gejzer / dynamit rania wrogow) */
     enemies: Enemy[];
     hudNotif: (text: string, cssColor: string) => void;
-    banner: (text: string, cssColor: string, frames?: number) => void;
+    banner: (text: string, cssColor: string, frames?: number, pulse?: boolean) => void;
     /** gem z rozbitej cegly (main: spawnGem z poola) */
     onGemDrop: (x: number, y: number) => void;
     /** serce od Krolowej (main: new Heart) */
@@ -148,7 +150,7 @@ export class QueenSystem {
     private lavaHintShown = false;
     private playerDiedByHazard = false;
     // Q4.5 Zlowroga Wieza
-    private readonly tower: DungeonTower;
+    private readonly tower: DungeonTower | null;
     private towerBannerShown = false;
     // Q4 gejzery
     private readonly geysers: DungeonGeyser[] = [];
@@ -209,8 +211,9 @@ export class QueenSystem {
         for (const gz of DUNGEON_GEYSERS) this.geysers.push(new DungeonGeyser(gz.x, gz.y, DUNGEON_GEYSER_R, T.geyserTelegraphMs, opts.worldContainer));
         // Q4.5: Zlowroga Wieza w centrum kolumnady — solid + cel pociskow gracza (duck-typed takeDamage)
         const tw = DUNGEON_TOWER;
-        this.tower = new DungeonTower(tw.x, tw.y, tw.w, tw.h, opts.worldContainer, opts.effects, opts.audio, {
-            hp: Math.round(T.towerHp * hpMult), fireMs: T.towerFireMs, telegraphMs: T.towerTelegraphMs, range: T.towerRange,
+        const towerFireMs = T.towerFireMsByDifficulty[opts.difficultyId];
+        this.tower = towerFireMs <= 0 ? null : new DungeonTower(tw.x, tw.y, tw.w, tw.h, opts.worldContainer, opts.effects, opts.audio, {
+            hp: Math.round(T.towerHp * hpMult), fireMs: towerFireMs, telegraphMs: T.towerTelegraphMs, range: T.towerRange,
             orbSpeed: T.towerOrbSpeed, orbDmg: Math.round(T.towerOrbDmg * opts.difficulty.enemyDmgMult), orbR: T.towerOrbR,
             onDestroyed: (cx, cy) => {
                 this.opts.session.addQueenStaticBonus(T.towerScore, 'blast');
@@ -219,8 +222,7 @@ export class QueenSystem {
             },
             onPlayerHit: (dmg) => { if (this.opts.hurtPlayer(dmg, SRC_TOWER)) this.playerDiedByHazard = true; },
         });
-        opts.buildings.push(this.tower);
-        opts.solidBuildings.push(this.tower);
+        if (this.tower) { opts.buildings.push(this.tower); opts.solidBuildings.push(this.tower); }
         // Q4.6: Zloty Klucz w losowym "samotnym" miejscu + stalowe drzwi celi (za Zwornikami)
         const ks = DUNGEON_KEY_SPOTS[worldRng.int(DUNGEON_KEY_SPOTS.length)];
         this.key = new GoldenKey(ks.x, ks.y, opts.worldContainer);
@@ -270,7 +272,7 @@ export class QueenSystem {
         if (this.hasKey && !this.door.isOpen) this.key.follow(player.x, player.y);
         this.door.tick(delta);
         this.drawAura(player);
-        this.tower.tick(dtMs, -1e6, -1e6, this.opts.solidBuildings); // wieza spi w szkoleniu
+        this.tower?.tick(dtMs, -1e6, -1e6, this.opts.solidBuildings); // wieza spi w szkoleniu
         this.updateKeyAndDoor(player);
         this.updateRegen(dtMs, player);
     }
@@ -325,8 +327,8 @@ export class QueenSystem {
         for (const g of this.geysers) if (g.state !== 'idle') { if (g.update(dtMs)) this.erupt(g, player); }
         // Q4.5 wieza: strzela tylko w trwajacym meczu (po koncu — tylko dogasanie kul)
         const running = this.phase !== 'rescued' && this.phase !== 'captured';
-        this.tower.tick(dtMs, running ? player.x : -1e6, running ? player.y : -1e6, this.opts.solidBuildings);
-        if (running && !this.towerBannerShown && this.elapsedMs > 1500) { this.towerBannerShown = true; this.opts.hudNotif(t('queen.tower'), '#39ff6a'); }
+        this.tower?.tick(dtMs, running ? player.x : -1e6, running ? player.y : -1e6, this.opts.solidBuildings);
+        if (this.tower && running && !this.towerBannerShown && this.elapsedMs > 1500) { this.towerBannerShown = true; this.opts.hudNotif(t('queen.tower'), '#39ff6a'); }
 
         this.key.update(delta);
         if (this.hasKey && !this.door.isOpen) this.key.follow(player.x, player.y); // Q6: klucz leci nad czolgiem
@@ -351,13 +353,14 @@ export class QueenSystem {
 
         if (!this.introShown) {
             this.introShown = true;
-            this.opts.banner(t('queen.intro'), COL_MAGENTA, 170);
+            this.opts.banner(t('queen.intro'), COL_MAGENTA, 130, false); // POLISH-2: bez pulsu (irytowal)
         }
         // Q4.6 laska startowa: GOTUJ SIE 3-2-1 -> RATUJ! (szpaler zamrozony w dyrektorze)
         if (this.elapsedMs < T.spawnInvulMs) {
             const rs = Math.ceil((T.spawnInvulMs - this.elapsedMs) / 1000);
-            if (rs !== this.lastReadySec) { this.lastReadySec = rs; this.opts.hudNotif(`${t('queen.ready')} ${rs}`, COL_MAGENTA); this.opts.audio.playCrateTap(1); }
-        } else if (this.lastReadySec !== 0) { this.lastReadySec = 0; this.opts.banner(t('queen.go'), COL_MAGENTA, 80); this.opts.audio.playShockwave(); }
+            // POLISH-2 (Mariusz: pulsujace komendy irytowaly): odliczanie = JEDEN krotki baner bez pulsu, pojawia sie i znika
+            if (rs !== this.lastReadySec && rs <= 3) { this.lastReadySec = rs; this.opts.banner(`${t('queen.ready')} ${rs}`, COL_MAGENTA, 45, false); this.opts.audio.playCrateTap(1); }
+        } else if (this.lastReadySec !== 0) { this.lastReadySec = 0; this.opts.banner(t('queen.go'), COL_MAGENTA, 60, false); this.opts.audio.playShockwave(); }
 
         // fazy z zegara
         const pd = queenPhaseFor(this.remainingMs);
@@ -407,7 +410,7 @@ export class QueenSystem {
         this.ghost.destroy();
         this.endGfx?.destroy();
         for (const g of this.geysers) g.destroy();
-        this.tower.destroy();
+        this.tower?.destroy();
         this.aura.destroy();
         this.key.destroy();
         this.door.destroy();
@@ -419,7 +422,7 @@ export class QueenSystem {
     /** Slot zaplanowany do odrostu (tylko zwykle cegly frontu; Zworniki i dynamit 'lit' nie). */
     private scheduleRegen(b: PrisonBrick): void {
         if (b.kind !== 'brick' || b.row < 0 || b.col < 0) return;
-        this.regenAt.set(b, this.elapsedMs + T.brickRegenMs);
+        this.regenAt.set(b, this.elapsedMs + T.brickRegenMsByDifficulty[this.opts.difficultyId]);
     }
 
     private updateRegen(dtMs: number, player: Player): void {

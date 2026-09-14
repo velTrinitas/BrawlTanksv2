@@ -28,6 +28,12 @@ export const DUNGEON_PALETTE = Object.freeze({
     lavaBright:   '#ffb347',
     lavaDark:     '#8a1e0a',
     lavaCrust:    '#3a1a12',
+    lavaCoreDark: '#591100', // v0.179.0 "gorący rdzeń" (brief AD): cebula bordo -> pomarancz -> zolty
+    lavaCoreMid:  '#ff6600',
+    lavaCoreHot:  '#ffcc00',
+    lavaWhite:    '#fff3b8', // v0.180.0 placki: najgoretszy zar szczelin
+    lavaCrustLight: '#6b3a2a', // grzbiet placka (rim NW)
+    lavaCrustDark:  '#2a120c', // cien placka
     torch:        '#ffb347',
     iron:         '#3b3f46',
     ironLight:    '#5a6068',
@@ -51,6 +57,13 @@ export const DUNGEON_HEX = Object.freeze({
     lava:       0xff5a1a,
     lavaBright: 0xffb347,
     lavaDark:   0x8a1e0a,
+    lavaCrust:    0x3a1a12,
+    lavaCoreDark: 0x591100,
+    lavaCoreMid:  0xff6600,
+    lavaCoreHot:  0xffcc00,
+    lavaWhite:    0xfff3b8,
+    lavaCrustLight: 0x6b3a2a,
+    lavaCrustDark:  0x2a120c,
     violet:     0x8e44ad,
     magenta:    0xc2247a,
     pearl:      0xf2ecf5,

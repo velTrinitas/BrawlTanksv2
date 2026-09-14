@@ -46,7 +46,8 @@ export const QUEEN_TUNING = Object.freeze({
     // POLISH-1 (Mariusz 2026-09-14): mur ODRASTA SAM (Budowniczowie usunieci — chaos). Slot wraca po brickRegenMs
     // (telegraf duch cegly brickRegenTelegraphMs), z brickRegenHp i domurowuje sie repairPctPerSec/s.
     // Kalibracja: min droga 18 cegiel ~22 s czystego ognia => 25 s daje przejscie tunelem, ale odwrot juz zarasta.
-    brickRegenMs: 25_000,
+    /** POLISH-2 (Mariusz): tempo odrostu zalezne od trudnosci — 25 s (dotychczasowe) = KOSZMAR. */
+    brickRegenMsByDifficulty: { easy: 70_000, normal: 50_000, hard: 36_000, nightmare: 25_000 } as Record<'easy' | 'normal' | 'hard' | 'nightmare', number>,
     brickRegenTelegraphMs: 2_000,
     brickRegenHp: 0.25,
     /** slot nie odrasta, gdy czolg gracza jest blizej niz tyle px (fair: nie zamurowujemy gracza) */
@@ -58,7 +59,8 @@ export const QUEEN_TUNING = Object.freeze({
     startRankBoss: true,
     // Zlowroga Wieza (Q4.5)
     towerHp: 4000,
-    towerFireMs: 750,
+    /** POLISH-2 (Mariusz): wieza TYLKO na TRUDNY (0.75 s) i KOSZMAR (0.6 s); easy/normal = brak wiezy. */
+    towerFireMsByDifficulty: { easy: 0, normal: 0, hard: 750, nightmare: 600 } as Record<'easy' | 'normal' | 'hard' | 'nightmare', number>,
     towerTelegraphMs: 250,
     towerRange: 900,
     towerOrbSpeed: 7,
@@ -81,7 +83,7 @@ export const QUEEN_TUNING = Object.freeze({
     spawnMinDistFromPlayer: 380,
 
     // lawa / gejzery / dynamit (Q4)
-    lavaDmgPerTick: 40, lavaTickMs: 500, lavaSlowMult: 0.5,
+    lavaDmgPerTick: 80, lavaTickMs: 500, lavaSlowMult: 0.5, // POLISH-2: 2x (Mariusz) — gracz I wrogowie
     geyserTelegraphMs: 1_200, geyserEveryMs: 4_000, geyserDmg: 150, geyserR: 90,
     dynamiteFuseMs: 1_500, dynamiteR: 120, dynamiteEnemyDmg: 300, dynamitePlayerDmg: 100, dynamitePlayerR: 80,
 

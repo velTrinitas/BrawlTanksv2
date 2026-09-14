@@ -332,8 +332,10 @@ body.bt-desktop .bt-hub0-main {
    (prawo Fittsa), a przycisk przestaje konkurowac o miejsce z trescia. */
 /* +14px oddechu: na styk z krawiedzia przycisk czyta sie jak blad layoutu, a nie
    jak decyzja. To dalej ta sama strefa, ktora Mariusz zaznaczyl na makiecie. */
+/* POLISH-2 (makieta Mariusza 20260914_graj.png): prawy bok GRAJ = prawy bok 4. karty scenariusza,
+   czyli prawa krawedz kolumny tresci (padding-right = --hub-gutter). Zero ujemnego marginesu. */
 body.bt-desktop .bt-hub0-main--split .bt-battle-bar {
-    margin-right: calc(14px - var(--hub-gutter));
+    margin-right: 0;
 }
 .bt-hub0-sectitle {
     font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; letter-spacing: 0.5px;

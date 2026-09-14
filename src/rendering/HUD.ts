@@ -177,7 +177,8 @@ export class HUD {
     private castleBannerColor: string = '#f5a623';
     private castleBannerMax: number = 120;
     /** P0.10: kolejka banerow — "FALA ODPARTA" nie ginie pod "STAN PRZY MURZE" z tej samej klatki (max 3). */
-    private castleBannerQueue: Array<{ text: string; color: string; frames: number }> = [];
+    private castleBannerQueue: Array<{ text: string; color: string; frames: number; pulse: boolean }> = [];
+    private castleBannerPulse: boolean = true;
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -219,13 +220,14 @@ export class HUD {
     }
 
     /** OBRON ZAMEK F5 — glosny baner zdarzenia scenariusza (tekst + kolor + czas w klatkach). */
-    triggerCastleBanner(text: string, color: string, frames: number = 120): void {
+    triggerCastleBanner(text: string, color: string, frames: number = 120, pulse: boolean = true): void {
         if (this.castleBannerTimer > 0 && this.castleBannerText !== text) {
-            if (this.castleBannerQueue.length < 3) this.castleBannerQueue.push({ text, color, frames });
+            if (this.castleBannerQueue.length < 3) this.castleBannerQueue.push({ text, color, frames, pulse });
             return;
         }
         this.castleBannerText = text;
         this.castleBannerColor = color;
+        this.castleBannerPulse = pulse;
         this.castleBannerMax = frames;
         this.castleBannerTimer = frames;
     }
@@ -461,7 +463,7 @@ export class HUD {
         if (this.castleBannerTimer <= 0) {
             const next = this.castleBannerQueue.shift();
             if (!next) return;
-            this.castleBannerText = next.text; this.castleBannerColor = next.color;
+            this.castleBannerText = next.text; this.castleBannerColor = next.color; this.castleBannerPulse = next.pulse;
             this.castleBannerMax = next.frames; this.castleBannerTimer = next.frames;
         }
         const c = this.ctx;
@@ -472,7 +474,8 @@ export class HUD {
         c.save();
         c.globalAlpha = alpha;
         c.translate(this.screenW / 2, this.screenH / 2 - 110);
-        const pulse = 1 + Math.sin(Date.now() / 80) * 0.07;
+        // POLISH-2: puls opcjonalny — krotkie komendy (odliczanie Krolowej) pojawiaja sie i znikaja bez drgania
+        const pulse = this.castleBannerPulse ? 1 + Math.sin(Date.now() / 80) * 0.07 : 1;
         c.scale(pulse, pulse);
         // F6: dlugie podpowiedzi intro — czcionka dopasowana do szerokosci ekranu (min 20 px)
         let fs = 38;

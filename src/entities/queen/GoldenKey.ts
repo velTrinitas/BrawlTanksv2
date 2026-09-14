@@ -10,6 +10,8 @@ import * as PIXI from 'pixi.js';
  */
 
 const GOLD = 0xffd54a, GOLD_DARK = 0xb8860b, GOLD_HI = 0xfff6c8;
+const KEY_SCALE = 0.68;         // POLISH-2: klucz na mapie (bylo 1.0)
+const KEY_CARRY_SCALE = 0.4;    // niesiony nad czolgiem (bylo 0.55)
 let _tex: PIXI.Texture | null = null;
 
 function bakeKey(): PIXI.Texture {
@@ -61,13 +63,14 @@ export class GoldenKey {
         if (!_tex) _tex = bakeKey();
         this.sprite.texture = _tex;
         this.sprite.anchor.set(0.5);
+        this.container.scale.set(KEY_SCALE); // POLISH-2 (Mariusz): klucz mniejszy
     }
 
     private carried = false;
 
     /** Q6: klucz "niesiony" — leci nad czolgiem gracza (gracz WIDZI, ze ma klucz). */
     public follow(px: number, py: number): void {
-        if (!this.carried) { this.carried = true; this.container.visible = true; this.container.scale.set(0.55); this.sprite.rotation = -0.5; }
+        if (!this.carried) { this.carried = true; this.container.visible = true; this.container.scale.set(KEY_CARRY_SCALE); this.sprite.rotation = -0.5; }
         this.container.x = px + 34; this.container.y = py - 40;
     }
     /** Zuzyty w drzwiach — znika na dobre. */
@@ -95,7 +98,7 @@ export class GoldenKey {
     /** Q6 tutorial: klucz wraca na swoje miejsce. */
     public reset(): void {
         this.taken = false; this.carried = false;
-        this.container.scale.set(1); this.container.x = this.x; this.container.y = this.y; this.container.visible = true;
+        this.container.scale.set(KEY_SCALE); this.container.x = this.x; this.container.y = this.y; this.container.visible = true;
     }
 
     /** Zebrany: znika (QueenSystem robi rozblysk/baner). */

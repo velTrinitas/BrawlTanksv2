@@ -197,7 +197,7 @@ import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/
 import { worldRng, seedMatchRng } from './systems/Rng';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB } from './types/DamageSource'; // Z0.5
-import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding
+import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
 import {
@@ -411,6 +411,39 @@ let dungeonGround: PIXI.Sprite | null = null;
 let queenSystem: QueenSystem | null = null;
 /** SAVE THE QUEEN Q3 — dyrektor spawnu (fazy z zegara, telegraf lane'u, boss z killi). */
 let queenDirector: QueenDirector | null = null;
+/** Q6: po zakonczeniu/pominieciu szkolenia Krolowej mecz startuje OD NOWA bez szkolenia (takze przy ?queentut=1). */
+let queenTutSuppressOnce = false;
+
+/**
+ * SAVE THE QUEEN Q6 (decyzja Mariusza: "dokladnie jak w KTB") — kroki scenariusza na TutorialController
+ * (karta + pill + POMIN + SWIETNIE + GRAJ DALEJ/MENU). Gra pod spodem = sandbox QueenSystem (zegar stoi,
+ * dyrektor/wieza spia, gracz chroniony). Po koncu/pominieciu: flaga + RESTART meczu od zera (ten sam
+ * config) — zero przeciekow stanu (poprzednio gracz zostawal zamurowany w tunelu po odbudowie).
+ */
+function launchQueenTutorial(config: GameConfig): void {
+    let lastTopUp = 0;
+    const qs = (): QueenSystem | null => queenSystem;
+    new TutorialController({
+        isTouch: touchManager.isActive,
+        steps: [
+            { title: t('queen.tut.1.title'), hint: t('queen.tut.1.hint'), isDone: () => (qs()?.bricksBroken ?? 0) >= 1 },
+            {
+                title: t('queen.tut.2.title'), hint: t('queen.tut.2.hint'),
+                onEnter: () => { qs()?.tutPrepare(2); localPlayer?.addSuperCharge(9); lastTopUp = Date.now(); },
+                onActive: () => { if (Date.now() - lastTopUp > 6000) { lastTopUp = Date.now(); localPlayer?.addSuperCharge(9); } },
+                isDone: () => qs()?.isKeystoneDown() ?? false,
+            },
+            { title: t('queen.tut.3.title'), hint: t('queen.tut.3.hint'), onEnter: () => qs()?.tutPrepare(3), isDone: () => qs()?.playerHasKey ?? false },
+            { title: t('queen.tut.4.title'), hint: t('queen.tut.4.hint'), onEnter: () => qs()?.tutPrepare(4), isDone: () => (qs()?.regenBricksBroken ?? 0) >= 1 },
+            { title: t('queen.tut.5.title'), hint: t('queen.tut.5.hint'), isDone: () => qs()?.doorOpen ?? false },
+        ],
+        onDone: (cont) => {
+            markQueenTutorialDone();
+            if (cont) { queenTutSuppressOnce = true; void startGame(config); }
+            else returnToMenuFromEnd();
+        },
+    });
+}
 let marsCargo: MarsCargo[] = []; // FAZA MARS M3 (niszczalne kontenery — wlasna petla)
 let regolithFields: RegolithField[] = []; // FAZA MARS M4 (slow 0.5x)
 let solarFarm: SolarFarm | null = null; // FAZA MARS M4b
@@ -2792,9 +2825,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             onTorchOut: (i) => dungeonTorches?.extinguish(i),
             onPanic: () => dungeonBats?.burst(),
             // Q6: szkolenie raz na urzadzenie (wzorzec Zamku: bt2:castle_tut_done); ?queentut=1 wymusza, =0 pomija
-            tutorial: !tutorialMode && queenTutorialWanted(),
-            onTutorialDone: () => markQueenTutorialDone(),
-            spawnTutorialBuilder: () => { queenDirector?.spawnTutorialBuilder(1790, 1500); },
+            tutorial: !tutorialMode && !queenTutSuppressOnce && queenTutorialWanted(),
             onQueenHeart: (x, y) => { if (hearts.length < HEART_CONFIG.maxOnMap + 1) hearts.push(new Heart(x, y, worldContainer)); audio.playHeartPickup(); },
         });
         // Q3: dyrektor spawnu — fazy z zegara QueenSystem, kille z SpawnSystem (jeden licznik).
@@ -2811,8 +2842,6 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 if (powerSystem.isFreezeActive) enemy.freeze(powerSystem.freezeUntil);
             },
             onBossSpawned: () => { hud.triggerCastleBanner(t('queen.boss'), '#ff3b3b', 120); audio.playShockwave(); },
-            onBuilderSpawn: (enemy) => qs.registerBuilder(enemy), // Q4
-            builderCount: () => qs.builderCount,
             // telegraf lane'u: portal na kracie + dzwiek (jak Zamek F6) + flara dyrektora + strzalka HUD (activeLanes)
             onLaneTelegraph: (sp) => { const grate = sp.y < 200 || sp.y > 2800; effects.spawnPortal(sp.x, sp.y + (grate ? (sp.y < 1500 ? 40 : -40) : 0), 0xff7a1a); dungeonTorches?.flare(sp.x, sp.y); audio.playMineDrop(); }, // Q6: flara w punkcie spawnu (kraty + wnetrze)
         });
@@ -2863,9 +2892,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
-    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle' || config.scenario === 'save_queen')) { // OBRON ZAMEK F5, SAVE THE QUEEN Q1
+    if (!tutorialMode && !queenSystem?.inTutorial && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle' || config.scenario === 'save_queen')) { // OBRON ZAMEK F5, SAVE THE QUEEN Q1
         showModeGoal(config.scenario, touchManager.isActive);
     }
+    // SAVE THE QUEEN Q6: szkolenie scenariusza (UI KTB) nad sandboxem; po nim restart meczu od zera.
+    queenTutSuppressOnce = false;
+    if (queenSystem?.inTutorial && !tutorialMode) launchQueenTutorial(config);
 }
 
 // ============================================================
@@ -3373,11 +3405,6 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
     if (castleSystem) {
         const ct = castleSystem.targetFor(enemy, localPlayer!, castleFrameDelta);
         if (ct) return ct;
-    }
-    // SAVE THE QUEEN Q4: Budowniczy jedzie do slotu muru (raiderzy: null => gracz).
-    if (queenSystem) {
-        const qt = queenSystem.targetFor(enemy);
-        if (qt) return qt;
     }
     // Z0.3: najblizszy ZYWY gracz z players[] (dzis 1 element => identycznie jak alias).
     let best = localPlayer!;

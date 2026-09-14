@@ -1643,6 +1643,45 @@
     pointer-events: none;
 }
 
+/* v0.177.0 — RODZINA IKON SCENARIUSZY (brief art directora, tryb B = SVG programistyczny).
+   Animacja = warstwa CSS nad statyczna klatka (transform/opacity, ~0 fill-rate, idle-loop — na
+   mobile nie ma hovera): oddech subjectu, shimmer (ukosny pas swiatla), 3-5 czastek tematycznych.
+   Ring selected = istniejacy wzorzec .is-selected karty. */
+.bt-sp-icon .sc-hero {
+    transform-box: fill-box; transform-origin: center;
+    animation: bt-sc-breath 2.6s ease-in-out infinite;
+}
+.bt-sp-icon .sc-shimmer {
+    animation: bt-sc-shimmer 3.5s linear infinite;
+}
+.bt-sp-icon .sc-p {
+    transform-box: fill-box; transform-origin: center;
+    opacity: 0;
+    animation: bt-sc-float 4.2s ease-in-out infinite;
+}
+.bt-sp-icon .sc-p2 { animation-delay: -0.9s; }
+.bt-sp-icon .sc-p3 { animation-delay: -1.8s; }
+.bt-sp-icon .sc-p4 { animation-delay: -2.7s; }
+.bt-sp-icon .sc-p5 { animation-delay: -3.5s; }
+@keyframes bt-sc-breath {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.03); }
+}
+@keyframes bt-sc-shimmer {
+    0%   { transform: translateX(-40px); }
+    100% { transform: translateX(190px); }
+}
+@keyframes bt-sc-float {
+    0%   { transform: translateY(0);     opacity: 0; }
+    20%  { opacity: 0.9; }
+    80%  { opacity: 0.55; }
+    100% { transform: translateY(-34px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bt-sp-icon .sc-hero, .bt-sp-icon .sc-shimmer, .bt-sp-icon .sc-p { animation: none !important; }
+    .bt-sp-icon .sc-p { opacity: 0.6; }
+}
+
 /* ============================================================
    Runda 1.21: Per-scenario JUICY animations
    Dual-layer system: background ::before pseudo + emoji transform

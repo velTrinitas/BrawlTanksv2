@@ -10,7 +10,7 @@
  * redeploy PO 23.09.2026 (okno testow). Do tego czasu CASTLE_LIVE zostaje false.
  */
 
-export const CASTLE_LIVE = false;
+export const CASTLE_LIVE = true; // v0.178.0 (2026-09-14, decyzja Mariusza): PROD; ?castle=0 = rollback bez rebuildu. Ranking/Edge whitelist nadal PO 23.09 (wynik zamku nie idzie do Supabase).
 
 /** Scenariusz Zamku aktywny? Kill switch kompilowany; ?castle=1 wlacza, ?castle=0 wylacza. */
 export function isCastleMode(): boolean {

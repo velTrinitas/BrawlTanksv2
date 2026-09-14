@@ -100,10 +100,6 @@ export const DUNGEON_TOWER: DungeonRect = { id: 'tower', x: 1165, y: 1455, w: 90
 export const DUNGEON_START_RANK: readonly DungeonPoint[] = [
     { x: 950, y: 1350 }, { x: 1200, y: 1320 }, { x: 1450, y: 1350 }, { x: 950, y: 1650 }, { x: 1450, y: 1650 }, { x: 1200, y: 1690 },
 ];
-/** Q4.5 Budowniczowie startowi przy murze (V11 PASS). */
-export const DUNGEON_START_BUILDERS: readonly DungeonPoint[] = [
-    { x: 1790, y: 1300 }, { x: 1790, y: 1440 }, { x: 1790, y: 1560 }, { x: 1790, y: 1700 },
-];
 
 /** Q4.6 Zloty Klucz — kandydaci "samotnych" miejsc (worldRng wybiera 1; V11 PASS). */
 export const DUNGEON_KEY_SPOTS: readonly DungeonPoint[] = [
@@ -203,6 +199,7 @@ export function buildDungeonTexture(): PIXI.Texture {
     // ── 1. Podloga: bazalt + plyty z fugami (warianty, seed) ──
     c.fillStyle = P.floor;
     c.fillRect(0, 0, WORLD_W, WORLD_H);
+    // (POLISH-1: szlifowane kafle fake-3D COFNIETE — Mariusz: "podloga zbyt dominujaca"; wersja z v0.164)
     const SLAB = 120;
     for (let gy = py0; gy < py1; gy += SLAB) {
         for (let gx = px0; gx < px1; gx += SLAB) {

@@ -57,7 +57,7 @@ const PILLARS = [[800, 1150], [1050, 1150], [1300, 1150], [1550, 1150], [800, 17
 const TOWER = { id: 'tower', x: 1165, y: 1455, w: 90, h: 90 };
 // szpaler startowy + boss czekaja w kolumnadzie; Budowniczowie startuja przy murze
 const RANK = [[950, 1350], [1200, 1320], [1450, 1350], [950, 1650], [1450, 1650], [1200, 1690]];
-const BUILDERS0 = [[1790, 1300], [1790, 1440], [1790, 1560], [1790, 1700]];
+// (BUILDERS0 usuniete w POLISH-1 — Budowniczowie wycieci, mur odrasta sam)
 // Q4.6: ZLOTY KLUCZ — kandydaci "samotnych" miejsc (worldRng wybiera 1); STALOWE DRZWI celi za Zwornikami
 const KEY_SPOTS = [[180, 220], [2820, 220], [180, 2780], [2820, 2780], [1500, 330], [1500, 2670], [640, 1500], [1720, 760], [1720, 2240]];
 const KEY_DOOR = { id: 'keyDoor', x: 2532, y: 1444, w: 12, h: 112 };
@@ -98,7 +98,7 @@ for (const l of LAVA) if (inter(padRect({ id: 's', ...SPAWN }, 120), l)) err.pus
 if (gap(padRect({ id: 'h', ...HEART }, 44), PRISON) < 10) err.push('V3 heart spawn inside prison');
 for (const s of SOLIDS) if (gap(padRect({ id: 's', ...SPAWN }, 60), s) < 200) err.push(`V4 spawn pocket near ${s.id}`);
 // V11: pozycje startowe szpaleru/Budowniczych nie w solidach (+ margines czolgu) i nie w lawie
-for (const [x, y] of [...RANK, ...BUILDERS0, ...KEY_SPOTS, ...SPAWN_SPOTS]) { const r = { id: 'p', x: x - 30, y: y - 30, w: 60, h: 60 }; for (const sd of SOLIDS) if (inter(r, grow(sd, 20))) err.push(`V11 start pos ${x},${y} in ${sd.id}`); for (const l of LAVA) if (inter(r, l)) err.push(`V11 start pos ${x},${y} in lava`); }
+for (const [x, y] of [...RANK, ...KEY_SPOTS, ...SPAWN_SPOTS]) { const r = { id: 'p', x: x - 30, y: y - 30, w: 60, h: 60 }; for (const sd of SOLIDS) if (inter(r, grow(sd, 20))) err.push(`V11 start pos ${x},${y} in ${sd.id}`); for (const l of LAVA) if (inter(r, l)) err.push(`V11 start pos ${x},${y} in lava`); }
 for (const [id, ...pts] of ROUTES) for (let i = 0; i + 1 < pts.length; i++) {
     const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
     for (const s of SOLIDS) if (seg(x1, y1, x2, y2, grow(s, ROUTE_CLEAR))) err.push(`V6 route ${id} leg ${i} crosses ${s.id}`);
@@ -130,6 +130,6 @@ console.log(`slots: front ${bricks.length} (keystones 2) + wings ${wingCount} = 
 console.log(`min path ${minBricks} bricks + 2 keystones = ${hits} hits Twardy (100 dmg / 400 ms, brickHp 300) ≈ ${(hits * 0.4).toFixed(0)} s clean fire`);
 console.log('sectors 3x3:', sect.slice(0, 3), sect.slice(3, 6), sect.slice(6));
 console.log('\n// FROZEN (x/y = TOP-LEFT) — paste into src/maps/DungeonMap.ts');
-const out = { TOWER, RANK, BUILDERS0, KEY_SPOTS, KEY_DOOR, SPAWN_SPOTS, PLAYABLE: { x: PX0, y: PY0, w: PX1 - PX0, h: PY1 - PY0 }, CELL, ROCK_E, FRONT, WINGS, CAGE, DYN_POOL, LAVA, BRIDGES, GEYSERS, PILLARS, MEDI, POWER, SPAWN, LANES, QUEEN, HEART };
+const out = { TOWER, RANK, KEY_SPOTS, KEY_DOOR, SPAWN_SPOTS, PLAYABLE: { x: PX0, y: PY0, w: PX1 - PX0, h: PY1 - PY0 }, CELL, ROCK_E, FRONT, WINGS, CAGE, DYN_POOL, LAVA, BRIDGES, GEYSERS, PILLARS, MEDI, POWER, SPAWN, LANES, QUEEN, HEART };
 for (const [k, v] of Object.entries(out)) console.log(`${k} = ${JSON.stringify(v)}`);
 process.exit(err.length ? 1 : 0);

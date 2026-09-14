@@ -11,7 +11,7 @@
  * redeploy PO 23.09.2026 (okno testow, razem z Zamkiem). Do tego czasu QUEEN_LIVE = false.
  */
 
-export const QUEEN_LIVE = false;
+export const QUEEN_LIVE = true; // v0.178.0 (2026-09-14, decyzja Mariusza): PROD; ?queen=0 = rollback bez rebuildu. Ranking/Edge whitelist nadal PO 23.09 (wynik Krolowej nie idzie do Supabase).
 
 /** Q6 tutorial scenariusza: raz na urzadzenie (bt2:queen_tut_done); ?queentut=1 wymusza, ?queentut=0 pomija. */
 export function queenTutorialWanted(): boolean {

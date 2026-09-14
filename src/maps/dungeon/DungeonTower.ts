@@ -227,7 +227,7 @@ export class DungeonTower implements ICollidable {
                 if (this.telegraph <= 0) { this.telegraph = 0; this.fire(); }
             } else if (dist <= this.opts.range) {
                 this.fireT -= dtMs;
-                if (this.fireT <= 0) { this.fireT = this.opts.fireMs; this.telegraph = this.opts.telegraphMs; this.aimX = playerX; this.aimY = playerY; this.audio.playCrateTap(1); }
+                if (this.fireT <= 0) { this.fireT = this.opts.fireMs; this.telegraph = this.opts.telegraphMs; this.aimX = playerX; this.aimY = playerY; } // POLISH-1: bez dzwieku telegrafu (Mariusz)
             }
             if (this.telegraph > 0) { this.aimX = playerX; this.aimY = playerY; } // sledzi do momentu strzalu
         }
@@ -299,7 +299,7 @@ export class DungeonTower implements ICollidable {
         const d = Math.hypot(dx, dy) || 1;
         this.orbs.push({ x: mx, y: my, vx: (dx / d) * this.opts.orbSpeed, vy: (dy / d) * this.opts.orbSpeed, life: 2600, trail: [], smokeT: 0 });
         this.effects.spawnEnemyHitSparks(mx, my, GREEN_HI);
-        this.audio.playShockwave();
+        // POLISH-1 (Mariusz): strzal wiezy BEZ dzwieku — co 0.75 s meczyl; zostaje dzwiek trafienia
     }
 
     public destroy(): void {

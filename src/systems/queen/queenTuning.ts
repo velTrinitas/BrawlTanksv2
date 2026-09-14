@@ -41,21 +41,16 @@ export const QUEEN_TUNING = Object.freeze({
     capturedSeqMs: 1_800,
     capturedDeathSeqMs: 600,
 
-    // Budowniczy (Q4; Q4.5 decyzja Mariusza: 4 od startu przy murze, 750 HP, respawn co 5 s, max 4, buduja najcienszy rzad)
-    builderHp: 750,
-    builderCap: 4,
-    builderRespawnMs: 5_000,
-    repairChannelMs: 900,     // Q4.6: Budowniczy 2x szybszy w budowie (Mariusz: "bardzo wolni")
+    // (Budowniczowie USUNIECI w POLISH-1 — mur odrasta sam; tempo domurowania po odroscie:)
     repairPctPerSec: 0.16,
-    contactReach: 90,
-    nodeReach: 40,
-    stuckMoveMin: 8,
-    stuckFrames: 90,
-    stuckTeleportMs: 6_000,
-    builderScore: 10,
-    builderGemChance: 0.1,    // Q5 (Mariusz: -95%): 1 gem z szansa 10% zamiast 2 pewnych
-    /** Q5: Budowniczowie NIGDY nie stoja — gdy front caly, dobudowuja kolumny PRZED murem (col -1, -2...) */
-    annexCols: 2,
+    // POLISH-1 (Mariusz 2026-09-14): mur ODRASTA SAM (Budowniczowie usunieci — chaos). Slot wraca po brickRegenMs
+    // (telegraf duch cegly brickRegenTelegraphMs), z brickRegenHp i domurowuje sie repairPctPerSec/s.
+    // Kalibracja: min droga 18 cegiel ~22 s czystego ognia => 25 s daje przejscie tunelem, ale odwrot juz zarasta.
+    brickRegenMs: 25_000,
+    brickRegenTelegraphMs: 2_000,
+    brickRegenHp: 0.25,
+    /** slot nie odrasta, gdy czolg gracza jest blizej niz tyle px (fair: nie zamurowujemy gracza) */
+    brickRegenPlayerClear: 90,
 
     concurrentCap: 14,
     /** Q4.5: szpaler startowy w kolumnadzie (raiderzy) + boss — czekaja na gracza od 1. klatki */

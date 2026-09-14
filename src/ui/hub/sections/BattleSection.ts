@@ -46,7 +46,7 @@ const SCENARIO_ORDER: ScenarioId[] = isQueenMode() ? ['ktb', 'ctf', 'castle', 's
 const SCENARIO_EMOJI: Record<string, string> = { ktb: '👑', ctf: '🚩', castle: '🏰', save_queen: '👸' };
 const AVAILABLE_MAPS = MENU_MAP_CARDS.filter(m => m.available);
 const DIFFICULTY_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare'];
-const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle'];
+const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle', 'save_queen']; // v0.177.0: rodzina 4 ikon (brief AD)
 
 // Normalizacja paskow = maksima rosteru (heavy 700hp / sniper 300dmg / scout 7.5 speed).
 // GARAZ-2: export — te same paski rysuje TankPickerOverlay i hero-row Garaza.

@@ -1,9 +1,9 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../../entities/Enemy';
 import { worldRng } from '../Rng';
-import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_BUILDER, type EnemyConfig } from '../../config/enemies';
+import { ENEMY_NORMAL, ENEMY_BOSS, type EnemyConfig } from '../../config/enemies';
 import type { DifficultyModifiers } from '../../config/difficulty';
-import { DUNGEON_SPAWN_SPOTS, DUNGEON_START_RANK, DUNGEON_START_BUILDERS, type DungeonPoint } from '../../maps/DungeonMap';
+import { DUNGEON_SPAWN_SPOTS, DUNGEON_START_RANK, type DungeonPoint } from '../../maps/DungeonMap';
 
 type SpawnSpot = DungeonPoint & { id: string };
 import { DUNGEON_HEX as H } from '../../maps/dungeon/dungeonPalette';
@@ -37,9 +37,6 @@ export interface QueenDirectorOpts {
     killCount: () => number;
     /** po KAZDYM spawnie (main: attachEnemyCubeStolenCallback + freeze-on-spawn) */
     onSpawn: (enemy: Enemy) => void;
-    /** Q4: Budowniczy — main: queenSystem.registerBuilder (art, rola, AI) */
-    onBuilderSpawn: (enemy: Enemy) => void;
-    builderCount: () => number;
     onBossSpawned: (enemy: Enemy, spot: SpawnSpot) => void;
     /** flara w punkcie spawnu (main: portal + SFX + pochodnie) */
     onLaneTelegraph: (spot: SpawnSpot) => void;
@@ -62,9 +59,7 @@ export class QueenDirector {
     private laneCounts = new Map<string, number>();
     public spawnedTotal = 0;
     public bossesSpawned = 0;
-    public buildersSpawned = 0;
 
-    private builderRespawnMs = 0;
     private startRankDone = false;
 
     constructor(opts: QueenDirectorOpts) {
@@ -101,7 +96,7 @@ export class QueenDirector {
     /** Zywi RAIDERZY (bez Budowniczych — oni maja wlasny cap). */
     private aliveCount(): number {
         let n = 0;
-        for (const e of this.opts.enemies) if (e.active && e.queenRole !== 'builder') n++;
+        for (const e of this.opts.enemies) if (e.active) n++;
         return n;
     }
 
@@ -132,15 +127,7 @@ export class QueenDirector {
         if (!this.startRankDone) {
             this.startRankDone = true;
             // Q4.6: laska startowa — szpaler CZEKA (freeze) przez spawnInvulMs, gracz ma czas sie przygotowac
-            DUNGEON_START_RANK.forEach((p, i) => { const boss = T.startRankBoss && i === DUNGEON_START_RANK.length - 1; if (boss || i < T.startRankRaiders) { const e = this.spawnAt(p.x, p.y, boss, false); if (e) e.freeze(Date.now() + T.spawnInvulMs); } });
-            for (const p of DUNGEON_START_BUILDERS) this.spawnAt(p.x, p.y, false, true);
-            this.builderRespawnMs = T.builderRespawnMs;
-        }
-        // Q4.5: Budowniczy — respawn co builderRespawnMs pod capem, z kraty po stronie muru (NE/SE), przeciwnej do gracza
-        this.builderRespawnMs -= delta * (1000 / 60);
-        if (this.builderRespawnMs <= 0) {
-            this.builderRespawnMs = T.builderRespawnMs;
-            if (this.opts.builderCount() < T.builderCap) this.spawnOne(this.spotById(playerY < 1500 ? 'SE' : 'NE'), false, true);
+            DUNGEON_START_RANK.forEach((p, i) => { const boss = T.startRankBoss && i === DUNGEON_START_RANK.length - 1; if (boss || i < T.startRankRaiders) { const e = this.spawnAt(p.x, p.y, boss); if (e) e.freeze(Date.now() + T.spawnInvulMs); } });
         }
 
         // ── flara po spawnie (dogasa) ──
@@ -157,7 +144,7 @@ export class QueenDirector {
             } else {
                 this.spawnNo++; this.batchNo = this.spawnNo;
                 const lane = this.spawnNo % 3 === 0 ? this.nearestLane(playerX, playerY) : this.rotatingSpot(playerX, playerY);
-                this.spawnOne(lane, false, false);
+                this.spawnOne(lane, false);
                 this.telegraphLane = lane; this.telegraphLeft = FLARE_FRAMES;
                 this.opts.onLaneTelegraph(lane);
                 this.nextBatchAt = this.elapsedFrames + perOne;
@@ -179,26 +166,22 @@ export class QueenDirector {
         }
     }
 
-    private spawnOne(lane: SpawnSpot, boss: boolean, builder = false): Enemy | null {
+    private spawnOne(lane: SpawnSpot, boss: boolean): Enemy | null {
         const idx = this.laneCounts.get(lane.id) ?? 0;
         this.laneCounts.set(lane.id, idx + 1);
         const spread = (idx % 3 - 1) * 60 + worldRng.range(-20, 20);
         // kraty sa w ramce N/S: wyjazd o 40 px do srodka pola gry; punkty wnetrza — lekki rozrzut
         const grate = lane.y < 200 || lane.y > 2800;
         const dy = grate ? (lane.y < 1500 ? 40 : -40) : worldRng.range(-30, 30);
-        return this.spawnAt(lane.x + spread, lane.y + dy, boss, builder);
+        return this.spawnAt(lane.x + spread, lane.y + dy, boss);
     }
 
-    /** Q6 tutorial: jeden Budowniczy przy murze (poza timerem/capem). */
-    public spawnTutorialBuilder(x: number, y: number): Enemy | null { return this.spawnAt(x, y, false, true); }
-
-    /** Spawn w punkcie swiata (szpaler startowy, Budowniczowie przy murze, kraty). */
-    private spawnAt(x: number, y: number, boss: boolean, builder: boolean): Enemy | null {
-        const cfg = this.scaleConfig(boss ? ENEMY_BOSS : builder ? ENEMY_BUILDER : ENEMY_NORMAL);
+    /** Spawn w punkcie swiata (szpaler startowy, kraty, punkty wnetrza). */
+    private spawnAt(x: number, y: number, boss: boolean): Enemy | null {
+        const cfg = this.scaleConfig(boss ? ENEMY_BOSS : ENEMY_NORMAL);
         const enemy = new Enemy(x, y, cfg, boss, this.opts.worldContainer);
         this.opts.enemies.push(enemy);
         this.spawnedTotal++;
-        if (builder) { this.buildersSpawned++; this.opts.onBuilderSpawn(enemy); }
         this.opts.onSpawn(enemy);
         return enemy;
     }

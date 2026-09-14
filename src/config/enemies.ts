@@ -177,20 +177,6 @@ export const HEART_CONFIG = {
  * Enemy.useCustomSprite. tint 0xffffff = art wpieczony; dmg 0 = nie rania gracza taranem;
  * shootIntervalMs = interwal LOBU (katapulta/trebuchet), taran nie strzela.
  */
-/** SAVE THE QUEEN Q4 — Budowniczy: nie strzela, nie taranuje (dmg 0 jak maszyny); odbudowuje mur. Art = bakeBuilder. */
-export const ENEMY_BUILDER: EnemyConfig = {
-    hp: 750,
-    speedMin: 2.0,            // Q4.6: 2x (Mariusz: "bardzo wolni")
-    speedMax: 2.6,
-    scale: 1.0,
-    tint: 0xffffff,
-    dmg: 0,
-    shootIntervalMs: 999999,
-    bulletSpeed: 0,
-    bulletDmg: 0,
-    bulletColor: 0x000000,
-    scoreValue: 10,
-};
 export const ENEMY_TARAN: EnemyConfig = {
     hp: 1800,
     speedMin: 1.2,

@@ -11,7 +11,6 @@ import { t } from '../../i18n/i18n';
 import { worldRng } from '../Rng';
 import { PrisonBrick, PRISON_BRICK_SIZE } from '../../entities/queen/PrisonBrick';
 import { Queen } from '../../entities/queen/Queen';
-import { bakeBuilder, bakeCraneOverlay } from '../../entities/queen/bakeBuilder';
 import { DungeonGeyser } from '../../maps/dungeon/DungeonGeyser';
 import { DungeonTower } from '../../maps/dungeon/DungeonTower';
 import { KeyDoor } from '../../maps/dungeon/KeyDoor';
@@ -95,24 +94,8 @@ export interface QueenSystemOpts {
     onTorchOut?: (i: number) => void;
     /** Q5: PANIKA — nietoperze zrywaja sie */
     onPanic?: () => void;
-    /** Q6: szkolenie na zywej mapie (raz na urzadzenie; ?queentut=1 wymusza) */
+    /** Q6: SANDBOX szkolenia (zegar stoi, dyrektor/wieza spia, gracz chroniony); kroki prowadzi TutorialController z main.ts */
     tutorial?: boolean;
-    onTutorialDone?: () => void;
-    /** Q6: krok 4 — main spawnuje Budowniczego przez dyrektora */
-    spawnTutorialBuilder?: () => void;
-}
-
-interface BuilderState {
-    target: PrisonBrick | null;
-    /** Q4.6: punkt dojazdu = otwarta strona slotu (nie srodek cegly w glebi muru) */
-    approachX: number; approachY: number;
-    channelMs: number;
-    stuckFrames: number;
-    lastX: number; lastY: number;
-    skip: PrisonBrick | null;
-    scaffold: PIXI.Graphics | null;
-    sparkT: number;
-    rewarded: boolean;
 }
 
 interface LitDynamite { brick: PrisonBrick; fuseMs: number }
@@ -147,11 +130,13 @@ export class QueenSystem {
     private readonly aura: PIXI.Graphics;
     /** Q4: kiedy Budowniczy ostatnio cofnal droge (pasek miga) */
     private pathFlashUntil = 0;
-    // Q4 Budowniczy
-    private readonly builders = new Map<Enemy, BuilderState>();
-    private builderBannerShown = false;
+    // POLISH-1 (Mariusz): mur ODRASTA SAM — zero Budowniczych (chaos/dwuznacznosc). Slot rozbity wraca po brickRegenMs:
+    // telegraf (duch cegly narasta brickRegenTelegraphMs) -> rebuild(brickRegenHp) -> domurowanie repairPctPerSec do 100%.
+    private readonly regenAt = new Map<PrisonBrick, number>();
+    private readonly regenTele = new Map<PrisonBrick, number>();
+    private readonly healing = new Set<PrisonBrick>();
+    private readonly ghost: PIXI.Graphics;
     private lastRebuiltNotifAt = -1e9;
-    private readonly targetScratch = { x: 0, y: 0 };
     // Q4 dynamit
     private readonly lit: LitDynamite[] = [];
     private dynamiteHintShown = false;
@@ -177,11 +162,9 @@ export class QueenSystem {
     private doorTouched = false;
     // Q4.6 laska startowa (odliczanie 3-2-1)
     private lastReadySec = -1;
-    // Q6 tutorial (0 = brak / zaliczony)
-    private tutStep = 0;
-    private tutStepMs = 0;
-    private tutTunnel: PrisonBrick[] = [];
-    private tutBuilderSpawned = false;
+    // Q6 tutorial: sandbox (main.ts prowadzi kroki TutorialControllerem; po koncu/pominieciu mecz startuje OD NOWA)
+    private sandbox = false;
+    private tutRegenBricksBroken = 0;
     // Q5 sekwencje konca
     private endFxT = 0;
     private torchesOut = 0;
@@ -216,8 +199,6 @@ export class QueenSystem {
         for (const wg of DUNGEON_WINGS) {
             for (let y = wg.y; y < wg.y + wg.h; y += PRISON_BRICK_SIZE) for (let x = wg.x; x < wg.x + wg.w; x += PRISON_BRICK_SIZE) addBrick('brick', -1, -1, x, y);
         }
-        // Q5: kolumny dobudowy (col -1, -2) — puste sloty PRZED frontem; Budowniczowie zapelniaja je, gdy front caly
-        for (let a = 1; a <= T.annexCols; a++) for (let r = 0; r < F.rows; r++) addBrick('brick', r, -a, F.x0 - a * PRISON_BRICK_SIZE, F.y0 + r * PRISON_BRICK_SIZE).vacate();
         // Q4: dynamit — losowe cegly frontu poza kolumna bramy (worldRng => ?seed=N reprodukuje)
         const pool = this.bricks.filter(b => b.row >= 0 && b.col >= 0 && b.kind === 'brick' && b.col < F.keyCol);
         for (let i = 0; i < T.dynamiteCount && pool.length > 0; i++) {
@@ -251,55 +232,38 @@ export class QueenSystem {
         this.aura = new PIXI.Graphics();
         this.aura.zIndex = 12000;
         opts.worldContainer.addChild(this.aura);
+        this.ghost = new PIXI.Graphics();
+        this.ghost.zIndex = 2000; // duchy cegiel nad posadzka, pod czolgami (wjezdzasz — telegraf odsuwa sie)
+        opts.worldContainer.addChild(this.ghost);
         if (opts.session.queen) opts.session.queen.pathTotal = T.pathSlots;
-        if (opts.tutorial) {
-            this.tutStep = 1;
-            this.introShown = true; // intro po szkoleniu
-            opts.banner(t('queen.tut.title'), '#ffd54a', 150);
-            opts.hudNotif(t('queen.tut.step1'), '#ffd54a');
-        }
+        if (opts.tutorial) { this.sandbox = true; this.introShown = true; }
     }
 
-    // ── Q6 TUTORIAL (5 krokow na zywej mapie; zegar stoi, dyrektor spi, gracz chroniony) ──
+    // ── Q6 TUTORIAL SANDBOX (kroki = TutorialController w main.ts, UI 1:1 z KTB) ──
 
-    public get inTutorial(): boolean { return this.tutStep > 0; }
+    public get inTutorial(): boolean { return this.sandbox; }
+    public get bricksBroken(): number { return this.opts.session.queen?.bricks ?? 0; }
+    public get doorOpen(): boolean { return this.door.isOpen; }
+    public get regenBricksBroken(): number { return this.tutRegenBricksBroken; }
 
-    private tutAdvance(next: number, player: Player): void {
-        this.tutStep = next; this.tutStepMs = 0;
-        const key = next === 2 ? 'queen.tut.step2' : next === 3 ? 'queen.tut.step3' : next === 4 ? 'queen.tut.step4' : 'queen.tut.step5';
-        this.opts.banner(t(key), '#ffd54a', 170);
-        this.opts.hudNotif(t(key), '#ffd54a');
-        this.opts.audio.playMenuClick();
-        if (next === 2) {
-            // tunel do Zwornika (rzedy bramy, kol 0-8) — cicho (vacate), zeby Zwornik byl w zasiegu; pelna bateria supera
-            const F = DUNGEON_FRONT;
-            this.tutTunnel = this.bricks.filter(b => b.row >= 0 && b.col >= 0 && b.col < F.keyCol && F.keyRows.includes(b.row) && !b.isDestroyed);
-            for (const b of this.tutTunnel) b.vacate();
-            player.addSuperCharge(9);
+    /** Przygotowanie kroku (onEnter z TutorialController). */
+    public tutPrepare(step: 2 | 3 | 4): void {
+        const F = DUNGEON_FRONT;
+        if (step === 2) {
+            // tunel do Zwornika (rzedy bramy, kol 0-8) — cicho (vacate), zeby Zwornik byl w zasiegu
+            for (const b of this.bricks) if (b.row >= 0 && b.col >= 0 && b.col < F.keyCol && F.keyRows.includes(b.row) && !b.isDestroyed) b.vacate();
             this.opts.effects.spawnShockwaveRing(F.x0 + 4 * PRISON_BRICK_SIZE, F.y0 + (F.keyRows[0] + 1) * PRISON_BRICK_SIZE, 120, 0xd97a5a);
+        } else if (step === 3) {
+            this.doorTouched = true; // strzalka HUD do klucza od razu
+        } else {
+            // demo odrastania: 3 puste sloty tunelu przy wejsciu zaczynaja odrastac OD RAZU (telegraf)
+            let n = 0;
+            for (const b of this.bricks) if (b.isDestroyed && b.row >= 0 && b.col >= 0 && b.col <= 2 && F.keyRows.includes(b.row) && n < 3) { this.regenAt.set(b, this.elapsedMs); n++; }
+            this.tutRegenBricksBroken = 0;
         }
-        if (next === 3) this.doorTouched = true; // strzalka HUD do klucza od razu
-        if (next === 4 && !this.tutBuilderSpawned) { this.tutBuilderSpawned = true; this.opts.spawnTutorialBuilder?.(); }
     }
 
-    private tutFinish(): void {
-        // przywroc mur (tunel + Zworniki), drzwi, klucz, liczniki — i start prawdziwego meczu
-        for (const b of this.tutTunnel) b.rebuild(1);
-        for (const k of this.keystones) if (k.isDestroyed) k.rebuild(1);
-        this.tutTunnel = [];
-        this.keystoneBannerShown = false; this.keystoneHintShown = false;
-        this.hasKey = false; this.doorTouched = false; this.key.reset(); this.door.reset();
-        for (const [e, st] of this.builders) { if (e.active) { e.active = false; if (e.container.parent) e.container.parent.removeChild(e.container); } st.scaffold?.destroy(); }
-        this.builders.clear();
-        const q = this.opts.session.queen; if (q) { q.bricks = 0; q.builders = 0; q.blasts = 0; q.pathBroken = 0; }
-        this.tutStep = 0; this.elapsedMs = 0; this.introShown = false; this.lastReadySec = -1;
-        this.opts.banner(t('queen.tut.done'), '#2ecc71', 170);
-        this.opts.audio.playVictory();
-        this.opts.onTutorialDone?.();
-    }
-
-    private updateTutorial(dtMs: number, delta: number, player: Player): void {
-        this.tutStepMs += dtMs;
+    private updateSandbox(dtMs: number, delta: number, player: Player): void {
         for (const b of this.bricks) b.update(delta);
         this.queen.update(delta);
         this.key.update(delta);
@@ -307,22 +271,8 @@ export class QueenSystem {
         this.door.tick(delta);
         this.drawAura(player);
         this.tower.tick(dtMs, -1e6, -1e6, this.opts.solidBuildings); // wieza spi w szkoleniu
-        const q = this.opts.session.queen;
-        switch (this.tutStep) {
-            case 1: if ((q?.bricks ?? 0) >= 1) this.tutAdvance(2, player); break;
-            case 2:
-                if (this.isKeystoneDown()) this.tutAdvance(3, player);
-                else if (this.tutStepMs > 6000 && Math.floor(this.tutStepMs / 6000) !== Math.floor((this.tutStepMs - dtMs) / 6000)) player.addSuperCharge(9); // doladowanie co 6 s
-                break;
-            case 3: this.updateKeyAndDoor(player); if (this.hasKey) this.tutAdvance(4, player); break;
-            case 4: {
-                this.updateBuilders(delta, dtMs);
-                if (this.hasKey) this.key.follow(player.x, player.y);
-                if (this.tutStepMs > 1500 && this.builderCount === 0) this.tutAdvance(5, player);
-                break;
-            }
-            case 5: this.updateKeyAndDoor(player); if (this.door.isOpen) this.tutFinish(); break;
-        }
+        this.updateKeyAndDoor(player);
+        this.updateRegen(dtMs, player);
     }
 
     // ── PUBLIC API ─────────────────────────────────────────────────────────
@@ -333,12 +283,11 @@ export class QueenSystem {
     public isKeystoneDown(): boolean { return this.keystones.every(k => k.isDestroyed); }
     public isSpawnInvul(): boolean { return this.elapsedMs < T.spawnInvulMs; }
     /** Q6: gracz nietykalny w lasce startowej I w flourishu OCALONA (bug: wrogowie dostrzeliwali gracza po ratunku => "PORWANA"). */
-    public isPlayerProtected(): boolean { return this.isSpawnInvul() || this.phase === 'rescued' || this.tutStep > 0; }
+    public isPlayerProtected(): boolean { return this.isSpawnInvul() || this.phase === 'rescued' || this.sandbox; }
     /** Q3: dyrektor spawnu pyta o faze */
     public get phaseDef() { return queenPhaseFor(this.remainingMs); }
     /** Q4: lawa (basen minus mosty) — main.ts: slow 0.5 dla gracza i wrogow */
     public isLavaAt(x: number, y: number): boolean { return isDungeonLavaPoint(x, y); }
-    public get builderCount(): number { let n = 0; for (const [e] of this.builders) if (e.active) n++; return n; }
     public get keyPos(): { x: number; y: number } { return { x: this.key.x, y: this.key.y }; }
     public get playerHasKey(): boolean { return this.hasKey; }
 
@@ -349,42 +298,8 @@ export class QueenSystem {
         this.phase = 'captured';
         const q = this.opts.session.queen;
         if (q) { q.result = 'death'; q.remainingSecAtEnd = this.remainingSec; }
-        this.opts.audio.playYetiRoar();
+        // POLISH-1 (Mariusz): bez ryku yeti przy przegranej
         this.opts.banner(t('queen.captured'), COL_PANIC, 140);
-    }
-
-    /** Q4: dyrektor melduje Budowniczego — rola, art, brak strzalu, stan AI. */
-    public registerBuilder(enemy: Enemy): void {
-        enemy.queenRole = 'builder';
-        enemy.castleNoShoot = true;
-        if (enemy.useBakedArchetype('builder')) enemy.attachAccessory(bakeCraneOverlay(), 0.62); // Q6: 2.5D + DZWIG obracany z kadlubem
-        else enemy.useCustomSprite(bakeBuilder(), 1.0); // flat = fallback
-        this.builders.set(enemy, { target: null, approachX: 0, approachY: 0, channelMs: 0, stuckFrames: 0, lastX: enemy.x, lastY: enemy.y, skip: null, scaffold: null, sparkT: 0, rewarded: false });
-        if (!this.builderBannerShown) {
-            this.builderBannerShown = true;
-            this.opts.banner(t('queen.builder'), COL_BUILDER, 140);
-            this.opts.hudNotif(t('queen.builder'), COL_BUILDER);
-        }
-    }
-
-    /**
-     * Q4: cel RUCHU Budowniczego (main.resolveEnemyTarget). Null = nie Budowniczy (AI KTB).
-     * Zero alokacji per klatke (scratch). Brak celu => punkt przed brama (czeka na robote).
-     */
-    public targetFor(enemy: Enemy): { x: number; y: number } | null {
-        const st = this.builders.get(enemy);
-        if (!st) return null;
-        if (st.target && (!this.isBuildable(st.target) || !this.openSide(st.target, st))) st.target = null;
-        if (!st.target) st.target = this.pickBuildTarget(enemy, st);
-        const F = DUNGEON_FRONT;
-        if (!st.target) {
-            this.targetScratch.x = F.x0 - 160;
-            this.targetScratch.y = F.y0 + (F.keyRows[0] + 1) * PRISON_BRICK_SIZE;
-            return this.targetScratch;
-        }
-        this.targetScratch.x = st.approachX;
-        this.targetScratch.y = st.approachY;
-        return this.targetScratch;
     }
 
     public getHudInfo(): QueenHudInfo {
@@ -404,7 +319,7 @@ export class QueenSystem {
 
     public update(delta: number, player: Player, isInvulnerable: boolean): QueenUpdateResult {
         const dtMs = (delta / 60) * 1000;
-        if (this.tutStep > 0) { this.updateTutorial(dtMs, delta, player); return { victory: false, defeat: false }; }
+        if (this.sandbox) { this.updateSandbox(dtMs, delta, player); return { victory: false, defeat: false }; }
         for (const b of this.bricks) b.update(delta);
         this.queen.update(delta);
         for (const g of this.geysers) if (g.state !== 'idle') { if (g.update(dtMs)) this.erupt(g, player); }
@@ -471,8 +386,8 @@ export class QueenSystem {
             this.opts.hudNotif(t('queen.heart'), COL_MAGENTA);
         }
 
-        // Q4: Budowniczowie, dynamit, lawa, gejzery
-        this.updateBuilders(delta, dtMs);
+        // Q4: odrastanie muru, dynamit, lawa, gejzery
+        this.updateRegen(dtMs, player);
         this.updateDynamite(dtMs);
         this.updateHazards(dtMs, player, isInvulnerable);
         if (pd.id === 'panic') this.updateGeysers();
@@ -489,8 +404,7 @@ export class QueenSystem {
 
     public destroy(): void {
         for (const b of this.bricks) b.destroy();
-        for (const [, st] of this.builders) st.scaffold?.destroy();
-        this.builders.clear();
+        this.ghost.destroy();
         this.endGfx?.destroy();
         for (const g of this.geysers) g.destroy();
         this.tower.destroy();
@@ -500,65 +414,58 @@ export class QueenSystem {
         this.queen.destroy();
     }
 
-    // ── Q4 BUDOWNICZY ──────────────────────────────────────────────────────
+    // ── POLISH-1: MUR ODRASTA SAM ──────────────────────────────────────────
 
-    private isBuildable(b: PrisonBrick): boolean {
-        return b.row >= 0 && b.kind === 'brick' && (b.isDestroyed || b.hpPct < 1);
+    /** Slot zaplanowany do odrostu (tylko zwykle cegly frontu; Zworniki i dynamit 'lit' nie). */
+    private scheduleRegen(b: PrisonBrick): void {
+        if (b.kind !== 'brick' || b.row < 0 || b.col < 0) return;
+        this.regenAt.set(b, this.elapsedMs + T.brickRegenMs);
     }
 
-    /**
-     * Q4.6: otwarta strona slotu = skad Budowniczy moze dojechac (sasiad rozbity, albo krawedz
-     * frontu W/N/S). Ustawia st.approachX/Y (punkt PRZED slotem, nie w glebi muru — koniec
-     * "slizgania sie" po licu). Null = slot niedostepny (otoczony cegłami) => inny cel.
-     */
-    private openSide(b: PrisonBrick, st: BuilderState): boolean {
-        const F = DUNGEON_FRONT, S = PRISON_BRICK_SIZE;
-        const at = (r: number, c: number): PrisonBrick | undefined => this.bricks.find(o => o.row === r && o.col === c);
-        const free = (r: number, c: number): boolean => { const o = at(r, c); return !o || o.isDestroyed; };
-        const cands: { x: number; y: number }[] = [];
-        const westEdge = b.col === -T.annexCols; // najbardziej zachodnia kolumna (dobudowa) — otwarta z pola gry
-        if (westEdge || free(b.row, b.col - 1)) cands.push({ x: b.centerX - (westEdge ? 74 : S), y: b.centerY });
-        if (b.row === 0 || free(b.row - 1, b.col)) cands.push({ x: b.centerX, y: b.centerY - (b.row === 0 ? 74 : S) });
-        if (b.row === F.rows - 1 || free(b.row + 1, b.col)) cands.push({ x: b.centerX, y: b.centerY + (b.row === F.rows - 1 ? 74 : S) });
-        if (b.col < F.keyCol - 1 && free(b.row, b.col + 1)) cands.push({ x: b.centerX + S, y: b.centerY });
-        if (!cands.length) return false;
-        // najblizszy punkt dojazdu wzgledem aktualnej pozycji (approach juz ustawiony => trzymaj, chyba ze zniknal)
-        let best = cands[0], bd = Infinity;
-        for (const c of cands) { const d = (c.x - st.lastX) ** 2 + (c.y - st.lastY) ** 2; if (d < bd) { bd = d; best = c; } }
-        st.approachX = best.x; st.approachY = best.y;
-        return true;
-    }
-
-    /**
-     * Q4.5 (decyzja Mariusza): Budowniczy buduje tam, gdzie mur jest NAJCIENSZY — rzad frontu
-     * z najmniejsza suma HP cegiel (pusty slot = 0). W tym rzedzie: puste sloty najpierw, potem
-     * najbardziej rozbite; tie-break = dystans. Rzedy bramy licza sie jako ciensze o 1 cegle
-     * (droga gracza). Kara za slot juz zajety przez innego Budowniczego (nie tlocza sie).
-     */
-    private pickBuildTarget(enemy: Enemy, st: BuilderState): PrisonBrick | null {
-        const skip = st.skip;
-        const F = DUNGEON_FRONT;
-        const rowHp = new Array<number>(F.rows).fill(0);
-        for (const b of this.bricks) if (b.row >= 0 && b.col >= 0 && b.kind === 'brick') rowHp[b.row] += b.hpPct;
-        for (const r of F.keyRows) rowHp[r] -= 1;
-        const order = rowHp.map((hp, r) => ({ hp, r })).sort((a, b) => a.hp - b.hp);
-        const taken = new Set<PrisonBrick>();
-        for (const [, st] of this.builders) if (st.target) taken.add(st.target);
-        for (const { r } of order) {
-            let best: PrisonBrick | null = null;
-            let bestScore = Infinity;
-            for (const b of this.bricks) {
-                if (b.row !== r || b === skip || !this.isBuildable(b) || b.dynamite === 'lit') continue;
-                if (!this.openSide(b, st)) continue; // Q4.6: tylko sloty, do ktorych da sie dojechac
-                let score = Math.hypot(b.centerX - enemy.x, b.centerY - enemy.y);
-                if (b.isDestroyed) score -= 400; else score -= (1 - b.hpPct) * 200;
-                if (taken.has(b)) score += 600;
-                if (b.col < 0) score += 1500 - b.col * 400; // Q5: dobudowa dopiero gdy front caly (col -1 przed col -2)
-                if (score < bestScore) { bestScore = score; best = b; }
-            }
-            if (best) { this.openSide(best, st); return best; }
+    private updateRegen(dtMs: number, player: Player): void {
+        const g = this.ghost; g.clear();
+        const clearR2 = T.brickRegenPlayerClear * T.brickRegenPlayerClear;
+        // 1) domurowanie odroslych (repairPctPerSec do 100%)
+        for (const b of this.healing) {
+            if (b.isDestroyed) { this.healing.delete(b); continue; }
+            b.heal(T.repairPctPerSec * (dtMs / 1000));
+            if (b.hpPct >= 1) this.healing.delete(b);
         }
-        return null;
+        // 2) telegraf -> odrost
+        for (const [b, t0] of this.regenTele) {
+            if (!b.isDestroyed) { this.regenTele.delete(b); continue; }
+            const near = (player.x - b.centerX) ** 2 + (player.y - b.centerY) ** 2 < clearR2;
+            if (near) { this.regenTele.set(b, this.elapsedMs); continue; } // gracz w slocie: telegraf czeka (fair — nie zamurujemy czolgu)
+            const k = Math.min(1, (this.elapsedMs - t0) / T.brickRegenTelegraphMs);
+            // duch cegly: obrys + wypelnienie narasta + puls (Czytelnosc: "tu za chwile bedzie cegla")
+            const pulse = 0.5 + 0.5 * Math.sin(this.elapsedMs * 0.02);
+            g.beginFill(0xd97a5a, 0.12 + 0.35 * k); g.drawRoundedRect(b.x + 4, b.y + 4, PRISON_BRICK_SIZE - 8, PRISON_BRICK_SIZE - 8, 4); g.endFill();
+            g.lineStyle(2 + 2 * k, 0xffb347, 0.5 + 0.5 * pulse); g.drawRoundedRect(b.x + 3, b.y + 3, PRISON_BRICK_SIZE - 6, PRISON_BRICK_SIZE - 6, 5); g.lineStyle(0);
+            if (k >= 1) {
+                this.regenTele.delete(b);
+                b.rebuild(T.brickRegenHp);
+                this.healing.add(b);
+                this.opts.effects.spawnWoodSplinters(b.centerX, b.centerY, 6);
+                this.opts.effects.spawnEnemyHitSparks(b.centerX, b.centerY - 10, 0xd9a441);
+                this.opts.audio.playCrateBreak();
+                this.onRebuilt(b);
+            }
+        }
+        // 3) harmonogram -> start telegrafu
+        for (const [b, at] of this.regenAt) {
+            if (!b.isDestroyed) { this.regenAt.delete(b); continue; }
+            if (this.elapsedMs < at) continue;
+            this.regenAt.delete(b);
+            this.regenTele.set(b, this.elapsedMs);
+        }
+    }
+
+    private onRebuilt(b: PrisonBrick): void {
+        if (b.col >= 0 && DUNGEON_FRONT.keyRows.includes(b.row)) {
+            this.pathFlashUntil = this.elapsedMs + 2000;
+            const q = this.opts.session.queen; if (q) q.pathBroken = this.pathBroken();
+            if (this.elapsedMs - this.lastRebuiltNotifAt > 6000) { this.lastRebuiltNotifAt = this.elapsedMs; this.opts.hudNotif(t('queen.rebuilt'), COL_BUILDER); }
+        }
     }
 
     // ── Q6 AURA LASKI (5 s start / flourish OCALONA) ───────────────────────
@@ -649,88 +556,6 @@ export class QueenSystem {
             if (k > 0.85) { g.beginFill(0x07040b, (k - 0.85) / 0.15 * 0.85); g.drawRect(qx - 84, qy - 112, 168, 224); g.endFill(); }
         }
     }
-
-    private updateBuilders(delta: number, dtMs: number): void {
-        for (const [e, st] of this.builders) {
-            if (!e.active) {
-                if (!st.rewarded) {
-                    st.rewarded = true;
-                    const q = this.opts.session.queen; if (q) q.builders++;
-                    this.opts.session.addQueenStaticBonus(T.builderScore, 'builder');
-                    if (worldRng.chance(T.builderGemChance)) this.opts.onGemDrop(e.x, e.y + 10); // Q5: -95% gemow
-                    this.opts.effects.spawnFloatingText(e.x, e.y - 40, t('queen.builderDown'), 0xd9a441);
-                    this.opts.effects.spawnWoodSplinters(e.x, e.y, 8);
-                }
-                st.scaffold?.destroy(); st.scaffold = null;
-                this.builders.delete(e);
-                continue;
-            }
-            const frozen = Date.now() < e.frozenUntil;
-            const tgt = st.target;
-            // zablokowany? (ruch < stuckMoveMin px / s) => po stuckTeleportMs zmien cel
-            const moved = Math.hypot(e.x - st.lastX, e.y - st.lastY);
-            st.lastX = e.x; st.lastY = e.y;
-            if (tgt && !frozen && moved < (T.stuckMoveMin / 60) * delta) st.stuckFrames += delta; else st.stuckFrames = 0;
-            if (!tgt || frozen) { this.hideScaffold(st); st.channelMs = 0; continue; }
-            const d = Math.hypot(e.x - tgt.centerX, e.y - tgt.centerY);
-            const inReach = d <= T.contactReach || (st.stuckFrames >= T.stuckFrames && d <= T.contactReach * 2);
-            if (!inReach) {
-                this.hideScaffold(st); st.channelMs = 0;
-                if (st.stuckFrames >= (T.stuckTeleportMs / 1000) * 60) { st.skip = tgt; st.target = null; st.stuckFrames = 0; }
-                continue;
-            }
-            st.sparkT += dtMs;
-            if (tgt.isDestroyed) {
-                // kanal 1.8 s: rusztowanie nad slotem + iskry mlotka co 300 ms (telegraf)
-                st.channelMs += dtMs;
-                this.showScaffold(st, tgt, Math.min(1, st.channelMs / T.repairChannelMs));
-                if (st.sparkT >= 300) { st.sparkT = 0; this.opts.effects.spawnEnemyHitSparks(tgt.centerX, tgt.centerY - 14, 0xd9a441); this.opts.audio.playHit('wall'); }
-                if (st.channelMs >= T.repairChannelMs) {
-                    st.channelMs = 0;
-                    tgt.rebuild(0.25);
-                    this.hideScaffold(st);
-                    this.opts.effects.spawnWoodSplinters(tgt.centerX, tgt.centerY, 6);
-                    this.opts.audio.playCrateBreak();
-                    this.onRebuilt(tgt);
-                }
-            } else {
-                // domurowanie 8%/s do pelna
-                tgt.heal(T.repairPctPerSec * (dtMs / 1000));
-                if (st.sparkT >= 500) { st.sparkT = 0; this.opts.effects.spawnEnemyHitSparks(tgt.centerX, tgt.centerY - 10, 0xc9b8a5); }
-                if (tgt.hpPct >= 1) st.target = null;
-            }
-        }
-    }
-
-    private onRebuilt(b: PrisonBrick): void {
-        if (b.col >= 0 && DUNGEON_FRONT.keyRows.includes(b.row)) {
-            this.pathFlashUntil = this.elapsedMs + 2000;
-            const q = this.opts.session.queen; if (q) q.pathBroken = this.pathBroken();
-            if (this.elapsedMs - this.lastRebuiltNotifAt > 6000) { this.lastRebuiltNotifAt = this.elapsedMs; this.opts.hudNotif(t('queen.rebuilt'), COL_BUILDER); }
-        }
-    }
-
-    private showScaffold(st: BuilderState, b: PrisonBrick, k: number): void {
-        if (!st.scaffold) {
-            st.scaffold = new PIXI.Graphics();
-            st.scaffold.zIndex = b.y + PRISON_BRICK_SIZE + 2;
-            this.opts.worldContainer.addChild(st.scaffold);
-        }
-        const g = st.scaffold;
-        g.clear(); g.visible = true;
-        const x = b.x, y = b.y, s = PRISON_BRICK_SIZE;
-        // drewniane belki + krzyzak (alpha ~0.6) + pasek postepu kanalu (ochra)
-        g.lineStyle(4, 0x8d5a2b, 0.7);
-        g.moveTo(x + 4, y + 4); g.lineTo(x + 4, y + s - 4); g.moveTo(x + s - 4, y + 4); g.lineTo(x + s - 4, y + s - 4);
-        g.moveTo(x + 4, y + 8); g.lineTo(x + s - 4, y + 8); g.moveTo(x + 4, y + s - 8); g.lineTo(x + s - 4, y + s - 8);
-        g.lineStyle(3, 0xd9a441, 0.6);
-        g.moveTo(x + 6, y + 10); g.lineTo(x + s - 6, y + s - 10); g.moveTo(x + s - 6, y + 10); g.lineTo(x + 6, y + s - 10);
-        g.lineStyle(0);
-        g.beginFill(0x000000, 0.5); g.drawRect(x + 6, y - 12, s - 12, 6); g.endFill();
-        g.beginFill(0xd9a441, 0.95); g.drawRect(x + 6, y - 12, (s - 12) * k, 6); g.endFill();
-    }
-
-    private hideScaffold(st: BuilderState): void { if (st.scaffold && st.scaffold.visible) { st.scaffold.visible = false; st.scaffold.clear(); } }
 
     // ── Q4 DYNAMIT ─────────────────────────────────────────────────────────
 
@@ -882,6 +707,9 @@ export class QueenSystem {
             }
         }
         if (q) q.pathBroken = this.pathBroken();
+        this.healing.delete(b);
+        this.scheduleRegen(b);
+        if (this.sandbox) this.tutRegenBricksBroken++;
     }
 
     private onKeystoneClink(): void {
@@ -923,8 +751,7 @@ export class QueenSystem {
         const q = this.opts.session.queen;
         if (q) { q.result = reason; q.remainingSecAtEnd = 0; q.pathBroken = this.pathBroken(); }
         this.opts.banner(t('queen.captured'), COL_PANIC, 150);
-        this.opts.audio.playYetiRoar();
-        this.opts.effects.shake(8, 24);
+        this.opts.effects.shake(8, 24); // POLISH-1: bez ryku yeti (Mariusz)
         this.endFxT = 0; // Q5: ciemnosc (tint gruntu) + pochodnie gasna po jednej — updateEndSequence
     }
 

@@ -98,7 +98,6 @@ class EnemySpriteBakerImpl {
             this.bakeArchetype(app, 'grunt'),
             this.bakeArchetype(app, 'boss'),
             this.bakeArchetype(app, 'mega'),
-            this.bakeArchetype(app, 'builder'), // SAVE THE QUEEN Q6
         ]);
     }
 

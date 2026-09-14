@@ -33,6 +33,20 @@ export interface TutorialOpts {
     onDone: (continuePlaying: boolean) => void; // FAZA B2: finalny wybor gracza (graj dalej / menu)
 }
 
+/** SAVE THE QUEEN Q6 (polish): kroki scenariusza na TYM SAMYM UI (karta, pill, POMIN, SWIETNIE, finalny wybor). */
+export interface CustomTutorialStep {
+    title: string;
+    hint: string;
+    isDone: () => boolean;
+    onEnter?: () => void;
+    onActive?: () => void;
+}
+export interface CustomTutorialOpts {
+    isTouch: boolean;
+    steps: CustomTutorialStep[];
+    onDone: (continuePlaying: boolean) => void;
+}
+
 interface Step {
     title: string;
     hint: string;
@@ -52,7 +66,8 @@ const GOLD = '#ffd24a';
 const EXPAND_MS = 3000; // FAZA B3-UX: ile pelna karta stoi w centrum, zanim zwinie sie do pilla (czas na przeczytanie)
 
 export class TutorialController {
-    private readonly opts: TutorialOpts;
+    private readonly isTouch: boolean;
+    private readonly onDone: (continuePlaying: boolean) => void;
     private readonly steps: Step[];
     private idx = 0;
     private finished = false;
@@ -79,8 +94,22 @@ export class TutorialController {
     private nextEl!: HTMLButtonElement; // KARTA INFO: przycisk DALEJ
     private choiceEl!: HTMLDivElement;
 
-    constructor(opts: TutorialOpts) {
-        this.opts = opts;
+    constructor(opts: TutorialOpts | CustomTutorialOpts) {
+        this.isTouch = opts.isTouch;
+        this.onDone = opts.onDone;
+        if ('steps' in opts) {
+            // Kroki scenariusza (Krolowa): zadania + ten sam finalny wybor GRAJ DALEJ / MENU.
+            this.steps = [
+                ...opts.steps.map((s): Step => ({ title: s.title, hint: s.hint, isDone: s.isDone, onEnter: s.onEnter, onActive: s.onActive })),
+                { title: t('tutorial.finish.title'), hint: t('tutorial.finish.hint'), isDone: () => false, isFinalChoice: true, badgeOverride: t('tutorial.finishBadge') },
+            ];
+            this.taskTotal = opts.steps.length;
+            this.buildDom();
+            this.tick = this.tick.bind(this);
+            this.showStep();
+            this.rafId = requestAnimationFrame(this.tick);
+            return;
+        }
         this.steps = [
             {   // 1 — RUSZAJ (ruch lewym joystickiem / WASD)
                 title: t('tutorial.move.title'),
@@ -159,7 +188,7 @@ export class TutorialController {
             document.head.appendChild(st);
         }
 
-        const desk = !this.opts.isTouch; // desktop = karta +20% (fonty/padding) + wieksze emoji
+        const desk = !this.isTouch; // desktop = karta +20% (fonty/padding) + wieksze emoji
 
         const root = document.createElement('div');
         root.id = 'bt-tutorial-root';
@@ -324,7 +353,7 @@ export class TutorialController {
         this.collapseAt = (fin || info) ? 0 : now + EXPAND_MS;
 
         // DOM ring/strzalka — tylko RUSZAJ na dotyku. STRZELAJ/FALA celuja ringiem w swiecie (main.ts).
-        const showJoy = !!s.showJoystickRing && this.opts.isTouch;
+        const showJoy = !!s.showJoystickRing && this.isTouch;
         this.ringEl.style.display = showJoy ? '' : 'none';
         this.arrowEl.style.display = showJoy ? '' : 'none';
         // highlight elementu HUD (pasek SUPER) — stala pozycja w screen-px.
@@ -340,7 +369,7 @@ export class TutorialController {
         }
         // SUPER POWER: ring na przycisku HUD (np. .bt-super-button) — dokladna pozycja z rect.
         // Tylko dotyk (przyciski to kontrolki mobilne; desktop uczy sie ze SPACJI w hincie).
-        const el = (s.ringSelector && this.opts.isTouch) ? document.querySelector(s.ringSelector) as HTMLElement | null : null;
+        const el = (s.ringSelector && this.isTouch) ? document.querySelector(s.ringSelector) as HTMLElement | null : null;
         if (el) {
             const r = el.getBoundingClientRect();
             const d = Math.max(r.width, r.height) + 26; // srednica ringu (przycisk + margines)
@@ -423,7 +452,7 @@ export class TutorialController {
         this.finished = true;
         cancelAnimationFrame(this.rafId);
         if (this.root.parentElement) this.root.parentElement.removeChild(this.root);
-        this.opts.onDone(continuePlaying);
+        this.onDone(continuePlaying);
     }
 
     /** Awaryjne sprzatniecie (np. gdy mecz konczy sie w trakcie) — wskocz do gry. */

@@ -14,6 +14,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith('--') ? [a.slice(2), arr[i + 1] && !arr[i + 1].startsWith('--') ? arr[i + 1] : 'true'] : []).filter(Boolean));
 const URL = (args.url ?? 'http://localhost:5175/BrawlTanksv2/').replace(/\/?$/, '/');
@@ -71,11 +72,32 @@ async function runOne(browser, r, idx) {
         await page.evaluate((mode) => window.__sigmaTest.bot.setMode(mode), r.mode);
         const totalSec = Math.round(r.minutes * 60);
         for (let sec = 0; sec < totalSec; sec++) {
-            const snap = await page.evaluate(() => { window.__sigmaTest.bot.tick(60); return window.__sigmaTest.snapshot(); });
+            // S4: przy niskim HP tick po 2 klatki i stop w PIERWSZEJ klatce z hp <= 0 — zrzut "death" pokazuje plansze
+            // w chwili zgonu (skad przyszlo trafienie), a nie ekran koncowy (wczesniej: smierc i end card w tym samym ticku 60).
+            const res = await page.evaluate((catchDeath) => {
+                const T = window.__sigmaTest;
+                for (let f = 0; f < 60;) {
+                    const p = T.snapshot().player;
+                    const chunk = catchDeath && p && p.hp > 0 && p.hp / p.maxHp < 0.35 ? 2 : 60 - f;
+                    T.bot.tick(chunk); f += chunk;
+                    if (f < 60) { const s = T.snapshot(); if ((s.player && s.player.hp <= 0) || s.gameState !== 'PLAYING') return { snap: s, rest: 60 - f }; }
+                }
+                return { snap: T.snapshot(), rest: 0 };
+            }, !firstDeathShot);
+            let snap = res.snap;
+            if (!firstDeathShot && snap.player && snap.player.hp <= 0) { firstDeathShot = true; shots.push(await shot(page, outDir, runId, 'death')); }
+            if (res.rest > 0) snap = await page.evaluate((n) => { window.__sigmaTest.bot.tick(n); return window.__sigmaTest.snapshot(); }, res.rest);
             snaps.push(snap);
             if (sec === 2) shots.push(await shot(page, outDir, runId, 'start'));
-            if (!firstDeathShot && snap.player && snap.player.hp <= 0) { firstDeathShot = true; shots.push(await shot(page, outDir, runId, 'death')); }
-            if (snap.gameState !== 'PLAYING') { outcome = snap.gameState; shots.push(await shot(page, outDir, runId, 'end')); break; }
+            if (snap.gameState !== 'PLAYING') {
+                outcome = snap.gameState;
+                // ekran koncowy animuje sie (przycisk wjezdza z opoznieniem): 2 s zegara gry + chwila czasu rzeczywistego
+                // przed zrzutem, inaczej "end" lapal karte bez przycisku (falszywe "brak POWROT DO MENU" w raporcie)
+                await page.evaluate(() => window.__sigmaTest.control.step(120));
+                await page.waitForTimeout(800);
+                shots.push(await shot(page, outDir, runId, 'end'));
+                break;
+            }
         }
         if (!outcome) shots.push(await shot(page, outDir, runId, 'timeout'));
         const events = await page.evaluate(() => window.__sigmaTest.events.slice());
@@ -85,10 +107,14 @@ async function runOne(browser, r, idx) {
         const outcomeEv = events.find(e => e.t === 'outcome');
         const deaths = events.filter(e => e.t === 'damage' && e.target === 'player' && e.hp <= 0).length;
         const kills = events.filter(e => e.t === 'kill').length;
+        // S4 raport: boss padl? (D4/O3) + sekunda pierwszej smierci gracza (K3 time-to-death)
+        const bossKills = events.filter(e => e.t === 'kill' && (e.kind === 'boss' || e.kind === 'mega')).length;
+        const firstDeath = events.find(e => e.t === 'damage' && e.target === 'player' && e.hp <= 0);
+        const deathAtSec = firstDeath ? Math.round(firstDeath.frame / 60) : null;
         const report = {
             runId, build: snaps[0]?.build ?? '?', ...r, url: URL, startedAt: new Date(t0).toISOString(), durationSec: Math.round((Date.now() - t0) / 1000),
             outcome: outcomeEv ? outcomeEv.result : (outcome ?? 'timeout'), matchSec: outcomeEv?.seconds ?? snaps.length, score: snaps[snaps.length - 1]?.score ?? 0,
-            kills, playerDied: deaths > 0, violations, consoleErrors, screenshots: shots, oracleIds,
+            kills, bossKills, deathAtSec, playerDied: deaths > 0, violations, consoleErrors, screenshots: shots, oracleIds,
             timeline: snaps.map(s => ({ f: s.frame, hp: s.player?.hp ?? null, en: s.enemies.filter(e => e.active).length, bul: s.bullets + s.enemyBullets, part: s.perf.particles, heap: s.perf.heapMB, score: s.score })),
             eventsSummary: Object.fromEntries(Object.entries(events.reduce((a, e) => (a[e.t] = (a[e.t] || 0) + 1, a), {}))),
         };
@@ -106,7 +132,11 @@ async function runOne(browser, r, idx) {
 
 async function shot(page, dir, runId, tag) {
     const file = path.join(dir, `${runId}-${tag}.png`);
-    try { await page.screenshot({ path: file }); } catch { /* ignore */ }
+    // "death": ekran koncowy (DOM nad canvasem) pojawia sie w TEJ SAMEJ klatce co zgon; canvas pod nim ma plansze
+    // z chwili smierci — chowamy nakladke tylko na czas zrzutu (Playwright `style`), gra nietknieta.
+    // przycisk POWROT DO MENU (.brawl-btn) nie siedzi w #gameOverScreen — chowamy go osobno
+    const style = tag === 'death' ? '#gameOverScreen, #victoryScreen, .brawl-btn { display: none !important; }' : undefined;
+    try { await page.screenshot({ path: file, style }); } catch (err) { console.error(`[sigma] zrzut ${tag} ${runId}: ${err.stack}`); }
     return path.basename(file);
 }
 
@@ -140,4 +170,12 @@ function summarize(reports) {
     fs.writeFileSync(path.join(outDir, 'summary.md'), md);
     fs.writeFileSync(path.join(outDir, 'runs.json'), JSON.stringify(reports.map(r => ({ ...r, timeline: undefined })), null, 1));
     console.log('\n' + md);
+    // S4: --report = od razu raport dzienny (report.mjs; --report-dry = bez LLM)
+    if (args.report === 'true' || args['report-dry'] === 'true') {
+        const { spawnSync } = await import('node:child_process');
+        const extra = args['report-dry'] === 'true' ? ['--dry-run'] : [];
+        // uwaga: stala URL (adres gry) przeslania globalne URL — stad fileURLToPath zamiast new URL(...)
+        const r = spawnSync(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), 'report.mjs'), '--day', day, '--out', OUT_ROOT, ...extra], { stdio: 'inherit' });
+        if (r.status !== 0) console.error(`[sigma] report.mjs zakonczyl sie kodem ${r.status}`);
+    }
 })().catch((e) => { console.error('[sigma] FATAL', e); process.exit(1); });

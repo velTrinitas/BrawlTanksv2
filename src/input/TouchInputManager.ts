@@ -42,6 +42,18 @@ export class TouchInputManager {
     /** F7a: tap przycisku slotu → aktywacja mocy z tego slotu (JEDYNA sciezka aktywacji). */
     onSuperRequested: ((slot: 0 | 1 | 2) => void) | null = null;
 
+    // ── SigmaTester (J6): wstrzykiwanie inputu przez TE SAME gettery, ktore czyta main.ts ──
+    // Bot nie symuluje dotyku; podaje gotowe wektory. undefined = nie ruszaj tego kanalu.
+    private injMove: Vector2 | null | undefined = undefined;
+    private injAim: Vector2 | null | undefined = undefined;
+    private injFire: boolean | undefined = undefined;
+    inject(move?: Vector2 | null, aim?: Vector2 | null, fire?: boolean): void {
+        if (move !== undefined) this.injMove = move;
+        if (aim !== undefined) this.injAim = aim;
+        if (fire !== undefined) this.injFire = fire;
+    }
+    injectClear(): void { this.injMove = undefined; this.injAim = undefined; this.injFire = undefined; }
+
     constructor() {
         this.isActive = this.detectTouchDevice();
         // v0.23.1: left joystick = FLOATING (Brawl Stars pattern)
@@ -96,6 +108,7 @@ export class TouchInputManager {
     // === Bridge API for main.ts gameLoop ===
 
     get moveVector(): Vector2 | null {
+        if (this.injMove !== undefined) return this.injMove;
         if (!this.isActive) return null;
         if (!this.moveJoystick.isActive) return null;
         if (this.moveJoystick.magnitude < 0.1) return null;
@@ -103,6 +116,7 @@ export class TouchInputManager {
     }
 
     get aimVector(): Vector2 | null {
+        if (this.injAim !== undefined) return this.injAim;
         if (!this.isActive) return null;
         if (!this.aimJoystick.isActive) return null;
         if (this.aimJoystick.magnitude < 0.1) return null;
@@ -110,6 +124,7 @@ export class TouchInputManager {
     }
 
     get isFiring(): boolean {
+        if (this.injFire !== undefined) return this.injFire;
         if (!this.isActive) return false;
         return this.aimJoystick.isActive && this.aimJoystick.magnitude > 0.1;
     }

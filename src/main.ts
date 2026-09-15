@@ -194,6 +194,7 @@ import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
+import { SIGMA_BOT, sigmaEmit } from './testing/sigmaFlag'; // SigmaTester: ?bot=1 (warstwa testowa laduje sie dynamicznie na koncu bootu)
 import { worldRng, seedMatchRng } from './systems/Rng';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB } from './types/DamageSource'; // Z0.5
@@ -340,6 +341,8 @@ const NORMAL_PROFILES: Record<string, SuperProfile> = {
 };
 
 let gameState: 'MENU' | 'PLAYING' | 'VICTORY' | 'GAMEOVER' = 'MENU';
+/** SigmaTester: seed ostatniego meczu (repro w raporcie). */
+let sigmaLastSeed = 0;
 
 // === FAZA 6.5.1: Single source of truth dla aktualnej rozgrywki ===
 let currentSession: GameSession | null = null;
@@ -1599,6 +1602,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     const _seedParam = new URLSearchParams(window.location.search).get('seed');
     const _forcedSeed = _seedParam !== null ? parseInt(_seedParam, 10) : NaN;
     seedMatchRng(Number.isFinite(_forcedSeed) ? _forcedSeed : config.rngSeed);
+    sigmaLastSeed = Number.isFinite(_forcedSeed) ? _forcedSeed : config.rngSeed; // SigmaTester: seed w snapshot/raporcie
     telemetryResetMatch(); // Z0.9: nowy mecz = nowe probki FPS
 
     ProfileService.recordSessionStart();
@@ -2810,7 +2814,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             solidBuildings,
             enemies,
             hudNotif: (text, color) => hud.addNotif(text, color),
-            banner: (text, color, frames, pulse) => hud.triggerCastleBanner(text, color, frames, pulse),
+            banner: (text, color, frames, pulse) => { hud.triggerCastleBanner(text, color, frames, pulse); sigmaEmit({ t: 'banner', text }); },
             onGemDrop: (x, y) => spawnGem(x, y),
             // Q4 hazardy (lawa / gejzer / dynamit): kill-path 1:1 z AoE mocy (registerKill+score+drop), Perfect Run gasnie
             hurtPlayer: (dmg, src) => {
@@ -2893,7 +2897,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
-    if (!tutorialMode && !queenSystem?.inTutorial && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle' || config.scenario === 'save_queen')) { // OBRON ZAMEK F5, SAVE THE QUEEN Q1
+    if (!tutorialMode && !SIGMA_BOT && !queenSystem?.inTutorial && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle' || config.scenario === 'save_queen')) { // OBRON ZAMEK F5, SAVE THE QUEEN Q1; SigmaTester: bez karty celu
         showModeGoal(config.scenario, touchManager.isActive);
     }
     // SAVE THE QUEEN Q6: szkolenie scenariusza (UI KTB) nad sandboxem; po nim restart meczu od zera.
@@ -3442,8 +3446,9 @@ async function triggerGameOver(): Promise<void> {
     // FAZA CTF F2 — drop niesionej flagi przy smierci (legacy 1:1: IDLE @gracz + 10 s reset)
     if (ctfSystem && localPlayer) ctfSystem.handlePlayerDeath(localPlayer.x, localPlayer.y);
     gameState = 'GAMEOVER';
+    if (currentSession) sigmaEmit({ t: 'outcome', result: 'gameover', scenario: currentSession.config.scenario, map: currentSession.config.map, score: currentSession.score, seconds: currentSession.getElapsedSeconds() });
     // Z0.9: telemetria meczu — fire-and-forget, nigdy nie blokuje konca meczu.
-    if (currentSession) {
+    if (currentSession && !SIGMA_BOT) { // SigmaTester: zero telemetrii z bota
         void telemetrySubmitMatch({
             map: currentSession.config.map, scenario: currentSession.config.scenario,
             difficulty: currentSession.config.difficulty, result: 'gameover',
@@ -3462,7 +3467,8 @@ async function triggerGameOver(): Promise<void> {
         try {
             // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
             // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
-            if (currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT || currentSession.config.scenario === 'castle' || currentSession.config.scenario === 'save_queen' });
+            if (!SIGMA_BOT && currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats()); // SigmaTester: bot nigdy nie wysyla wynikow
             console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -3529,8 +3535,9 @@ async function triggerVictory(): Promise<void> {
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
     if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
     gameState = 'VICTORY';
+    if (currentSession) sigmaEmit({ t: 'outcome', result: 'victory', scenario: currentSession.config.scenario, map: currentSession.config.map, score: currentSession.score, seconds: currentSession.getElapsedSeconds() });
     // Z0.9: telemetria meczu — fire-and-forget, nigdy nie blokuje konca meczu.
-    if (currentSession) {
+    if (currentSession && !SIGMA_BOT) { // SigmaTester: zero telemetrii z bota
         void telemetrySubmitMatch({
             map: currentSession.config.map, scenario: currentSession.config.scenario,
             difficulty: currentSession.config.difficulty, result: 'victory',
@@ -3560,7 +3567,8 @@ async function triggerVictory(): Promise<void> {
         try {
             // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
             // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
-            if (currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+            sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT || currentSession.config.scenario === 'castle' || currentSession.config.scenario === 'save_queen' });
+            if (!SIGMA_BOT && currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats()); // SigmaTester: bot nigdy nie wysyla wynikow
             console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
@@ -4664,6 +4672,7 @@ function runLogicStep(delta: number): void {
             // bek > babcia > widmo > gracz (iniekcja wspolrzednych, zero zmian w AI).
             const tgt = resolveEnemyTarget(enemy);
             shotInfo = enemy.update(delta, tgt.x, tgt.y, enemyBuildings, powerCubes);
+            if (shotInfo) enemy.sigmaShots++; // SigmaTester D1
         }
         // TIER 3 DISCO v2: zmeczony tancerz bije 20% slabiej do konca meczu.
         if (shotInfo) {
@@ -4949,4 +4958,43 @@ if (CAP_ENABLED) {
         app.ticker.update(now);                   // 1 cykl tickera: nasz callback + render PIXI
     };
     requestAnimationFrame(_capLoop);
+}
+
+// ============================================================
+// SigmaTester (bot AI-tester) — warstwa testowa TYLKO za ?bot=1. Dynamic import => zero kodu w prod chunku.
+// Most = gettery do stanu tego modulu; SigmaTest nie importuje main.ts. Kontrakt: docs/sigma-tester/ORACLES.md
+// ============================================================
+if (SIGMA_BOT) {
+    void import('./testing/SigmaTest').then(({ installSigmaTest }) => {
+        installSigmaTest({
+            app,
+            worldW: WORLD_W, worldH: WORLD_H,
+            get gameState() { return gameState; },
+            get player() { return localPlayer; },
+            get enemies() { return enemies; },
+            get bullets() { return bullets; },
+            get enemyBullets() { return enemyBullets; },
+            get hearts() { return hearts; },
+            get magnets() { return magnets; },
+            get gems() { return gems; },
+            get powerCubes() { return powerCubes; },
+            get buildings() { return buildings; },
+            get solidBuildings() { return solidBuildings; },
+            get camera() { return camera; },
+            get session() { return currentSession; },
+            get seed() { return sigmaLastSeed; },
+            get scenarioInfo() { return queenSystem ? queenSystem.getHudInfo() : castleSystem ? castleSystem.getHudInfo() : null; },
+            get perfCounts() { return effects ? effects.getPerfCounts() : { particles: 0, floatingTexts: 0, trackMarks: 0, poolParticles: 0 }; },
+            get screen() { return { w: hud.screenW, h: hud.screenH, zoom: touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM, isTouch: touchManager.isActive }; },
+            startGame: (cfg) => startGame(cfg),
+            returnToMenu: () => returnToMenuFromEnd(),
+            hideMenu: () => menu.hide(),
+            setKeys: (k) => { keys.w = k.w; keys.a = k.a; keys.s = k.s; keys.d = k.d; },
+            setMouse: (sx, sy, down) => { mouse.screenX = sx; mouse.screenY = sy; isMouseDown = down; },
+            injectTouch: (move, aim, fire) => touchManager.inject(move, aim, fire),
+            requestSuper: (slot) => { touchManager.onSuperRequested?.(slot); },
+            setGod: () => { /* god-mode = SigmaTest odnawia HP co krok (bez zmian w Player) */ },
+            teleport: (x, y) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } },
+        });
+    });
 }

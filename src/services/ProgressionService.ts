@@ -28,6 +28,7 @@ import {
     type CrateOpenResult,
 } from '../config/progression';
 import { getCosmetic, type CosmeticType } from '../config/cosmetics'; // F2a kosmetyki
+import { SIGMA_BOT } from '../testing/sigmaFlag'; // SigmaTester: bot nigdy nie pisze do chmury
 import { getShopItem, isShopEnabled, isShopSandbox } from '../config/shop'; // SHOP-1
 import { supabaseProgressionService } from './SupabaseProgressionService'; // PROG-F1b cloud sync
 import type { ProgressionCosmetics, ProgressionPowers, ProgressionStats } from './supabase/types'; // PROG-F2b/F7a/PROFILE-1 sync
@@ -846,6 +847,8 @@ class ProgressionServiceImpl {
     syncPush(profileId: string): void {
         const st = this.states[profileId];
         if (!st) return;
+        // SigmaTester (?bot=1): profil sigma-bot nie istnieje w chmurze (400 z RLS) i nie ma tam trafic.
+        if (SIGMA_BOT) return;
         // PODGLAD SEZONU (?season=) — zero zapisu do chmury. Bez tego rozegranie
         // meczu w podgladzie wyslaloby `seasonId` sezonu, ktory jeszcze nie
         // wystartowal, a przy premierze ten wiersz zmergowalby sie jako "postep

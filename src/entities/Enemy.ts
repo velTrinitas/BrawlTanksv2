@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { getEnemyTextures, BAKER_ENABLED } from '../rendering/SpriteFactory';
+import { sigmaEmit } from '../testing/sigmaFlag'; // SigmaTester: zdarzenia spawn/damage/kill (no-op poza ?bot=1)
 import { checkRectCollision } from '../systems/Physics';
 import { worldRng } from '../systems/Rng'; // Z0.1: seeded gameplay RNG
 import type { DamageSource } from '../types/DamageSource'; // Z0.5
@@ -139,6 +140,12 @@ export class Enemy {
     // OBRON ZAMEK F3 — rola w scenariuszu zamku (null = zwykle AI KTB). Ustawia
     // WaveDirector przy spawnie; stan trasy mutuje CastleSystem.targetFor per klatke
     // (scratch-obiekty = zero alokacji, wzorzec _stealTX/_stealTY).
+    private static sigmaSeq = 0;
+    /** SigmaTester C2: klatki bez postepu mimo zamiaru ruchu (utkniecie); D1: liczba strzalow. */
+    public sigmaStuckFrames = 0;
+    public sigmaShots = 0;
+    /** SigmaTester: stabilny id encji (zdarzenia damage/kill/spawn). */
+    public readonly sigmaId: number = ++Enemy.sigmaSeq;
     public castleRole: CastleRole | null = null;
     /** SAVE THE QUEEN Q4 — rola w Lochach (null = raider/AI KTB). Budowniczy: cel = slot muru (QueenSystem.targetFor). */
     public queenRole: 'raider' | 'builder' | null = null;
@@ -292,6 +299,7 @@ export class Enemy {
         // sam sprite hull dostaje displayScale/config.scale, wiec czolg on-screen = content*displayScale,
         // a HUD wrogow bez zmian.
         this.container.scale.set(config.scale);
+        sigmaEmit({ t: 'spawn', kind: isMegaBoss ? 'mega' : isBoss ? 'boss' : 'enemy', x: x - 20, y: y - 20, w: 40, h: 40, id: this.sigmaId });
 
         if (this.bakerArch) {
             // ── BAKE PATH (combined drawTank, kolory wpieczone, rotacja wpieczona) ──
@@ -470,6 +478,8 @@ export class Enemy {
         }
         if (canX) this.x = nx;
         if (canY) this.y = ny;
+        // SigmaTester C2: zamiar ruchu byl, a pozycja stoi => utkniecie (licznik, zero logiki)
+        if (!canX && !canY) this.sigmaStuckFrames += delta; else this.sigmaStuckFrames = 0;
         if (!canX && !canY) {
             // 4. rog / zakleszczenie: flip strony + krok po osi prostopadlej do ruchu
             this.avoidSide = this.avoidSide === 0 ? 1 : -this.avoidSide;
@@ -999,6 +1009,8 @@ export class Enemy {
         this.lastDamageSource = source;
         this.hp -= amount * this.damageTakenMult; // OBRON ZAMEK F4: taran w recoilu x2
         this.drawHp();
+        sigmaEmit({ t: 'damage', target: 'enemy', id: this.sigmaId, dmg: amount * this.damageTakenMult, src: source.kind, hp: this.hp, x: this.x, y: this.y });
+        if (this.hp <= 0) sigmaEmit({ t: 'kill', id: this.sigmaId, kind: this.isMegaBoss ? 'mega' : this.isBoss ? 'boss' : 'enemy', x: this.x, y: this.y, src: source.kind });
 
         if (this.bakerArch) {
             // Bake: bialy blysk przez additive overlay (baked kolory nie znosza tint=0xffffff).

@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
 import { PICKUP_CONFIG } from '../../config/powers';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded gameplay RNG
@@ -109,6 +110,7 @@ export class Gem {
     private vy: number = 0;
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
+        sigmaEmit({ t: 'spawn', kind: 'gem', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
         this.x = x + worldRng.range(-15, 15); // Z0.1: seeded (pozycja pickupu)
         this.y = y + worldRng.range(-15, 15); // Z0.1: seeded
         this.baseY = this.y;

@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { sigmaEmit } from '../testing/sigmaFlag';
 import type { Brawler } from '../types/Brawler';
 import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { TankSpriteBaker } from '../rendering/TankSpriteBaker';
@@ -353,7 +354,8 @@ export class Player {
     takeDamage(amount: number, isInvulnerable: boolean, source: DamageSource): boolean {
         if (isInvulnerable) return false;
         this.lastDamageSource = source;
-        this.hp -= amount;
+        this.hp = Math.max(0, this.hp - amount); // SigmaTester F1: HP nie schodzi ponizej 0 (bylo -100 po smierci)
+        sigmaEmit({ t: 'damage', target: 'player', dmg: amount, src: source.kind, hp: this.hp, x: this.x, y: this.y }); // SigmaTester (no-op poza ?bot=1)
         return this.hp <= 0;
     }
 

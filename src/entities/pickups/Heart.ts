@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
 
 /**
@@ -80,6 +81,7 @@ export class Heart {
     private static readonly LIFETIME_MS = 15000;
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
+        sigmaEmit({ t: 'spawn', kind: 'heart', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
         this.x = x; this.y = y;
         this.active = true;
         this.bornAt = Date.now();

@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:test": "tsc && vite build && node tools/pack-test.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sigma": "node tools/sigma-tester/run.mjs",
+    "sigma:smoke": "node tools/sigma-tester/run.mjs --matrix smoke"
   },
   "devDependencies": {
+    "playwright": "^1.63.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.12"
   },

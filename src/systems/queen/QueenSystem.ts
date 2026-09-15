@@ -62,6 +62,9 @@ export interface QueenHudInfo {
     activeLanes: { x: number; y: number }[];
     /** Q4.6: strzalka do klucza (po pierwszym dotknieciu zamknietych drzwi bez klucza) */
     keyArrow: { x: number; y: number } | null;
+    /** SigmaTester/bot: gdzie lezy klucz (null gdy zebrany) i drzwi */
+    keyPos: { x: number; y: number } | null;
+    doorOpen: boolean;
     hasKey: boolean;
 }
 
@@ -315,6 +318,8 @@ export class QueenSystem {
             queen: { x: this.queen.x, y: this.queen.y },
             activeLanes: this.activeLanes,
             keyArrow: !this.hasKey && this.doorTouched && !this.key.taken ? { x: this.key.x, y: this.key.y } : null,
+            keyPos: this.key.taken ? null : { x: this.key.x, y: this.key.y },
+            doorOpen: this.door.isOpen,
             hasKey: this.hasKey,
         };
     }

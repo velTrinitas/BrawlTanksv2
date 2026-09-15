@@ -1,3 +1,4 @@
+import { sigmaEmit } from '../../testing/sigmaFlag';
 /**
  * PowerCube.ts — FAZA 8.6 (v0.44.0) port z v4.48. Mobile-crisp F4.1f.
  *
@@ -56,6 +57,7 @@ export class PowerCube {
     private sparkleTimer: number = 0;
 
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
+        sigmaEmit({ t: 'spawn', kind: 'cube', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
         this.x = x;
         this.y = y;
 

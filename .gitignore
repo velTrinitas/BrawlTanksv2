@@ -41,3 +41,5 @@ dist-ssr
 
 # Prywatne notatki Mariusza o grze — nie sa czescia produktu
 docs/edu/
+# SigmaTester — artefakty przebiegow bota (JSON/PNG/DAILY.md) — generowane, nie commitujemy
+reports/

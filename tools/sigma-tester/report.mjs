@@ -132,7 +132,7 @@ function pickShots() {
 }
 const shots = pickShots();
 
-const aggregate = { day: DAY, o1, o2, o3, o3b, k3, checklist, shots, runs: runs.map(r => ({ runId: r.runId, build: r.build, scenario: r.scenario, map: r.map, brawler: r.brawler, diff: r.diff, seed: r.seed, mode: r.mode, mobile: r.mobile, outcome: r.outcome, matchSec: r.matchSec, score: r.score, kills: r.kills, playerDied: r.playerDied, deathAtSec: r.deathAtSec, bossKills: r.bossKills, violations: (r.violations ?? []).length, consoleErrors: (r.consoleErrors ?? []).length, error: r.error ? String(r.error).slice(0, 300) : undefined })) };
+const aggregate = { day: DAY, o1, o2, o3, o3b, k3, checklist, shots, runs: runs.map(r => ({ runId: r.runId, build: r.build, scenario: r.scenario, map: r.map, brawler: r.brawler, diff: r.diff, seed: r.seed, mode: r.mode, mobile: r.mobile, outcome: r.outcome, matchSec: r.matchSec, score: r.score, kills: r.kills, playerDied: r.playerDied, deathAtSec: r.deathAtSec, bossKills: r.bossKills, powersUsed: r.powersUsed, maxWave: r.maxWave, violations: (r.violations ?? []).length, consoleErrors: (r.consoleErrors ?? []).length, error: r.error ? String(r.error).slice(0, 300) : undefined })) };
 fs.writeFileSync(path.join(DIR, 'aggregate.json'), JSON.stringify(aggregate, null, 1));
 
 // ── 3. sekcje z agregacji (markdown) ─────────────────────────────────────
@@ -143,7 +143,9 @@ const mdO1 = [
     `- **Scenariusze:** ${kv(o1.perScenario)} · **mapy:** ${kv(o1.perMap)}`,
     `- **Brawlerzy:** ${kv(o1.perBrawler)} · **trudnosc:** ${kv(o1.perDiff)} · **tryby bota:** ${kv(o1.perMode)}`,
 ].join('\n');
-const mdRuns = table(['run', 'wynik', 's', 'kille', 'zgon @s', 'boss', 'viol.', 'err'], aggregate.runs.map(r => [r.runId, r.outcome, r.matchSec ?? '-', r.kills ?? '-', r.playerDied ? fmt(r.deathAtSec ?? r.matchSec) : '-', r.bossKills ?? 'n/d', r.violations, r.consoleErrors]));
+const mdRuns = table(['run', 'wynik', 's', 'kille', 'zgon @s', 'boss', 'moce', 'fala', 'viol.', 'err'], aggregate.runs.map(r => [r.runId, r.outcome, r.matchSec ?? '-', r.kills ?? '-', r.playerDied ? fmt(r.deathAtSec ?? r.matchSec) : '-', r.bossKills ?? 'n/d', r.powersUsed ?? 'n/d', r.maxWave ?? '-', r.violations, r.consoleErrors]));
+// S5a: log fal Zamku (co 5 s) — rozstrzyga "brak postepu fali": bot nie jedzie do wrogow czy fala stoi
+const mdWaves = runs.filter(r => r.scenario === 'castle' && r.timeline?.length).map(r => `- **${r.runId}:** ` + r.timeline.filter((t, i) => i % 5 === 0).map((t, i) => `${i * 5}s F${t.wave ?? '?'}/${t.ea ?? '?'}w`).join(' · ')).join('\n') || '_brak meczow Zamku_';
 const mdO2 = table(['sev', 'id', 'scenariusz', 'mapa', 'ile', 'seedy (repro)', 'klatka', 'przyklad', 'zrzuty'], o2.map(c => [c.severity, c.id, c.scenario, c.map, c.n, c.seeds.join(','), c.frame, c.sample.slice(0, 140), c.shots.slice(0, 3).join(' ')]));
 const mdO3 = table(['scenariusz', 'mecze', 'zgony', 'win-rate', 'timeouty', 'mediana czasu do smierci [s]', 'kille/min', 'mediana pkt', 'bossy', 'heap MB start→koniec'], o3.map(b => [b.scenario, b.n, b.deaths, b.winRate, b.timeouts, fmt(b.ttdMedian), fmt(b.killsPerMin, 1), fmt(b.scoreMedian), b.bossKills ?? 'n/d', `${fmt(b.heapStart)}→${fmt(b.heapEnd)}`]));
 const mdO3b = table(['brawler', 'mecze', 'mediana czasu do smierci [s]', 'win-rate', 'kille/min'], o3b.map(b => [b.brawler, b.n, fmt(b.ttdMedian), b.winRate, fmt(b.killsPerMin, 1)]));
@@ -163,7 +165,12 @@ Zasady twarde:
 2. NIE wymyslasz bugow, ktorych nie ma w danych ani na zrzutach. Jesli danych brakuje, piszesz wprost, czego brakuje.
 3. Rozrozniasz: bug gry vs slabosc bota (bot gra heurystycznie i ginie szybko — to NIE jest bug gry, chyba ze dane pokazuja smierc "znikad").
 4. Priorytety projektu: czytelnosc > sensoryka > flex. Oceniasz zrzuty pod katem: kolizje/nachodzenie HUD, czytelnosc czolgow i tekstu, czy wiadomo skad przyszlo trafienie, czy ekran koncowy jest jasny.
-5. Znany, zaakceptowany klaster: A1 P3 guard CTF na legacy-kolizji — wspomnij jednym zdaniem, nie rozwijaj.
+5. Znane i ZAAKCEPTOWANE (nie zglaszaj jako bug, nie dawaj RICE): A1 P3 guard CTF na legacy-kolizji (jedno zdanie);
+   w URATUJ KROLOWA ekran "PORWANA!" przy smierci gracza jest ZAMIERZONY (zasada 1 zycia, decyzja projektanta);
+   mnoznik predkosci mobile Pancernego 0.95 i zoom mobile 0.6 sa zamierzone;
+   w OBRON ZAMEK przerwa ~10–15 s bez wrogow miedzy falami jest zamierzona (nie nuda do zgloszenia).
+   Juz w backlogu (wspomnij tylko, jesli wciaz widac, bez RICE): znaczniki celow poza ekranem zaslaniaja HUD/przyciski
+   mocy (CTF i Zamek); duzy boss rysowany na czolgu gracza.
 Format odpowiedzi — DOKLADNIE te naglowki markdown, nic przed pierwszym:
 ## Komentarz testera do bugow
 (2–6 zdan: co jest naprawde grozne, co kosmetyka, co to slabosc bota)
@@ -184,6 +191,7 @@ function buildUserPrompt(withPaths) {
         '', '## O2 Klastry naruszen oracle (P0 crash/zawis, P1 zla regula gry, P2 AI/UX, P3 kosmetyka)', mdO2,
         '', '## O3 Balans per scenariusz (bot = dolna granica trudnosci)', mdO3, '', '## O3 per brawler', mdO3b,
         '', '## K3 heurystyki fairness/nuda', mdK3,
+        '', '## Log fal Zamku (co 5 s: F<fala>/<zywi wrogowie>w)', mdWaves,
         '', '## Checklista oracle (co bot w ogole sprawdza)', mdChecklist,
         '', `## Zrzuty ekranu (${shots.length})${withPaths ? ' — KAZDY przeczytaj narzedziem Read i ocen wizualnie' : ''}`, ...shotLines,
         '', 'Napisz raport wg formatu z instrukcji systemowej.',
@@ -263,7 +271,7 @@ function section(text, heading) {
         '## O1 Naglowek', mdO1, '', '### Przebiegi', mdRuns, '',
         '## O2 Bugi (klastry naruszen oracle, dedup id+scenariusz+mapa)', mdO2, '',
         '### Komentarz testera', pick('Komentarz testera do bugow', DRY ? '_dry-run: bez komentarza LLM_' : '_brak (LLM niedostepny)_'), '',
-        '## O3 Balans', mdO3, '', '### Per brawler', mdO3b, '', '### K3 fairness / nuda (heurystyki)', mdK3, '',
+        '## O3 Balans', mdO3, '', '### Per brawler', mdO3b, '', '### K3 fairness / nuda (heurystyki)', mdK3, '', '### Log fal Zamku (co 5 s: fala / zywi wrogowie)', mdWaves, '',
         '## O4 Glos persony (marudny 10-latek)', pick('Glos persony', DRY ? '_dry-run: bez persony_' : '_brak (LLM niedostepny)_'), '',
         '### Propozycje RICE', pick('Propozycje RICE', '_brak_'), '',
         '### Czego brakuje w danych', pick('Czego brakuje w danych', '_brak_'), '',

@@ -115,7 +115,10 @@ async function runOne(browser, r, idx) {
             runId, build: snaps[0]?.build ?? '?', ...r, url: URL, startedAt: new Date(t0).toISOString(), durationSec: Math.round((Date.now() - t0) / 1000),
             outcome: outcomeEv ? outcomeEv.result : (outcome ?? 'timeout'), matchSec: outcomeEv?.seconds ?? snaps.length, score: snaps[snaps.length - 1]?.score ?? 0,
             kills, bossKills, deathAtSec, playerDied: deaths > 0, violations, consoleErrors, screenshots: shots, oracleIds,
-            timeline: snaps.map(s => ({ f: s.frame, hp: s.player?.hp ?? null, en: s.enemies.filter(e => e.active).length, bul: s.bullets + s.enemyBullets, part: s.perf.particles, heap: s.perf.heapMB, score: s.score })),
+            timeline: snaps.map(s => ({ f: s.frame, hp: s.player?.hp ?? null, en: s.enemies.filter(e => e.active).length, bul: s.bullets + s.enemyBullets, part: s.perf.particles, heap: s.perf.heapMB, score: s.score, pw: s.powersUsed ?? 0, wave: s.scenario?.wave ?? null, ea: s.scenario?.enemiesAlive ?? null })),
+            // S5a: moce uzyte przez bota + najwyzsza fala Zamku (log postepu fal — "52 s bez postepu": bot czy gra?)
+            powersUsed: snaps[snaps.length - 1]?.powersUsed ?? 0,
+            maxWave: snaps.reduce((m, s) => Math.max(m, s.scenario?.wave ?? 0), 0) || null,
             eventsSummary: Object.fromEntries(Object.entries(events.reduce((a, e) => (a[e.t] = (a[e.t] || 0) + 1, a), {}))),
         };
         fs.writeFileSync(path.join(outDir, runId + '.json'), JSON.stringify(report, null, 1));

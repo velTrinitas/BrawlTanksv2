@@ -29,7 +29,14 @@ export interface SigmaBridge {
     get player(): Player | null;
     get enemies(): Enemy[];
     get bullets(): { x: number; y: number; active?: boolean }[];
-    get enemyBullets(): { x: number; y: number }[];
+    get enemyBullets(): { x: number; y: number; vx: number; vy: number }[];
+    /** S5a: sloty mocy (loadout + gotowosc + cooldown) */
+    get powers(): { loadout: string[]; ready: boolean[]; cdLeft: number[]; active: string | null; dice: boolean } | null;
+    get powersUsed(): number;
+    /** S5a: srodki padow naprawy + gotowosc */
+    get mediPads(): { x: number; y: number; ready: boolean }[];
+    /** S5a: stan CTF z HUD (flagi, hangar, niesienie) */
+    get ctfInfo(): { flags: { x: number; y: number; state: string; name: string }[]; hangarX: number; hangarY: number; carrying: boolean } | null;
     get hearts(): { x: number; y: number }[];
     get magnets(): { x: number; y: number }[];
     get gems(): { x: number; y: number }[];
@@ -64,6 +71,12 @@ export interface SigmaSnapshot {
     player: { x: number; y: number; hp: number; maxHp: number; super: number; moving: boolean } | null;
     enemies: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; kind: 'enemy' | 'boss' | 'mega' | 'pursuit'; role: string | null; frozen: boolean; active: boolean; stuck: number; shots: number }>;
     bullets: number; enemyBullets: number;
+    /** S5a: do 30 najblizszych pociskow wroga (< 450 px od gracza) z predkoscia — unik bota */
+    bulletsNear: Array<{ x: number; y: number; vx: number; vy: number }>;
+    powers: { loadout: string[]; ready: boolean[]; cdLeft: number[]; active: string | null; dice: boolean } | null;
+    powersUsed: number;
+    mediPads: Array<{ x: number; y: number; ready: boolean }>;
+    ctf: { flags: { x: number; y: number; state: string; name: string }[]; hangarX: number; hangarY: number; carrying: boolean } | null;
     pickups: { hearts: number; magnets: number; gems: number; cubes: number };
     pickupPos: { hearts: { x: number; y: number }[]; gems: { x: number; y: number }[] };
     buildings: Array<{ x: number; y: number; w: number; h: number }>;
@@ -121,6 +134,12 @@ export function installSigmaTest(bridge: SigmaBridge): void {
                 role: e.castleRole ?? e.queenRole ?? (e.guard ? 'guard' : null), frozen: Date.now() < e.frozenUntil, active: e.active, stuck: e.sigmaStuckFrames, shots: e.sigmaShots,
             })),
             bullets: bridge.bullets.length, enemyBullets: bridge.enemyBullets.length,
+            bulletsNear: p ? bridge.enemyBullets
+                .map(b => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, d: Math.hypot(b.x - p.x, b.y - p.y) }))
+                .filter(b => b.d < 450).sort((a, b) => a.d - b.d).slice(0, 30)
+                .map(b => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy })) : [],
+            powers: bridge.powers, powersUsed: bridge.powersUsed, mediPads: bridge.mediPads,
+            ctf: ((): SigmaSnapshot['ctf'] => { const c = bridge.ctfInfo; return c ? { flags: c.flags.map(f => ({ x: f.x, y: f.y, state: f.state, name: f.name })), hangarX: c.hangarX, hangarY: c.hangarY, carrying: c.carrying } : null; })(),
             pickups: { hearts: bridge.hearts.length, magnets: bridge.magnets.length, gems: bridge.gems.length, cubes: bridge.powerCubes.length },
             pickupPos: { hearts: bridge.hearts.map(h => ({ x: h.x, y: h.y })), gems: bridge.gems.slice(0, 20).map(g => ({ x: g.x, y: g.y })) },
             buildings: bridge.buildings.filter(b => b.w > 0 && b.h > 0).map(rect),

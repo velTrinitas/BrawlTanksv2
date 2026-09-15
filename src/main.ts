@@ -4984,6 +4984,16 @@ if (SIGMA_BOT) {
             get session() { return currentSession; },
             get seed() { return sigmaLastSeed; },
             get scenarioInfo() { return queenSystem ? queenSystem.getHudInfo() : castleSystem ? castleSystem.getHudInfo() : null; },
+            // S5a: gotowosc slotow mocy (cooldown per slot — Player.superCharges to stary licznik Super Shot)
+            get powers() {
+                const ps = powerSystem; if (!ps) return null;
+                const slots: (0 | 1 | 2)[] = [0, 1, 2];
+                return { loadout: [...ps.loadout], ready: slots.map(s => ps.canActivateSlot(s)), cdLeft: slots.map(s => ps.getSlotCooldownSecondsLeft(s)), active: ps.activePowerId, dice: ps.diceEnabled };
+            },
+            get powersUsed() { return currentSession?.superPowersUsed ?? 0; },
+            // pady naprawy: x/y = TOP-LEFT, PAD_SIZE 100 na wszystkich mapach => srodek +50
+            get mediPads() { return mediPads.map(p => ({ x: p.x + 50, y: p.y + 50, ready: Date.now() >= p.cooldownEnd })); },
+            get ctfInfo() { return hud.ctfInfo; },
             get perfCounts() { return effects ? effects.getPerfCounts() : { particles: 0, floatingTexts: 0, trackMarks: 0, poolParticles: 0 }; },
             get screen() { return { w: hud.screenW, h: hud.screenH, zoom: touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM, isTouch: touchManager.isActive }; },
             startGame: (cfg) => startGame(cfg),

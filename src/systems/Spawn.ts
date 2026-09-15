@@ -9,6 +9,7 @@ import { WORLD_W, WORLD_H } from '../config/constants';
 import type { ICollidable } from '../types/MapType';
 import type { DifficultyModifiers } from '../config/difficulty';
 import { QuestService } from '../services/QuestService'; // PROG-F3 — metryki rozkazow
+import { sigmaEmit } from '../testing/sigmaFlag'; // SigmaTester: 'kill' w jedynym punkcie zabicia (no-op poza ?bot=1)
 
 export interface SpawnResult {
     newEnemies: Enemy[];
@@ -298,6 +299,7 @@ export class SpawnSystem {
 
     registerKill(enemy: Enemy): void {
         this.totalKills++;
+        sigmaEmit({ t: 'kill', id: enemy.sigmaId, kind: enemy.isMegaBoss ? 'mega' : enemy.isBoss ? 'boss' : 'enemy', x: enemy.x, y: enemy.y, src: enemy.lastDamageSource?.kind ?? 'unknown' });
         if (enemy.isMegaBoss) {
             this.megaBossKilled = true;
         } else if (enemy.isBoss) {

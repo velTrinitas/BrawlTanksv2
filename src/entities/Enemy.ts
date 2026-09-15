@@ -1010,7 +1010,8 @@ export class Enemy {
         this.hp -= amount * this.damageTakenMult; // OBRON ZAMEK F4: taran w recoilu x2
         this.drawHp();
         sigmaEmit({ t: 'damage', target: 'enemy', id: this.sigmaId, dmg: amount * this.damageTakenMult, src: source.kind, hp: this.hp, x: this.x, y: this.y });
-        if (this.hp <= 0) sigmaEmit({ t: 'kill', id: this.sigmaId, kind: this.isMegaBoss ? 'mega' : this.isBoss ? 'boss' : 'enemy', x: this.x, y: this.y, src: source.kind });
+        // SigmaTester: zdarzenie 'kill' emituje SpawnSystem.registerKill (jedyny punkt wszystkich sciezek zabicia:
+        // pocisk / AoE mocy / taran / hazardy) — stad bot gubil kille z bomb (25 vs 30 na ekranie koncowym).
 
         if (this.bakerArch) {
             // Bake: bialy blysk przez additive overlay (baked kolory nie znosza tint=0xffffff).

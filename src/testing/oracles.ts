@@ -164,13 +164,74 @@ const G5: Oracle = {
     run: ({ events }) => events.filter(e => e.t === 'submitAttempt' && !e.blocked).map(e => ({ id: 'G5', severity: 'P0', frame: e.frame, msg: `submit NIE zablokowany dla ${(e as { mode: string }).mode}` })),
 };
 
+// ── J. Mobile / uklad ekranu (S5b) ───────────────────────────────────────
+// Wejscie: snapshot.layout (runner dokleja raz na sekunde). HUD = canvas (prostokaty z klatki), kontrolki = DOM.
+// Playwright != A54: to geometria ukladu, nie wydajnosc ani odczucie palca.
+type LRect = { kind: string; x: number; y: number; w: number; h: number };
+const family = (r: LRect): string => r.kind.split('-')[0];
+const overlap = (a: LRect, b: LRect): number => {
+    const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    return w > 4 && h > 4 ? Math.round(w * h) : 0; // tolerancja 4 px (antyaliasing, obrysy)
+};
+const J1: Oracle = {
+    id: 'J1', title: 'brak scrolla strony w meczu (CTA ekranu koncowego sprawdza runner)',
+    run: ({ snaps }) => {
+        const s = snaps.find(x => x.gameState === 'PLAYING' && x.layout && (x.layout.scrollW > x.layout.vw + 1 || x.layout.scrollH > x.layout.vh + 1));
+        return s?.layout ? [{ id: 'J1', severity: 'P2', frame: s.frame, msg: `strona przewija sie: ${s.layout.scrollW}x${s.layout.scrollH} > ekran ${s.layout.vw}x${s.layout.vh}` }] : [];
+    },
+};
+const J2: Oracle = {
+    id: 'J2', title: 'HUD bez nachodzenia (pigulki, znaczniki, pasek mocy, joysticki, przyciski, wersja)',
+    run: ({ snaps }) => {
+        const out: Violation[] = []; const seen = new Set<string>();
+        for (const s of snaps) {
+            if (s.gameState !== 'PLAYING' || !s.layout) continue;
+            const all: LRect[] = [...s.layout.hud, ...s.layout.dom];
+            for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+                const a = all[i], b = all[j], fa = family(a), fb = family(b);
+                if (fa === fb && fa !== 'pill') continue; // stos notyfikacji, znaczniki obok siebie, joystick L/R — z zalozenia
+                const area = overlap(a, b); if (!area) continue;
+                const key = [fa === 'marker' ? 'marker' : a.kind, fb === 'marker' ? 'marker' : b.kind].sort().join(' x ');
+                if (seen.has(key)) continue; seen.add(key);
+                // P1 = zasloniety element sterujacy/wynik (pigulka, przycisk, joystick); P2 = reszta (napis wersji, notyfikacja)
+                const critical = ['pill', 'superbtn', 'joystick', 'powerbar'];
+                const sev: Severity = (critical.includes(fa) && critical.includes(fb)) || ((fa === 'marker' || fb === 'marker') && (critical.includes(fa) || critical.includes(fb))) ? 'P1' : 'P2';
+                out.push({ id: 'J2', severity: sev, frame: s.frame, msg: `${a.kind} nachodzi na ${b.kind} (${area} px², ekran ${s.layout.vw}x${s.layout.vh})`, evidence: { a, b } });
+            }
+        }
+        return out.slice(0, 15);
+    },
+};
+const J4: Oracle = {
+    id: 'J4', title: 'tap-targety kontrolek dotykowych >= 44 px',
+    run: ({ snaps }) => {
+        const s = snaps.find(x => x.screen.isTouch && x.gameState === 'PLAYING' && x.layout && x.layout.dom.length);
+        if (!s?.layout) return [];
+        return s.layout.dom.filter(r => (family(r) === 'superbtn' || family(r) === 'joystick') && Math.min(r.w, r.h) < 44)
+            .map(r => ({ id: 'J4', severity: 'P2' as Severity, frame: s.frame, msg: `${r.kind} ${r.w}x${r.h} px < 44 px (ekran ${s.layout!.vw}x${s.layout!.vh})` }));
+    },
+};
+const J8: Oracle = {
+    id: 'J8', title: 'wrog i znajdzka czytelne przy zoomie mobile (rozmiar na ekranie)',
+    run: ({ snaps }) => {
+        const s = snaps.find(x => x.screen.isTouch && x.player);
+        if (!s) return [];
+        const z = s.screen.zoom, out: Violation[] = [];
+        // hitbox wroga 40 px, znajdzki 32 px (spawn events) — progi czytelnosci sylwetki na telefonie
+        if (40 * z < 18) out.push({ id: 'J8', severity: 'P2', frame: s.frame, msg: `wrog ${Math.round(40 * z)} px na ekranie przy zoom ${z} (< 18 px)` });
+        if (32 * z < 14) out.push({ id: 'J8', severity: 'P3', frame: s.frame, msg: `znajdzka ${Math.round(32 * z)} px na ekranie przy zoom ${z} (< 14 px)` });
+        return out;
+    },
+};
+
 // ── L. Stabilnosc ────────────────────────────────────────────────────────
 const L1: Oracle = {
     id: 'L1', title: 'zero uncaught error / unhandled rejection',
     run: ({ events }) => events.filter(e => e.t === 'error').slice(0, 10).map(e => ({ id: 'L1', severity: 'P0', frame: e.frame, msg: (e as { msg: string }).msg.slice(0, 200), evidence: (e as { stack: string }).stack.slice(0, 600) })),
 };
 
-export const ORACLES: Oracle[] = [A1, A2, C2, D1, E1, E3, F1, F2, F3, F4, G1, G5, L1];
+export const ORACLES: Oracle[] = [A1, A2, C2, D1, E1, E3, F1, F2, F3, F4, G1, G5, J1, J2, J4, J8, L1];
 
 export function runOracles(inp: OracleInput): Violation[] {
     const out: Violation[] = [];

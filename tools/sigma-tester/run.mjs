@@ -37,6 +37,13 @@ function buildMatrix() {
         for (const sc of ['ktb', 'ctf', 'castle', 'save_queen']) runs.push({ scenario: sc, map: DEFAULT_MAP[sc], brawler: 'twardy', diff: 'normal', seed: seed++, minutes: Number(args.minutes ?? 1.5), mode: 'play', mobile: false });
         return runs;
     }
+    // S5b mobile: 4 scenariusze @667x375 (typowy telefon w poziomie) + KTB/CTF @812x375 (dlugi ekran z notchem)
+    if (m === 'mobile') {
+        let s = 500;
+        for (const sc of ['ktb', 'ctf', 'castle', 'save_queen']) runs.push({ scenario: sc, map: DEFAULT_MAP[sc], brawler: 'twardy', diff: 'normal', seed: s++, minutes: Number(args.minutes ?? 1.5), mode: 'play', mobile: true, vw: 667, vh: 375 });
+        for (const sc of ['ktb', 'ctf']) runs.push({ scenario: sc, map: DEFAULT_MAP[sc], brawler: 'scout', diff: 'normal', seed: s++, minutes: Number(args.minutes ?? 1.5), mode: 'play', mobile: true, vw: 812, vh: 375 });
+        return runs;
+    }
     // nightly: KTB po mapach, reszta na swoich; 3 brawlerow x 2 trudnosci + tryby chaos
     let seed = 100;
     const brawlers = ['twardy', 'scout', 'heavy'], diffs = ['normal', 'hard'];
@@ -48,9 +55,10 @@ function buildMatrix() {
 }
 
 async function runOne(browser, r, idx) {
-    const runId = `${String(idx).padStart(3, '0')}-${r.scenario}-${r.map}-${r.brawler}-${r.diff}-${r.mode}${r.mobile ? '-mobile' : ''}-s${r.seed}`;
+    const vw = r.vw ?? 667, vh = r.vh ?? 375;
+    const runId = `${String(idx).padStart(3, '0')}-${r.scenario}-${r.map}-${r.brawler}-${r.diff}-${r.mode}${r.mobile ? `-m${vw}x${vh}` : ''}-s${r.seed}`;
     const ctx = await browser.newContext(r.mobile
-        ? { viewport: { width: 667, height: 375 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (Linux; Android 13; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36' }
+        ? { viewport: { width: vw, height: vh }, hasTouch: true, isMobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (Linux; Android 13; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36' }
         : { viewport: { width: 1280, height: 720 } });
     const page = await ctx.newPage();
     const consoleErrors = [];
@@ -60,6 +68,10 @@ async function runOne(browser, r, idx) {
     page.on('requestfailed', (req) => consoleErrors.push(`REQFAIL ${req.failure()?.errorText ?? ''} ${req.url().slice(0, 160)}`));
     const t0 = Date.now();
     const snaps = []; const shots = [];
+    // S5b: naruszenia i proby liczone po stronie runnera (obrot, predkosc, zwiniecie, CTA) — dolaczane do oracles
+    const extra = []; const probes = {}; let hudShot = false;
+    const extraIds = [{ id: 'J1', title: 'CTA ekranu koncowego w viewport' }];
+    if (r.mobile) extraIds.push({ id: 'J7', title: 'obrot do pionu: ostrzezenie, pauza, powrot' }, { id: 'J9', title: 'predkosc gracza = baseSpeed x mnoznik mobile' }, { id: 'J10', title: 'zwiniecie karty: muzyka pauzowana i wznawiana' });
     let outcome = null; let firstDeathShot = false;
     try {
         await page.goto(`${URL}?bot=1&seed=${r.seed}&queentut=0&castletut=0&queen=1&castle=1`, { waitUntil: 'load', timeout: 60000 });
@@ -87,8 +99,17 @@ async function runOne(browser, r, idx) {
             let snap = res.snap;
             if (!firstDeathShot && snap.player && snap.player.hp <= 0) { firstDeathShot = true; shots.push(await shot(page, outDir, runId, 'death')); }
             if (res.rest > 0) snap = await page.evaluate((n) => { window.__sigmaTest.bot.tick(n); return window.__sigmaTest.snapshot(); }, res.rest);
+            snap.layout = await page.evaluate(() => window.__sigmaTest.layout()); // S5b: J1/J2/J4
+            // S5b: jeden zrzut "hud" w pierwszej sekundzie nachodzenia znacznika/powiadomienia na panel lub kontrolke
+            // (dowod wizualny dla J2 i persony — geometria sama nie wystarcza do zgloszenia)
+            if (!hudShot && snap.gameState === 'PLAYING' && hudOverlap(snap.layout)) { hudShot = true; shots.push(await shot(page, outDir, runId, 'hud')); }
             snaps.push(snap);
             if (sec === 2) shots.push(await shot(page, outDir, runId, 'start'));
+            if (r.mobile && snap.gameState === 'PLAYING') {
+                if (sec === 1) await probeSpeed(page, probes, extra);
+                if (sec === 10) await probeVisibility(page, probes, extra);
+                if (sec === 20) await probePortrait(page, probes, extra, shots, runId, vw, vh);
+            }
             if (snap.gameState !== 'PLAYING') {
                 outcome = snap.gameState;
                 // ekran koncowy animuje sie (przycisk wjezdza z opoznieniem): 2 s zegara gry + chwila czasu rzeczywistego
@@ -96,6 +117,11 @@ async function runOne(browser, r, idx) {
                 await page.evaluate(() => window.__sigmaTest.control.step(120));
                 await page.waitForTimeout(800);
                 shots.push(await shot(page, outDir, runId, 'end'));
+                // S5b J1: przycisk POWROT DO MENU w calosci w viewport (breakpoint = wysokosc)
+                const cta = await page.evaluate(() => { const b = [...document.querySelectorAll('.brawl-btn')].find(x => x.getBoundingClientRect().width > 0); if (!b) return null; const q = b.getBoundingClientRect(); return { x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height), vw: innerWidth, vh: innerHeight }; });
+                probes.cta = cta;
+                if (!cta) extra.push({ id: 'J1', severity: 'P1', frame: snap.frame, msg: `brak widocznego przycisku na ekranie koncowym (${vw}x${vh})` });
+                else if (cta.x < 0 || cta.y < 0 || cta.x + cta.w > cta.vw || cta.y + cta.h > cta.vh) extra.push({ id: 'J1', severity: 'P1', frame: snap.frame, msg: `przycisk konca poza ekranem: ${JSON.stringify(cta)}` });
                 break;
             }
         }
@@ -114,7 +140,8 @@ async function runOne(browser, r, idx) {
         const report = {
             runId, build: snaps[0]?.build ?? '?', ...r, url: URL, startedAt: new Date(t0).toISOString(), durationSec: Math.round((Date.now() - t0) / 1000),
             outcome: outcomeEv ? outcomeEv.result : (outcome ?? 'timeout'), matchSec: outcomeEv?.seconds ?? snaps.length, score: snaps[snaps.length - 1]?.score ?? 0,
-            kills, bossKills, deathAtSec, playerDied: deaths > 0, violations, consoleErrors, screenshots: shots, oracleIds,
+            kills, bossKills, deathAtSec, playerDied: deaths > 0, violations: [...violations, ...extra], consoleErrors, screenshots: shots,
+            oracleIds: [...oracleIds, ...extraIds.filter(e => !oracleIds.some(o => o.id === e.id))], probes, viewport: r.mobile ? `${vw}x${vh}` : '1280x720',
             timeline: snaps.map(s => ({ f: s.frame, hp: s.player?.hp ?? null, en: s.enemies.filter(e => e.active).length, bul: s.bullets + s.enemyBullets, part: s.perf.particles, heap: s.perf.heapMB, score: s.score, pw: s.powersUsed ?? 0, wave: s.scenario?.wave ?? null, ea: s.scenario?.enemiesAlive ?? null })),
             // S5a: moce uzyte przez bota + najwyzsza fala Zamku (log postepu fal — "52 s bez postepu": bot czy gra?)
             powersUsed: snaps[snaps.length - 1]?.powersUsed ?? 0,
@@ -131,6 +158,73 @@ async function runOne(browser, r, idx) {
     } finally {
         await ctx.close();
     }
+}
+
+/** S5b: czy znacznik krawedziowy / powiadomienie nachodzi na pigulke, pasek mocy lub kontrolke dotykowa (ta sama tolerancja 4 px co J2). */
+function hudOverlap(l) {
+    if (!l) return false;
+    const fam = (r) => r.kind.split('-')[0];
+    const movers = l.hud.filter(r => fam(r) === 'marker' || fam(r) === 'notif');
+    const fixed = [...l.hud.filter(r => fam(r) === 'pill' || fam(r) === 'powerbar'), ...l.dom.filter(r => fam(r) === 'superbtn' || fam(r) === 'joystick')];
+    return movers.some(a => fixed.some(b => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 4 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 4));
+}
+
+// ── S5b: proby mobile po stronie runnera ─────────────────────────────────
+// kopia getMobileSpeedMult z src/entities/Player.ts (funkcja nieeksportowana) — przy zmianie tabeli zaktualizowac
+const mobileMult = (b) => b <= 3 ? 1.05 : b <= 4 ? 0.95 : b <= 5 ? 0.80 : b <= 7 ? 0.72 : 0.68;
+
+/** J9: 4 kierunki po 30 klatek (bot wstrzymany), najwieksze przesuniecie/klatke vs currentSpeed x mnoznik mobile. */
+async function probeSpeed(page, probes, extra) {
+    const m = await page.evaluate(() => {
+        const T = window.__sigmaTest; T.bot.setMode('idle');
+        const s0 = T.snapshot(); const per = [];
+        for (const dir of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
+            const a = T.snapshot().player; T.input.move(dir); T.control.step(30); T.input.move(null); T.control.step(4);
+            const b = T.snapshot().player; per.push(Math.hypot(b.x - a.x, b.y - a.y) / 30);
+        }
+        T.bot.setMode('play');
+        return { frame: s0.frame, touch: s0.screen.isTouch, base: s0.player.baseSpeed, cur: s0.player.currentSpeed, perFrame: Math.max(...per), all: per };
+    });
+    const expected = m.touch ? m.cur * mobileMult(m.base) : m.cur;
+    probes.j9 = { ...m, expected: Math.round(expected * 100) / 100 };
+    if (m.perFrame < expected * 0.3) { probes.j9.note = 'ruch zablokowany we wszystkich kierunkach — proba pominieta'; return; }
+    const ratio = m.perFrame / expected;
+    if (ratio < 0.9 || ratio > 1.1) extra.push({ id: 'J9', severity: 'P2', frame: m.frame, msg: `predkosc ${m.perFrame.toFixed(2)} px/klatke vs oczekiwane ${expected.toFixed(2)} (base ${m.base} x mnoznik ${m.touch ? mobileMult(m.base) : 1}, x${ratio.toFixed(2)})` });
+}
+
+/** J10: symulowane zwiniecie karty (visibilityState=hidden + zdarzenie) i powrot. Headless moze nie grac muzyki — wtedy tylko stan pageHidden. */
+async function probeVisibility(page, probes, extra) {
+    const v = await page.evaluate(() => {
+        const T = window.__sigmaTest; const before = T.audio();
+        const setVis = (st) => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => st }); document.dispatchEvent(new Event('visibilitychange')); };
+        setVis('hidden'); const hidden = T.audio();
+        setVis('visible'); const shown = T.audio();
+        delete document.visibilityState; // przywraca getter z prototypu
+        return { frame: T.snapshot().frame, before, hidden, shown };
+    });
+    probes.j10 = v;
+    if (!v.hidden.pageHidden) extra.push({ id: 'J10', severity: 'P1', frame: v.frame, msg: 'visibilitychange=hidden nie przelacza AudioSys w stan schowany' });
+    if (v.hidden.musicPlaying) extra.push({ id: 'J10', severity: 'P1', frame: v.frame, msg: 'muzyka gra dalej po zwinieciu karty' });
+    if (v.before.musicPlaying && !v.shown.musicPlaying) extra.push({ id: 'J10', severity: 'P2', frame: v.frame, msg: 'muzyka nie wraca po powrocie do karty' });
+    if (v.shown.pageHidden) extra.push({ id: 'J10', severity: 'P1', frame: v.frame, msg: 'po powrocie AudioSys nadal w stanie schowanym (cisza)' });
+}
+
+/** J7: obrot do pionu na 5 s bez inputu (gracz obraca telefon), potem powrot. Ostrzezenie widoczne? Ile HP zniknelo? */
+async function probePortrait(page, probes, extra, shots, runId, vw, vh) {
+    const before = await page.evaluate(() => { const s = window.__sigmaTest.snapshot(); return { hp: s.player?.hp ?? 0, frame: s.frame }; });
+    await page.setViewportSize({ width: vh, height: vw });
+    const warn = await page.evaluate(() => { const el = document.querySelector('.bt-portrait-warning'); return el ? getComputedStyle(el).display !== 'none' : null; });
+    shots.push(await shot(page, outDir, runId, 'portrait'));
+    const during = await page.evaluate(() => { const T = window.__sigmaTest; T.bot.setMode('idle'); T.input.release(); T.control.step(300); const s = T.snapshot(); return { hp: s.player?.hp ?? 0, state: s.gameState }; });
+    await page.setViewportSize({ width: vw, height: vh });
+    // resize dochodzi asynchronicznie — bez czekania HUD bywal jeszcze w wymiarach pionu (falszywe J7)
+    await page.waitForFunction(([w, h]) => window.innerWidth === w && window.innerHeight === h, [vw, vh], { timeout: 5000 }).catch((err) => console.error(`[sigma] J7 resize timeout ${runId}: ${err.message}`));
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => { const T = window.__sigmaTest; T.control.step(10); T.bot.setMode('play'); const s = T.snapshot(); return { state: s.gameState, w: s.screen.w, h: s.screen.h }; });
+    probes.j7 = { warn, hpBefore: before.hp, hpAfter: during.hp, stateDuring: during.state, after };
+    if (warn !== true) extra.push({ id: 'J7', severity: 'P1', frame: before.frame, msg: `brak ostrzezenia "Obroc telefon" w pionie ${vh}x${vw}` });
+    if (during.hp < before.hp) extra.push({ id: 'J7', severity: 'P2', frame: before.frame, msg: `gra nie pauzuje w pionie: -${Math.round(before.hp - during.hp)} HP w 5 s bez mozliwosci sterowania${during.state !== 'PLAYING' ? ` (stan: ${during.state})` : ''}` });
+    if (after.w !== vw || after.h !== vh) extra.push({ id: 'J7', severity: 'P2', frame: before.frame, msg: `HUD po powrocie do poziomu ma ${after.w}x${after.h} zamiast ${vw}x${vh}` });
 }
 
 async function shot(page, dir, runId, tag) {

@@ -167,6 +167,17 @@ export class HUD {
 
     /** FAZA CTF F3 — dane CTF (null poza scenariuszem ctf). Ustawiane per klatke z main.ts. */
     public ctfInfo: HudCtfInfo | null = null;
+    /**
+     * SigmaTester S5b (oracle J2): prostokaty narysowanych elementow w px EKRANU z tej klatki.
+     * null = wylaczone (produkcja); main.ts ustawia [] tylko przy ?bot=1. HUD to canvas 2D — bez tego
+     * nie da sie zmierzyc nachodzenia (znaczniki krawedziowe na pigulkach / przyciskach mocy).
+     */
+    public sigmaRects: Array<{ kind: string; x: number; y: number; w: number; h: number }> | null = null;
+    private sigmaRect(kind: string, x: number, y: number, w: number, h: number, scaled: boolean): void {
+        if (!this.sigmaRects) return;
+        const s = scaled ? this.uiScale : 1;
+        this.sigmaRects.push({ kind, x: Math.round(x * s), y: Math.round(y * s), w: Math.round(w * s), h: Math.round(h * s) });
+    }
     /** OBRON ZAMEK F5 — dane Zamku (null poza scenariuszem castle). Ustawiane per klatke z main.ts. */
     public castleInfo: HudCastleInfo | null = null;
     /** SAVE THE QUEEN Q2 — dane Krolowej (null poza scenariuszem). Ustawiane per klatke z main.ts. */
@@ -519,6 +530,11 @@ export class HUD {
             const scale = Math.min((this.screenW / 2 - M) / Math.abs(dx || 0.0001), (this.screenH / 2 - M) / Math.abs(dy || 0.0001));
             const ax = cx + dx * scale, ay = cyS + dy * scale;
             const ang = Math.atan2(dy, dx);
+            if (this.sigmaRects) { // SigmaTester J2: grot (r16) + badge (r15, 22 px wstecz)
+                const bx0 = ax - Math.cos(ang) * 22, by0 = ay - Math.sin(ang) * 22;
+                const x0 = Math.min(ax - 16, bx0 - 15), y0 = Math.min(ay - 16, by0 - 15);
+                this.sigmaRect('marker-' + tgt.label, x0, y0, Math.max(ax + 16, bx0 + 15) - x0, Math.max(ay + 16, by0 + 15) - y0, false);
+            }
             const col = '#' + tgt.color.toString(16).padStart(6, '0');
             c.save();
             c.globalAlpha = tgt.pulse ? 0.7 + Math.sin(Date.now() / 130) * 0.3 : 0.85;
@@ -550,6 +566,7 @@ export class HUD {
             const pw = c.measureText(n.text).width + 16;
             // v0.46.0: px 222 → 252 (HP pill poszerzony do 230, notify nie moga nachodzic)
             const ph = 24, pr = 12, px = 252, py = 8 + i * 28;
+            this.sigmaRect('notif-' + i, px, py, pw, ph, true); // SigmaTester J2 (kontekst skalowany)
             c.save();
             c.globalAlpha = alpha;
             c.fillStyle = 'rgba(0,0,0,0.55)';
@@ -836,6 +853,7 @@ export class HUD {
         const slotCount = powerSystem.slotCount;
         const totalW = ICON_SIZE * slotCount + ICON_GAP * (slotCount - 1);
         const startX = cx - totalW / 2;
+        this.sigmaRect('powerbar-slots', startX, iconsBaseY, totalW, ICON_SIZE + 22, true); // SigmaTester J2 (ikony + podpisy)
 
         // v0.73.7 PERF: for-loop (bez alokacji tablicy+domkniecia co klatke).
         for (let i = 0; i < slotCount; i++) {
@@ -1554,6 +1572,11 @@ export class HUD {
             const ang = Math.atan2(dy, dx);
             const col = '#' + tgt.color.toString(16).padStart(6, '0');
             const distM = Math.round(Math.hypot(dx, dy) / info.zoom / 10);
+            if (this.sigmaRects) { // SigmaTester J2: grot + badge + podpis dystansu (24 px pod badge)
+                const bx0 = ax - Math.cos(ang) * 22, by0 = ay - Math.sin(ang) * 22;
+                const x0 = Math.min(ax - 16, bx0 - 18), y0 = Math.min(ay - 16, by0 - 15);
+                this.sigmaRect('marker-' + tgt.label, x0, y0, Math.max(ax + 16, bx0 + 18) - x0, Math.max(ay + 16, by0 + 32) - y0, false);
+            }
 
             c.save();
             if (tgt.isBase) {
@@ -1647,6 +1670,7 @@ export class HUD {
     ): void {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
+        if (this.sigmaRects) this.sigmaRects.length = 0; // SigmaTester J2: nowa klatka
 
         // v0.23.1: scale HUD pills (top + corners) — mobile dostaje uiScale=0.7
         c.save();
@@ -1729,6 +1753,20 @@ export class HUD {
         }
 
         c.restore();
+
+        // SigmaTester J2: pigulki (te same stale co rysowanie wyzej; px skalowane uiScale)
+        if (this.sigmaRects) {
+            const sw = this.screenW / this.uiScale;
+            this.sigmaRect('pill-hp', 14, 8, 230, 54, true);
+            this.sigmaRect('pill-score', Math.round(sw / 2 - 115), 8, 230, 54, true);
+            this.sigmaRect('pill-kills', sw - 14 - 230, 8, 230, 54, true);
+            if (this.seasonCount !== null) this.sigmaRect('pill-season', sw - 14 - 200, 68, 200, 34, true);
+            this.sigmaRect('pill-super', 14, 70, 172, 54, true);
+            if (this.ctfInfo) this.sigmaRect('pill-ctfpanel', 14, 132, 172, 44, true);
+            if (this.ctfInfo?.carrying) this.sigmaRect('banner-ctfcarry', sw / 2 - 160, 112, 320, 34, true);
+            if (this.castleInfo) this.sigmaRect('pill-castlepanel', 14, 132, 186, 72, true);
+            if (this.queenInfo) this.sigmaRect('pill-queen', Math.round(sw / 2 - 115), 66, 230, 44, true);
+        }
 
         // === Unscaled overlays (full screen size, niezależne od uiScale) ===
 

@@ -37,6 +37,10 @@ export interface SigmaBridge {
     get mediPads(): { x: number; y: number; ready: boolean }[];
     /** S5a: stan CTF z HUD (flagi, hangar, niesienie) */
     get ctfInfo(): { flags: { x: number; y: number; state: string; name: string }[]; hangarX: number; hangarY: number; carrying: boolean } | null;
+    /** S5b: prostokaty HUD (canvas) z ostatniej klatki, px ekranu */
+    get hudRects(): SigmaRect[];
+    /** S5b: stan audio (J10) */
+    get audioState(): { pageHidden: boolean; muted: boolean; musicPlaying: boolean; pausedOnHide: number };
     get hearts(): { x: number; y: number }[];
     get magnets(): { x: number; y: number }[];
     get gems(): { x: number; y: number }[];
@@ -62,13 +66,19 @@ export interface SigmaBridge {
     teleport(x: number, y: number): void;
 }
 
+export interface SigmaRect { kind: string; x: number; y: number; w: number; h: number }
+/** S5b: uklad ekranu — HUD (canvas, z klatki) + kontrolki DOM (joysticki, przyciski mocy, #credits) + scroll. */
+export interface SigmaLayout { hud: SigmaRect[]; dom: SigmaRect[]; vw: number; vh: number; scrollW: number; scrollH: number }
+
 export interface SigmaSnapshot {
+    /** S5b: dokladany przez runner raz na sekunde (layout() nie jest w snapshot(), bo bot wola snapshot co 6 klatek) */
+    layout?: SigmaLayout;
     build: string; frame: number; gameState: string; seed: number;
     config: { scenario: ScenarioId; map: MapId; brawler: string; difficulty: DifficultyId } | null;
     world: { w: number; h: number };
     screen: { w: number; h: number; zoom: number; isTouch: boolean };
     camera: { x: number; y: number };
-    player: { x: number; y: number; hp: number; maxHp: number; super: number; moving: boolean } | null;
+    player: { x: number; y: number; hp: number; maxHp: number; super: number; moving: boolean; baseSpeed: number; currentSpeed: number } | null;
     enemies: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; kind: 'enemy' | 'boss' | 'mega' | 'pursuit'; role: string | null; frozen: boolean; active: boolean; stuck: number; shots: number }>;
     bullets: number; enemyBullets: number;
     /** S5a: do 30 najblizszych pociskow wroga (< 450 px od gracza) z predkoscia — unik bota */
@@ -127,7 +137,7 @@ export function installSigmaTest(bridge: SigmaBridge): void {
             world: { w: bridge.worldW, h: bridge.worldH },
             screen: bridge.screen,
             camera: { x: bridge.camera.x, y: bridge.camera.y },
-            player: p ? { x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, super: p.superCharges, moving: p.isMoving } : null,
+            player: p ? { x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, super: p.superCharges, moving: p.isMoving, baseSpeed: p.baseSpeed, currentSpeed: p.currentSpeed } : null,
             enemies: bridge.enemies.map(e => ({
                 id: e.sigmaId, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp,
                 kind: e.isMegaBoss ? 'mega' : e.isBoss ? 'boss' : e.isPursuit ? 'pursuit' : 'enemy',
@@ -217,9 +227,27 @@ export function installSigmaTest(bridge: SigmaBridge): void {
         run: (inp: OracleInput) => runOracles(inp),
     };
 
+    /** S5b: uklad ekranu do oracle J1/J2/J4 (DOM rects liczone tylko tu, nie w snapshot() bota). */
+    const layout = (): SigmaLayout => {
+        const dom: SigmaRect[] = [];
+        const add = (kind: string, el: Element | null): void => {
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) return; // ukryty (np. #bt-touch-root display:none na desktopie)
+            const cs = getComputedStyle(el);
+            if (cs.visibility === 'hidden' || Number(cs.opacity) === 0) return;
+            dom.push({ kind, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+        };
+        document.querySelectorAll('#bt-touch-root .bt-joystick').forEach((el, i) => add('joystick-' + i, el));
+        document.querySelectorAll('#bt-touch-root .bt-super-button').forEach((el, i) => add('superbtn-' + i, el));
+        add('credits-version', document.getElementById('credits'));
+        return { hud: bridge.hudRects.map(r => ({ ...r })), dom, vw: window.innerWidth, vh: window.innerHeight, scrollW: document.documentElement.scrollWidth, scrollH: document.documentElement.scrollHeight };
+    };
+
     (window as unknown as { __sigmaTest: unknown }).__sigmaTest = {
         version: 1, build: BUILD,
-        snapshot, events, control, input, bot: botApi, oracles,
+        snapshot, events, control, input, bot: botApi, oracles, layout,
+        audio: () => bridge.audioState,
         clearEvents: (): void => { events.length = 0; },
     };
     console.log(`[SigmaTest] installed (build ${BUILD}) — window.__sigmaTest { snapshot, events, control, input }`);

@@ -123,7 +123,7 @@ const checklist = contractIds.map(id => ({ id, status: violated.has(id) ? '❌' 
 
 // zrzuty dla LLM: mecze z naruszeniami > smierci > timeouty > starty; mobile zawsze
 function pickShots() {
-    const score = (r, s) => (r.violations?.length ? 40 : 0) + (r.mobile ? 30 : 0) + (/-death\.png$/.test(s) ? 20 : /-end\.png$/.test(s) ? 15 : /-(timeout|error)\.png$/.test(s) ? 10 : 2);
+    const score = (r, s) => (r.violations?.length ? 40 : 0) + (r.mobile ? 30 : 0) + (/-hud\.png$/.test(s) ? 25 : /-death\.png$/.test(s) ? 20 : /-end\.png$/.test(s) ? 15 : /-(timeout|error|portrait)\.png$/.test(s) ? 10 : 2);
     const all = runs.flatMap(r => (r.screenshots ?? []).map(s => ({ run: r, file: s, score: score(r, s) })));
     const seen = new Set();
     return all.filter(x => fs.existsSync(path.join(DIR, x.file))).sort((a, b) => b.score - a.score)

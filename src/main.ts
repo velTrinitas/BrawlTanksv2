@@ -735,6 +735,7 @@ setPropBakeRenderer(app.renderer);
 if (HARNESS_EMPTY) worldContainer.visible = false; // F5 harness: pusty present (test compositor/vsync/present)
 
 const hud = new HUD('hudCanvas');
+if (SIGMA_BOT) hud.sigmaRects = []; // SigmaTester J2: HUD zbiera prostokaty tylko w trybie bota
 if (HARNESS_NOHUD) { const _hc = document.getElementById('hudCanvas'); if (_hc) _hc.style.display = 'none'; } // F5 harness: HUD 2D off
 
 // ── Diagnostyka wydajnosci (?perf=1) — overlay FPS + liczniki obiektow. ──
@@ -4994,6 +4995,9 @@ if (SIGMA_BOT) {
             // pady naprawy: x/y = TOP-LEFT, PAD_SIZE 100 na wszystkich mapach => srodek +50
             get mediPads() { return mediPads.map(p => ({ x: p.x + 50, y: p.y + 50, ready: Date.now() >= p.cooldownEnd })); },
             get ctfInfo() { return hud.ctfInfo; },
+            // S5b: prostokaty HUD z ostatniej klatki (J2) + stan audio po zwinieciu (J10)
+            get hudRects() { return hud.sigmaRects ?? []; },
+            get audioState() { return AudioSys.getInstance().getSigmaAudioState(); },
             get perfCounts() { return effects ? effects.getPerfCounts() : { particles: 0, floatingTexts: 0, trackMarks: 0, poolParticles: 0 }; },
             get screen() { return { w: hud.screenW, h: hud.screenH, zoom: touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM, isTouch: touchManager.isActive }; },
             startGame: (cfg) => startGame(cfg),

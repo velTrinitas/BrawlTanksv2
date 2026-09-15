@@ -297,6 +297,17 @@ export class AudioSys {
         }
     }
 
+    /** SigmaTester J10 (tylko odczyt): czy po zwinieciu muzyka jest PAUZOWANA i wraca po powrocie. */
+    getSigmaAudioState(): { pageHidden: boolean; muted: boolean; musicPlaying: boolean; pausedOnHide: number } {
+        const longRunning: Array<Howl | null> = [this.currentMusicTrack, this.introMusic, this.hubMusic, this.ctfCarryMusic, this.duckLoop];
+        let musicPlaying = false;
+        for (const howl of longRunning) {
+            if (!howl) continue;
+            try { if (howl.playing()) musicPlaying = true; } catch (e) { console.warn('[AudioSys] getSigmaAudioState playing() failed', (e as Error).stack); }
+        }
+        return { pageHidden: this.pageHidden, muted: this.muted, musicPlaying, pausedOnHide: this.pausedOnHide.length };
+    }
+
     /**
      * Jedyne miejsce dotykajace globalnego mute Howlera. Dwa niezalezne powody ciszy
      * skladaja sie tu w jedna decyzje — inaczej powrot do gry odciszalby gracza, ktory

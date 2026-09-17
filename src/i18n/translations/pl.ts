@@ -1102,6 +1102,12 @@ export const pl = {
     'ctf.flagLabel':      'FLAGA {team}',
     'portrait.title':     'Obróć telefon do poziomu',
     'portrait.subtitle':  'Sigma Tanks gra się najlepiej w trybie poziomym — szersze pole bitwy widać lepiej 🔄',
+    // v0.187.0 — utrata kontekstu WebGL (biały ekran). ZERO słów "błąd", "crash", "WebGL":
+    // dziecko ma zrozumieć, że to nie jego wina i że nic nie straciło.
+    'ctxlost.title':      '⚡ Silnik się przegrzał!',
+    'ctxlost.body':       'Grafika musi się zresetować — Twój postęp i monety są bezpieczne.',
+    'ctxlost.lostMatch':  'Ten mecz się nie liczy — zagraj od nowa 💪',
+    'ctxlost.button':     'Wracam do gry',
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',

@@ -50,8 +50,49 @@ export function setPropBakeRenderer(renderer: PIXI.IRenderer): void {
  * zwraca `null` — wolajacy zostaje wtedy przy zywych Graphics. Cichy fallback jest tu
  * WLASCIWY: brak pieczenia to gorsza jakosc, a nie zepsuty prop.
  */
-export function bakeToSprite(source: PIXI.Container): PIXI.Sprite | null {
+/**
+ * v0.187.0 — cache upieczonych propow.
+ *
+ * Do tej wersji KAZDA instancja propu tworzyla wlasna teksture przez `generateTexture` i nikt jej
+ * nigdy nie niszczyl (teardown robi `removeChildren()`, ktore nie zwalnia GPU). Pomiar botem: +57
+ * tekstur i ~2.7 MB na kazdy rozegrany mecz, w nieskonczonosc. Klucz podaje WOLAJACY — automatyczne
+ * hashowanie Graphics byloby kruche, a zly klucz oznacza, ze wszystkie propy wygladaja tak samo.
+ */
+const _cache = new Map<string, PIXI.Texture>();
+
+function propCacheEnabled(): boolean {
+    return new URLSearchParams(window.location.search).get('propcache') !== '0';
+}
+
+/** Zwalnia wszystkie upieczone propy (wolane przy teardownie meczu). */
+export function disposePropCache(): void {
+    for (const tex of _cache.values()) {
+        try {
+            if (!tex.destroyed) tex.destroy(true);
+        } catch (e) {
+            console.error('[propBaker] destroy failed', (e as Error).stack);
+        }
+    }
+    _cache.clear();
+}
+
+/** Diagnostyka (`?diag=1`): ile propow siedzi w cache. */
+export function getPropCacheSize(): number {
+    return _cache.size;
+}
+
+export function bakeToSprite(source: PIXI.Container, cacheKey?: string): PIXI.Sprite | null {
     if (!_renderer) return null;
+    if (cacheKey && propCacheEnabled()) {
+        const hit = _cache.get(cacheKey);
+        if (hit && !hit.destroyed) {
+            const spr = new PIXI.Sprite(hit);
+            // anchor jest czescia kadru, wiec musi byc odtworzony tak samo jak przy pieczeniu
+            const b = source.getLocalBounds();
+            if (b.width > 0 && b.height > 0) spr.anchor.set(-b.x / b.width, -b.y / b.height);
+            return spr;
+        }
+    }
     try {
         // `getLocalBounds` daje realny kadr artu WRAZ z tym, co wychodzi poza (0,0) —
         // cienie i poswiaty sa rysowane z offsetem, wiec kadr liczony od zera ucinalby je.
@@ -62,6 +103,7 @@ export function bakeToSprite(source: PIXI.Container): PIXI.Sprite | null {
             resolution: PROP_BAKE_SCALE,
             region: b,
         });
+        if (cacheKey && propCacheEnabled()) _cache.set(cacheKey, tex);
         const sprite = new PIXI.Sprite(tex);
         // Anchor liczony z pozycji kadru wzgledem srodka ukladu propu: dzieki temu
         // sprite laduje DOKLADNIE tam, gdzie stalo Graphics, mimo ze kadr jest

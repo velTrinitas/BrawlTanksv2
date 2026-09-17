@@ -89,6 +89,7 @@
 - [ ] **L1** Fuzzing inputu (mash wszystkich przycisków, spam super, szybki tank-switch w garażu) — brak crasha/uncaught. → needs: window.onerror capture.
 - [ ] **L2** Storm przejść menu↔gra↔garaż↔sklep↔ranking — brak wycieku listenerów/rAF, brak podwójnej muzyki. → needs: listener/rAF counts.
 - [ ] **L3** Soak 30 min ciągłej gry — brak degradacji FPS/crasha/leaka. → needs: long-run harness.
+- [x] **L4** Utrata kontekstu WebGL w meczu (`--killctx`): gra wykrywa, pokazuje komunikat z przyciskiem i wraca do menu — zamiast bialego ekranu na zawsze. SHIPPED v0.187.0.
 
 ## M. Regresja (gdy będzie seed — poz. 5 backlogu)
 - [ ] **M1** Golden-run: ten sam `?seed=N` na 2 buildach → identyczny przebieg; divergencja = regresja. → needs: deterministyczny RNG (rozszerzyć Z0.1) + Date.now() z timingów.

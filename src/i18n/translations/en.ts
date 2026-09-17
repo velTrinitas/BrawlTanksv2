@@ -1080,6 +1080,12 @@ export const en: typeof pl = {
     'ctf.flagLabel':      'FLAG {team}',
     'portrait.title':     'Turn your phone sideways',
     'portrait.subtitle':  'Sigma Tanks plays best in landscape — you see more of the battlefield 🔄',
+    // v0.187.0 — WebGL context loss (white screen). No "error", "crash" or "WebGL" wording:
+    // the kid must understand it is not their fault and nothing was lost.
+    'ctxlost.title':      '⚡ Engine overheated!',
+    'ctxlost.body':       'Graphics need a reset — your progress and coins are safe.',
+    'ctxlost.lostMatch':  'This match does not count — play it again 💪',
+    'ctxlost.button':     'Back to the game',
 
     'hud.mediPadHeal':    '🔧 +{hp} HP',
     'hud.heartHeal':      '❤️ +{hp} HP',

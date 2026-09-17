@@ -205,7 +205,10 @@ export class Rock implements ICollidable {
 
         // PIECZENIE. Gdy renderer nie jest dostepny, `bakeToSprite` zwraca null
         // i zostajemy przy zywych Graphics — gorsza jakosc, ale prop dziala.
-        const baked = bakeToSprite(g);
+        // v0.187.0: klucz cache — art skaly zalezy WYLACZNIE od tych pieciu wartosci, wiec dwie
+        // skaly o tym samym kluczu sa nieodroznialne i moga dzielic teksture. Paleta wchodzi do
+        // klucza, bo Mars uzywa tej samej klasy z innymi kolorami (FAZA MARS M3).
+        const baked = bakeToSprite(g, `rock:${this.tier}:${Math.round(this.size)}:${this.seed}:${this.palette.rockDeep}:${this.palette.mossGreen}`);
         if (baked) {
             this.container.addChild(baked);
             g.destroy();

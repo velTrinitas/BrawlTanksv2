@@ -20,6 +20,9 @@ const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.start
 const URL = (args.url ?? 'http://localhost:5175/BrawlTanksv2/').replace(/\/?$/, '/');
 const OUT_ROOT = args.out ?? 'reports';
 const HEADLESS = args.headed !== 'true';
+// L4 (v0.187.0): --killctx zabija kontekst WebGL w 15. sekundzie meczu i sprawdza, czy gra
+// pokazuje sciezke wyjscia zamiast bialego ekranu. Domyslnie OFF (konczy mecz).
+const KILL_CTX = args.killctx === 'true';
 const day = new Date().toISOString().slice(0, 10);
 const outDir = path.join(OUT_ROOT, day);
 fs.mkdirSync(outDir, { recursive: true });
@@ -110,8 +113,15 @@ async function runOne(browser, r, idx) {
                 if (sec === 10) await probeVisibility(page, probes, extra);
                 if (sec === 20) await probePortrait(page, probes, extra, shots, runId, vw, vh);
             }
+            // L4 (--killctx): osobny przebieg, bo konczy mecz — nie mieszac z innymi probami.
+            if (KILL_CTX && !probes.l4 && snap.gameState === 'PLAYING' && sec === 15) {
+                await probeContextLoss(page, probes, extra, shots, runId);
+            }
             if (snap.gameState !== 'PLAYING') {
                 outcome = snap.gameState;
+                // L4: pod --killctx mecz KONCZY sie powrotem do menu z nakladki, wiec brak ekranu
+                // koncowego jest oczekiwany — bez tego G1 i J1 zglaszaly falszywe naruszenia.
+                if (KILL_CTX && probes.l4) { shots.push(await shot(page, outDir, runId, 'end')); break; }
                 // ekran koncowy animuje sie (przycisk wjezdza z opoznieniem): 2 s zegara gry + chwila czasu rzeczywistego
                 // przed zrzutem, inaczej "end" lapal karte bez przycisku (falszywe "brak POWROT DO MENU" w raporcie)
                 await page.evaluate(() => window.__sigmaTest.control.step(120));
@@ -128,7 +138,9 @@ async function runOne(browser, r, idx) {
         if (!outcome) shots.push(await shot(page, outDir, runId, 'timeout'));
         const events = await page.evaluate(() => window.__sigmaTest.events.slice());
         const matchFrames = snaps.length ? snaps[snaps.length - 1].frame : 0;
-        const violations = await page.evaluate((inp) => window.__sigmaTest.oracles.run(inp), { snaps: snaps.map(s => ({ ...s })), events, matchFrames });
+        const violationsRaw = await page.evaluate((inp) => window.__sigmaTest.oracles.run(inp), { snaps: snaps.map(s => ({ ...s })), events, matchFrames });
+        // L4: celowo ubilismy kontekst, wiec "stan MENU bez outcome" (G1) to skutek testu, nie bug gry.
+        const violations = (KILL_CTX && probes.l4) ? violationsRaw.filter(v => v.id !== 'G1') : violationsRaw;
         const oracleIds = await page.evaluate(() => window.__sigmaTest.oracles.ids);
         const outcomeEv = events.find(e => e.t === 'outcome');
         const deaths = events.filter(e => e.t === 'damage' && e.target === 'player' && e.hp <= 0).length;
@@ -225,6 +237,40 @@ async function probePortrait(page, probes, extra, shots, runId, vw, vh) {
     if (warn !== true) extra.push({ id: 'J7', severity: 'P1', frame: before.frame, msg: `brak ostrzezenia "Obroc telefon" w pionie ${vh}x${vw}` });
     if (during.hp < before.hp) extra.push({ id: 'J7', severity: 'P2', frame: before.frame, msg: `gra nie pauzuje w pionie: -${Math.round(before.hp - during.hp)} HP w 5 s bez mozliwosci sterowania${during.state !== 'PLAYING' ? ` (stan: ${during.state})` : ''}` });
     if (after.w !== vw || after.h !== vh) extra.push({ id: 'J7', severity: 'P2', frame: before.frame, msg: `HUD po powrocie do poziomu ma ${after.w}x${after.h} zamiast ${vw}x${vh}` });
+}
+
+/**
+ * L4 (v0.187.0): utrata kontekstu WebGL w srodku meczu — dokladnie to, co robil sterownik na
+ * Huawei MatePad (bialy ekran). Sprawdza, czy ContextGuard wykryl utrate, pokazal nakladke
+ * z przyciskiem i czy powrot oddaje gracza do menu bez wyjatkow, zamiast zostawiac bialy canvas.
+ */
+async function probeContextLoss(page, probes, extra, shots, runId) {
+    const before = await page.evaluate(() => window.__sigmaTest.snapshot().frame);
+    const killed = await page.evaluate(() => {
+        const cv = [...document.querySelectorAll('canvas')].find((c) => c.id !== 'hudCanvas');
+        const gl = cv && (cv.getContext('webgl2') || cv.getContext('webgl'));
+        const ext = gl && gl.getExtension('WEBGL_lose_context');
+        if (!ext) return false;
+        ext.loseContext();
+        return true;
+    });
+    if (!killed) { probes.l4 = { skipped: 'brak WEBGL_lose_context' }; return; }
+    await page.waitForTimeout(1200);
+    const seen = await page.evaluate(() => {
+        const el = document.querySelector('.bt-ctxlost');
+        const btn = document.querySelector('.bt-ctxlost-btn');
+        return { overlay: !!el && getComputedStyle(el).display !== 'none', btn: btn ? (btn.textContent || '').trim() : null };
+    });
+    shots.push(await shot(page, outDir, runId, 'ctxlost'));
+    if (!seen.overlay) extra.push({ id: 'L4', severity: 'P0', frame: before, msg: 'utrata kontekstu WebGL w meczu bez zadnego komunikatu (bialy ekran = koniec sesji)' });
+    if (seen.overlay && !seen.btn) extra.push({ id: 'L4', severity: 'P0', frame: before, msg: 'nakladka po utracie kontekstu bez przycisku wyjscia' });
+    if (seen.overlay) {
+        await page.click('.bt-ctxlost-btn').catch((err) => console.error(`[sigma] L4 klik ${runId}: ${err.message}`));
+        await page.waitForTimeout(1200);
+        const st = await page.evaluate(() => window.__sigmaTest.snapshot().gameState);
+        if (st === 'PLAYING') extra.push({ id: 'L4', severity: 'P1', frame: before, msg: `po powrocie z utraty kontekstu stan nadal PLAYING (oczekiwano menu), jest ${st}` });
+        probes.l4 = { overlay: seen.overlay, btn: seen.btn, stateAfter: st };
+    }
 }
 
 async function shot(page, dir, runId, tag) {

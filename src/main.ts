@@ -165,7 +165,7 @@ import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
 import { WaterLife } from './maps/desert/WaterLife';
 import { Rock } from './maps/desert/Rock';
-import { setPropBakeRenderer } from './maps/propBaker'; // v0.133.0 — pieczenie statycznych propow
+import { setPropBakeRenderer, disposePropCache } from './maps/propBaker'; // v0.133.0 — pieczenie statycznych propow; v0.187.0 — zwalnianie cache miedzy meczami
 import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { Quicksand } from './maps/desert/Quicksand';
 import { Oasis } from './maps/desert/Oasis';
@@ -235,6 +235,12 @@ import { TouchInputManager } from './input/TouchInputManager';
 
 // === TEST-1: data waznosci paczki testowej ===
 import { guardTestWindow } from './config/testWindow';
+// v0.187.0 FAZA 1 — twardnienie na bialy ekran (MatePad): straznik kontekstu WebGL,
+// produkcyjny raport bledow i nakladka diagnostyczna ?diag=1.
+import { getGroundTexture } from './maps/groundTextureCache';
+import { installContextGuard } from './rendering/ContextGuard';
+import { installDiagOverlay } from './rendering/DiagOverlay';
+import { installCrashReporter } from './services/CrashReporter';
 
 // PIERWSZA instrukcja ciala modulu — PRZED PIXI, audio, flagami URL i czymkolwiek
 // innym. Gdy okno testow jest zamkniete, `guardTestWindow` rysuje ekran konca I RZUCA,
@@ -644,6 +650,14 @@ function playVoiceLine(line: 'start' | 'lowHp'): void {
     }
 }
 
+// v0.187.0 FAZA 1.1d — raport bledow w PRODUKCJI (do tej wersji tylko pod ?bot=1). Instalowany
+// mozliwie wczesnie, zeby zlapac takze bledy z fazy bootowania. Wersje czytamy z #credits —
+// jedno zrodlo prawdy o wersji, jak w TelemetryService.
+installCrashReporter(
+    document.getElementById('credits')?.textContent?.match(/v[\d.]+/)?.[0] ?? 'v?',
+    () => gameState,
+);
+
 const _prefersTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 // Desktop-only marker: endcard v2 skalowany 1.5x TYLKO na desktopie (CSS w index.html).
 // Mobile (touch) zostaje 1:1 — landscape/zoom-locked, nie ma zapasu ekranu na powiekszenie.
@@ -677,6 +691,20 @@ const _capParam = new URLSearchParams(window.location.search).get('cap');
 // v0.77.0: cap DOMYSLNIE ON na mobile (touch) => stabilne 60fps (mniej grzania/baterii, koniec
 // oscylacji FPS; PIXI maxFPS nie trzymal na A54 — log 130fps). Desktop bez zmian.
 // ?cap=0 = wylacz (escape hatch), ?cap=N = ustaw inna wartosc (np. 30).
+//
+// v0.187.0 — ODWROCONE NA DOTYKU, na podstawie pomiarow z DWOCH urzadzen (?perf=1, log hitchy).
+// Objaw: "rytmiczne zwolnienie co ~1 s", widoczne takze na wrogach (Mariusz, tablet).
+// Przyczyna: sami odmierzamy 60 klatek programowo, wiec walczymy z synchronizacja ekranu —
+// co ~sekunde chybiamy i klatka sie DUBLUJE (kazdy hitch = rowne 33 ms = 2 klatki przy 60 Hz).
+// Nasz kod zajmowal w tej klatce tylko 2-5 ms, czyli problem byl W PACINGU, nie w grze.
+//
+//                      | limiter ON (bylo)        | limiter OFF (jest)
+//   Huawei MatePad 60Hz| 541 hitchy, FPS min 30   | 7 hitchy, FPS min 56-59
+//   Samsung A54  120Hz | 70 hitchy,  FPS min 28-31| 41 hitchy, FPS min 48-53
+//
+// Oba urzadzenia zyskuja, wiec tempo oddajemy przegladarce (rAF/vsync). `?cap=1` przywraca
+// stare zachowanie bez rebuilda. UWAGA: to zmienia tez `powerPreference` na 'default' (nizej) —
+// swiadomie, bo 'high-performance' przy grze z zapasem wydajnosci tylko grzeje (nagrzewanie A57).
 let CAP_ENABLED: boolean;
 let CAP_FPS = 60;
 if (_capParam !== null) {
@@ -684,7 +712,7 @@ if (_capParam !== null) {
     CAP_ENABLED = _cv !== 0;                 // ?cap=0 => OFF
     if (CAP_ENABLED) CAP_FPS = _cv > 1 ? _cv : 60;
 } else {
-    CAP_ENABLED = _prefersTouch;             // brak param: ON na mobile, OFF na desktop
+    CAP_ENABLED = false;                     // v0.187.0: OFF takze na dotyku (bylo ON) — patrz tabela wyzej
 }
 // F5: desync (canvas desynchronized:true) WYCOFANY — PIXI v7 nie da sie wstrzyknac wlasnego
 // kontekstu bez wysypania boota (page nie ladowala sie). Zostaje czyste Application + cap.
@@ -704,7 +732,12 @@ const app = new PIXI.Application({
 //   brak param -> 60 (domyslne, produkcja bez zmian) | ?fps=120 -> natywne 120Hz | ?fps=0 -> uncapped.
 // Hipoteza: 60fps-owy content na 120Hz panelu juddery; natywne 120 = kazda klatka=1 vsync = gladko.
 const _fpsParam = new URLSearchParams(window.location.search).get('fps');
-const _maxFps = _fpsParam !== null && !isNaN(parseInt(_fpsParam, 10)) ? parseInt(_fpsParam, 10) : 60;
+// v0.187.0: na DOTYKU domyslnie 0 (uncapped) zamiast 60 — to DRUGI programowy limiter, a zmierzona
+// na tablecie i A54 konfiguracja zwyciezka to `cap=0&fps=0`, czyli tempo w calosci od vsync.
+// Sam `cap=0` nie wystarczy: maxFPS 60 nadal odmierza klatki naszym zegarem.
+// DESKTOP zostaje przy 60 — tam pomiaru NIE robilismy, a zasada jest taka, ze zmieniamy tylko to,
+// co potwierdzone na urzadzeniu. `?fps=N` nadpisuje jedno i drugie.
+const _maxFps = _fpsParam !== null && !isNaN(parseInt(_fpsParam, 10)) ? parseInt(_fpsParam, 10) : (_prefersTouch ? 0 : 60);
 // F5 (ship-blocker gladkosc): ?smooth=1 = fixed 60Hz logika + interpolacja renderu. Domyslnie
 // odblokowuje render (maxFPS 0 = natywne odswiezanie panelu) — interpolacja potrzebuje klatek
 // render POMIEDZY krokami logiki. Domyslnie OFF = zero zmiany dla produkcji (A/B na A54).
@@ -1298,6 +1331,40 @@ applyPortraitWarningI18n();
 i18n.onLanguageChange(applyPortraitWarningI18n);
 
 /**
+ * v0.187.0 FAZA 1.1 — straznik utraty kontekstu WebGL (bialy ekran na MatePadzie).
+ *
+ * Instalowany PO zdefiniowaniu `returnToMenuFromEnd`, bo to jest sciezka powrotu. Swiadomie NIE
+ * wznawiamy meczu w miejscu: `RenderTexture` (skaly z propBaker) nie przezywa utraty kontekstu,
+ * wiec gracz dostalby swiat z dziurami. Uczciwiej oddac mecz i wrocic do menu z postepem.
+ */
+installContextGuard({
+    canvas: app.view as HTMLCanvasElement,
+    isPlaying: () => gameState === 'PLAYING',
+    onLost: () => {
+        try { app.ticker.stop(); } catch (e) { console.error('[ctx] ticker.stop', (e as Error).stack); }
+        try { AudioSys.getInstance().setSuspended(true); } catch (e) { console.error('[ctx] audio', (e as Error).stack); }
+    },
+    onResume: () => {
+        try { app.ticker.start(); } catch (e) { console.error('[ctx] ticker.start', (e as Error).stack); }
+        try { AudioSys.getInstance().setSuspended(false); } catch (e) { console.error('[ctx] audio', (e as Error).stack); }
+        console.warn(`[ctx] ciche wznowienie — ticker.started=${app.ticker.started}`);
+    },
+    onRecover: () => {
+        try { app.ticker.start(); } catch (e) { console.error('[ctx] ticker.start', (e as Error).stack); }
+        try { AudioSys.getInstance().setSuspended(false); } catch (e) { console.error('[ctx] audio', (e as Error).stack); }
+        returnToMenuFromEnd();
+    },
+    text: () => ({
+        title: t('ctxlost.title'),
+        body: t('ctxlost.body'),
+        lostMatch: t('ctxlost.lostMatch'),
+        button: t('ctxlost.button'),
+    }),
+});
+
+installDiagOverlay(app.renderer, () => _renderRes);
+
+/**
  * PROG-F7a: aktywacja mocy ZE SLOTU (0 = przycisk 1/Space/PPM, 1 = przycisk 2/Q,
  * 2 = kostka 🎲 v0.114.0 — losuje moc Tier 3 przy kazdej aktywacji).
  * Zachowanie mocy zyje w PowerDef.onActivate (registry) — tutaj zostaje TYLKO to,
@@ -1655,6 +1722,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     });
 
     worldContainer.removeChildren();
+    // v0.187.0: `removeChildren()` odpina dzieci, ale NIE zwalnia ich tekstur w GPU. Upieczone propy
+    // narastaly wiec z kazdym meczem (+57 tekstur/mecz, pomiar botem) az do ubicia kontekstu WebGL
+    // na tablecie. Grunt ma wlasny, jednoelementowy cache (groundTextureCache) i przezywa ten reset.
+    disposePropCache();
     smoothNeedsInit = true; logicAccMs = 0; // F5: reset interpolacji na nowy mecz (zero skoku ze starego stanu)
     buildings = [];
     solidBuildings = [];
@@ -1766,7 +1837,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     worldContainer.scale.set(worldZoom);
 
     if (config.map === 'city') {
-        const cityTex = buildCityTexture();
+        const cityTex = getGroundTexture('city', buildCityTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const citySprite = new PIXI.Sprite(cityTex);
         citySprite.zIndex = -100;
         worldContainer.addChild(citySprite);
@@ -1897,7 +1968,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         ];
 
     } else if (config.map === 'desert') {
-        const desertTex = buildDesertTexture();
+        const desertTex = getGroundTexture('desert', buildDesertTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const desertSprite = new PIXI.Sprite(desertTex);
         desertSprite.zIndex = -100;
         worldContainer.addChild(desertSprite);
@@ -2007,7 +2078,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     } else if (config.map === 'tropics') {
-        const tropicsTex = buildTropicsTexture();
+        const tropicsTex = getGroundTexture('tropics', buildTropicsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const tropicsSprite = new PIXI.Sprite(tropicsTex);
         tropicsSprite.zIndex = -100;
         worldContainer.addChild(tropicsSprite);
@@ -2126,7 +2197,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // ── ARC-R1 "LODOWA ARENA" (koncepcja Mariusza 2026-08-01) ──
         // Tafla (zlagodzone pekniecia) + waska granatowa granica + male igloo.
         // Kostki lodu konstruowane PO utworzeniu effects/audio (wzorzec crates, nizej).
-        const arcticTex = buildArcticTexture();
+        const arcticTex = getGroundTexture('arctic', buildArcticTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const arcticSprite = new PIXI.Sprite(arcticTex);
         arcticSprite.zIndex = -100;
         worldContainer.addChild(arcticSprite);
@@ -2177,7 +2248,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     } else if (config.map === 'fortified_ruins') {
         // ── FAZA CTF F1: Fortified Ruins (mapa scenariusza CTF) ──
         // Layout deterministyczny, AABB-verified (scratchpad ctf_f1_aabb.js — 15 checkow PASS).
-        const ruinsTex = buildFortifiedRuinsTexture();
+        const ruinsTex = getGroundTexture('fortified_ruins', buildFortifiedRuinsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const ruinsSprite = new PIXI.Sprite(ruinsTex);
         ruinsSprite.zIndex = -100;
         worldContainer.addChild(ruinsSprite);
@@ -2242,7 +2313,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // ── FAZA MARS M2 "RDZAWY SWIT" — pierwsza mapa Map Factory ──
         // Layout FROZEN + AABB-verified: tools/mars_m1_layout.mjs (PASS, 0 bledow).
         // M2 = grunt + border (grywalna pusta mapa). M3+: baza/skaly/strefy/pady/UFO.
-        const marsTex = buildMarsTexture();
+        const marsTex = getGroundTexture('mars', buildMarsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const marsSprite = new PIXI.Sprite(marsTex);
         marsSprite.zIndex = -100;
         worldContainer.addChild(marsSprite);
@@ -2337,7 +2408,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // F1 = grunt (laka + droga pierscieniowa + fosa + mosty + bruk) + border +
         // glazy + pady Ruin jako placeholder. F2: zamek (CastlePart), fosa-strefa,
         // las, kaplica, pelny bake. F3: CastleSystem + fale.
-        const castleTex = buildCastleTexture();
+        const castleTex = getGroundTexture('castle_grounds', buildCastleTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const castleSprite = new PIXI.Sprite(castleTex);
         castleSprite.zIndex = -100;
         worldContainer.addChild(castleSprite);
@@ -2420,7 +2491,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // Q1 = grunt (plyty + lawa statyczna + mosty + kregi gejzerow + skala + luki lane'ow
         // + cela) + kolumnada + pady Zamku jako placeholder (reskin w Q5). Q2: PrisonBrick /
         // ruda / Zwornik / Krolowa + QueenSystem. Q4: DungeonLava (DoT+slow), gejzery.
-        const dungeonTex = buildDungeonTexture();
+        const dungeonTex = getGroundTexture('dungeon', buildDungeonTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const dungeonSprite = new PIXI.Sprite(dungeonTex);
         dungeonSprite.zIndex = -100;
         worldContainer.addChild(dungeonSprite);

@@ -683,7 +683,9 @@ export class Player {
             this.container.y = this.y;
             this.turret.rotation = this._turretAngle;
         }
-        this.container.zIndex = this.y + 19;
+        // v0.186.0 CZYTELNOSC: +40 (bylo +19) => przy nachodzeniu gracz jest NAD wrogami (grunt +19,
+        // pursuit +24, boss +28, mega +35). Wczesniej mega boss 392 px potrafil calkiem zakryc czolg gracza.
+        this.container.zIndex = this.y + 40;
 
         // Flag overlay — TYLKO w trybie flat (OFF). W trybie bake flaga jest wpieczona w teksture
         // hull (drawHullTop), wiec overlay jest zgaszony (visible=false) i pomijamy obliczenia.

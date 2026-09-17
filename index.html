@@ -97,6 +97,19 @@
         }
         .active-screen { display: flex; }
 
+        /* v0.186.0 CZYTELNOSC — telefon w poziomie: endcard mial ~388 px tresci przy suficie 360 px,
+           wiec SCROLLOWAL (przycisk POWROT DO MENU ponizej krawedzi). Ciasniejsza rama + mniejsze
+           elementy (JS: lowH w renderEndScreen) mieszcza karte bez przewijania. */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .screen { padding: 14px 16px 16px; border-width: 5px; border-radius: 24px; max-height: 98vh; }
+        }
+
+        /* v0.186.0 — napis wersji chowany na czas meczu na dotyku (nachodzil na lewy joystick;
+           w menu i na ekranie koncowym nadal widoczny, bo sluzy do raportow). */
+        @media (pointer: coarse) {
+            body.bt-in-match #credits { display: none; }
+        }
+
         /* v0.70 — endcard 50% wiekszy TYLKO na desktopie (body.bt-desktop ustawia main.ts po
            detekcji nie-touch). transform:scale => proporcje 1:1 jak mobile, wszystko wieksze.
            Mobile (touch) bez klasy => zero zmian. transform-origin center => karta zostaje
@@ -183,7 +196,7 @@
         <div class="bt-portrait-warning-subtitle">Gra działa najlepiej w trybie poziomym 🔄</div>
     </div>
 
-    <div id="credits">Game version: v0.185.0</div>
+    <div id="credits">Game version: v0.186.0</div>
 
     <script type="module" src="/src/main.ts"></script>
 

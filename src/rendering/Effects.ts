@@ -191,7 +191,9 @@ export class EffectsManager {
 
         // v0.44.0 FAZA 8.6: floating text container above everything
         this.floatingTextContainer = new PIXI.Container();
-        this.floatingTextContainer.zIndex = 600;
+        // v0.186.0: 600 bylo PONIZEJ czolgow w dolnej polowie mapy (zIndex = y+offset, y do ~3100),
+        // wiec liczba obrazen raz byla nad czolgiem, raz pod nim. Stala warstwa nad czolgami, pod efektami mocy.
+        this.floatingTextContainer.zIndex = 20000;
         this.floatingTextContainer.sortableChildren = false;
 
         worldContainer.addChild(this.trackContainer);

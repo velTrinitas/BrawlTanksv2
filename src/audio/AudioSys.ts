@@ -297,6 +297,14 @@ export class AudioSys {
         }
     }
 
+    /**
+     * v0.186.0 — pauza gry w pionie korzysta z tej samej sciezki co zwiniecie karty:
+     * muzyka PAUZOWANA (nie tylko wyciszona), powrot wznawia dokladnie to, co sami zapauzowalismy.
+     */
+    setSuspended(suspended: boolean): void {
+        this.setPageHidden(suspended);
+    }
+
     /** SigmaTester J10 (tylko odczyt): czy po zwinieciu muzyka jest PAUZOWANA i wraca po powrocie. */
     getSigmaAudioState(): { pageHidden: boolean; muted: boolean; musicPlaying: boolean; pausedOnHide: number } {
         const longRunning: Array<Howl | null> = [this.currentMusicTrack, this.introMusic, this.hubMusic, this.ctfCarryMusic, this.duckLoop];

@@ -189,6 +189,8 @@ export class TutorialController {
         }
 
         const desk = !this.isTouch; // desktop = karta +20% (fonty/padding) + wieksze emoji
+        // v0.186.0 CZYTELNOSC: telefon w poziomie — karta kroku siegala 70-91% wysokosci ekranu
+        const low = !desk && window.innerHeight <= 430;
 
         const root = document.createElement('div');
         root.id = 'bt-tutorial-root';
@@ -199,8 +201,8 @@ export class TutorialController {
         const card = document.createElement('div');
         card.className = 'bt-card';
         card.style.cssText =
-            'position:absolute;left:50%;top:' + (desk ? '13%' : '15%') + ';transform:translateX(-50%);max-width:88vw;' +
-            'padding:' + (desk ? '20px 46px 20px' : '13px 28px 16px') + ';border-radius:20px;' +
+            'position:absolute;left:50%;top:' + (desk ? '13%' : low ? '8%' : '15%') + ';transform:translateX(-50%);max-width:' + (low ? '80vw' : '88vw') + ';' +
+            'padding:' + (desk ? '20px 46px 20px' : low ? '9px 18px 10px' : '13px 28px 16px') + ';border-radius:20px;' +
             'background:linear-gradient(180deg,rgba(60,64,86,.95),rgba(30,33,46,.95));' +
             'border:3px solid rgba(255,210,74,.7);' +
             'box-shadow:0 12px 36px rgba(0,0,0,.55),0 0 0 4px rgba(255,210,74,.10),inset 0 1px 0 rgba(255,255,255,.10);' +
@@ -221,16 +223,16 @@ export class TutorialController {
 
         // KARTA INFO: duza ikona (emoji) nad tytulem — ukryta domyslnie, pokazywana per krok.
         const icon = document.createElement('div');
-        icon.style.cssText = 'display:none;font-size:' + (desk ? 'clamp(56px,6vw,88px)' : 'clamp(44px,11vw,72px)') + ';line-height:1;margin:2px 0 6px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))';
+        icon.style.cssText = 'display:none;font-size:' + (desk ? 'clamp(56px,6vw,88px)' : low ? '44px' : 'clamp(44px,11vw,72px)') + ';line-height:1;margin:2px 0 ' + (low ? '3px' : '6px') + ';filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))';
 
         const title = document.createElement('div');
-        title.style.cssText = 'color:' + GOLD + ';font-size:' + (desk ? 'clamp(42px,4vw,66px)' : 'clamp(28px,7vw,50px)') + ';line-height:1.05;text-shadow:0 3px 0 #000,0 0 22px rgba(255,180,40,.6)';
+        title.style.cssText = 'color:' + GOLD + ';font-size:' + (desk ? 'clamp(42px,4vw,66px)' : low ? '28px' : 'clamp(28px,7vw,50px)') + ';line-height:1.05;text-shadow:0 3px 0 #000,0 0 22px rgba(255,180,40,.6)';
 
         const hint = document.createElement('div');
-        hint.style.cssText = 'color:#e9edf8;font-size:' + (desk ? 'clamp(17px,1.6vw,24px)' : 'clamp(12px,3vw,18px)') + ';font-family:system-ui,sans-serif;font-weight:700;margin-top:' + (desk ? '10px' : '8px') + ';text-shadow:0 2px 0 rgba(0,0,0,.6)';
+        hint.style.cssText = 'color:#e9edf8;font-size:' + (desk ? 'clamp(17px,1.6vw,24px)' : low ? '13px' : 'clamp(12px,3vw,18px)') + ';font-family:system-ui,sans-serif;font-weight:700;margin-top:' + (desk ? '10px' : low ? '5px' : '8px') + ';text-shadow:0 2px 0 rgba(0,0,0,.6)';
 
         const sep = document.createElement('div');
-        sep.style.cssText = 'height:1px;background:rgba(255,255,255,.15);margin:' + (desk ? '16px -22px 12px' : '12px -14px 10px');
+        sep.style.cssText = 'height:1px;background:rgba(255,255,255,.15);margin:' + (desk ? '16px -22px 12px' : low ? '8px -10px 7px' : '12px -14px 10px');
 
         const skip = document.createElement('button');
         skip.className = 'bt-tut-skip';
@@ -285,7 +287,8 @@ export class TutorialController {
         // top obnizony o 25px (pill nie zaslania SCORE na HUD); mocny zloty kontur + poswiata = lepsza widocznosc.
         pill.style.cssText =
             'position:absolute;left:50%;top:calc(' + (desk ? '3%' : '2.5%') + ' + 35px);display:inline-flex;align-items:center;gap:9px;' +
-            'pointer-events:auto;cursor:pointer;white-space:nowrap;' +
+            // v0.186.0: nowrap bez limitu potrafil wyjechac poza ekran przy dlugim tytule kroku
+            'pointer-events:auto;cursor:pointer;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;' +
             'background:linear-gradient(180deg,rgba(52,56,78,.98),rgba(26,29,42,.98));' +
             'border:3px solid ' + GOLD + ';border-radius:999px;' +
             'padding:' + (desk ? '7px 22px 7px 9px' : '6px 16px 6px 7px') + ';' +

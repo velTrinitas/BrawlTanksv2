@@ -178,6 +178,96 @@ export class HUD {
         const s = scaled ? this.uiScale : 1;
         this.sigmaRects.push({ kind, x: Math.round(x * s), y: Math.round(y * s), w: Math.round(w * s), h: Math.round(h * s) });
     }
+
+    /**
+     * v0.186.0 CZYTELNOSC — jeden wspolczynnik dla nakladek srodka ekranu (banery, alerty, odliczania).
+     * Do tej wersji byly to STALE piksele: alert mega bossa mial 680 px przy ekranie 667 px (szerszy niz
+     * telefon), banery CTF/Zamku/Krolowej 90-100% szerokosci i ~25% wysokosci. Desktop 1280x720 => 1.0
+     * (zero zmian wygladu), A54 w poziomie 667x375 => 0.60.
+     */
+    private get overlayScale(): number {
+        return Math.min(1, this.screenW / 1100, this.screenH / 620);
+    }
+
+    /** Czy HUD gra w ukladzie dotykowym (uiScale 0.7 ustawiane w main.ts przy TouchInputManager.isActive). */
+    private get isTouchLayout(): boolean { return this.uiScale < 1; }
+
+    /**
+     * v0.186.0 — prostokat, w ktorym moga lezec znaczniki krawedziowe: ekran MINUS strefy HUD
+     * (gorny rzad pigulek + ewentualna pigulka fali/zegara, dolny pas paska mocy albo kontrolek dotykowych).
+     * Do tej wersji clamp bral sam margines 34 px, wiec znacznik ladowal na WYNIK, ZABICI i przyciskach mocy.
+     */
+    private edgeSafeRect(): { x0: number; y0: number; x1: number; y1: number } {
+        const M = 34;
+        const centerPill = (this.castleInfo || this.queenInfo) ? 34 * this.uiScale : 0;
+        const bottom = this.isTouchLayout ? 120 : this.showPowerBar ? 120 : 40;
+        return { x0: M, y0: 62 * this.uiScale + centerPill + M, x1: this.screenW - M, y1: this.screenH - bottom - M };
+    }
+
+    /**
+     * v0.186.0 — strefy HUD, w ktore znacznik krawedziowy NIE moze wjechac (px ekranu).
+     * Sam clamp do prostokata nie wystarczyl: znacznik ma ~60 px bbox i ladowal na chipie sezonu,
+     * panelu Zamku i przycisku kostki (SigmaTester J2). Tu wypychamy go po najkrotszej osi.
+     */
+    private pushOutOfHud(ax: number, ay: number): { x: number; y: number } {
+        const u = this.uiScale, SW = this.screenW / u, R = 38; // R = polowa bbox znacznika (~70 px wysokosci)
+        // axis: 'x' = wypychaj TYLKO w bok (baner zajmuje caly pas srodka, ale boki sa wolne — miedzy
+        // pigulka WYNIK a banerem nie ma 76 px korytarza, wiec pionowe wypchniecie zawsze w cos wchodzi)
+        const zones: Array<{ x: number; y: number; w: number; h: number; axis?: 'x' }> = [
+            { x: 0, y: 0, w: (14 + 230) * u, h: (this.ctfInfo || this.castleInfo ? 212 : 130) * u }, // HP + SUPER + panel lewy
+            { x: (SW / 2 - 118) * u, y: 0, w: 236 * u, h: (this.queenInfo || this.castleInfo ? 120 : 70) * u }, // WYNIK + zegar/fala
+            { x: (SW - 14 - 230) * u, y: 0, w: 244 * u, h: 106 * u }, // ZABICI + chip sezonu
+        ];
+        if (this.isTouchLayout) {
+            zones.push({ x: this.screenW - 250, y: this.screenH - 200, w: 250, h: 200 }); // przyciski mocy
+            zones.push({ x: 0, y: this.screenH - 190, w: 200, h: 190 });                  // lewy joystick
+        } else if (this.showPowerBar) {
+            zones.push({ x: this.screenW / 2 - 160, y: this.screenH - 130, w: 320, h: 130 }); // pasek mocy
+        }
+        // CZOLG GRACZA: kamera trzyma go w srodku ekranu, a wypchniety znacznik potrafil wyladowac
+        // dokladnie na nim ("nie wiem, gdzie jest lufa" — persona SigmaTestera). Omijamy kwadrat wokol srodka.
+        zones.push({ x: this.screenW / 2 - 62, y: this.screenH / 2 - 62, w: 124, h: 124 });
+        // aktywny baner srodka ekranu (scenariusz / CTF / mega boss) — tez omijamy, choc znika po ~2 s
+        const os = this.overlayScale;
+        if (this.castleBannerTimer > 0 || this.ctfEnrageTimer > 0 || this.ctfBreachTimer > 0 || this.megaBossAlertTimer > 0) {
+            const bw = this.screenW * 0.64, bh = 120 * os;
+            zones.push({ x: (this.screenW - bw) / 2, y: this.screenH / 2 - 95 * os - bh / 2, w: bw, h: bh, axis: 'x' });
+        }
+        let x = ax, y = ay;
+        const hits = (): boolean => zones.some(z => Math.min(x + R, z.x + z.w) - Math.max(x - R, z.x) > 0 && Math.min(y + R, z.y + z.h) - Math.max(y - R, z.y) > 0);
+        // kilka przebiegow: wypchniecie z jednej strefy moze wepchnac znacznik w poprzednia (baner <-> panel)
+        for (let pass = 0; pass < 6; pass++) {
+            let moved = false;
+            for (const z of zones) {
+                const ox = Math.min(x + R, z.x + z.w) - Math.max(x - R, z.x);
+                const oy = Math.min(y + R, z.y + z.h) - Math.max(y - R, z.y);
+                if (ox <= 0 || oy <= 0) continue;
+                // wypchnij po tanszej osi (mniejsze przesuniecie = znacznik dalej wskazuje ten sam kierunek)
+                if (z.axis !== 'x' && oy <= ox) y = y < z.y + z.h / 2 ? z.y - R : z.y + z.h + R;
+                else x = x < z.x + z.w / 2 ? z.x - R : z.x + z.w + R;
+                moved = true;
+            }
+            if (!moved) break;
+        }
+        // awaryjnie: srodek pionu jest wolny od pasow HUD (gora/dol); z banera wychodzimy juz tylko w bok
+        if (hits()) {
+            y = this.screenH / 2;
+            for (const z of zones) {
+                if (Math.min(x + R, z.x + z.w) - Math.max(x - R, z.x) <= 0 || Math.min(y + R, z.y + z.h) - Math.max(y - R, z.y) <= 0) continue;
+                x = x < z.x + z.w / 2 ? z.x - R : z.x + z.w + R;
+            }
+        }
+        return { x: Math.max(R, Math.min(this.screenW - R, x)), y: Math.max(R, Math.min(this.screenH - R, y)) };
+    }
+
+    /** v0.186.0 — laman tekst banera na 2 linie po ostatniej spacji przed polowa (czytelniej niz font 14 px). */
+    private splitTwoLines(text: string): string[] {
+        const mid = Math.floor(text.length / 2);
+        let cut = text.lastIndexOf(' ', mid);
+        if (cut < 4) cut = text.indexOf(' ', mid);
+        if (cut < 0) return [text];
+        return [text.slice(0, cut), text.slice(cut + 1)];
+    }
     /** OBRON ZAMEK F5 — dane Zamku (null poza scenariuszem castle). Ustawiane per klatke z main.ts. */
     public castleInfo: HudCastleInfo | null = null;
     /** SAVE THE QUEEN Q2 — dane Krolowej (null poza scenariuszem). Ustawiane per klatke z main.ts. */
@@ -208,7 +298,9 @@ export class HUD {
     }
     
     addNotif(text: string, color: string): void {
-        if (this.hudNotifs.length >= 3) this.hudNotifs.shift();
+        // v0.186.0: limit WRACA do 3 na kazdym ekranie — stos znow stoi w gornym rzedzie (y=8),
+        // wiec nie schodzi na srodek HUD i nie ma powodu go obcinac na telefonie.
+        while (this.hudNotifs.length >= 3) this.hudNotifs.shift();
         this.hudNotifs.push({ text, color, timer: 200, maxTimer: 200 });
     }
     
@@ -233,7 +325,8 @@ export class HUD {
     /** OBRON ZAMEK F5 — glosny baner zdarzenia scenariusza (tekst + kolor + czas w klatkach). */
     triggerCastleBanner(text: string, color: string, frames: number = 120, pulse: boolean = true): void {
         if (this.castleBannerTimer > 0 && this.castleBannerText !== text) {
-            if (this.castleBannerQueue.length < 3) this.castleBannerQueue.push({ text, color, frames, pulse });
+            // v0.186.0: na niskim ekranie 2 banery w kolejce zamiast 3 — lancuch 3 banerow zakrywal caly start meczu
+            if (this.castleBannerQueue.length < (this.screenH < 420 ? 2 : 3)) this.castleBannerQueue.push({ text, color, frames, pulse });
             return;
         }
         this.castleBannerText = text;
@@ -352,11 +445,7 @@ export class HUD {
         const mm = Math.floor(secTotal / 60), ss = secTotal % 60;
         const txt = info.phase === 'rescued' ? tr('queen.rescued') : info.phase === 'captured' ? tr('queen.captured') : `${mm}:${ss < 10 ? '0' : ''}${ss}`;
         const col = info.phase === 'calm' ? '#ffffff' : info.phase === 'siege' ? '#ff9f1a' : info.phase === 'panic' || info.phase === 'captured' ? '#ff3b3b' : '#ff5fb0';
-        let scale = 1;
-        if (info.phase === 'panic') {
-            scale = 1 + 0.06 * (0.5 + 0.5 * Math.sin(now / 160));
-            if (secTotal <= 10) scale += 0.08 * Math.max(0, 1 - ((info.remainingMs % 1000) / 1000) * 3); // "stuk" na kazda sekunde
-        }
+        const scale = 1; // v0.186.0: bez pulsu skali w panice — sygnal niesie kolor (#ff3b3b) i sam zegar
         c.save();
         c.translate(wx + WW / 2, wy + WH / 2);
         c.scale(scale, scale);
@@ -375,7 +464,7 @@ export class HUD {
         // Q6: odznaka KLUCZA (zlota pigulka po prawej od zegara, puls) — gracz WIDZI, ze ma klucz
         if (info.hasKey) {
             const KW = 108, KH = 34, kx = wx + WW + 10, ky = wy + (WH - KH) / 2;
-            const kp = 1 + 0.05 * Math.sin(now / 140);
+            const kp = 1; // v0.186.0: bez pulsu
             c.save(); c.translate(kx + KW / 2, ky + KH / 2); c.scale(kp, kp);
             c.fillStyle = 'rgba(0,0,0,0.66)'; c.beginPath(); c.roundRect(-KW / 2, -KH / 2, KW, KH, 10); c.fill();
             c.strokeStyle = '#ffd54a'; c.lineWidth = 2.5; c.beginPath(); c.roundRect(-KW / 2, -KH / 2, KW, KH, 10); c.stroke();
@@ -421,8 +510,11 @@ export class HUD {
         const info = this.castleInfo;
         if (!info || info.respawnSecondsLeft <= 0) return;
         const c = this.ctx;
+        const os = this.overlayScale; // v0.186.0: 340x92 to bylo 51% szerokosci i 24.5% wysokosci telefonu
         c.save();
-        c.translate(this.screenW / 2, this.screenH / 2 - 40);
+        c.translate(this.screenW / 2, this.screenH / 2 - 40 * os);
+        c.scale(os, os);
+        this.sigmaRect('banner-respawn', this.screenW / 2 - 170 * os, this.screenH / 2 - 86 * os, 340 * os, 92 * os, false);
         c.fillStyle = 'rgba(0,0,0,0.7)';
         c.beginPath(); c.roundRect(-170, -46, 340, 92, 18); c.fill();
         c.strokeStyle = '#ff6b6b'; c.lineWidth = 3;
@@ -446,8 +538,7 @@ export class HUD {
         const c = this.ctx;
         c.save();
         c.translate(this.screenW / 2, this.screenH * 0.3); // nad czolgiem (srodek ekranu = gracz), pod pigulka fali
-        const pulse = 1 + (1 - (Date.now() % 1000) / 1000) * 0.25;
-        c.scale(pulse, pulse);
+        c.scale(this.overlayScale, this.overlayScale); // v0.186.0: skala do ekranu, bez pulsu 1.25
         c.textAlign = 'center'; c.textBaseline = 'middle';
         c.font = `64px "${FONT_FAMILY}",cursive`;
         c.strokeStyle = '#000'; c.lineWidth = 8;
@@ -484,24 +575,33 @@ export class HUD {
         const alpha = t > max - 30 ? (max - t) / 30 : t < 30 ? t / 30 : 1;
         c.save();
         c.globalAlpha = alpha;
-        c.translate(this.screenW / 2, this.screenH / 2 - 110);
-        // POLISH-2: puls opcjonalny — krotkie komendy (odliczanie Krolowej) pojawiaja sie i znikaja bez drgania
-        const pulse = this.castleBannerPulse ? 1 + Math.sin(Date.now() / 80) * 0.07 : 1;
-        c.scale(pulse, pulse);
-        // F6: dlugie podpowiedzi intro — czcionka dopasowana do szerokosci ekranu (min 20 px)
+        // v0.186.0 CZYTELNOSC: skala do ekranu + BEZ pulsu (drganie) + lamanie na 2 linie zamiast fontu 20 px.
+        // To jest "notify celu" scenariusza (Zamek i Krolowa) — przy 667 px bral 94% szerokosci i zakrywal HP/WYNIK.
+        const os = this.overlayScale;
+        // v0.186.0: nieco nizej (95 zamiast 110) — dalej od gornego rzedu HUD i powiadomien
+        c.translate(this.screenW / 2, this.screenH / 2 - 95 * os);
+        c.scale(os, os);
+        // v0.186.0: baner celu <= 62% szerokosci ekranu (dluzszy tekst idzie na 2 linie, nie na caly ekran)
+        const maxW = (this.screenW * 0.62) / os;
         let fs = 38;
         c.font = `${fs}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center'; c.textBaseline = 'middle';
-        while (fs > 20 && c.measureText(this.castleBannerText).width + 80 > this.screenW - 40) { fs -= 2; c.font = `${fs}px "${FONT_FAMILY}",cursive`; }
-        const tw = Math.min(this.screenW - 40, c.measureText(this.castleBannerText).width + 80);
+        while (fs > 24 && c.measureText(this.castleBannerText).width + 80 > maxW) { fs -= 2; c.font = `${fs}px "${FONT_FAMILY}",cursive`; }
+        const lines = c.measureText(this.castleBannerText).width + 80 > maxW ? this.splitTwoLines(this.castleBannerText) : [this.castleBannerText];
+        const tw = Math.min(maxW, Math.max(...lines.map(l => c.measureText(l).width)) + 80);
+        const th = lines.length > 1 ? 104 : 80;
         c.fillStyle = 'rgba(0,0,0,0.85)';
-        c.beginPath(); c.roundRect(-tw / 2, -40, tw, 80, 16); c.fill();
+        c.beginPath(); c.roundRect(-tw / 2, -th / 2, tw, th, 16); c.fill();
         c.strokeStyle = this.castleBannerColor; c.lineWidth = 4;
         c.stroke();
         c.strokeStyle = '#000'; c.lineWidth = 6;
-        c.strokeText(this.castleBannerText, 0, 0);
-        c.fillStyle = this.castleBannerColor;
-        c.fillText(this.castleBannerText, 0, 0);
+        for (let li = 0; li < lines.length; li++) {
+            const ly = lines.length > 1 ? (li === 0 ? -23 : 23) : 0;
+            c.strokeText(lines[li], 0, ly);
+            c.fillStyle = this.castleBannerColor;
+            c.fillText(lines[li], 0, ly);
+        }
+        this.sigmaRect('banner-scenario', this.screenW / 2 - (tw * os) / 2, this.screenH / 2 - 95 * os - (th * os) / 2, tw * os, th * os, false);
         c.restore();
     }
 
@@ -519,16 +619,18 @@ export class HUD {
     /** Wspolny rysownik strzalek krawedziowych (Zamek F5, Krolowa Q2): world->screen, klamra do marginesu M, trojkat + badge. */
     private drawEdgeArrowTargets(targets: Array<{ wx: number; wy: number; color: number; label: string; pulse: boolean }>, cameraX: number, cameraY: number, zoom: number): void {
         const c = this.ctx;
-        const M = 34, ON_SCREEN_PAD = 20;
+        const ON_SCREEN_PAD = 20;
+        const safe = this.edgeSafeRect(); // v0.186.0: omijamy pigulki HUD i kontrolki dotykowe
         for (const tgt of targets) {
             const sx = (tgt.wx - cameraX) * zoom;
             const sy = (tgt.wy - cameraY) * zoom;
             const onScreen = sx >= -ON_SCREEN_PAD && sx <= this.screenW + ON_SCREEN_PAD && sy >= -ON_SCREEN_PAD && sy <= this.screenH + ON_SCREEN_PAD;
             if (onScreen) continue;
-            const cx = this.screenW / 2, cyS = this.screenH / 2;
+            const cx = (safe.x0 + safe.x1) / 2, cyS = (safe.y0 + safe.y1) / 2;
             const dx = sx - cx, dy = sy - cyS;
-            const scale = Math.min((this.screenW / 2 - M) / Math.abs(dx || 0.0001), (this.screenH / 2 - M) / Math.abs(dy || 0.0001));
-            const ax = cx + dx * scale, ay = cyS + dy * scale;
+            const scale = Math.min((safe.x1 - safe.x0) / 2 / Math.abs(dx || 0.0001), (safe.y1 - safe.y0) / 2 / Math.abs(dy || 0.0001));
+            const pushed = this.pushOutOfHud(cx + dx * scale, cyS + dy * scale); // v0.186.0: omijaj strefy HUD
+            const ax = pushed.x, ay = pushed.y;
             const ang = Math.atan2(dy, dx);
             if (this.sigmaRects) { // SigmaTester J2: grot (r16) + badge (r15, 22 px wstecz)
                 const bx0 = ax - Math.cos(ang) * 22, by0 = ay - Math.sin(ang) * 22;
@@ -537,7 +639,7 @@ export class HUD {
             }
             const col = '#' + tgt.color.toString(16).padStart(6, '0');
             c.save();
-            c.globalAlpha = tgt.pulse ? 0.7 + Math.sin(Date.now() / 130) * 0.3 : 0.85;
+            c.globalAlpha = 0.85; // v0.186.0: bez pulsu alpha (drganie na malym ekranie)
             c.translate(ax, ay);
             c.rotate(ang);
             c.fillStyle = col; c.strokeStyle = 'rgba(0,0,0,0.75)'; c.lineWidth = 2.5;
@@ -555,6 +657,28 @@ export class HUD {
         }
     }
     
+    /**
+     * v0.186.0 CZYTELNOSC — powiadomienie nigdy nie wjezdza na pigulke WYNIK.
+     *
+     * Korytarz = od prawej krawedzi pigulki HP (px) do lewej krawedzi WYNIKU (SW/2 - 115), minus
+     * 10 px oddechu. Na A54 (915 px CSS => SW 1307) to ~285 px i NIC sie nie przycina; przycina sie
+     * dopiero na waskich viewportach (667 px => ~100 px), gdzie stary kod nachodzil na WYNIK.
+     * Zakladamy, ze wolajacy ustawil juz font pigulki (15 px) — measureText liczy w tej samej skali.
+     */
+    private fitNotifText(text: string, px: number): string {
+        const c = this.ctx;
+        const avail = (this.screenW / this.uiScale) / 2 - 115 - px - 10;
+        if (avail <= 0) return text;                      // brak sensownego korytarza — nie psuj tekstu
+        if (c.measureText(text).width + 16 <= avail) return text;
+        const ell = '…';
+        let lo = 0, hi = text.length;                     // binarne szukanie najdluzszego mieszczacego sie prefiksu
+        while (lo < hi) {
+            const mid = Math.ceil((lo + hi) / 2);
+            if (c.measureText(text.slice(0, mid).trimEnd() + ell).width + 16 <= avail) lo = mid; else hi = mid - 1;
+        }
+        return lo > 0 ? text.slice(0, lo).trimEnd() + ell : text.slice(0, 1);
+    }
+
     private drawNotifs(): void {
         if (this.hudNotifs.length === 0) return;
         const c = this.ctx;
@@ -563,9 +687,13 @@ export class HUD {
             if (n.timer <= 0) return;
             n.timer--;
             const alpha = Math.min(1, n.timer / 30) * Math.min(1, (n.maxTimer - n.timer + 20) / 20);
-            const pw = c.measureText(n.text).width + 16;
             // v0.46.0: px 222 → 252 (HP pill poszerzony do 230, notify nie moga nachodzic)
+            // v0.186.0: pozycja WRACA na gorny rzad (y=8, obok HP) — przesuniecie pod pigulki bylo
+            // gorsze w odbiorze ("dziwne miejsce, burzy czytelnosc" — playtest A54). Zamiast przesuwac
+            // pigulke, SKRACAMY tekst do korytarza miedzy HP a WYNIK, wiec nachodzenie znika u zrodla.
             const ph = 24, pr = 12, px = 252, py = 8 + i * 28;
+            const text = this.fitNotifText(n.text, px);
+            const pw = c.measureText(text).width + 16;
             this.sigmaRect('notif-' + i, px, py, pw, ph, true); // SigmaTester J2 (kontekst skalowany)
             c.save();
             c.globalAlpha = alpha;
@@ -581,9 +709,9 @@ export class HUD {
             c.textBaseline = 'middle';
             c.strokeStyle = 'rgba(0,0,0,0.7)';
             c.lineWidth = 3;
-            c.strokeText(n.text, px + 10, py + ph / 2);
+            c.strokeText(text, px + 10, py + ph / 2);
             c.fillStyle = n.color;
-            c.fillText(n.text, px + 10, py + ph / 2);
+            c.fillText(text, px + 10, py + ph / 2);
             c.restore();
         });
         this.hudNotifs = this.hudNotifs.filter(n => n.timer > 0);
@@ -1157,10 +1285,11 @@ export class HUD {
         const c = this.ctx;
         const remaining = Math.max(0, (powerSystem.magnetEndTime - Date.now()) / 1000);
         
-        const px = this.screenW - 14 - 200;
+        // v0.186.0: przestrzen skalowana uiScale (wczesniej surowy screenW => pigulka konczyla sie 210 px przed krawedzia)
+        const px = this.screenW / this.uiScale - 14 - 200;
         const py = 80 + this.seasonRowShift();   // SEASON KIT: ustap miejsca chipowi
-        
-        const pulse = 0.85 + Math.sin(Date.now() / 100) * 0.15;
+        this.sigmaRect('pill-magnet', px, py, 200, 32, true);
+        const pulse = 0.95; // bez pulsu alpha
         c.save();
         c.globalAlpha = pulse;
         c.fillStyle = 'rgba(231,76,60,0.85)';
@@ -1184,10 +1313,11 @@ export class HUD {
         const c = this.ctx;
         const remaining = Math.max(0, (player.speedBoostEnd - Date.now()) / 1000);
         
-        const px = this.screenW - 14 - 200;
+        // v0.186.0: przestrzen skalowana uiScale (jak magnes)
+        const px = this.screenW / this.uiScale - 14 - 200;
         const py = 118 + this.seasonRowShift();  // SEASON KIT: ustap miejsca chipowi
-        
-        const pulse = 0.85 + Math.sin(Date.now() / 80) * 0.15;
+        this.sigmaRect('pill-turbo', px, py, 200, 32, true);
+        const pulse = 0.95; // bez pulsu alpha
         c.save();
         c.globalAlpha = pulse;
         c.fillStyle = 'rgba(255,102,0,0.85)';
@@ -1208,9 +1338,13 @@ export class HUD {
     
     private drawMegaBossBar(megaBoss: Enemy): void {
         const c = this.ctx;
-        const BW = 500, BH = 26;
-        const bx = (this.screenW - BW) / 2;
+        // v0.186.0: rysowane w kontekscie skalowanym uiScale, wiec szerokosc liczymy w TEJ przestrzeni
+        // (wczesniej surowy screenW => pasek przesuniety o 100 px w lewo na mobile) i ograniczamy do 45% ekranu
+        const SW = this.screenW / this.uiScale;
+        const BW = Math.min(500, SW * 0.45), BH = 26;
+        const bx = (SW - BW) / 2;
         const by = 78;
+        this.sigmaRect('bar-megaboss', bx - 4, by - 4, BW + 8, BH + 8, true);
         
         c.fillStyle = 'rgba(0,0,0,0.7)';
         c.beginPath();
@@ -1245,9 +1379,9 @@ export class HUD {
                 ? tr('hud.megaBossPhaseStrafe')
                 : tr('hud.megaBossPhaseEnraged');
         const label = tr('hud.megaBossLabel', { phase: phaseTxt });
-        c.strokeText(label, this.screenW / 2, by + BH / 2);
+        c.strokeText(label, SW / 2, by + BH / 2);
         c.fillStyle = '#fff';
-        c.fillText(label, this.screenW / 2, by + BH / 2);
+        c.fillText(label, SW / 2, by + BH / 2);
     }
     
     private drawMegaBossAlert(): void {
@@ -1258,12 +1392,14 @@ export class HUD {
         
         const alpha = t > 150 ? (180 - t) / 30 : t < 30 ? t / 30 : 1;
         
+        // v0.186.0: skala do ekranu zamiast pulsu — 680 px bylo SZERSZE niz telefon (667), a puls wypychal jeszcze dalej
+        const os = this.overlayScale;
         c.save();
         c.globalAlpha = alpha;
-        c.translate(this.screenW / 2, this.screenH / 2 - 50);
-        const pulse = 1 + Math.sin(Date.now() / 100) * 0.05;
-        c.scale(pulse, pulse);
-        
+        c.translate(this.screenW / 2, this.screenH / 2 - 50 * os);
+        c.scale(os, os);
+        this.sigmaRect('banner-megaboss', this.screenW / 2 - 340 * os, this.screenH / 2 - 100 * os, 680 * os, 100 * os, false);
+
         c.fillStyle = 'rgba(0,0,0,0.85)';
         c.beginPath();
         c.roundRect(-340, -50, 680, 100, 16);
@@ -1300,9 +1436,10 @@ export class HUD {
 
         c.save();
         c.globalAlpha = alpha;
-        c.translate(this.screenW / 2, this.screenH / 2 - 110);
-        const pulse = 1 + Math.sin(Date.now() / 90) * 0.06;
-        c.scale(pulse, pulse);
+        const os = this.overlayScale; // v0.186.0: skala do ekranu, bez pulsu
+        c.translate(this.screenW / 2, this.screenH / 2 - 110 * os);
+        c.scale(os, os);
+        this.sigmaRect('banner-ctfenrage', this.screenW / 2 - 300 * os, this.screenH / 2 - 154 * os, 600 * os, 88 * os, false);
 
         c.fillStyle = 'rgba(0,0,0,0.85)';
         c.beginPath();
@@ -1340,9 +1477,10 @@ export class HUD {
 
         c.save();
         c.globalAlpha = alpha;
-        c.translate(this.screenW / 2, this.screenH / 2 - 110);
-        const pulse = 1 + Math.sin(Date.now() / 80) * 0.07;
-        c.scale(pulse, pulse);
+        const os = this.overlayScale; // v0.186.0: skala do ekranu, bez pulsu
+        c.translate(this.screenW / 2, this.screenH / 2 - 110 * os);
+        c.scale(os, os);
+        this.sigmaRect('banner-ctfbreach', this.screenW / 2 - 300 * os, this.screenH / 2 - 154 * os, 600 * os, 88 * os, false);
 
         c.fillStyle = 'rgba(0,0,0,0.85)';
         c.beginPath();
@@ -1386,17 +1524,18 @@ export class HUD {
         c.textAlign = 'center';
         c.textBaseline = 'middle';
 
-        c.font = `18px "${FONT_FAMILY}",cursive`;
+        const os = this.overlayScale; // v0.186.0: cyfra 54 px zjadala 21% wysokosci telefonu
+        c.font = `${Math.round(18 * os)}px "${FONT_FAMILY}",cursive`;
         c.strokeStyle = '#000';
         c.lineWidth = 5;
         const label = tr('ctf.baseShield');
-        c.strokeText(label, sx, sy - 52);
+        c.strokeText(label, sx, sy - 52 * os);
         c.fillStyle = '#5dade2';
-        c.fillText(label, sx, sy - 52);
+        c.fillText(label, sx, sy - 52 * os);
 
-        c.font = `54px "${FONT_FAMILY}",cursive`;
+        c.font = `${Math.round(54 * os)}px "${FONT_FAMILY}",cursive`;
         c.lineWidth = 8;
-        c.strokeText(txt, sx, sy - 8);
+        c.strokeText(txt, sx, sy - 8 * os);
         c.fillStyle = '#ffffff';
         c.fillText(txt, sx, sy - 8);
 
@@ -1499,7 +1638,7 @@ export class HUD {
         // y112: pod SCORE (8-62) i pod 3 wierszami notify (max y=88) — zero kolizji @375px
         const by = 112, BH = 34, BW = 320;
 
-        const pulse = 0.85 + Math.sin(Date.now() / 140) * 0.15;
+        const pulse = 0.95; // v0.186.0: bez pulsu alpha
         c.save();
         c.globalAlpha = pulse;
         c.fillStyle = 'rgba(0,0,0,0.7)';
@@ -1537,7 +1676,7 @@ export class HUD {
         const info = this.ctfInfo;
         if (!info) return;
         const c = this.ctx;
-        const M = 34;             // margines krawedzi dla strzalek
+        const safe = this.edgeSafeRect(); // v0.186.0: znaczniki omijaja pigulki HUD i kontrolki dotykowe
         const ON_SCREEN_PAD = 20; // cel "na ekranie" gdy w tym pasie
 
         interface ArrowTarget { wx: number; wy: number; color: number; label: string; isBase: boolean }
@@ -1559,16 +1698,17 @@ export class HUD {
             if (onScreen) continue;
 
             // Kierunek od srodka ekranu do celu + clamp punktu do prostokata marginesu
-            const cx = this.screenW / 2;
-            const cyS = this.screenH / 2;
+            const cx = (safe.x0 + safe.x1) / 2;
+            const cyS = (safe.y0 + safe.y1) / 2;
             const dx = sx - cx;
             const dy = sy - cyS;
             const scale = Math.min(
-                (this.screenW / 2 - M) / Math.abs(dx || 0.0001),
-                (this.screenH / 2 - M) / Math.abs(dy || 0.0001),
+                (safe.x1 - safe.x0) / 2 / Math.abs(dx || 0.0001),
+                (safe.y1 - safe.y0) / 2 / Math.abs(dy || 0.0001),
             );
-            const ax = cx + dx * scale;
-            const ay = cyS + dy * scale;
+            const pushed = this.pushOutOfHud(cx + dx * scale, cyS + dy * scale); // v0.186.0: omijaj strefy HUD
+            const ax = pushed.x;
+            const ay = pushed.y;
             const ang = Math.atan2(dy, dx);
             const col = '#' + tgt.color.toString(16).padStart(6, '0');
             const distM = Math.round(Math.hypot(dx, dy) / info.zoom / 10);
@@ -1789,7 +1929,7 @@ export class HUD {
             c.save();
             c.translate(this.screenW / 2, this.screenH / 2 - 120);
             // v0.46.0: 22px bold (faux-bold mushy) → 30px bez bolda + grubszy obrys (czytelnosc + hype)
-            c.font = `30px "${FONT_FAMILY}", cursive`;
+            c.font = `${Math.round(Math.max(24, 30 * this.overlayScale))}px "${FONT_FAMILY}", cursive`;
             c.textAlign = 'center';
             c.textBaseline = 'middle';
             c.strokeStyle = '#000';

@@ -2423,6 +2423,21 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     font-variant-numeric: tabular-nums;
 }
 .bt-rankup-cta { margin-top: 14px; min-width: 180px; }
+
+/* v0.186.0 CZYTELNOSC — telefon w poziomie: karta awansu brala ~96% wysokosci ekranu, a otwiera sie
+   AUTOMATYCZNIE po powrocie z meczu (wzorzec zmniejszenia 1:1 ze skrzynka, sekcja .bt-hub0-crate-*). */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-rankup-card { padding: 12px 18px 14px; gap: 4px; }
+    .bt-rankup-badge { width: 120px; }
+    .bt-rankup-badge .rb-hex { width: 104px; }
+    .bt-rankup-badge .rb-hex i { font-size: 34px; }
+    .bt-rankup-title { font-size: 22px; }
+    .bt-rankup-name { font-size: 16px; }
+    .bt-rankup-reward { font-size: 12px; }
+    .bt-rankup-glow { width: 200px; height: 200px; }
+    .bt-rankup-smoke { top: 86px; }
+    .bt-rankup-cta { margin-top: 8px; min-width: 150px; }
+}
 .bt-rankup-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .bt-rankup-confetti i {
     position: absolute; top: -4vh; left: 50%; width: var(--w, 8px); height: calc(var(--w, 8px) * 1.6);

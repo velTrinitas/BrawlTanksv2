@@ -49,6 +49,9 @@ export function showModeGoal(scenario: GoalScenario, isTouch: boolean): void {
 
     clearModeGoal();
     const desk = !isTouch;
+    // v0.186.0 CZYTELNOSC: telefon w poziomie (wysokosc <= 430 px) — karta celu brala 67-74% wysokosci ekranu.
+    // Zmniejszamy ikone/tytul/tekst/paddingi; tekst celu zostaje ten sam, tylko mniejszy i ciasniejszy.
+    const low = !desk && window.innerHeight <= 430;
 
     const root = document.createElement('div');
     root.id = 'bt-goal-root';
@@ -56,8 +59,8 @@ export function showModeGoal(scenario: GoalScenario, isTouch: boolean): void {
 
     const card = document.createElement('div');
     card.style.cssText =
-        'max-width:88vw;text-align:center;border-radius:22px;' +
-        'padding:' + (desk ? '26px 54px 22px' : '18px 30px 18px') + ';' +
+        'max-width:' + (low ? '78vw' : '88vw') + ';text-align:center;border-radius:22px;' +
+        'padding:' + (desk ? '26px 54px 22px' : low ? '10px 18px 12px' : '18px 30px 18px') + ';' +
         'background:linear-gradient(180deg,rgba(60,64,86,.97),rgba(30,33,46,.97));' +
         'border:3px solid rgba(255,210,74,.75);' +
         'box-shadow:0 16px 44px rgba(0,0,0,.6),0 0 0 4px rgba(255,210,74,.12),inset 0 1px 0 rgba(255,255,255,.1);' +
@@ -65,23 +68,23 @@ export function showModeGoal(scenario: GoalScenario, isTouch: boolean): void {
 
     const icon = document.createElement('div');
     icon.textContent = scenario === 'ctf' ? '\u{1F6A9}' : scenario === 'castle' ? '\u{1F3F0}' : '\u{1F3AF}'; // 🚩 / 🏰 / 🎯
-    icon.style.cssText = 'font-size:' + (desk ? 'clamp(60px,6vw,92px)' : 'clamp(48px,12vw,76px)') + ';line-height:1;margin-bottom:6px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))';
+    icon.style.cssText = 'font-size:' + (desk ? 'clamp(60px,6vw,92px)' : low ? '44px' : 'clamp(48px,12vw,76px)') + ';line-height:1;margin-bottom:' + (low ? '2px' : '6px') + ';filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))';
 
     const title = document.createElement('div');
     title.textContent = t('goal.title');
-    title.style.cssText = 'color:' + GOLD + ';font-size:' + (desk ? 'clamp(30px,3vw,44px)' : 'clamp(22px,5.5vw,36px)') + ';line-height:1.05;text-shadow:0 3px 0 #000,0 0 20px rgba(255,180,40,.55)';
+    title.style.cssText = 'color:' + GOLD + ';font-size:' + (desk ? 'clamp(30px,3vw,44px)' : low ? '24px' : 'clamp(22px,5.5vw,36px)') + ';line-height:1.05;text-shadow:0 3px 0 #000,0 0 20px rgba(255,180,40,.55)';
 
     const text = document.createElement('div');
     text.textContent = scenario === 'ctf' ? t('goal.ctf') : scenario === 'castle' ? t('goal.castle') : scenario === 'save_queen' ? t('goal.save_queen') : t('goal.ktb');
-    text.style.cssText = 'color:#e9edf8;font-family:system-ui,sans-serif;font-weight:700;margin-top:' + (desk ? '10px' : '8px') + ';' +
-        'font-size:' + (desk ? 'clamp(17px,1.7vw,24px)' : 'clamp(13px,3.2vw,19px)') + ';line-height:1.3;text-shadow:0 2px 0 rgba(0,0,0,.6)';
+    text.style.cssText = 'color:#e9edf8;font-family:system-ui,sans-serif;font-weight:700;margin-top:' + (desk ? '10px' : low ? '5px' : '8px') + ';' +
+        'font-size:' + (desk ? 'clamp(17px,1.7vw,24px)' : low ? '14px' : 'clamp(13px,3.2vw,19px)') + ';line-height:1.3;text-shadow:0 2px 0 rgba(0,0,0,.6)';
 
     const play = document.createElement('button');
     play.className = 'bt-goal-play';
     play.textContent = t('goal.play') + ' ▶'; // ▶
-    play.style.cssText = 'pointer-events:auto;margin-top:' + (desk ? '18px' : '14px') + ';background:' + GOLD + ';color:#3a2c00;border:none;border-radius:14px;' +
-        'padding:' + (desk ? '12px 40px' : '10px 30px') + ';font-family:"Titan One",cursive;letter-spacing:.5px;cursor:pointer;transition:background .12s,transform .12s;' +
-        'font-size:' + (desk ? 'clamp(18px,1.8vw,24px)' : 'clamp(15px,3.4vw,20px)') + ';box-shadow:0 6px 0 #b8860b,0 9px 16px rgba(0,0,0,.4)';
+    play.style.cssText = 'pointer-events:auto;margin-top:' + (desk ? '18px' : low ? '8px' : '14px') + ';background:' + GOLD + ';color:#3a2c00;border:none;border-radius:14px;' +
+        'padding:' + (desk ? '12px 40px' : low ? '7px 24px' : '10px 30px') + ';font-family:"Titan One",cursive;letter-spacing:.5px;cursor:pointer;transition:background .12s,transform .12s;' +
+        'font-size:' + (desk ? 'clamp(18px,1.8vw,24px)' : low ? '15px' : 'clamp(15px,3.4vw,20px)') + ';box-shadow:0 6px 0 #b8860b,0 9px 16px rgba(0,0,0,.4)';
     play.onclick = () => clearModeGoal();
 
     card.append(icon, title, text, play);

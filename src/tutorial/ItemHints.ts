@@ -55,6 +55,8 @@ export class ItemHints {
             document.head.appendChild(st);
         }
         const touch = this.isTouch;
+        // v0.186.0 CZYTELNOSC: przy 375 px wysokosci dymek bral 58% szerokosci i zaslanial czolg gracza
+        const low = touch && window.innerHeight <= 430;
 
         // root: kotwica pozycjonowana lewym-gornym rogiem dymka (left/top liczone w updateWorld).
         // transform-origin: dol-srodek => pop skaluje sie "z obiektu". Brak translate w bazie.
@@ -66,8 +68,8 @@ export class ItemHints {
         const bubble = document.createElement('div');
         bubble.style.cssText =
             'position:relative;text-align:center;font-family:"Titan One",cursive;color:#fff;' +
-            'font-size:' + (touch ? 'clamp(11px,2.5vw,14px)' : '16px') + ';letter-spacing:.3px;line-height:1.25;' +
-            'max-width:' + (touch ? '58vw' : '340px') + ';white-space:normal;word-break:break-word;' +
+            'font-size:' + (low ? '12px' : touch ? 'clamp(11px,2.5vw,14px)' : '16px') + ';letter-spacing:.3px;line-height:1.25;' +
+            'max-width:' + (low ? '42vw' : touch ? '58vw' : '340px') + ';white-space:normal;word-break:break-word;' +
             'background:linear-gradient(180deg,rgba(52,56,78,.98),rgba(26,29,42,.98));' +
             'border:2.5px solid ' + GOLD + ';border-radius:13px;padding:' + (touch ? '5px 11px' : '8px 16px') + ';' +
             'box-shadow:0 6px 20px rgba(0,0,0,.55),0 0 14px rgba(255,210,74,.4);' +

@@ -53,7 +53,9 @@ export class Blizzard {
         this.container = new PIXI.Container();
         // fix2 (BUG): bylo zIndex=2000 — w swiecie Y-sort (zIndex = y+h, do ~3100!) polowa
         // mapy PRZYKRYWALA snieg. Pogoda = warstwa NAD calym swiatem (wciaz pod HUD-canvasem).
-        this.container.zIndex = 1_000_000;
+        // v0.186.0 CZYTELNOSC: 1 000 000 = snieg NAD czolgami (130 platkow alpha do 0.9 przy zoomie 0.6
+        // zasmiecalo pole gry). 30 = nad terenem i dekoracjami, POD czolgami (zIndex = y+offset, y >= ~60).
+        this.container.zIndex = 30;
         this.container.visible = false;
         worldContainer.addChild(this.container);
 

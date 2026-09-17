@@ -22,7 +22,8 @@ import { MARS_HEX } from '../MarsMap';
  *    takes the first FREE slot below them: 1e6 - 4.
  */
 
-const Z_OVERLAY_SUBSLOT = 1_000_000 - 4;   // free sub-slot (see header / T15)
+// v0.186.0 CZYTELNOSC: bylo 1_000_000-4 (pyl NAD czolgami przy zoomie 0.6). 30 = nad terenem, POD czolgami.
+const Z_OVERLAY_SUBSLOT = 30;
 
 const IDLE_MIN_MS = 100_000;
 const IDLE_MAX_MS = 150_000;

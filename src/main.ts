@@ -1216,6 +1216,35 @@ if (import.meta.env.DEV) {
     console.log('[FAZA 7a/8a/8b] window.BT_DEV attached — use for smoke testing');
 }
 
+/**
+ * v0.186.0 CZYTELNOSC/FAIRNESS — PAUZA W PIONIE.
+ *
+ * Do tej wersji ostrzezenie "Obroc telefon do poziomu" bylo SAMYM CSS-em (menu-styles.css, @media
+ * orientation: portrait): nakladka zakrywala plansze i kontrolki, ale petla gry leciala dalej.
+ * SigmaTester (oracle J7) zmierzyl skutek: -200/-400 HP w 5 sekund, az do smierci, bez mozliwosci
+ * reakcji. Dla 9-12 lat to czysta niesprawiedliwosc — obrocil telefon, przegral mecz.
+ *
+ * UWAGA (dlug): zatrzymujemy logike i muzyke, ale zegary scenariuszy licza z Date.now()
+ * (Krolowa/Zamek), wiec czas celu plynie dalej. Pelne zamrozenie = wyciecie Date.now() z logiki
+ * (dlug ETAP 1 determinizmu).
+ */
+let orientationPaused = false;
+function applyOrientationPause(portrait: boolean): void {
+    if (portrait === orientationPaused) return;
+    orientationPaused = portrait;
+    try { AudioSys.getInstance().setSuspended(portrait); } catch (e) { console.warn('[v0.186.0] audio suspend failed', (e as Error).stack); }
+    console.log(`[v0.186.0] orientation pause: ${portrait ? 'ON (pion)' : 'OFF (poziom)'}`);
+}
+try {
+    const portraitMq = window.matchMedia('(orientation: portrait) and (max-width: 900px)'); // 1:1 z warunkiem CSS ostrzezenia
+    const syncOrientation = (): void => applyOrientationPause(portraitMq.matches);
+    portraitMq.addEventListener('change', syncOrientation);
+    window.addEventListener('resize', syncOrientation); // fallback: przegladarki bez zdarzenia change na MQ
+    syncOrientation();
+} catch (e) {
+    console.warn('[v0.186.0] orientation pause install failed', (e as Error).stack);
+}
+
 async function tryLockLandscape(): Promise<void> {
     try {
         const orient = (screen as Screen & { orientation?: { lock?: (orientation: string) => Promise<void> } }).orientation;
@@ -1234,6 +1263,7 @@ function returnToMenuFromEnd(): void {
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.remove('game-cursor-hidden');
+    document.body.classList.remove('bt-in-match'); // v0.186.0: wersja gry znow widoczna w menu
     gameState = 'MENU';
     currentSession = null;
 
@@ -1592,6 +1622,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     tutorialActive = tutorialMode;
     lastGameConfig = config;
     clearTutorialSandbox(); // FAZA B: wyczysc ring/tracking z ew. poprzedniego tutorialu
+    document.body.classList.add('bt-in-match'); // v0.186.0: chowa #credits na dotyku (lezal pod lewym joystickiem)
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.add('game-cursor-hidden');
@@ -3131,14 +3162,17 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // v2 (landscape) — kompaktowy mini-kafelek: ikona+liczba w jednym rzedzie, label pod spodem.
     // Wchodzi 4-w-rzedzie w prawej kolumnie (siatka 4x2). Gem jest tu mniejszy niz w chipie,
     // bo pelny rozmiar rozwalilby waskie kafelki. v0.125.0: 1.3rem -> 1.95rem (+50%).
-    const gemIconSm = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:1.95rem;height:1.95rem;display:block;object-fit:contain;">`;
+    // v0.186.0 CZYTELNOSC: telefon w poziomie (<= 430 px wysokosci) — endcard mial ~388 px tresci
+    // przy suficie 360 px i scrollowal. Mniejszy hero + ciasniejsze kafle = karta bez przewijania.
+    const lowH = window.innerHeight <= 430;
+    const gemIconSm = `<img src="${import.meta.env.BASE_URL}assets/gem.png" alt="" style="width:${lowH ? '1.4rem' : '1.95rem'};height:${lowH ? '1.4rem' : '1.95rem'};display:block;object-fit:contain;">`;
     const statTile = (iconHtml: string, value: string | number, label: string): string => `
-        <div style="background:#f1f0f6;border:2px solid #e2e1ea;border-radius:12px;padding:6px 3px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center;box-sizing:border-box;">
-            <div style="display:flex;align-items:center;justify-content:center;gap:5px;line-height:1;">
-                <span style="font-size:1.15rem;line-height:1;display:flex;align-items:center;justify-content:center;">${iconHtml}</span>
-                <span style="font-family:${TITAN};font-size:1.3rem;color:#2c3e50;">${value}</span>
+        <div style="background:#f1f0f6;border:2px solid #e2e1ea;border-radius:12px;padding:${lowH ? '4px 2px 3px' : '6px 3px 5px'};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center;box-sizing:border-box;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:${lowH ? '3px' : '5px'};line-height:1;">
+                <span style="font-size:${lowH ? '0.95rem' : '1.15rem'};line-height:1;display:flex;align-items:center;justify-content:center;">${iconHtml}</span>
+                <span style="font-family:${TITAN};font-size:${lowH ? '1.05rem' : '1.3rem'};color:#2c3e50;">${value}</span>
             </div>
-            <span style="font-family:${SYS};font-size:0.58rem;font-weight:700;letter-spacing:0.4px;color:#8a8a99;text-transform:uppercase;">${label}</span>
+            <span style="font-family:${SYS};font-size:${lowH ? '0.52rem' : '0.58rem'};font-weight:700;letter-spacing:0.4px;color:#8a8a99;text-transform:uppercase;">${label}</span>
         </div>`;
 
     // Slim bonus-row z PowerCube'ow — tylko gdy realnie cos dropnelo.
@@ -3294,12 +3328,12 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // +10% wzgledem 124/112 (Mariusz chce troche wieksza animacje po tescie).
     const heroZoneV2 = d.tankImg ? `
         <style>${heroKeyframes}</style>
-        <div style="position:relative;width:100%;height:204px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 45px);mask-image:linear-gradient(to bottom,transparent 0,#000 45px);">
-            <div style="position:absolute;bottom:21px;left:50%;transform:translateX(-50%);width:231px;height:231px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
-            <div style="position:absolute;bottom:21px;left:50%;transform:translateX(-50%);width:165px;height:33px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
-            <div style="position:absolute;bottom:34px;left:50%;transform:translateX(-50%);font-size:2.9rem;line-height:1;z-index:1;">${icon}</div>
+        <div style="position:relative;width:100%;height:${lowH ? 150 : 204}px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 ${lowH ? 32 : 45}px);mask-image:linear-gradient(to bottom,transparent 0,#000 ${lowH ? 32 : 45}px);">
+            <div style="position:absolute;bottom:${lowH ? 15 : 21}px;left:50%;transform:translateX(-50%);width:${lowH ? 170 : 231}px;height:${lowH ? 170 : 231}px;border-radius:50%;background:radial-gradient(circle,${glow} 0%,transparent 68%);z-index:0;"></div>
+            <div style="position:absolute;bottom:${lowH ? 15 : 21}px;left:50%;transform:translateX(-50%);width:${lowH ? 120 : 165}px;height:${lowH ? 24 : 33}px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.4) 0%,transparent 72%);z-index:1;"></div>
+            <div style="position:absolute;bottom:${lowH ? 26 : 34}px;left:50%;transform:translateX(-50%);font-size:${lowH ? '2.1rem' : '2.9rem'};line-height:1;z-index:1;">${icon}</div>
             ${heroEffects}
-            <img src="${d.tankImg}" alt="" onerror="this.remove()" style="position:relative;z-index:2;height:184px;width:auto;filter:${heroFilter};">
+            <img src="${d.tankImg}" alt="" onerror="this.remove()" style="position:relative;z-index:2;height:${lowH ? 132 : 184}px;width:auto;filter:${heroFilter};">
         </div>`
         : `<div style="font-size:2.9rem;line-height:1;">${icon}</div>`;
 
@@ -3307,11 +3341,11 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     // === (prawa) siatka statow 4x2 + bonus + badge + button. Cel: brak scrolla @375px, przycisk zawsze widoczny.
     if (END_V2_ENABLED) {
         return `
-        <div style="display:flex;flex-direction:column;align-items:center;width:100%;box-sizing:border-box;gap:10px;">
+        <div style="display:flex;flex-direction:column;align-items:center;width:100%;box-sizing:border-box;gap:${lowH ? 6 : 10}px;">
             <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;width:100%;">
-                <div class="es-title" style="font-family:${TITAN};font-size:2.1rem;line-height:1;color:${accent};text-transform:uppercase;-webkit-text-stroke:2px #000;text-shadow:3px 3px 0 #000;text-align:center;white-space:nowrap;">${title}</div>
+                <div class="es-title" style="font-family:${TITAN};font-size:${lowH ? '1.5rem' : '2.1rem'};line-height:1;color:${accent};text-transform:uppercase;-webkit-text-stroke:2px #000;text-shadow:3px 3px 0 #000;text-align:center;white-space:nowrap;">${title}</div>
             </div>
-            <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:20px;width:100%;">
+            <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${lowH ? 12 : 20}px;width:100%;">
                 <div style="flex:0 0 42%;max-width:250px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;">
                     ${heroZoneV2}
                     <div style="text-align:center;background:#fdf6d8;border:2px solid #f1c40f;border-radius:14px;padding:4px 22px 6px;box-shadow:2px 2px 0 rgba(0,0,0,0.12);">
@@ -3333,7 +3367,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
                     ${bonusRow}
                     ${trophyRowV2}
                     ${victoryBadge}
-                    <button class="brawl-btn" id="${btnId}" style="font-size:1.4rem;padding:11px 34px;margin-top:12px;">${t('end.backToMenu')}</button>
+                    <button class="brawl-btn" id="${btnId}" style="font-size:${lowH ? '1.05rem' : '1.4rem'};padding:${lowH ? '8px 24px' : '11px 34px'};margin-top:${lowH ? 6 : 12}px;">${t('end.backToMenu')}</button>
                 </div>
             </div>
         </div>`;
@@ -3728,6 +3762,7 @@ app.ticker.add((rawDelta) => {
  */
 function runLogicStep(delta: number): void {
     if (gameState !== 'PLAYING' || !localPlayer || !effects || !spawnSystem || !powerSystem || !currentSession) return;
+    if (orientationPaused) return; // v0.186.0: telefon w pionie => gra STOI (ostrzezenie zakrywa plansze i kontrolki)
 
     // SHOP-1 — paczka glosowa: ostrzezenie przy spadku ponizej polowy pancerza.
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,

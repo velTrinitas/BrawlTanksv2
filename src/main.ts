@@ -505,7 +505,8 @@ const castleHudInfo: HudCastleInfo = {
 };
 // SAVE THE QUEEN Q2 — dane HUD Krolowej (obiekt reuzywany per klatke, zero alokacji)
 const queenHudInfo: HudQueenInfo = {
-    phase: 'calm', remainingMs: 150000, pathBroken: 0, pathTotal: 20, pathFlash: false, keystoneDown: false,
+    // v0.188.0: 180000 = wartosc startowa przed pierwszym tickiem, musi isc za QUEEN_TUNING.matchMs
+    phase: 'calm', remainingMs: 180000, pathBroken: 0, pathTotal: 20, pathFlash: false, keystoneDown: false,
     queen: { wx: 0, wy: 0 }, lanes: [], hasKey: false, cameraX: 0, cameraY: 0, zoom: 1,
 };
 // OBRON ZAMEK F5 — przycisk "NASTEPNA FALA" (DOM; dotyk + mysz; klawisz N = alias). Tworzony raz,

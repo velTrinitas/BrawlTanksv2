@@ -2982,9 +2982,27 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
    (?queen=1 / po flipie) — bez flagi grid 3 kolumny zostaje bit-identyczny. Znaczek ✓ wchodzi
    do srodka karty (karty scenariuszy nie maja badge'a roli w rogu), wiec 8 px zapasu na nawis
    nie jest potrzebne i szerokosc rzedu = szerokosc rzedu trudnosci. */
-.bt-hub0-cards--scen { grid-template-columns: repeat(4, 1fr); gap: 6px; padding-right: 0; }
+/* v0.188.0 — liczba kolumn z LICZBY SCENARIUSZY, nie zahardkodowana na 4.
+   BattleSection podaje `--scen-count`; wczesniej klasa `--scen` wchodzila wylacznie przy dokladnie
+   4 kartach, wiec piaty scenariusz nie dostalby zadnej reguly i wrocilby ten sam bug przycinania. */
+.bt-hub0-cards--scen { grid-template-columns: repeat(var(--scen-count, 4), 1fr); gap: 6px; padding-right: 0; }
 .bt-hub0-cards--scen .bt-hub0-card { gap: 8px; padding: 8px 6px; }
 .bt-hub0-cards--scen .bt-hub0-card.is-selected::after { right: 4px; top: 4px; }
 @media (max-width: 700px) {
     .bt-hub0-cards--scen { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* v0.188.0 — TELEFON W POZIOMIE: czwarta karta byla UCINANA prawa krawedzia (widac sama ikone,
+   bez nazwy — zrzut Mariusza 2026-09-17), wiec gracz mogl nie wiedziec, ze 4. scenariusz istnieje.
+   Przyczyna: `.cd-media` ma twarde 92x92 i `flex: 0 0 auto`, czyli niescisliwe min-content kolumny.
+   Przy 915 px szerokosci 4 takie kolumny sie nie mieszcza, a hub ma CELOWO wylaczone przewijanie
+   w bok (`.bt-hub0-main { overflow-x: hidden }`), wiec nadmiar byl ucinany BEZ paska przewijania.
+   Przelaczenie na 2 kolumny zaczynalo sie dopiero przy 700 px — telefon w poziomie wpadal w luke.
+   Zwezenie ikony i tekstu miesci wszystkie karty w rzedzie bez ruszania liczby kolumn. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-hub0-cards--scen .cd-media { width: 62px; height: 62px; }
+    .bt-hub0-cards--scen .bt-hub0-card { gap: 6px; padding: 6px 5px; }
+    .bt-hub0-cards--scen .cd-name { font-size: 12px; }
+    .bt-hub0-cards--scen .cd-sub,
+    .bt-hub0-cards--scen .cd-maphint { font-size: 10px; }
 }

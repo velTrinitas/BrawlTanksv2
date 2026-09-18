@@ -6,7 +6,7 @@
  * duplikatow literalnych (lekcja driftu endBonus* w Zamku).
  *
  * Trudnosc (decyzja 5): easy/normal/hard/nightmare skaluje napor wrogow + HP cegiel
- * (enemyHpMult), NIE zegar. Zegar staly 2:30.
+ * (enemyHpMult), NIE zegar. Zegar staly 3:00 (v0.188.0; bylo 2:30).
  */
 
 export type QueenPhaseId = 'calm' | 'siege' | 'panic';
@@ -23,7 +23,7 @@ export interface QueenPhaseDef {
 }
 
 export const QUEEN_TUNING = Object.freeze({
-    matchMs: 150_000,
+    matchMs: 180_000, // v0.188.0: bylo 150_000 (2:30) — decyzja Mariusza po playtestach
     firstSpawnDelayMs: 8_000,
     spawnInvulMs: 5_000,     // Q6 (Mariusz): 5 s laski z widoczna AURA
 
@@ -89,7 +89,7 @@ export const QUEEN_TUNING = Object.freeze({
 
     phases: [
         // Q6: cap = tylko RAIDERZY (Budowniczowie liczeni osobno, builderCap); szpaler startowy = 6 => calm 9 daje ciagly doplyw
-        { id: 'calm', untilMs: 90_000, spawnIntervalFrames: 220, cap: 9, builderEvery: 0, builderCap: 0 },
+        { id: 'calm', untilMs: 120_000, spawnIntervalFrames: 220, cap: 9, builderEvery: 0, builderCap: 0 },
         { id: 'siege', untilMs: 30_000, spawnIntervalFrames: 140, cap: 12, builderEvery: 4, builderCap: 2 },
         { id: 'panic', untilMs: 0, spawnIntervalFrames: 90, cap: 14, builderEvery: 3, builderCap: 4 },
     ] as readonly QueenPhaseDef[],

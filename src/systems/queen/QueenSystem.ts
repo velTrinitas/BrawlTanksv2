@@ -25,7 +25,7 @@ import { QUEEN_TUNING as T, queenPhaseFor, type QueenPhaseId } from './queenTuni
 /**
  * QueenSystem — rdzen scenariusza SAVE THE QUEEN (Q2-Q4). Wzorzec strukturalny: CastleSystem.
  *
- *  - ZEGAR: 150 s liczone z delta klatek (NIE Date.now — determinizm Z0.1), fazy
+ *  - ZEGAR: 180 s (v0.188.0; bylo 150 s) liczone z delta klatek (NIE Date.now — determinizm Z0.1), fazy
  *    SPOKOJ / OBLEZENIE / PANIKA z queenTuning (banery + kolor pigulki HUD).
  *  - WIEZIENIE (v4): front 10x14 cegiel + skrzydla N/S; cela w zelaznej klatce (kolizja
  *    DungeonBorder), jedyne wejscie = brama 2 rz zamknieta PODWOJNYM powiazanym Zwornikiem.

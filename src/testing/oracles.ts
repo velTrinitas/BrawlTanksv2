@@ -153,8 +153,9 @@ const G1: Oracle = {
         const last = snaps[snaps.length - 1]; if (!last) return [];
         const ended = events.some(e => e.t === 'outcome');
         if (ended) return [];
-        // KTB/CTF nie maja timera — brak outcome jest OK; Queen ma 150 s => po 170 s bez outcome = zawis
-        if (last.config?.scenario === 'save_queen' && matchFrames > 60 * 170) return [{ id: 'G1', severity: 'P0', frame: last.frame, msg: 'Krolowa: > 170 s bez outcome (zegar nie schodzi?)' }];
+        // KTB/CTF nie maja timera — brak outcome jest OK; Queen ma 180 s (v0.188.0) => po 200 s bez outcome = zawis.
+        // Prog MUSI isc za matchMs, inaczej bot zglasza falszywe P0 przy kazdym meczu Krolowej.
+        if (last.config?.scenario === 'save_queen' && matchFrames > 60 * 200) return [{ id: 'G1', severity: 'P0', frame: last.frame, msg: 'Krolowa: > 200 s bez outcome (zegar nie schodzi?)' }];
         if (last.gameState !== 'PLAYING') return [{ id: 'G1', severity: 'P0', frame: last.frame, msg: `stan ${last.gameState} bez zdarzenia outcome` }];
         return [];
     },

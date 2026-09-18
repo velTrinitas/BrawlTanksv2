@@ -706,7 +706,7 @@ export const en: typeof pl = {
     'scenario.castle.mapBadge': 'Map: Castle Grounds',
 
     'scenario.save_queen.name': 'Save the Queen',
-    'scenario.save_queen.desc': 'Break the cell wall in 2:30 - one life',
+    'scenario.save_queen.desc': 'Break the cell wall in 3:00 - one life',
     'scenario.save_queen.cta': 'Save the Queen! 👸',
 
     // ============================================================
@@ -778,9 +778,9 @@ export const en: typeof pl = {
     'hud.castle.nextWave': '⚔ NEXT WAVE',
     'hud.castle.tutorial': '🏰 DEFENDER TRAINING',
     'goal.castle': 'Defend the keep through 6 waves! Enemies march the road to the gate — repair the wall between waves.',
-    'goal.save_queen': 'Break through the cell wall and touch the Queen! You have 2:30 and one life - brown Builders rebuild what you smash.',
+    'goal.save_queen': 'Break through the cell wall and touch the Queen! You have 3:00 and one life - brown Builders rebuild what you smash.',
     // SAVE THE QUEEN Q2
-    'queen.intro': 'Break the cell wall and touch the Queen! 2:30 - one life',
+    'queen.intro': 'Break the cell wall and touch the Queen! 3:00 - one life',
     'queen.phase.siege': 'SIEGE!',
     'queen.phase.panic': 'PANIC!',
     'queen.keystoneHint': 'KEYSTONE - use your SUPER!',
@@ -820,7 +820,7 @@ export const en: typeof pl = {
     'queen.tut.step3': '3/5 - The cell door is locked - find the GOLDEN KEY (arrow)',
     'queen.tut.step4': '4/5 - The WALL REGROWS by itself (orange brick ghost) - break the regrowing brick!',
     'queen.tut.step5': '5/5 - Bring the key to the STEEL DOOR of the cell',
-    'queen.tut.done': 'TRAINING COMPLETE - now for real: 2:30, one life!',
+    'queen.tut.done': 'TRAINING COMPLETE - now for real: 3:00, one life!',
     'queen.tut.skip': 'Training: ?queentut=0 skips',
     'queen.go': 'RESCUE!',
     'queen.flex.lightning': 'LIGHTNING! +50',

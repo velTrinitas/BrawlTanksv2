@@ -77,6 +77,12 @@ const CUBE_CHASE_THRESHOLD = 0.49;  // 0.7² — switch jeśli cube < 70% player
 const CUBE_STEAL_TOUCH_DIST = 30;   // + cube.radius (20) → real touch ~50px
 const CUBE_CHASE_MIN_MOVE_DIST = 5; // v0.44.1: override MIN_DIST_TO_PLAYER dla cube chase
 const CASTLE_MOVE_MIN_DIST = 6;     // OBRON ZAMEK F3: dojazd do wezla trasy
+/**
+ * v0.188.0 (Zamek) — maksymalna predkosc obrotu kadluba w rad/klatke. 0.12 rad ≈ 7°/klatke,
+ * czyli pelny obrot w ~0.9 s: dosc szybko, by czolg nadazal za trasa, i dosc wolno, by zmiana
+ * wezla nie dawala skoku o 90 stopni w jednej klatce (to tez czytaloby sie jak blad).
+ */
+const CASTLE_TURN_RATE = 0.12;
 
 /**
  * v0.58.0 Warstwa C2 — pursuit vehicle AI constants (strafe-dodge).
@@ -419,6 +425,12 @@ export class Enemy {
      *     zeby sie odkleic (fallback, w praktyce rzadki).
      * Dotyczy zwyklych, pursuit i mega bossa (guard ma wlasna maszyne stanow, bez zmian).
      */
+    /** v0.188.0 (Zamek) — pozycja PRZED ruchem; roznica daje rzeczywisty kierunek jazdy. */
+    private preMoveX = 0;
+    private preMoveY = 0;
+    /** v0.188.0 (Zamek) — wygladzony kat kadluba, zeby zmiana wezla trasy nie dawala skoku. */
+    private castleFacing = 0;
+    private castleFacingInit = false;
     private avoidSide = 0;          // -1 / 0 / +1 — strona skretu (0 = brak)
     private avoidFrames = 0;        // pamiec strony (histereza)
     private static readonly AVOID_HOLD = 42;
@@ -461,7 +473,10 @@ export class Enemy {
             }
             // 3. sila skretu rosnie, im blizej przeszkoda (0.55 daleko .. 1.4 tuz przed)
             const near = Math.max(0, Math.min(1, 1 - (blockerDist - r) / look));
-            const k = 0.55 + near * 0.85;
+            // v0.188.0: w Zamku LAGODNIEJSZY skret (0.35..0.85 zamiast 0.55..1.40). Przy k = 1.4 wektor
+            // ruchu odchyla sie od kierunku o ~55°, co przy sprite'cie patrzacym na mur czytalo sie
+            // jak "czolg jedzie bokiem". Poza Zamkiem wartosci zostaja bit-identyczne.
+            const k = this.castleRole ? 0.35 + near * 0.50 : 0.55 + near * 0.85;
             const sx = ux + (-uy) * this.avoidSide * k;
             const sy = uy + ux * this.avoidSide * k;
             const sl = Math.hypot(sx, sy) || 1;
@@ -964,16 +979,45 @@ export class Enemy {
             const minMoveDist = isChasingCube ? CUBE_CHASE_MIN_MOVE_DIST : (this.castleRole ? CASTLE_MOVE_MIN_DIST : Enemy.MIN_DIST_TO_PLAYER);
 
             if (dist > minMoveDist) {
+                this.preMoveX = this.x; this.preMoveY = this.y; // v0.188.0: do odczytu RZECZYWISTEGO kierunku jazdy
                 this.moveAvoiding((dx / dist) * effectiveSpeed, (dy / dist) * effectiveSpeed, delta, buildings, 20);
             }
         }
 
+        // v0.188.0 — ZAMEK: "czolgi jada bokiem". Wrog celowal CALYM czolgiem w mur albo w gracza
+        // (`castleAim`), a jechal do wezla trasy i omijal przeszkody skretem w bok — sprite patrzyl
+        // wiec zupelnie gdzie indziej niz wektor ruchu. Wyglada to jak blad renderu i lamie wartosc
+        // nr 1 (czytelnosc): gracz nie wie, dokad wrog jedzie ani skad przyjdzie taran.
+        //
+        // Rozwiazanie STANOWE, bez nowych tekstur: JEDZIE -> patrzy w kierunku jazdy; ATAKUJE
+        // (`castleSpeedMult === 0`: zamach, odrzut, lobber, taran w fazie charge) -> patrzy na cel.
+        // Obrot jest plynny, bo skokowa zmiana kata przy zmianie wezla trasy tez czytalaby sie zle.
+        //
+        // WYLACZNIE dla `castleRole`. Mega boss w fazie `strafe` i pursuit orbitujacy gracza jada
+        // bokiem CELOWO — tamtych sciezek nie wolno ruszyc.
+        let facing = aimAngle;
+        if (this.castleRole) {
+            const mdx = this.x - this.preMoveX, mdy = this.y - this.preMoveY;
+            const moved = Math.hypot(mdx, mdy);
+            const target = (moved > 0.25 && this.castleSpeedMult > 0) ? Math.atan2(mdy, mdx) : aimAngle;
+            // Pierwsza klatka po spawnie: kat USTAWIAMY, nie dokrecamy — inaczej kazdy nowy wrog
+            // obracalby sie z zera przez ~sekunde, co samo w sobie wygladaloby na blad.
+            if (!this.castleFacingInit) { this.castleFacing = target; this.castleFacingInit = true; }
+            // najkrotsza droga katowa + limit predkosci obrotu (rad/klatke)
+            let diff = target - this.castleFacing;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            const maxStep = CASTLE_TURN_RATE * delta;
+            this.castleFacing += Math.max(-maxStep, Math.min(maxStep, diff));
+            facing = this.castleFacing;
+        }
+
         // FAZA P4 — bake: swap tekstury (rotacja wpieczona); flat: rotacja sprite'ow jak dotad.
         if (this.bakerArch) {
-            this.applyBakedAngle(aimAngle);
+            this.applyBakedAngle(facing);
         } else {
-            this.hull.rotation = aimAngle;
-            this.turret.rotation = aimAngle;
+            this.hull.rotation = facing;
+            this.turret.rotation = facing;
         }
         this.confusedRotation = angleToTarget;
 

@@ -723,7 +723,7 @@ export const pl = {
     'scenario.castle.mapBadge': 'Mapa: Castle Grounds',
 
     'scenario.save_queen.name': 'Uratuj Królową',
-    'scenario.save_queen.desc': 'Przebij mur celi w 2:30 — jedno życie',
+    'scenario.save_queen.desc': 'Przebij mur celi w 3:00 — jedno życie',
     'scenario.save_queen.cta': 'Ratuj Królową! 👸',
 
     // ============================================================
@@ -796,9 +796,9 @@ export const pl = {
     'hud.castle.nextWave': '⚔ NASTĘPNA FALA',
     'hud.castle.tutorial': '🏰 SZKOLENIE OBROŃCY',
     'goal.castle': 'Broń donżonu przez 6 fal! Wrogowie idą drogą na bramę — naprawiaj mur między falami.',
-    'goal.save_queen': 'Przebij mur celi i dotknij Królowej! Masz 2:30 i jedno życie — brązowi Budowniczowie domurowują to, co rozwalisz.',
+    'goal.save_queen': 'Przebij mur celi i dotknij Królowej! Masz 3:00 i jedno życie — brązowi Budowniczowie domurowują to, co rozwalisz.',
     // SAVE THE QUEEN Q2 — komunikaty scenariusza Krolowej
-    'queen.intro': 'Przebij mur celi i dotknij Królowej! 2:30 · jedno życie',
+    'queen.intro': 'Przebij mur celi i dotknij Królowej! 3:00 · jedno życie',
     'queen.phase.siege': 'OBLĘŻENIE!',
     'queen.phase.panic': 'PANIKA!',
     'queen.keystoneHint': 'ZWORNIK — użyj SUPERA!',
@@ -839,7 +839,7 @@ export const pl = {
     'queen.tut.step3': '3/5 · Drzwi celi są zamknięte — znajdź ZŁOTY KLUCZ (strzałka 🔑)',
     'queen.tut.step4': '4/5 · MUR ODRASTA SAM (pomarańczowy duch cegły) — rozbij odrastającą cegłę!',
     'queen.tut.step5': '5/5 · Podjedź z kluczem do STALOWYCH DRZWI celi',
-    'queen.tut.done': '✅ SZKOLENIE ZALICZONE — teraz na serio: 2:30, jedno życie!',
+    'queen.tut.done': '✅ SZKOLENIE ZALICZONE — teraz na serio: 3:00, jedno życie!',
     'queen.tut.skip': 'Szkolenie: ?queentut=0 pomija',
     'queen.go': 'RATUJ!',
     'hud.queen.path': 'DROGA',

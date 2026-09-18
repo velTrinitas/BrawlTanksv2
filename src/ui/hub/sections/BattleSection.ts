@@ -261,7 +261,7 @@ export class BattleSection implements HubSection {
         }).join('');
         const scenarios = `
             <div class="bt-hub0-subhead">⚔️ ${t('picker.scenarioTitle')}</div>
-            <div class="bt-hub0-cards${SCENARIO_ORDER.length === 4 ? ' bt-hub0-cards--scen' : ''}">${scenCards}</div>`;
+            <div class="bt-hub0-cards bt-hub0-cards--scen" style="--scen-count:${SCENARIO_ORDER.length}">${scenCards}</div>`;
 
         // v0.128.0 — SEKCJA MAPY NIE ISTNIEJE. Wybor mapy zyje na karcie KTB (wyzej)
         // i w popupie `MapPickerOverlay`. Iteracja 7: CTF nigdy nie mial boxa mapy,

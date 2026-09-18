@@ -6,6 +6,8 @@ import { SPAWN_CONFIG } from '../config/enemies';
 import { POWERS, DICE_EMOJI } from '../config/powers';
 import { t as tr } from '../i18n/i18n';
 import { crosshairStyle, DEFAULT_CROSSHAIR, type CrosshairId } from './crosshairs';
+import { hpColorRGB } from './hpColor'; // v0.187.0 — wspolny kolor HP z paskiem nad czolgiem
+import { heartbeat } from './heartbeat'; // v0.187.0 — ten sam rytm co puls kadluba gracza
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_TINT_HEX = '#c850ff';
@@ -141,6 +143,9 @@ export class HUD {
     // === v0.23.1: Mobile UI scaling + visibility flags ===
     /** Skala glownych pill HUD'a (gem, score, kills, HP). 0.7 = mobile, 1.0 = desktop. */
     public uiScale: number = 1.0;
+    /** v0.187.0 — stan krytyczny gracza; main.ts przepisuje z Player co klatke (jedno zrodlo rytmu). */
+    public criticalArmor = false;
+    public criticalPhase = 0;
     /** Czy rysowac crosshair (mouse cursor reticle). Set per-frame by main.ts:
      *  - Desktop: zawsze true
      *  - Mobile: true gdy aim joystick aktywny (palec na prawym sticku), false gdy puszczony
@@ -548,6 +553,60 @@ export class HUD {
         c.restore();
     }
 
+    /**
+     * v0.187.0 FAZA 2 — "PANCERZ KRYTYCZNY", warstwa HUD: pekniecia pancerza w 4 ROGACH ekranu,
+     * tetniace w tym samym rytmie co puls kadluba gracza (`heartbeat`, wspolny modul).
+     *
+     * DLACZEGO ROGI, a nie klasyczna pelnoekranowa winieta jak w grach PC: regula mobile-first §3
+     * — duze gradienty alpha przez caly ekran to najdrozsza rzecz na mobile (fill-rate), a my
+     * wlasnie walczylismy o plynnosc na tablecie. Rogi to 8 kresek zamiast miliona pikseli.
+     *
+     * DLACZEGO RYTM SERCA, a nie sinus: `drawCastleKeepAlarm` (wyzej) pulsuje rownym sinusem po
+     * calej krawedzi. W Zamku gracz widzialby dwa identyczne sygnaly o dwoch roznych znaczeniach.
+     * Inny rytm i inne miejsce = gracz nie pomyli "ja gine" z "zamek pada".
+     */
+    private drawCriticalArmor(): void {
+        if (!this.criticalArmor) return;
+        const c = this.ctx;
+        const beat = heartbeat(this.criticalPhase);
+        if (beat <= 0.02) return; // cisza miedzy uderzeniami — nie rysujemy nic
+        const W = this.screenW, H = this.screenH;
+        // Promien poswiaty skalowany do KROTSZEGO boku — na telefonie w poziomie (375 px wysokosci)
+        // liczy sie wysokosc, inaczej rogi zlalyby sie w pas przez caly ekran.
+        const r = Math.min(W, H) * 0.62;
+        // v0.188.0: krycie scisniete z 0.30-0.64 do 0.12-0.30. Mariusz: efekt ma "lekko migac", a nie
+        // zalewac ekran — przy tetnie 1 raz na sekunde subtelniejszy sygnal wystarcza, bo teraz
+        // zapala sie WYLACZNIE gdy nastepny pocisk zabija (wczesniej chodzil przez cale niskie HP).
+        const peak = 0.12 + beat * 0.18;
+
+        c.save();
+        // Cztery NAROZNE gradienty promieniste. Zero linii i zero ostrych krawedzi — pierwsza wersja
+        // rysowala kreski i Mariusz odczytal je jako blad renderu ("wyglada, jakby to byl blad gry"),
+        // bo prosta czerwona kreska na ekranie to dokladnie tak, jak wyglada artefakt graficzny.
+        // Miekkie przejscie czyta sie jednoznacznie jako zamierzony efekt.
+        const glow = (cx: number, cy: number): void => {
+            const g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+            g.addColorStop(0, `rgba(255,26,26,${peak.toFixed(3)})`);
+            g.addColorStop(0.45, `rgba(200,10,10,${(peak * 0.38).toFixed(3)})`);
+            g.addColorStop(1, 'rgba(160,0,0,0)');
+            c.fillStyle = g;
+            // Malujemy TYLKO cwiartke lezaca WEWNATRZ ekranu, nie caly ekran — poza promieniem
+            // gradient i tak jest przezroczysty, wiec pelny fill byloby marnotrawstwem fill-rate'u
+            // (regula mobile-first §3; plynnosc na tablecie wywalczona w v0.187.0).
+            // Prostokat liczony z polozenia rogu: przy lewej krawedzi idziemy w prawo, przy prawej
+            // w lewo (pierwsza wersja liczyla to przez `Math.min` i malowala POZA ekranem — nie bylo
+            // widac nic, zlapane na zrzucie z bota).
+            const x0 = cx === 0 ? 0 : W - r;
+            const y0 = cy === 0 ? 0 : H - r;
+            c.fillRect(x0, y0, r, r);
+        };
+        glow(0, 0);
+        glow(W, 0);
+        glow(0, H);
+        glow(W, H);
+        c.restore();
+    }
+
     /** P1: donzon < 33% — czerwona ramka krawedzi (stroke, nie fill: tanio na mobile). */
     private drawCastleKeepAlarm(): void {
         const info = this.castleInfo;
@@ -721,9 +780,9 @@ export class HUD {
         const c = this.ctx;
         const curHP = player.hp, maxHP = player.maxHp;
         const t = maxHP > 0 ? Math.max(0, Math.min(1, curHP / maxHP)) : 0;
-        const rv = t >= 0.5 ? Math.round(46 + (1 - t) * 2 * (255 - 46)) : Math.round(255 + (0.5 - t) * 2 * (231 - 255));
-        const gv = t >= 0.5 ? Math.round(204 + (1 - t) * 2 * (165 - 204)) : Math.round(165 + (0.5 - t) * 2 * (76 - 165));
-        const bv = t >= 0.5 ? Math.round(113 + (1 - t) * 2 * (0 - 113)) : Math.round((0.5 - t) * 2 * 60);
+        // v0.187.0: formula przeniesiona do `hpColor.ts` — dzieli ja teraz z paskiem nad czolgiem
+        // gracza, zeby oba miejsca pokazywaly DOKLADNIE ten sam kolor przy tym samym HP.
+        const { r: rv, g: gv, b: bv } = hpColorRGB(t);
         
         c.fillStyle = 'rgba(8,8,18,0.75)';
         c.beginPath();
@@ -1811,6 +1870,12 @@ export class HUD {
         const c = this.ctx;
         c.clearRect(0, 0, this.screenW, this.screenH);
         if (this.sigmaRects) this.sigmaRects.length = 0; // SigmaTester J2: nowa klatka
+
+        // v0.187.0 FAZA 2 — pekniecia pancerza rysowane JAKO PIERWSZE, czyli POD pigulkami HUD.
+        // Pierwsza wersja szla na koncu (nad wszystkim) i kreski przecinaly pigulki HP i ZABICI —
+        // czyli dokladnie ten blad czytelnosci, ktory naprawialismy przy znacznikach w v0.186.0.
+        // Efekt jest tlem nastroju, a informacja (HP, wynik) musi zostac na wierzchu.
+        this.drawCriticalArmor();
 
         // v0.23.1: scale HUD pills (top + corners) — mobile dostaje uiScale=0.7
         c.save();

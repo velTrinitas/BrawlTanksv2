@@ -238,6 +238,7 @@ import { guardTestWindow } from './config/testWindow';
 // v0.187.0 FAZA 1 — twardnienie na bialy ekran (MatePad): straznik kontekstu WebGL,
 // produkcyjny raport bledow i nakladka diagnostyczna ?diag=1.
 import { getGroundTexture } from './maps/groundTextureCache';
+import { DamageSmoke } from './rendering/DamageSmoke';
 import { installContextGuard } from './rendering/ContextGuard';
 import { installDiagOverlay } from './rendering/DiagOverlay';
 import { installCrashReporter } from './services/CrashReporter';
@@ -573,6 +574,10 @@ let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
 let crates: Crate[] = [];
 let effects: EffectsManager | null = null;
+// v0.188.0 FAZA 2 — dym uszkodzenia gracza. WLASNA warstwa nad czolgami (zIndex 15000) i wlasna
+// tablica klebow: pula czasteczek ma cap 200 i przy pelnej puli NADPISUJE zywe czastki, przez co dym
+// znikal w walce, a particleContainer (zIndex 500) chowal go pod czolgiem na ~85% mapy.
+let damageSmoke: DamageSmoke | null = null;
 let spawnSystem: SpawnSystem | null = null;
 let powerSystem: PowerSystem | null = null;
 let camera = { x: 0, y: 0 };
@@ -1726,6 +1731,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // narastaly wiec z kazdym meczem (+57 tekstur/mecz, pomiar botem) az do ubicia kontekstu WebGL
     // na tablecie. Grunt ma wlasny, jednoelementowy cache (groundTextureCache) i przezywa ten reset.
     disposePropCache();
+    damageSmoke?.destroy(); damageSmoke = null; // v0.188.0: wlasna Graphics dymu ginie razem z mapa
     smoothNeedsInit = true; logicAccMs = 0; // F5: reset interpolacji na nowy mecz (zero skoku ze starego stanu)
     buildings = [];
     solidBuildings = [];
@@ -2519,6 +2525,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     effects = new EffectsManager(worldContainer);
+    damageSmoke = new DamageSmoke(worldContainer);
     // OBRON ZAMEK F6 (#9): snopy siana — niszczalne, gem po rozwaleniu (konstrukcja PO effects, jak crates)
     if (config.map === 'castle_grounds') {
         for (const hb of CASTLE_HAY) {
@@ -4332,7 +4339,26 @@ function runLogicStep(delta: number): void {
     if (castlePlayerDead) { isMouseDown = false; localPlayer.firing = false; }
     else {
         localPlayer.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
-        localPlayer.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector);
+
+        // v0.188.0 FAZA 2 — czy gracz jest "NA HITA" (nastepny pocisk go zabije). To ten stan, a nie
+        // procent HP, wlacza puls kadluba i poswiate w rogach — decyzja Mariusza po playtescie.
+        //
+        // Liczymy z NAJWIEKSZEGO pocisku wsrod ZYWYCH wrogow; `shotDamage` ma juz wliczona trudnosc
+        // (skalowanie przy spawnie), wiec nie mnozymy drugi raz.
+        //
+        // TYLKO pociski, bez taranu: taran megabossa to 400 dmg, czyli cale HP Twardego — efekt
+        // swiecilby sie non stop przez caly boss fight i wrocilyby bolace oczy. Pocisk jest
+        // zagrozeniem powszechnym i nieuniknionym, taran rzadszym i do ominiecia.
+        //
+        // Cap 50% maxHp: bez niego Zwiad (200 HP) przy bossie na mapie (pocisk 200) mialby efekt
+        // zapalony od pelnego zycia.
+        let worstShot = 0;
+        for (const e of enemies) if (e.shotDamage > worstShot) worstShot = e.shotDamage;
+        if (worstShot === 0) worstShot = 100; // brak wrogow (np. faza budowy w Zamku) — pocisk szeregowca
+        const lethalAt = Math.min(worstShot, localPlayer.maxHp * 0.5);
+        localPlayer.oneHitFromDeath = localPlayer.hp > 0 && localPlayer.hp <= lethalAt;
+
+        localPlayer.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector, damageSmoke);
     }
 
     if (currentSession.config.map === 'desert' && localPlayer.isMoving) {
@@ -5023,6 +5049,16 @@ function runLogicStep(delta: number): void {
     } else {
         hud.queenInfo = null;
     }
+
+    // v0.187.0 FAZA 2 — "Pancerz krytyczny": stan i FAZA TETNA ida z gracza do HUD, zeby pekniecia
+    // w rogach bily dokladnie z pulsem kadluba. Jedno zrodlo rytmu, zero drugiego licznika.
+    // v0.188.0: dym zyje wlasnym cyklem (rosnacy promien, dryf w gore), wiec musi tickowac co klatke
+    // niezaleznie od tego, czy gracz akurat dymi — inaczej ostatnie kleby zawisly by w powietrzu.
+    damageSmoke?.update(delta * (1000 / 60));
+
+    // Poswiata w rogach zapala sie dopiero "na hita", nie przy samym niskim HP.
+    hud.criticalArmor = localPlayer.oneHitFromDeath;
+    hud.criticalPhase = localPlayer.criticalPhase;
 
     // DEV-ONLY: mikro-profiler — czas hud.render() + calego callbacku (do rozbicia hitcha).
     if (PERF_ENABLED) {

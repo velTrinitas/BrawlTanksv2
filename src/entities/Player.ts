@@ -3,6 +3,9 @@ import { sigmaEmit } from '../testing/sigmaFlag';
 import type { Brawler } from '../types/Brawler';
 import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { TankSpriteBaker } from '../rendering/TankSpriteBaker';
+import { hpColorHex } from '../rendering/hpColor'; // v0.187.0 — ten sam kolor co pigulka HP w HUD
+import { heartbeat } from '../rendering/heartbeat'; // v0.187.0 — rytm tetna wspolny z HUD
+import type { DamageSmoke } from '../rendering/DamageSmoke'; // v0.188.0 — dym uszkodzenia (poza pula czasteczek)
 import { checkRectCollision } from '../systems/Physics';
 import type { EffectsManager } from '../rendering/Effects';
 import type { ICollidable } from '../types/MapType';
@@ -26,6 +29,30 @@ const SKIN_PULSE_REDUCED = ((): boolean => {
 // FAZA P1 Sprite Baker — display scale gracza w trybie bake (2.5D). 1.25 = +25% vs wrogowie.
 // Flaga wpieczona w teksture hull skaluje sie razem z bryla. Hitbox (main.ts radius) BEZ zmian.
 const BAKE_DISPLAY_SCALE = 1.25;
+
+// === v0.187.0 FAZA 2 — pasek zycia nad czolgiem gracza ===
+/** Szerokosc paska w px swiata. Wrogowie: 40 zwykly / 55 pursuit / 70 boss / 100 mega boss.
+ *  Gracz ma byc czytelnie szerszy od szeregowego wroga, ale nie szerszy od bossa. */
+const HP_BAR_W = 60;
+const HP_BAR_H = 7;
+/** Ile px NAD srodkiem czolgu stoi pasek (w px swiata, niezaleznie od sciezki bake/flat). */
+const HP_BAR_OFFSET_Y = 62;
+
+/**
+ * "Pancerz krytyczny" wchodzi ponizej 30% HP, a gasnie dopiero powyzej 35%. Histereza chroni przed
+ * migotaniem, gdy gracz leczy sie dokladnie na granicy progu. Wartosci do potwierdzenia playtestem.
+ */
+const CRITICAL_HP_ENTER = 0.30;
+const CRITICAL_HP_EXIT = 0.35;
+
+/**
+ * Tempo tetna: 1/60 na klatke = **rowno jeden cykl na sekunde** przy 60 fps.
+ *
+ * Bylo `0.055..0.105`, czyli cykl 0.16-0.30 s = **3.3-6.3 blyskow na sekunde**. Mariusz po playtescie:
+ * "az oczy bola przy dluzszej grze na niskim HP" — i mial racje, to byl stroboskop. Tempo celowo NIE
+ * przyspiesza juz wraz z utrata HP; przyspieszanie bylo drugim powodem meczenia wzroku.
+ */
+const CRITICAL_BEAT_PER_FRAME = 1 / 60;
 
 // ============================================================
 // FAZA P3 — TANK JUICE (recoil / kick / pitch / taunt bounce)
@@ -112,6 +139,21 @@ export class Player {
      */
     private skinPulseOverlay: PIXI.Sprite | null = null;
     private skinPulseT = 0;
+    /** v0.187.0 — pasek zycia nad czolgiem (zawsze widoczny, jak u wrogow). */
+    private hpBar: PIXI.Graphics;
+    /** Ostatnie narysowane HP — pasek przerysowujemy TYLKO przy zmianie, nie co klatke. */
+    private hpBarLastHp = -1;
+    /** v0.187.0 — stan krytyczny (<=30% HP): SAM dym. Bez migania, bez pulsu. */
+    public criticalArmor = false;
+    /**
+     * v0.188.0 — "na hita": nastepny pocisk wroga zabija. Liczy `main.ts` (zna liste zywych wrogow
+     * i ich `bulletDmg` juz przeskalowany trudnoscia), tu tylko konsumujemy. Dopiero ten stan wlacza
+     * puls kadluba i poswiate w rogach ekranu.
+     */
+    public oneHitFromDeath = false;
+    /** Faza tetna — czyta ja HUD, zeby pekniecia bily DOKLADNIE z pulsem kadluba. */
+    public criticalPhase = 0;
+    private criticalSmokeT = 0;
 
     public speedBoostMult: number = 1;
     public speedBoostEnd: number = 0;
@@ -191,6 +233,15 @@ export class Player {
         this.tracksGfx = new PIXI.Graphics();
         this.exhaustGfx = new PIXI.Graphics();
         this.flagGfx = new PIXI.Graphics();
+        // v0.187.0 FAZA 2 — pasek zycia NAD CZOLGIEM. Dwoch testerow zglosilo, ze nie widza, ile maja
+        // zycia: jedyna reprezentacja byla pigulka w lewym gornym rogu, a wzrok gracza jest na czolgu
+        // na srodku ekranu. KAZDY wrog mial swoj pasek, gracz nie.
+        // W trybie bake kontener ma scale 1.25 — kompensujemy, zeby pasek mial STALE 60 px w swiecie
+        // niezaleznie od sciezki renderu (inaczej gracz w bake mialby pasek szerszy od bossa).
+        this.hpBar = new PIXI.Graphics();
+        const hpBarScale = this.bakerActive ? 1 / BAKE_DISPLAY_SCALE : 1;
+        this.hpBar.scale.set(hpBarScale);
+        this.hpBar.y = -HP_BAR_OFFSET_Y * hpBarScale;
 
         // FAZA 7c: profile override via FLAGS config, else legacy brawler default
         if (profileFlagId && FLAGS[profileFlagId]) {
@@ -225,6 +276,8 @@ export class Player {
         this.container.addChild(this.exhaustGfx);
         this.container.addChild(this.flagGfx);
         this.container.addChild(this.turret);
+        this.container.addChild(this.hpBar); // nad wszystkim — pasek nigdy nie chowa sie pod wieza
+        this.drawHp();
         worldContainer.addChild(this.container);
     }
 
@@ -351,6 +404,87 @@ export class Player {
      * Z0.5: `source` OBOWIAZKOWE — kazde obrazenie niesie sprawce (typ + referencja).
      * Zapisywane tylko przy FAKTYCZNIE przyjetym obrazeniu (invulnerable nie nadpisuje).
      */
+    /**
+     * v0.187.0 — pasek zycia nad czolgiem. Wzorzec 1:1 z wrogow (`Enemy.drawHp`): PIXI.Graphics,
+     * przerysowywany TYLKO przy zmianie HP. Kolor z `hpColor.ts`, czyli ten sam co pigulka w HUD.
+     * Obramowanie jest tu szersze niz u wrogow — to czolg GRACZA i ma sie wyroznic.
+     */
+    private drawHp(): void {
+        const t = this.maxHp > 0 ? Math.max(0, Math.min(1, this.hp / this.maxHp)) : 0;
+        this.hpBar.clear();
+        this.hpBar.beginFill(0x000000, 0.55);
+        this.hpBar.drawRoundedRect(-HP_BAR_W / 2 - 2, -2, HP_BAR_W + 4, HP_BAR_H + 4, 4);
+        this.hpBar.endFill();
+        if (t > 0) {
+            this.hpBar.beginFill(hpColorHex(t));
+            this.hpBar.drawRoundedRect(-HP_BAR_W / 2, 0, HP_BAR_W * t, HP_BAR_H, 3);
+            this.hpBar.endFill();
+        }
+    }
+
+    /** Wolane co klatke z `update()`. HP zmienia sie takze POZA klasa (leczenie w main.ts/powers.ts),
+     *  wiec nie da sie tego wpiac tylko w `takeDamage` — porownanie wartosci lapie wszystkie zrodla. */
+    private refreshHpBar(): void {
+        if (this.hp === this.hpBarLastHp) return;
+        this.hpBarLastHp = this.hp;
+        this.drawHp();
+    }
+
+    /**
+     * v0.187.0 FAZA 2 — "PANCERZ KRYTYCZNY", warstwa przy czolgu.
+     *
+     * Do tej wersji jedynym sygnalem niskiego zycia byla linia glosowa przy 50% HP. Gracz ginal
+     * bez ostrzezenia, co dla 9-12 lat czyta sie jako niesprawiedliwosc (wartosc nr 1: czytelnosc).
+     *
+     * Dym leci z PULI czasteczek (`spawnRocketSmoke`), wiec nie dokladamy nowego kodu czasteczek
+     * ani fill-rate'u: gestosc rosnie im mniej HP, ale ma twardy sufit co kilka klatek.
+     * Histereza (wejscie 30%, wyjscie 35%) chroni przed migotaniem przy leczeniu na granicy progu.
+     */
+    private updateCriticalArmor(delta: number, smoke: DamageSmoke | null): void {
+        const t = this.maxHp > 0 ? this.hp / this.maxHp : 0;
+        if (this.criticalArmor) {
+            if (t > CRITICAL_HP_EXIT || this.hp <= 0) this.criticalArmor = false;
+        } else if (t <= CRITICAL_HP_ENTER && this.hp > 0) {
+            this.criticalArmor = true;
+        }
+
+        // POZIOM 1 (30% HP): SAM DYM. Bez migania i bez pulsu — to sygnal "uwazaj", nie alarm.
+        // Poprzednia wersja migala juz tutaj i Mariusz zglosil, ze przy dluzszej grze na niskim HP
+        // "az oczy bola". Miganie przeniesione o poziom wyzej.
+        if (this.criticalArmor && this.hp > 0 && smoke) {
+            this.criticalSmokeT += delta;
+            const every = 5 + Math.round((t / CRITICAL_HP_ENTER) * 5); // 5..10 klatek
+            if (this.criticalSmokeT >= every) {
+                this.criticalSmokeT = 0;
+                smoke.spawn(this.x, this.y - 6);
+            }
+        }
+
+        // POZIOM 2 ("na hita"): dochodzi puls kadluba. Poswiate narozna rysuje HUD tym samym rytmem.
+        if (!this.oneHitFromDeath || this.hp <= 0) {
+            // Tint bazowy ustawia juz `update()` tuz nad wywolaniem — tu nic nie zerujemy,
+            // zeby nie skasowac fioletu super mocy ani zolci turbo.
+            this.turret.tint = this.hull.tint;
+            return;
+        }
+
+        // Tetno: dwa uderzenia i pauza (NIE zwykly sinus) — to odroznia "ja gine" od alarmu donzonu
+        // w Zamku, ktory pulsuje rowno.
+        // TEMPO: 1/60 na klatke = RONWO JEDEN cykl na sekunde. Bylo 0.055..0.105, czyli cykl 0.16-0.30 s
+        // = 3.3-6.3 blyskow na sekunde — stroboskop. Tempo celowo NIE rosnie juz z utrata HP:
+        // przyspieszanie bylo drugim powodem meczenia wzroku.
+        this.criticalPhase += delta * CRITICAL_BEAT_PER_FRAME;
+        const beat = heartbeat(this.criticalPhase);
+
+        // Czerwien kadluba w rytmie tetna: sciemniamy kanaly G i B (R zostaje 255), wiec czolg
+        // czerwienieje. Miedzy uderzeniami beat = 0, wiec wraca kolor ustawiony przez `update()`.
+        if (beat > 0) {
+            const gb = Math.round(255 * (1 - beat * 0.85));
+            this.hull.tint = (0xff << 16) | (gb << 8) | gb;
+        }
+        this.turret.tint = this.hull.tint;
+    }
+
     takeDamage(amount: number, isInvulnerable: boolean, source: DamageSource): boolean {
         if (isInvulnerable) return false;
         this.lastDamageSource = source;
@@ -600,7 +734,9 @@ export class Player {
         buildings: ICollidable[],
         effects: EffectsManager,
         moveVector?: { x: number; y: number } | null,
+        damageSmoke?: DamageSmoke | null, // v0.188.0 — dym uszkodzenia (wlasna warstwa nad czolgami)
     ): void {
+        this.refreshHpBar(); // v0.187.0: lapie takze leczenie (dzieje sie poza ta klasa)
         let dx = 0, dy = 0;
 
         // FAZA 8.5: touch joystick override gdy provided, else fallback do keys.wasd
@@ -698,6 +834,12 @@ export class Player {
         if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
         else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;
         else this.hull.tint = 0xffffff;
+
+        // v0.187.0: MUSI byc PO powyzszym przypisaniu tintu. Pierwsza wersja liczyla to na poczatku
+        // `update()` i ta linijka kasowala czerwien co klatke — czolg zostawal zielony mimo 25% HP.
+        // Czerwien nakladamy TYLKO na szczycie uderzenia serca, wiec miedzy uderzeniami nadal widac
+        // tint super mocy / turbo (informacja o mocy nie ginie).
+        this.updateCriticalArmor(delta, damageSmoke ?? null);
 
         if (this.superActive && Date.now() >= this.superEndTime) this.superActive = false;
 

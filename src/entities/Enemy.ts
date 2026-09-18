@@ -189,6 +189,8 @@ export class Enemy {
     public hull: PIXI.Sprite;
     public turret: PIXI.Sprite;
     public hpBar: PIXI.Graphics;
+    /** v0.188.0 — wrog juz zginal i jego kontener jest zniszczony; blokuje drugie `takeDamage`. */
+    private isDead = false;
     public shieldGfx: PIXI.Graphics | null = null;
 
     // v0.58.0 Warstwa C2 — police beacon lights (koguty): migajace niebiesko-czerwone
@@ -210,6 +212,12 @@ export class Enemy {
     private shootIntervalMs: number;
     private bulletSpeed: number;
     private bulletDmg: number;
+    /**
+     * v0.188.0 — obrazenia POJEDYNCZEGO pocisku tego wroga, z juz wliczonym mnoznikiem trudnosci
+     * (`Spawn.ts` skaluje `config.bulletDmg` przy spawnie). Czyta to `main.ts`, zeby policzyc,
+     * czy gracz jest "na hita". Tylko odczyt — nie zmieniac stanu przez ten getter.
+     */
+    public get shotDamage(): number { return this.bulletDmg; }
     private bulletColor: number;
     private lastShotTime: number = 0;
     private burstCount: number;
@@ -1001,6 +1009,14 @@ export class Enemy {
 
     /** Z0.5: `source` OBOWIAZKOWE — kazde obrazenie niesie sprawce (kill-attribution pod koop/questy). */
     takeDamage(amount: number, hitX: number, hitY: number, worldContainer: PIXI.Container, effects: EffectsManager, source: DamageSource): boolean {
+        // v0.188.0 — GUARD na drugie trafienie po smierci. Ponizej (sciezka smierci) robimy
+        // `container.destroy({ children: true })`, co niszczy takze `hpBar`. Gdy w TEJ SAMEJ klatce
+        // przyleci kolejny pocisk albo AoE bomby (wrog jest jeszcze na liscie), `drawHp()` wolalo
+        // `clear()` na zniszczonej Graphics => "Cannot read properties of null" i koniec sesji.
+        // Zlapane przez SigmaTestera (P0, CTF seed 501). Blad jest STARSZY niz pasek HP gracza —
+        // sciezka `drawHp` + `destroy` istnieje tu od dawna, bot trafil na rzadki wyscig.
+        if (this.isDead) return false;
+
         if (this.isMegaBoss && this.megaShieldActive) {
             effects.spawnEnemyHitSparks(hitX, hitY, 0xffd700);
             return false;
@@ -1037,6 +1053,7 @@ export class Enemy {
             } else if (this.isPursuit) {
                 effects.shake(12, 16); // v0.58.0: solidny wstrzas przy zniszczeniu wozu
             }
+            this.isDead = true; // v0.188.0: od tej chwili kazde kolejne trafienie jest ignorowane
             worldContainer.removeChild(this.container);
             this.container.destroy({ children: true });
             return true;

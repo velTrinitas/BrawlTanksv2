@@ -80,7 +80,7 @@ export interface HudCastleInfo {
     wallPct: number;
     gatePct: number;
     gateDestroyed: boolean;
-    /** v0.194.0 — HP kazdej bramy (0 = zniszczona) — segmenty paska HP Zamku. */
+    /** v0.194.0 — HP kazdej bramy (0 = zniszczona). Dzis nieuzywane w HUD (panel boczny pokazuje najslabsza), zostaje dla paska w swiecie. */
     gatePcts: number[];
     gatesAlive: number;
     gatesTotal: number;
@@ -208,8 +208,7 @@ export class HUD {
      */
     private edgeSafeRect(): { x0: number; y0: number; x1: number; y1: number } {
         const M = 34;
-        // v0.194.0: Zamek ma pod pigulka fali duzy pasek HP (blok do y 142, z mega bossem 188)
-        const centerPill = this.castleInfo ? (this.castleInfo.megaAlive ? 126 : 80) * this.uiScale : this.queenInfo ? 34 * this.uiScale : 0;
+        const centerPill = (this.castleInfo || this.queenInfo) ? 34 * this.uiScale : 0;
         const bottom = this.isTouchLayout ? 120 : this.showPowerBar ? 120 : 40;
         return { x0: M, y0: 62 * this.uiScale + centerPill + M, x1: this.screenW - M, y1: this.screenH - bottom - M };
     }
@@ -224,8 +223,8 @@ export class HUD {
         // axis: 'x' = wypychaj TYLKO w bok (baner zajmuje caly pas srodka, ale boki sa wolne — miedzy
         // pigulka WYNIK a banerem nie ma 76 px korytarza, wiec pionowe wypchniecie zawsze w cos wchodzi)
         const zones: Array<{ x: number; y: number; w: number; h: number; axis?: 'x' }> = [
-            { x: 0, y: 0, w: (14 + 230) * u, h: (this.ctfInfo ? 212 : 130) * u }, // HP + SUPER + panel lewy (v0.194.0: Zamek juz bez panelu)
-            { x: (SW / 2 - 118) * u, y: 0, w: 236 * u, h: (this.castleInfo ? (this.castleInfo.megaAlive ? 192 : 146) : this.queenInfo ? 120 : 70) * u }, // WYNIK + zegar/fala (+ pasek HP Zamku)
+            { x: 0, y: 0, w: (14 + 230) * u, h: (this.ctfInfo || this.castleInfo ? 212 : 130) * u }, // HP + SUPER + panel lewy
+            { x: (SW / 2 - 118) * u, y: 0, w: 236 * u, h: (this.queenInfo || this.castleInfo ? 120 : 70) * u }, // WYNIK + zegar/fala
             { x: (SW - 14 - 230) * u, y: 0, w: 244 * u, h: 106 * u }, // ZABICI + chip sezonu
         ];
         if (this.isTouchLayout) {
@@ -349,15 +348,62 @@ export class HUD {
     // ── OBRON ZAMEK F5 — panele scenariusza (przestrzen skalowana uiScale) ──────
 
     /**
-     * v0.194.0 (Mariusz: "daj zamkowi pasek HP dla czytelnosci, teraz informuje o tym tylko
-     * maly hud") — pigulka FALI + pod nia DUZY pasek HP Zamku na srodku gory (drawCastleHpBar).
-     * Stary lewy panel MUR/ZAMEK/BRAMY (14,132,186x72) USUNIETY: pokazywal to samo drobnym
-     * drukiem, a dwa wskazniki tego samego stanu to szum (decyzja z v0.191.0).
+     * 3 pigulki MUR / ZAMEK / BRAMA + pigulka FALI. Kompaktowo w lewej kolumnie pod
+     * pigulka SUPER (y=132) — @375px landscape z uiScale 0.7 to pas 172x66 px,
+     * zajmuje slot, ktory KTB/CTF zostawiaja pusty (magnes/turbo ida prawa kolumna).
      */
     private drawCastlePanel(): void {
         const info = this.castleInfo;
         if (!info) return;
         const c = this.ctx;
+        const px = 14, py = 132, PW = 186, ROW = 20, PAD = 6;
+        const PH = PAD * 2 + ROW * 3;
+        c.fillStyle = 'rgba(0,0,0,0.62)';
+        c.beginPath(); c.roundRect(px, py, PW, PH, 12); c.fill();
+        c.strokeStyle = 'rgba(224,181,60,0.55)';
+        c.lineWidth = 2;
+        c.beginPath(); c.roundRect(px, py, PW, PH, 12); c.stroke();
+
+        const rows: Array<{ icon: string; label: string; pct: number; dead: boolean; critical: boolean }> = [
+            // P0.7: licznik zniszczonych segmentow muru (np. MUR -2) — pasek sam tego nie pokazuje
+            { icon: '🧱', label: info.wallsDestroyed > 0 ? `${tr('hud.castle.wall')} -${info.wallsDestroyed}` : tr('hud.castle.wall'), pct: info.wallPct, dead: false, critical: info.wallPct < 0.25 || info.wallsDestroyed > 0 },
+            { icon: '🏰', label: tr('hud.castle.keep'), pct: info.keepPct, dead: false, critical: info.keepPct < 0.25 },
+            // 4 bramy: pasek = najslabsza brama, etykieta z licznikiem calych (np. BRAMY 3/4)
+            { icon: '🚪', label: `${tr('hud.castle.gate')} ${info.gatesAlive}/${info.gatesTotal}`, pct: info.gatePct, dead: info.gatesAlive === 0, critical: info.gatePct < 0.25 || info.gateDestroyed },
+        ];
+        const now = Date.now();
+        c.textBaseline = 'middle';
+        // P0.7: pasek startuje ZA najszersza etykieta (BRAMY 3/4, MUR -2) — bez nachodzenia
+        c.font = `12px "${FONT_FAMILY}",cursive`;
+        let labelW = 64;
+        for (const r of rows) labelW = Math.max(labelW, c.measureText(`${r.icon} ${r.label}`).width);
+        const bx = px + 8 + labelW + 6, bw = PW - (bx - px) - 8, bh = 9;
+        rows.forEach((r, i) => {
+            const y = py + PAD + i * ROW + ROW / 2;
+            c.font = `12px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'left';
+            c.fillStyle = '#fff';
+            c.fillText(`${r.icon} ${r.label}`, px + 8, y);
+            c.fillStyle = 'rgba(255,255,255,0.10)';
+            c.beginPath(); c.roundRect(bx, y - bh / 2, bw, bh, bh / 2); c.fill();
+            if (r.dead) {
+                const pulse = 0.55 + Math.sin(now / 120) * 0.45;
+                c.save(); c.globalAlpha = pulse;
+                c.font = `11px "${FONT_FAMILY}",cursive`;
+                c.textAlign = 'center';
+                c.fillStyle = '#ff5a5a';
+                c.fillText(tr('hud.castle.gateBroken'), bx + bw / 2, y + 1);
+                c.restore();
+            } else {
+                const col = r.pct > 0.5 ? '#2ecc71' : r.pct > 0.25 ? '#f1c40f' : '#ff3b3b';
+                c.save();
+                if (r.critical) c.globalAlpha = 0.7 + Math.sin(now / 110) * 0.3;
+                c.fillStyle = col;
+                c.beginPath(); c.roundRect(bx, y - bh / 2, Math.max(2, bw * r.pct), bh, bh / 2); c.fill();
+                c.restore();
+            }
+        });
+
         // Pigulka FALI — srodek gory, pod WYNIKIEM (y 66); gdy mega boss zyje jego pasek
         // siedzi na y 78, wiec pigulka schodzi nizej (112), zeby sie nie nakladaly.
         const WW = 230, WH = 30;
@@ -384,124 +430,6 @@ export class HUD {
             c.fillStyle = info.phase === 'build' && info.phaseSecondsLeft <= 5 ? '#ff8a8a' : '#fff';
             c.fillText(txt, wx + WW / 2, wy + WH / 2 + 1);
         }
-        this.drawCastleHpBar(info, wx, wy + WH + 6, WW);
-    }
-
-    /** v0.194.0 — stan z poprzedniej klatki: spadek HP = blysk + drgniecie paska. */
-    private castleHpPrev = { keep: 1, wall: 1, gates: 0 };
-    private castleHpFlash = 0;   // klatki blysku (obrazenia)
-    private castleHpShake = 0;   // klatki drgniecia
-
-    /**
-     * v0.194.0 — DUZY PASEK HP ZAMKU pod pigulka fali (230 px, ta sama szerokosc = jeden blok).
-     *
-     * Glowny pasek = DONZON: to on decyduje o przegranej (defeat = donzon 0 HP), wiec to on ma
-     * byc najwiekszy. Pod nim cienki pasek MURU (suma segmentow) i 4 SEGMENTY BRAM — kazda brama
-     * osobno, zniszczona = ciemny segment z krzyzykiem. Kolor wg progu jak paski czesci w swiecie
-     * (>50% zielony, >25% zolty, reszta czerwony).
-     *
-     * Sensoryka: kazdy spadek HP (donzon, mur albo bramy) = bialy blysk + drgniecie paska
-     * (6 klatek), a donzon <25% pulsuje czerwono. Czytelnosc > Sensoryka: drgniecie max 3 px,
-     * zeby liczba dalej byla do odczytania.
-     *
-     * @375 landscape (uiScale 0.7): blok konczy sie na y 142 (mega boss: 188) w przestrzeni
-     * skalowanej = 99 px (132 px) ekranu; szerokosc 230 w pasie srodka, jak WYNIK i pigulka fali.
-     */
-    private drawCastleHpBar(info: HudCastleInfo, x0: number, y0: number, W: number): void {
-        const c = this.ctx;
-        const now = Date.now();
-        const gateSum = info.gatePcts.reduce((a, b) => a + b, 0);
-        const p = this.castleHpPrev;
-        if (info.keepPct < p.keep - 1e-4 || info.wallPct < p.wall - 1e-4 || gateSum < p.gates - 1e-4) {
-            this.castleHpFlash = 10;
-            this.castleHpShake = 6;
-        }
-        p.keep = info.keepPct; p.wall = info.wallPct; p.gates = gateSum;
-        const sx = this.castleHpShake > 0 ? (Math.random() - 0.5) * 6 : 0;
-        const sy = this.castleHpShake > 0 ? (Math.random() - 0.5) * 4 : 0;
-        if (this.castleHpShake > 0) this.castleHpShake--;
-        const colOf = (pct: number): string => pct > 0.5 ? '#2ecc71' : pct > 0.25 ? '#f1c40f' : '#ff3b3b';
-
-        const PAD = 5, KH = 20, SH = 8, GAP = 4;
-        const H = PAD + KH + GAP + SH + PAD;
-        c.save();
-        c.translate(sx, sy);
-        // tlo bloku
-        c.fillStyle = 'rgba(0,0,0,0.66)';
-        c.beginPath(); c.roundRect(x0, y0, W, H, 10); c.fill();
-        const critical = info.keepPct < 0.25;
-        c.strokeStyle = critical ? `rgba(255,59,59,${0.6 + Math.sin(now / 110) * 0.4})` : 'rgba(224,181,60,0.8)';
-        c.lineWidth = 2;
-        c.beginPath(); c.roundRect(x0, y0, W, H, 10); c.stroke();
-
-        // DONZON — glowny pasek
-        const bx = x0 + PAD, bw = W - PAD * 2, ky = y0 + PAD;
-        c.fillStyle = 'rgba(255,255,255,0.10)';
-        c.beginPath(); c.roundRect(bx, ky, bw, KH, 6); c.fill();
-        const kp = Math.max(0, Math.min(1, info.keepPct));
-        if (kp > 0) {
-            c.fillStyle = colOf(kp);
-            c.beginPath(); c.roundRect(bx, ky, Math.max(6, bw * kp), KH, 6); c.fill();
-            c.fillStyle = 'rgba(255,255,255,0.22)';   // polysk gornej polowy (jak pasek mega bossa)
-            c.beginPath(); c.roundRect(bx, ky, Math.max(6, bw * kp), KH / 2, 6); c.fill();
-        }
-        if (this.castleHpFlash > 0) {
-            c.fillStyle = `rgba(255,255,255,${0.55 * this.castleHpFlash / 10})`;
-            c.beginPath(); c.roundRect(bx, ky, bw, KH, 6); c.fill();
-            this.castleHpFlash--;
-        }
-        const label = `🏰 ${tr('hud.castle.keep')} ${Math.ceil(kp * 100)}%`;
-        c.font = `15px "${FONT_FAMILY}",cursive`;
-        c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.strokeStyle = '#000'; c.lineWidth = 4;
-        c.strokeText(label, bx + bw / 2, ky + KH / 2 + 1);
-        c.fillStyle = '#fff';
-        c.fillText(label, bx + bw / 2, ky + KH / 2 + 1);
-
-        // Rzad 2: MUR (lewa polowa) | BRAMY (prawa polowa, segment per brama)
-        const ry = ky + KH + GAP;
-        const half = (bw - 8) / 2;
-        const ICON = 14;
-        c.font = `11px "${FONT_FAMILY}",cursive`;
-        c.textAlign = 'left';
-        c.fillStyle = '#fff';
-        c.fillText('🧱', bx, ry + SH / 2 + 1);
-        const wx2 = bx + ICON, ww2 = half - ICON;
-        c.fillStyle = 'rgba(255,255,255,0.10)';
-        c.beginPath(); c.roundRect(wx2, ry, ww2, SH, 4); c.fill();
-        const wp = Math.max(0, Math.min(1, info.wallPct));
-        c.save();
-        if (info.wallPct < 0.25 || info.wallsDestroyed > 0) c.globalAlpha = 0.7 + Math.sin(now / 110) * 0.3;
-        c.fillStyle = colOf(wp);
-        c.beginPath(); c.roundRect(wx2, ry, Math.max(3, ww2 * wp), SH, 4); c.fill();
-        c.restore();
-
-        const gx0 = bx + half + 8;
-        c.fillStyle = '#fff';
-        c.fillText('🚪', gx0, ry + SH / 2 + 1);
-        const n = Math.max(1, info.gatePcts.length || info.gatesTotal);
-        const gx = gx0 + ICON, gw = half - ICON, seg = gw / n;
-        for (let i = 0; i < n; i++) {
-            const gp = info.gatePcts[i] ?? 1;
-            const sx0 = gx + i * seg + 1, sw0 = seg - 2;
-            c.fillStyle = 'rgba(255,255,255,0.10)';
-            c.beginPath(); c.roundRect(sx0, ry, sw0, SH, 3); c.fill();
-            if (gp > 0) {
-                c.fillStyle = colOf(gp);
-                c.beginPath(); c.roundRect(sx0, ry, Math.max(2, sw0 * gp), SH, 3); c.fill();
-            } else {
-                // zniszczona brama — czerwony krzyzyk na pustym segmencie (pulsuje)
-                c.save();
-                c.globalAlpha = 0.6 + Math.sin(now / 120) * 0.4;
-                c.strokeStyle = '#ff3b3b'; c.lineWidth = 2;
-                c.beginPath();
-                c.moveTo(sx0 + sw0 / 2 - 3, ry); c.lineTo(sx0 + sw0 / 2 + 3, ry + SH);
-                c.moveTo(sx0 + sw0 / 2 + 3, ry); c.lineTo(sx0 + sw0 / 2 - 3, ry + SH);
-                c.stroke();
-                c.restore();
-            }
-        }
-        c.restore();
     }
 
     // ── SAVE THE QUEEN Q2 — zegar + pasek drogi (przestrzen skalowana uiScale) ─────
@@ -2047,7 +1975,7 @@ export class HUD {
             this.sigmaRect('pill-super', 14, 70, 172, 54, true);
             if (this.ctfInfo) this.sigmaRect('pill-ctfpanel', 14, 132, 172, 44, true);
             if (this.ctfInfo?.carrying) this.sigmaRect('banner-ctfcarry', sw / 2 - 160, 112, 320, 34, true);
-            if (this.castleInfo) this.sigmaRect('bar-castlehp', Math.round(sw / 2 - 115), this.castleInfo.megaAlive ? 148 : 102, 230, 40, true); // v0.194.0
+            if (this.castleInfo) this.sigmaRect('pill-castlepanel', 14, 132, 186, 72, true);
             if (this.queenInfo) this.sigmaRect('pill-queen', Math.round(sw / 2 - 115), 66, 230, 44, true);
         }
 

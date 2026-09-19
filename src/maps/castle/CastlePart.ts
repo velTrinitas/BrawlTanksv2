@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
 import { applyHitShake } from '../../rendering/hitShake';
+import { hpColorHex } from '../../rendering/hpColor'; // v0.195.0 — kolor paska jak u czolgu
 import {
     bakeWall, bakeTowerSquare, bakeKeep, bakeGate, bakeGateV,
     type BakedPart, type DamageTier, type WallSide,
@@ -47,6 +48,18 @@ export function tierFromHp(hp: number, maxHp: number): DamageTier {
     return 2;
 }
 
+/**
+ * v0.195.0 — pasek HP donzonu w swiecie. Proporcje jak pasek czolgu gracza (Player: 60x7,
+ * obramowanie 2 px), ale ~2.7x szerszy i grubszy — zamek to glowny cel obrony, a przy
+ * zoomie mobile 0.6 cienki pasek bylby nieczytelny.
+ */
+const KEEP_HP_BAR_W = 160;
+const KEEP_HP_BAR_H = 12;
+/** Odstep paska nad gorna krawedzia tekstury donzonu. */
+const KEEP_HP_BAR_GAP = 14;
+/** Nad czolgami i wrogami (Y-sort ~0..3000), pod warstwami lotu (SkyTraffic 8000). */
+const KEEP_HP_BAR_Z = 7000;
+
 export class CastlePart {
     public readonly id: string;
     public readonly kind: CastlePartKind;
@@ -79,6 +92,8 @@ export class CastlePart {
     private baseX = 0;
     private baseY = 0;
     private destroyed = false;
+    /** v0.195.0 — pasek HP nad DONZONEM (tylko kind 'keep'); null dla reszty czesci. */
+    private hpBar: PIXI.Graphics | null = null;
 
     constructor(opts: CastlePartOpts, worldContainer: PIXI.Container) {
         this.id = opts.id;
@@ -95,9 +110,18 @@ export class CastlePart {
         // Y-sort: dolna krawedz AABB + tie-break po x (kanon zIndex = y + h + x*1e-4)
         this.container.zIndex = this.y + this.h + this.x * 1e-4;
         worldContainer.addChild(this.container);
+        // v0.195.0 (Mariusz): pasek HP nad zamkiem "jak ma czolg, tylko szerszy". OSOBNY Graphics
+        // w worldContainer, NIE w this.container — hit-shake trzesie kontenerem czesci, a pasek
+        // ma stac w miejscu (Czytelnosc). zIndex nad czolgami: pasek nie moze chowac sie za wrogami.
+        if (this.kind === 'keep' && this.maxHp > 0) {
+            this.hpBar = new PIXI.Graphics();
+            this.hpBar.zIndex = KEEP_HP_BAR_Z;
+            worldContainer.addChild(this.hpBar);
+        }
 
         this.baked = this.bakeFor(0);
         this.applyBaked();
+        this.drawKeepHp();
 
         const self = this;
         this.solidProxy = {
@@ -183,7 +207,34 @@ export class CastlePart {
         this.refreshTier();
     }
 
+    /**
+     * v0.195.0 — rysuje pasek HP donzonu. Wolane TYLKO przy zmianie HP (wszystkie zmiany
+     * przechodza przez refreshTier), wiec zero kosztu per klatka — wzorzec `Player.drawHp`.
+     * Pozycja stala: srodek AABB w poziomie, nad gorna krawedzia tekstury (baseY).
+     */
+    private drawKeepHp(): void {
+        const g = this.hpBar;
+        if (!g) return;
+        const t = this.hpPct;
+        g.clear();
+        g.x = this.centerX;
+        g.y = this.baseY - KEEP_HP_BAR_GAP - KEEP_HP_BAR_H;
+        g.visible = t > 0;
+        g.beginFill(0x000000, 0.6);
+        g.drawRoundedRect(-KEEP_HP_BAR_W / 2 - 3, -3, KEEP_HP_BAR_W + 6, KEEP_HP_BAR_H + 6, 6);
+        g.endFill();
+        if (t > 0) {
+            g.beginFill(hpColorHex(t));
+            g.drawRoundedRect(-KEEP_HP_BAR_W / 2, 0, KEEP_HP_BAR_W * t, KEEP_HP_BAR_H, 4);
+            g.endFill();
+            g.beginFill(0xffffff, 0.22); // polysk gornej polowy — ta sama sztuczka co pasek mega bossa
+            g.drawRoundedRect(-KEEP_HP_BAR_W / 2, 0, KEEP_HP_BAR_W * t, KEEP_HP_BAR_H / 2, 4);
+            g.endFill();
+        }
+    }
+
     private refreshTier(): void {
+        this.drawKeepHp();
         const next = tierFromHp(this.hp, this.maxHp);
         if (next === 3 && !this.destroyed) { this.destroyed = true; this.solid = false; }
         if (next !== this.tier) {
@@ -208,6 +259,8 @@ export class CastlePart {
     }
 
     public destroy(): void {
+        this.hpBar?.destroy();
+        this.hpBar = null;
         this.container.destroy({ children: true });
     }
 }

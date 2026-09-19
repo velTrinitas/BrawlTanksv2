@@ -16,7 +16,13 @@ import { bakeCottage } from './castleBake';
 
 export type CastleSolidKind = 'forest' | 'chapel' | 'cottage';
 
-interface Baked { tex: PIXI.Texture; ox: number; oy: number }
+/** v0.195.0 — drzewo lasu we wspolrzednych TEKSTURY bloku (korona = sprite CastleTrees). */
+export interface ForestTree { x: number; y: number; pine: boolean; s: number }
+
+interface Baked { tex: PIXI.Texture; ox: number; oy: number; trees?: ForestTree[] }
+
+/** v0.195.0 — zywe bloki lasu; CastleTrees (tworzony po lesie) dopina do nich korony. */
+export const LIVE_FORESTS = new Set<CastleSolidProp>();
 const CACHE = new Map<string, Baked>();
 
 function makeRng(seed: number): Rng {
@@ -46,8 +52,9 @@ function bakeForest(w: number, h: number, seed: number): Baked {
         pts.push({ x: M + gx + (rng() - 0.5) * 18, y: M + gy + (rng() - 0.5) * 14, pine: rng() < 0.3, s: 0.85 + rng() * 0.4 });
     }
     pts.sort((a, b) => a.y - b.y);
-    for (const p of pts) { if (p.pine) drawPine(c, rng, p.x, p.y, p.s); else drawTree(c, rng, p.x, p.y, p.s); }
-    return { tex: PIXI.Texture.from(cv), ox: M, oy: M };
+    // v0.195.0: w teksturze zostaje cien + pien; korony rysuje CastleTrees jako bujane sprite'y.
+    for (const p of pts) { if (p.pine) drawPine(c, rng, p.x, p.y, p.s, 'base'); else drawTree(c, rng, p.x, p.y, p.s, 'base'); }
+    return { tex: PIXI.Texture.from(cv), ox: M, oy: M, trees: pts };
 }
 
 function bakeChapel(w: number, h: number, seed: number): Baked {
@@ -121,6 +128,8 @@ export class CastleSolidProp implements ICollidable {
 
     private container: PIXI.Container;
     private sprite: PIXI.Sprite;
+    /** v0.195.0 — tylko 'forest': drzewa we wspolrzednych kontenera (korony dopina CastleTrees). */
+    public readonly forestTrees: readonly ForestTree[];
 
     constructor(kind: CastleSolidKind, x: number, y: number, w: number, h: number, seed: number, worldContainer: PIXI.Container) {
         this.x = x; this.y = y; this.w = w; this.h = h;
@@ -139,13 +148,19 @@ export class CastleSolidProp implements ICollidable {
         this.container.x = x - b.ox;
         this.container.y = y - b.oy;
         this.container.zIndex = y + h + x * 1e-4;
+        this.forestTrees = kind === 'forest' ? (b.trees ?? []) : [];
+        if (kind === 'forest') LIVE_FORESTS.add(this);
     }
+
+    /** Kontener bloku — korony lasu sa jego dziecmi, wiec zachowuja kolejnosc rysowania bloku. */
+    public get view(): PIXI.Container { return this.container; }
 
     public update(): void {
         // statyczny — brak pracy per-frame
     }
 
     public destroy(): void {
+        LIVE_FORESTS.delete(this);
         this.container.destroy({ children: true });
     }
 }

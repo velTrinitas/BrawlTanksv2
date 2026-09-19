@@ -10,9 +10,19 @@ import { CASTLE_PALETTE as P } from './castlePalette';
 
 export type Rng = () => number;
 
+/**
+ * v0.195.0 — co rysowac: 'all' (jak dawniej), 'base' (cien + pien — zostaje w bake),
+ * 'crown' (sama korona — sprite bujany przez CastleTrees). WAZNE: rng jest konsumowane
+ * IDENTYCZNIE w kazdym trybie, wiec reszta bake'u (dekor losowany po drzewach) nie
+ * przesuwa sie ani o piksel.
+ */
+export type TreePart = 'all' | 'base' | 'crown';
+
 /** Lisciaste drzewo: cien SE + pien + 3 warstwy korony (ciemna/srednia/jasna NW). */
-export function drawTree(c: CanvasRenderingContext2D, rng: Rng, x: number, y: number, size = 1): void {
+export function drawTree(c: CanvasRenderingContext2D, rng: Rng, x: number, y: number, size = 1, part: TreePart = 'all'): void {
     const r = 22 * size;
+    const drawBase = part !== 'crown', drawCrown = part !== 'base';
+    if (drawBase) {
     c.save();
     c.globalAlpha = 0.22;
     c.fillStyle = '#1e2e14';
@@ -28,6 +38,7 @@ export function drawTree(c: CanvasRenderingContext2D, rng: Rng, x: number, y: nu
     c.closePath(); c.fill();
     c.fillStyle = P.trunkDark;
     c.fillRect(x + 1 * size, y - 14 * size, 2.5 * size, 20 * size);
+    }
     // korona: 3 warstwy blobow
     const layers: Array<[string, number, number, number]> = [
         [P.forestDeep, 0, -18, 1.0],
@@ -44,17 +55,20 @@ export function drawTree(c: CanvasRenderingContext2D, rng: Rng, x: number, y: nu
             c.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
             c.arc(cx + Math.cos(a) * rr * 0.55, cy + Math.sin(a) * rr * 0.55, rr * 0.62, 0, Math.PI * 2);
         }
-        c.fill();
+        if (drawCrown) c.fill();
     }
 }
 
 /** Sosna (ciemniejsza, trojkatna) — zroznicowanie lasu. */
-export function drawPine(c: CanvasRenderingContext2D, rng: Rng, x: number, y: number, size = 1): void {
-    c.save();
-    c.globalAlpha = 0.22; c.fillStyle = '#1e2e14';
-    c.beginPath(); c.ellipse(x + 8 * size, y + 8 * size, 18 * size, 7 * size, 0, 0, Math.PI * 2); c.fill();
-    c.restore();
-    c.fillStyle = P.trunkDark; c.fillRect(x - 2.5 * size, y - 6 * size, 5 * size, 12 * size);
+export function drawPine(c: CanvasRenderingContext2D, rng: Rng, x: number, y: number, size = 1, part: TreePart = 'all'): void {
+    if (part !== 'crown') {
+        c.save();
+        c.globalAlpha = 0.22; c.fillStyle = '#1e2e14';
+        c.beginPath(); c.ellipse(x + 8 * size, y + 8 * size, 18 * size, 7 * size, 0, 0, Math.PI * 2); c.fill();
+        c.restore();
+        c.fillStyle = P.trunkDark; c.fillRect(x - 2.5 * size, y - 6 * size, 5 * size, 12 * size);
+    }
+    if (part === 'base') { void rng; return; }
     const tiers = 3;
     for (let t = 0; t < tiers; t++) {
         const w = (26 - t * 6) * size, top = y - (14 + t * 12) * size, bot = y - (t * 12) * size - 2 * size;
@@ -83,21 +97,83 @@ export function drawCampfire(c: CanvasRenderingContext2D, rng: Rng, x: number, y
 
 /** Namiot najezdzcow: plotno + cien + czerwony proporzec (telegraf lane'u). */
 export function drawTent(c: CanvasRenderingContext2D, rng: Rng, x: number, y: number, flip = false): void {
+    // v0.195.0 (transza 2 artu Zamku) — fake-3D: dwie polacie z gradientem (NW jasna,
+    // SE ciemna — swiatlo mapy jest stale, wiec `flip` odwraca TYLKO pole u wejscia),
+    // szwy, lata, odciagi z palikami, miekki cien kontaktowy SE. Obrys i szczyt masztu
+    // (y - 14 .. y - 34) bez zmian, bo kotwicza sie na nich flagi CastleCampFlags.
+    // UWAGA: funkcja NIE konsumuje `rng` — kolejne wywolania rng w bake gruntu musza
+    // dostac te same liczby co przed zmiana, inaczej przesunie sie reszta dekoracji.
     const w = 46, h = 30;
+    const top = y - 14, base = y + h / 2, L = x - w / 2, R = x + w / 2;
+    const dir = flip ? -1 : 1;
+    // CIEN kontaktowy: miekka elipsa przesunieta SE
     c.save();
-    c.globalAlpha = 0.25; c.fillStyle = '#1e2e14';
-    c.beginPath(); c.ellipse(x + 6, y + h / 2 + 6, w * 0.65, h * 0.45, 0, 0, Math.PI * 2); c.fill();
+    c.translate(x + 7, base + 3);
+    c.scale(1, 0.42);
+    let g = c.createRadialGradient(0, 0, 4, 0, 0, w * 0.7);
+    g.addColorStop(0, 'rgba(20,32,14,0.42)');
+    g.addColorStop(1, 'rgba(20,32,14,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.arc(0, 0, w * 0.7, 0, Math.PI * 2); c.fill();
     c.restore();
-    // bryla: dwa skosy (NW jasny, SE ciemny) — namiot widziany z gory-przodu
-    c.fillStyle = P.canvas;
-    c.beginPath(); c.moveTo(x, y - 14); c.lineTo(x - w / 2, y + h / 2); c.lineTo(x + w / 2, y + h / 2); c.closePath(); c.fill();
-    c.fillStyle = P.canvasDark;
-    c.beginPath(); c.moveTo(x, y - 14); c.lineTo(x + (flip ? -1 : 1) * w / 2, y + h / 2); c.lineTo(x + (flip ? -1 : 1) * 4, y + h / 2); c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 1;
-    c.beginPath(); c.moveTo(x, y - 14); c.lineTo(x - w / 2, y + h / 2); c.lineTo(x + w / 2, y + h / 2); c.closePath(); c.stroke();
-    // wejscie
-    c.fillStyle = '#2a2318';
-    c.beginPath(); c.moveTo(x, y - 2); c.lineTo(x - 7, y + h / 2); c.lineTo(x + 7, y + h / 2); c.closePath(); c.fill();
+    // ODCIAGI: liny od polaci do palikow poza obrysem
+    c.strokeStyle = 'rgba(70,55,35,0.85)'; c.lineWidth = 1;
+    const stakes: Array<[number, number, number, number]> = [
+        [L + 7, base - 9, L - 9, base + 3],
+        [R - 7, base - 9, R + 9, base + 3],
+        [x - 2, top + 2, L - 4, top + 12],
+        [x + 2, top + 2, R + 4, top + 12],
+    ];
+    for (const [ax, ay, sx, sy] of stakes) {
+        c.beginPath(); c.moveTo(ax, ay); c.lineTo(sx, sy); c.stroke();
+    }
+    c.fillStyle = P.trunkDark;
+    for (const [, , sx, sy] of stakes) c.fillRect(sx - 1.2, sy - 2.5, 2.4, 4);
+    // POLAC LEWA (NW, oswietlona)
+    g = c.createLinearGradient(L, base, x, top);
+    g.addColorStop(0, '#c9b995');
+    g.addColorStop(0.6, P.canvas);
+    g.addColorStop(1, '#f0e6cf');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(x, top); c.lineTo(L, base); c.lineTo(x, base); c.closePath(); c.fill();
+    // POLAC PRAWA (SE, w cieniu)
+    g = c.createLinearGradient(x, top, R, base);
+    g.addColorStop(0, '#b8aa8c');
+    g.addColorStop(0.5, P.canvasDark);
+    g.addColorStop(1, '#7d7058');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(x, top); c.lineTo(x, base); c.lineTo(R, base); c.closePath(); c.fill();
+    // LATA na oswietlonej polaci (deterministyczna — bez rng)
+    c.fillStyle = '#b39f78';
+    c.fillRect(x - 15, base - 10, 6, 5);
+    c.strokeStyle = 'rgba(90,70,40,0.6)'; c.lineWidth = 0.7;
+    c.setLineDash([1.2, 1.2]);
+    c.strokeRect(x - 15, base - 10, 6, 5);
+    // SZWY rownolegle do krawedzi polaci
+    c.strokeStyle = 'rgba(110,90,60,0.45)'; c.lineWidth = 0.8;
+    c.beginPath();
+    c.moveTo(x - 1, top + 5); c.lineTo(L + 6, base - 1);
+    c.moveTo(x + 1, top + 5); c.lineTo(R - 6, base - 1);
+    c.stroke();
+    c.setLineDash([]);
+    // KALENICA: jasny grzbiet na styku polaci
+    c.strokeStyle = 'rgba(255,248,225,0.7)'; c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(x, top + 1); c.lineTo(x, y - 2); c.stroke();
+    // WEJSCIE: ciemne wnetrze z glebia (gradient w gore)
+    g = c.createLinearGradient(x, y - 2, x, base);
+    g.addColorStop(0, '#120e08');
+    g.addColorStop(1, '#3a3022');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(x, y - 2); c.lineTo(x - 7, base); c.lineTo(x + 7, base); c.closePath(); c.fill();
+    // POLA odchylona na bok (`flip` wybiera strone) — jasny trojkat z cieniem pod spodem
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    c.beginPath(); c.moveTo(x, y - 1); c.lineTo(x + dir * 7, base); c.lineTo(x + dir * 12, base - 2); c.closePath(); c.fill();
+    c.fillStyle = flip ? '#e6d9bd' : '#cdbf9f';
+    c.beginPath(); c.moveTo(x, y - 2); c.lineTo(x + dir * 6, base); c.lineTo(x + dir * 12, base - 4); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(60,45,25,0.6)'; c.lineWidth = 0.8; c.stroke();
+    // OBRYS calosci — gruby, zeby namiot czytal sie przy zoom 0.6
+    c.strokeStyle = 'rgba(50,38,22,0.75)'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(x, top); c.lineTo(L, base); c.lineTo(R, base); c.closePath(); c.stroke();
     // maszt (proporzec = sprite CastleCampFlags, lopocze — B3 v0.194.0)
     c.strokeStyle = P.trunkDark; c.lineWidth = 2;
     c.beginPath(); c.moveTo(x, y - 14); c.lineTo(x, y - 34); c.stroke();

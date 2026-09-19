@@ -237,7 +237,15 @@ function makeRng(seed: number): () => number {
  * courtyard cobbles. Static-baked — no Vite HMR refresh, re-enter the map.
  * F2 adds: forest floors, camps, wheat fields, chapel, furtka arches, decor stamps.
  */
+/**
+ * v0.195.0 — luzne drzewa z bake gruntu (pozycje + rozmiar). Wypelniane przy bake'u;
+ * grunt jest cache'owany na cala sesje (getGroundTexture), wiec lista zyje tyle samo.
+ * CastleTrees rysuje z niej bujane korony.
+ */
+export const CASTLE_LOOSE_TREES: Array<{ x: number; y: number; pine: boolean; s: number }> = [];
+
 export function buildCastleTexture(): PIXI.Texture {
+    CASTLE_LOOSE_TREES.length = 0;
     const t0 = performance.now();
     const cv = document.createElement('canvas');
     cv.width = WORLD_W;
@@ -555,7 +563,12 @@ export function buildCastleTexture(): PIXI.Texture {
     for (let tries = 0; tries < 900 && placed < 70; tries++) {
         const x = 90 + rng() * (WORLD_W - 180), y = 90 + rng() * (WORLD_H - 180);
         if (nearCastle(x, y) || nearLane(x, y) || nearSolid(x, y, 60)) continue;
-        if (rng() < 0.3) drawPine(c, rng, x, y, 0.9 + rng() * 0.4); else drawTree(c, rng, x, y, 0.85 + rng() * 0.45);
+        // v0.195.0: w gruncie zostaje cien + pien, korona idzie do CastleTrees (bujany sprite).
+        // Kolejnosc wywolan rng identyczna jak dawniej — reszta dekoru bez zmian.
+        const pine = rng() < 0.3;
+        const size = pine ? 0.9 + rng() * 0.4 : 0.85 + rng() * 0.45;
+        if (pine) drawPine(c, rng, x, y, size, 'base'); else drawTree(c, rng, x, y, size, 'base');
+        CASTLE_LOOSE_TREES.push({ x, y, pine, s: size });
         placed++;
     }
     drawHayCart(c, 2140, 1880, 0.3);

@@ -2,6 +2,8 @@ import * as PIXI from 'pixi.js';
 import { bakePennant } from './castleBake';
 import { isPointInView } from '../cullGate';
 import { CastleCampFlags } from './CastleCampFlags';
+import { CastleTrees } from './CastleTrees';
+import { CastleCampfires } from './CastleCampfires';
 
 /**
  * CastlePennants — proporce na wiezach + sztandar glowny donzonu (OBRON ZAMEK F2).
@@ -18,10 +20,16 @@ export class CastlePennants {
     private anchors: PennantAnchor[];
     /** B3 (v0.194.0): flagi obozow jada na tym samym update/destroy — zero nowych wpiec w main.ts. */
     private campFlags: CastleCampFlags;
+    /** v0.195.0 — bujajace sie korony drzew; tworzone PO lesie (main.ts buduje las przed proporcami). */
+    private trees: CastleTrees;
+    /** v0.195.0: ogien w ogniskach obozow — ten sam update/destroy, zero wpiec w main.ts. */
+    private campfires: CastleCampfires;
 
     constructor(anchors: PennantAnchor[], worldContainer: PIXI.Container) {
         this.anchors = anchors;
         this.campFlags = new CastleCampFlags(worldContainer);
+        this.trees = new CastleTrees(worldContainer);
+        this.campfires = new CastleCampfires(worldContainer);
         this.container = new PIXI.Container();
         this.container.zIndex = 5000; // nad dachami (wyzej niz kazda bryla, ponizej overlayow 1e6)
         worldContainer.addChild(this.container);
@@ -37,6 +45,8 @@ export class CastlePennants {
 
     public update(camX: number, camY: number, viewW: number, viewH: number): void {
         this.campFlags.update(camX, camY, viewW, viewH);
+        this.trees.update(camX, camY, viewW, viewH);
+        this.campfires.update(camX, camY, viewW, viewH);
         const t = Date.now() / 1000;
         for (let i = 0; i < this.sprites.length; i++) {
             const s = this.sprites[i], a = this.anchors[i];
@@ -51,6 +61,8 @@ export class CastlePennants {
 
     public destroy(): void {
         this.campFlags.destroy();
+        this.trees.destroy();
+        this.campfires.destroy();
         this.container.destroy({ children: true });
     }
 }

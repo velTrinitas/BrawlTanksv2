@@ -83,6 +83,8 @@ const CASTLE_MOVE_MIN_DIST = 6;     // OBRON ZAMEK F3: dojazd do wezla trasy
  * wezla nie dawala skoku o 90 stopni w jednej klatce (to tez czytaloby sie jak blad).
  */
 const CASTLE_TURN_RATE = 0.12;
+/** v0.196.0 — na Zamku wrog strzela dopiero, gdy lufa jest w tym stozku od celu (~11 st.; bake ma krok 10 st.). */
+const CASTLE_FIRE_CONE = 0.2;
 
 /**
  * v0.58.0 Warstwa C2 — pursuit vehicle AI constants (strafe-dodge).
@@ -995,11 +997,20 @@ export class Enemy {
         //
         // WYLACZNIE dla `castleRole`. Mega boss w fazie `strafe` i pursuit orbitujacy gracza jada
         // bokiem CELOWO — tamtych sciezek nie wolno ruszyc.
+        // v0.196.0 — FIX "strzela z boku" (Mariusz, fioletowy boss na Zamku: "jedzie z wieza w jedna
+        // strone, a strzela jakby z boku — szybka smierc"). Po v0.188.0 czolg w jezdzie patrzyl w kierunku
+        // ruchu, ale strzal dalej lecial po `aimAngle` — w bake wieza jest wpieczona w kadlub, wiec pocisk
+        // wychodzil z boku kadluba. Teraz: gdy strzal jest GOTOWY i cel w zasiegu, czolg najpierw obraca
+        // sie lufa w cel (to jest telegraf — widac, ze celuje), a strzela dopiero, gdy lufa jest w stozku
+        // CASTLE_FIRE_CONE (ponizej). Dotyczy tylko `castleRole`; reszta scenariuszy bez zmian.
+        const shootRange = this.shootRangeOverride ?? (this.isPursuit ? PURSUIT_SHOOT_RANGE : 640);
+        const shotWanted = !isChasingCube && !this.castleNoShoot
+            && Date.now() - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange;
         let facing = aimAngle;
         if (this.castleRole) {
             const mdx = this.x - this.preMoveX, mdy = this.y - this.preMoveY;
             const moved = Math.hypot(mdx, mdy);
-            const target = (moved > 0.25 && this.castleSpeedMult > 0) ? Math.atan2(mdy, mdx) : aimAngle;
+            const target = (moved > 0.25 && this.castleSpeedMult > 0 && !shotWanted) ? Math.atan2(mdy, mdx) : aimAngle;
             // Pierwsza klatka po spawnie: kat USTAWIAMY, nie dokrecamy — inaczej kazdy nowy wrog
             // obracalby sie z zera przez ~sekunde, co samo w sobie wygladaloby na blad.
             if (!this.castleFacingInit) { this.castleFacing = target; this.castleFacingInit = true; }
@@ -1026,17 +1037,26 @@ export class Enemy {
         this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : (this.isPursuit ? 24 : 19));
 
         // Strzelanie: TYLKO gdy chasing player, NIE w trakcie chase cube
-        if (!isChasingCube && !this.castleNoShoot) {
-            const now = Date.now();
-            // v0.58.0: pursuit ma wlasny shoot range (700, bo karabin daleko siegajacy)
-            // FAZA CTF F2: shootRangeOverride (ctf boss = 400, legacy 1:1) ma pierwszenstwo.
-            const shootRange = this.shootRangeOverride ?? (this.isPursuit ? PURSUIT_SHOOT_RANGE : 640);
-            if (now - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange) {
+        // v0.58.0: pursuit ma wlasny shoot range (700); CTF F2: shootRangeOverride ma pierwszenstwo
+        // — liczone wyzej (`shootRange` / `shotWanted`), bo steruje tez obrotem czolgu na Zamku.
+        if (shotWanted) {
+            // v0.196.0: na Zamku strzal dopiero, gdy lufa WIDOCZNIE celuje (patrz komentarz przy facing).
+            let aligned = true;
+            if (this.castleRole) {
+                let d = aimAngle - facing;
+                while (d > Math.PI) d -= Math.PI * 2;
+                while (d < -Math.PI) d += Math.PI * 2;
+                aligned = Math.abs(d) <= CASTLE_FIRE_CONE;
+            }
+            if (aligned) {
+                const now = Date.now();
                 this.lastShotTime = now;
                 const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : (this.isPursuit ? 48 : 40);
+                // Wylot liczony z WIDOCZNEGO kata lufy (`facing`), kierunek lotu = cel. Poza Zamkiem
+                // facing === aimAngle, wiec nic sie nie zmienia.
                 return {
-                    x: this.x + Math.cos(aimAngle) * muzzleOffset,
-                    y: this.y + Math.sin(aimAngle) * muzzleOffset,
+                    x: this.x + Math.cos(facing) * muzzleOffset,
+                    y: this.y + Math.sin(facing) * muzzleOffset,
                     angle: aimAngle,
                     speed: this.bulletSpeed,
                     dmg: this.bulletDmg,

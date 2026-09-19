@@ -2880,10 +2880,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 attachEnemyCubeStolenCallback(enemy);
                 if (powerSystem.isFreezeActive) enemy.freeze(powerSystem.freezeUntil);
             },
-            onWaveStart: () => { audio.playShockwave(); },
+            onWaveStart: () => { audio.playCastleWaveAlert(); }, // v0.196.0: asset Mariusza zamiast shockwave
             onWaveCleared: (_wave, bonus) => {
                 if (bonus > 0) effects.spawnFloatingText(localPlayer!.x, localPlayer!.y - 40, `+${bonus}`, 0xe0b53c);
-                audio.playVictory();
+                // v0.196.0 (Mariusz): playVictory USUNIETE — ta fanfara to dzwiek WYGRANEJ GRY i po
+                // kazdej fali brzmiala jak koniec meczu. Fala gra teraz `castle_wave_win`
+                // (CastleSystem, faza budowy); prawdziwa fanfara zostaje na ekranie zwyciestwa.
             },
             onBuildPhase: () => {},
             onMegaSpawned: () => { hud.triggerMegaBossAlert(); },

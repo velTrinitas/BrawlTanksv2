@@ -55,8 +55,9 @@ export function tierFromHp(hp: number, maxHp: number): DamageTier {
  */
 const KEEP_HP_BAR_W = 160;
 const KEEP_HP_BAR_H = 12;
-/** Odstep paska nad gorna krawedzia tekstury donzonu. */
-const KEEP_HP_BAR_GAP = 14;
+/** v0.196.0 (Mariusz: "nizej, moze nachodzic na zamek") — pasek siedzi NA bryle donzonu: tyle px
+ *  ponizej GORNEJ krawedzi hitboxu (AABB), nie nad dachem tekstury jak w v0.195.0. */
+const KEEP_HP_BAR_INSET = 10;
 /** Nad czolgami i wrogami (Y-sort ~0..3000), pod warstwami lotu (SkyTraffic 8000). */
 const KEEP_HP_BAR_Z = 7000;
 
@@ -210,7 +211,7 @@ export class CastlePart {
     /**
      * v0.195.0 — rysuje pasek HP donzonu. Wolane TYLKO przy zmianie HP (wszystkie zmiany
      * przechodza przez refreshTier), wiec zero kosztu per klatka — wzorzec `Player.drawHp`.
-     * Pozycja stala: srodek AABB w poziomie, nad gorna krawedzia tekstury (baseY).
+     * Pozycja stala: srodek AABB w poziomie, na gornej czesci bryly (this.y + INSET).
      */
     private drawKeepHp(): void {
         const g = this.hpBar;
@@ -218,7 +219,7 @@ export class CastlePart {
         const t = this.hpPct;
         g.clear();
         g.x = this.centerX;
-        g.y = this.baseY - KEEP_HP_BAR_GAP - KEEP_HP_BAR_H;
+        g.y = this.y + KEEP_HP_BAR_INSET;
         g.visible = t > 0;
         g.beginFill(0x000000, 0.6);
         g.drawRoundedRect(-KEEP_HP_BAR_W / 2 - 3, -3, KEEP_HP_BAR_W + 6, KEEP_HP_BAR_H + 6, 6);

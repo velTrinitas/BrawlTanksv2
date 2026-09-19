@@ -3,6 +3,7 @@ import type { Player } from '../../entities/Player';
 import type { EffectsManager } from '../../rendering/Effects';
 import { checkRectCollision } from '../Physics';
 import { t } from '../../i18n/i18n';
+import { AudioSys } from '../../audio/AudioSys'; // v0.196.0 — dzwiek wyrzutu
 
 /**
  * GRUPA E — WYSKOK Z ZAMKU przez TRAMPOLINY (v0.194.0, decyzja Mariusza: skok ZAWSZE dostepny,
@@ -361,6 +362,7 @@ export class CastleJump {
         this.shadow.visible = true;
         player.firing = false;
         effects.spawnTowerDeployDust(tr.x, tr.y); // odbicie od maty
+        AudioSys.getInstance().playCastleJump(); // v0.196.0 (asset Mariusza)
         effects.shake(8, 10);
     }
 

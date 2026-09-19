@@ -170,7 +170,7 @@ export class CastleSystem {
             enemies: opts.enemies,
             difficulty: opts.difficulty,
             onSpawn: (e) => { this.tracked.add(e); opts.onEnemySpawned(e); },
-            onMegaSpawned: (e) => { opts.onMegaSpawned(e); opts.banner(t('castle.mega'), '#ff3366', 150); opts.audio.playYetiRoar(); },
+            onMegaSpawned: (e) => { opts.onMegaSpawned(e); opts.banner(t('castle.mega'), '#ff3366', 150); opts.audio.playShockwave(); }, // v0.196.0: bylo playYetiRoar — yeti to Arktyka
             onLaneBatch: (lane) => { this.noteLane(lane); opts.onLaneBatch(lane); },
         });
         this.repairGfx = new PIXI.Graphics();
@@ -465,7 +465,7 @@ export class CastleSystem {
         this.phaseUntil = now + T.buildPhaseMs;
         this.lastBuildTick = -1;
         // P1: start budowy musi byc SLYSZALNY i widoczny (zielony pierscien na graczu)
-        this.opts.audio.playShockwave();
+        this.opts.audio.playCastleWaveWin(); // v0.196.0: asset Mariusza zamiast shockwave
         this.opts.effects.spawnShockwaveRing(this.playerX, this.playerY, 160, 0x2ecc71);
         // v0.191.0: notif castle.buildPhase WYCIETY — pigulka fazy w HUD pokazuje ten sam
         // odliczany czas przez cala faze. Zostaje wylacznie baner o naprawie i TYLKO gdy jest
@@ -700,7 +700,7 @@ export class CastleSystem {
             this.keepCriticalWarned = true;
             this.opts.banner(t('castle.keepCritical'), '#ff3366', 120);
             this.opts.effects.shake(6, 12);
-            this.opts.audio.playYetiRoar();
+            this.opts.audio.playShockwave(); // v0.196.0: bylo playYetiRoar — yeti to Arktyka, nie Zamek
             this.keepAlarmUntil = Date.now() + 1200;
         }
         if (part.isDestroyed) {

@@ -91,74 +91,78 @@ interface SoundDef {
 }
 
 const SOUND_LIST: SoundDef[] = [
-    { key: 'shoot_standard', file: 'shoot_standard.mp3', volume: VOLUMES.shoot },
-    { key: 'shoot_sniper',   file: 'shoot_sniper.mp3',   volume: VOLUMES.shoot * 0.9 },
-    { key: 'shoot_plasma',   file: 'shoot_plasma.mp3',   volume: VOLUMES.shoot },
-    { key: 'shoot_pancerny', file: 'Pancerny_shot.mp3',  volume: VOLUMES.shoot * 1.1 }, // P5: custom SFX pancerny
-    { key: 'shoot_shadow',   file: 'Shadow_shot.mp3',    volume: VOLUMES.shoot },        // P5: custom SFX shadow
+    { key: 'shoot_standard', file: 'shoot_standard.mp3', volume: 0.27 }, // v0.196.0 loudness: was VOLUMES.shoot; rms400 -10.7 dB -> eff -22.1 dB (target -22)
+    { key: 'shoot_sniper',   file: 'shoot_sniper.mp3',   volume: 0.50 }, // v0.196.0 loudness: was VOLUMES.shoot * 0.9; rms400 -16 dB -> eff -22.0 dB (target -22)
+    { key: 'shoot_plasma',   file: 'shoot_plasma.mp3',   volume: 0.58 }, // v0.196.0 loudness: was VOLUMES.shoot; rms400 -17.3 dB -> eff -22.0 dB (target -22)
+    { key: 'shoot_pancerny', file: 'Pancerny_shot.mp3',  volume: 0.25 }, // v0.196.0 loudness: was VOLUMES.shoot * 1.1; rms400 -7.8 dB -> eff -19.8 dB (target -20) | P5: custom SFX pancerny
+    { key: 'shoot_shadow',   file: 'Shadow_shot.mp3',    volume: 0.50 }, // v0.196.0 loudness: was VOLUMES.shoot; rms400 -16 dB -> eff -22.0 dB (target -22) | P5: custom SFX shadow
 
-    { key: 'hit_enemy',  file: 'hit_enemy.mp3',  volume: VOLUMES.hit },
-    { key: 'hit_wall',   file: 'hit_wall.mp3',   volume: VOLUMES.hit * 0.7 },
-    { key: 'hit_player', file: 'hit_player.mp3', volume: VOLUMES.hit * 1.1 },
+    { key: 'hit_enemy',  file: 'hit_enemy.mp3',  volume: 0.79 }, // v0.196.0 loudness: was VOLUMES.hit; rms400 -23.9 dB -> eff -25.9 dB (target -26)
+    { key: 'hit_wall',   file: 'hit_wall.mp3',   volume: 0.66 }, // v0.196.0 loudness: was VOLUMES.hit * 0.7; rms400 -26.4 dB -> eff -30.0 dB (target -30)
+    { key: 'hit_player', file: 'hit_player.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.hit * 1.1; rms400 -25.9 dB -> eff -25.9 dB (target -22) — FILE TOO QUIET even at 1.0 (3.9 dB short), normalize asset
 
-    { key: 'explosion', file: 'explosion.mp3', volume: VOLUMES.explosion },
-    { key: 'shockwave', file: 'shockwave.wav', volume: VOLUMES.explosion * 0.9 }, // P5 Batch 3: pancerny detonacja
+    { key: 'explosion', file: 'explosion.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.explosion; rms400 -15.6 dB -> eff -15.6 dB (target -14) — FILE TOO QUIET even at 1.0 (1.6 dB short), normalize asset
+    { key: 'shockwave', file: 'shockwave.wav', volume: 0.40 }, // v0.196.0 loudness: was VOLUMES.explosion * 0.9; rms400 -4 dB -> eff -12.0 dB (target -12) | P5 Batch 3: pancerny detonacja
 
-    { key: 'pickup_gem',    file: 'pickup_gem.mp3',    volume: VOLUMES.pickup * 0.6 },
-    { key: 'yeti_roar',     file: 'yeti.mp3',          volume: 0.85 }, // ARC-R2b: ryk yeti (asset Mariusza)
-    { key: 'pickup_heart',  file: 'pickup_heart.mp3',  volume: VOLUMES.pickup },
-    { key: 'pickup_magnet', file: 'pickup_magnet.mp3', volume: VOLUMES.pickup },
+    { key: 'pickup_gem',    file: 'pickup_gem.mp3',    volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.pickup * 0.6; rms400 -32.5 dB -> eff -32.5 dB (target -26) — FILE TOO QUIET even at 1.0 (6.5 dB short), normalize asset
+    { key: 'yeti_roar',     file: 'yeti.mp3',          volume: 0.48 }, // v0.196.0 loudness: was 0.85; rms400 -5.6 dB -> eff -12.0 dB (target -12) | ARC-R2b: ryk yeti (asset Mariusza)
+    // v0.196.0 — OBRON ZAMEK: assety Mariusza (public/sfx/castle/)
+    { key: 'castle_jump',     file: 'castle/castle_jump.mp3',     volume: 0.79 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -11 dB -> eff -13.0 dB (target -13) | wyrzut z trampoliny
+    { key: 'castle_wave_win', file: 'castle/castle_wave_win.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -13.4 dB -> eff -13.4 dB (target -13) | fala przetrwana
+    { key: 'castle_wave_alert', file: 'castle/castle_wave_alert.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -20.3 dB -> eff -20.3 dB (target -13) — FILE TOO QUIET even at 1.0 (7.3 dB short), normalize asset | start fali
+    { key: 'pickup_heart',  file: 'pickup_heart.mp3',  volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.pickup; rms400 -28.4 dB -> eff -28.4 dB (target -24) — FILE TOO QUIET even at 1.0 (4.4 dB short), normalize asset
+    { key: 'pickup_magnet', file: 'pickup_magnet.mp3', volume: 0.29 }, // v0.196.0 loudness: was VOLUMES.pickup; rms400 -11.3 dB -> eff -22.1 dB (target -22)
 
-    { key: 'super_aura',   file: 'super_aura.mp3',   volume: VOLUMES.superActivate },
-    { key: 'super_bomb',   file: 'super_bomb.mp3',   volume: VOLUMES.superActivate * 1.1 },
-    { key: 'super_freeze', file: 'super_freeze.mp3', volume: VOLUMES.superActivate },
-    { key: 'super_tower',  file: 'super_tower.wav',  volume: VOLUMES.superActivate }, // F7b-2: generowany proceduralnie (scratchpad gen_tower_sfx.js)
-    { key: 'super_ghost',  file: 'super_ghost.wav',  volume: VOLUMES.superActivate }, // F7b-4: generowany (gen_ghost_sfx.js)
+    { key: 'super_aura',   file: 'super_aura.mp3',   volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -21.7 dB -> eff -21.7 dB (target -13) — FILE TOO QUIET even at 1.0 (8.7 dB short), normalize asset
+    { key: 'super_bomb',   file: 'super_bomb.mp3',   volume: 0.65 }, // v0.196.0 loudness: was VOLUMES.superActivate * 1.1; rms400 -5.2 dB -> eff -8.9 dB (target -9)
+    { key: 'super_freeze', file: 'super_freeze.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -21.7 dB -> eff -21.7 dB (target -13) — FILE TOO QUIET even at 1.0 (8.7 dB short), normalize asset
+    { key: 'super_tower',  file: 'super_tower.wav',  volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -14.6 dB -> eff -14.6 dB (target -13) — FILE TOO QUIET even at 1.0 (1.6 dB short), normalize asset | F7b-2: generowany proceduralnie (scratchpad gen_tower_sfx.js)
+    { key: 'super_ghost',  file: 'super_ghost.wav',  volume: 0.91 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -12.2 dB -> eff -13.0 dB (target -13) | F7b-4: generowany (gen_ghost_sfx.js)
     // F7b-5 Miny: super_mines = KLIK polozenia (generowany, gra przy aktywacji I przy kazdym
     // zrzucie), mine_boom = WYBUCH miny (asset Mariusza SP_tank_mine — to jest eksplozja!).
-    { key: 'super_mines',  file: 'mine_click.wav',   volume: VOLUMES.superActivate },
-    { key: 'mine_boom',    file: 'SP_tank_mine.mp3', volume: VOLUMES.explosion },
-    { key: 'super_build',  file: 'super_build.wav',  volume: VOLUMES.superActivate }, // F7b-6: generowany (gen_build_sfx.js) — thunk worka, aktywacja + per segment
+    { key: 'super_mines',  file: 'mine_click.wav',   volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -19 dB -> eff -19.0 dB (target -18)
+    { key: 'mine_boom',    file: 'SP_tank_mine.mp3', volume: 0.57 }, // v0.196.0 loudness: was VOLUMES.explosion; rms400 -6.1 dB -> eff -11.0 dB (target -11)
+    { key: 'super_build',  file: 'super_build.wav',  volume: 0.61 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -11.7 dB -> eff -16.0 dB (target -16) | F7b-6: generowany (gen_build_sfx.js) — thunk worka, aktywacja + per segment
     // TIER 2 premium (v0.111.0) — wszystkie generowane (gen_tier2_sfx.js)
-    { key: 'super_strike', file: 'super_strike.wav', volume: VOLUMES.superActivate },        // drone eskadry + gwizd bomby
-    { key: 'strike_flyby', file: 'strike_flyby.wav', volume: VOLUMES.superActivate * 1.1 },  // doppler przelotu odrzutowcow (v2)
-    { key: 'super_hole',   file: 'super_hole.wav',   volume: VOLUMES.superActivate },        // zasysajacy sweep + sub-bas
-    { key: 'super_laser',  file: 'super_laser.wav',  volume: VOLUMES.superActivate * 0.9 },  // charge + hum wiazki
-    { key: 'super_pong',   file: 'super_pong.wav',   volume: VOLUMES.superActivate * 0.8 },  // ping — aktywacja I kazde odbicie
+    { key: 'super_strike', file: 'super_strike.wav', volume: 0.72 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -10.1 dB -> eff -13.0 dB (target -13) | drone eskadry + gwizd bomby
+    { key: 'strike_flyby', file: 'strike_flyby.wav', volume: 0.89 }, // v0.196.0 loudness: was VOLUMES.superActivate * 1.1; rms400 -12 dB -> eff -13.0 dB (target -13) | doppler przelotu odrzutowcow (v2)
+    { key: 'super_hole',   file: 'super_hole.wav',   volume: 0.58 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -8.2 dB -> eff -12.9 dB (target -13) | zasysajacy sweep + sub-bas
+    { key: 'super_laser',  file: 'super_laser.wav',  volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.9; rms400 -14.6 dB -> eff -14.6 dB (target -13) — FILE TOO QUIET even at 1.0 (1.6 dB short), normalize asset | charge + hum wiazki
+    { key: 'super_pong',   file: 'super_pong.wav',   volume: 0.83 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.8; rms400 -16.4 dB -> eff -18.0 dB (target -18) | ping — aktywacja I kazde odbicie
     // TIER 3 szalone (v0.112.0) — wszystkie generowane (gen_tier3_sfx.js)
-    { key: 'super_duck',   file: 'super_duck.wav',   volume: VOLUMES.superActivate },        // KWAK-KWAK (aktywacja + odbicia, throttle)
-    { key: 'super_locker', file: 'super_locker.wav', volume: VOLUMES.superActivate * 0.9 },  // dzwonek dostawy + serwo
-    { key: 'super_disco',  file: 'super_disco.wav',  volume: VOLUMES.superActivate },        // funky sting (stopa+hat+bas)
-    { key: 'disco_groove', file: 'disco_groove.wav', volume: VOLUMES.superActivate * 0.8 },  // v2: 6s groove 125BPM w TLE imprezy (syntezowany = zero praw autorskich)
+    { key: 'super_duck',   file: 'super_duck.wav',   volume: 0.80 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -11.1 dB -> eff -13.0 dB (target -13) | KWAK-KWAK (aktywacja + odbicia, throttle)
+    { key: 'super_locker', file: 'super_locker.wav', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.9; rms400 -14.3 dB -> eff -14.3 dB (target -13) — FILE TOO QUIET even at 1.0 (1.3 dB short), normalize asset | dzwonek dostawy + serwo
+    { key: 'super_disco',  file: 'super_disco.wav',  volume: 0.81 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -11.2 dB -> eff -13.0 dB (target -13) | funky sting (stopa+hat+bas)
+    { key: 'disco_groove', file: 'disco_groove.wav', volume: 0.58 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.8; rms400 -15.3 dB -> eff -20.0 dB (target -20) | v2: 6s groove 125BPM w TLE imprezy (syntezowany = zero praw autorskich)
     // v0.146.0: generowany `super_granny.wav` zastapiony assetem Mariusza. Plik trwa
     // 4,06 s, a moc 300 klatek = 5,0 s, wiec miesci sie w JEDNYM odtworzeniu — petla
     // nie jest potrzebna (inaczej niz przy kaczce, ktora zyje 7 s przy probce 3,05 s).
-    { key: 'super_granny', file: 'super_powers/granny.mp3', volume: VOLUMES.superActivate * 0.9 },
-    { key: 'super_burp',   file: 'SP_burp.mp3',      volume: VOLUMES.superActivate * 1.1 },  // MEGA BEK — asset Mariusza (v0.119.0, zastapil generowany)
+    { key: 'super_granny', file: 'super_powers/granny.mp3', volume: 0.62 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.9; rms400 -8.9 dB -> eff -13.1 dB (target -13)
+    { key: 'super_burp',   file: 'SP_burp.mp3',      volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate * 1.1; rms400 -16.4 dB -> eff -16.4 dB (target -13) — FILE TOO QUIET even at 1.0 (3.4 dB short), normalize asset | MEGA BEK — asset Mariusza (v0.119.0, zastapil generowany)
     // F7b-3 Salwa Rakiet — oba generowane proceduralnie (scratchpad gen_rocket_sfx.js)
-    { key: 'rocket_launch', file: 'SP_missile.mp3',    volume: VOLUMES.superActivate * 0.7 }, // asset Mariusza (zastapil generowany); grany 8x co ~80ms = rytm tuk-tuk
+    { key: 'rocket_launch', file: 'SP_missile.mp3',    volume: 0.19 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.7; rms400 -5.4 dB -> eff -19.8 dB (target -20) | asset Mariusza (zastapil generowany); grany 8x co ~80ms = rytm tuk-tuk
     { key: 'rocket_boom',   file: 'rocket_boom.wav',   volume: VOLUMES.explosion * 0.7 },     // mniejszy niz explosion.mp3 (8 boomow/salwa)
-    { key: 'super_shot',   file: 'super_shot.mp3',   volume: VOLUMES.superActivate * 0.9 },
+    { key: 'super_shot',   file: 'super_shot.mp3',   volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate * 0.9; rms400 -13.1 dB -> eff -13.1 dB (target -13)
 
-    { key: 'victory',  file: 'victory.mp3',  volume: VOLUMES.endgame },
-    { key: 'gameover', file: 'gameover.mp3', volume: VOLUMES.endgame },
+    { key: 'victory',  file: 'victory.mp3',  volume: 0.93 }, // v0.196.0 loudness: was VOLUMES.endgame; rms400 -10.4 dB -> eff -11.0 dB (target -11)
+    { key: 'gameover', file: 'gameover.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.endgame; rms400 -33 dB -> eff -33.0 dB (target -13) — FILE TOO QUIET even at 1.0 (20.0 dB short), normalize asset
     // RANKS-1 (v0.118.0): fanfara awansu rangi (RankUpOverlay) — generowana
     // proceduralnie (scratchpad gen_rank_fanfare.js), triumfalna trabka + iskierki.
-    { key: 'rank_fanfare', file: 'rank_fanfare.wav', volume: VOLUMES.endgame },
+    { key: 'rank_fanfare', file: 'rank_fanfare.wav', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.endgame; rms400 -12.1 dB -> eff -12.1 dB (target -12)
 
     // UI feedback (FAZA 6d)
-    { key: 'menu_click', file: 'menu_click.mp3', volume: 0.35 },
+    { key: 'menu_click', file: 'menu_click.mp3', volume: 1.00 }, // v0.196.0 loudness: was 0.35; rms400 -54.2 dB -> eff -54.2 dB (target -30) — FILE TOO QUIET even at 1.0 (24.2 dB short), normalize asset
     // v0.131.0 — SKRZYNKI (assety Mariusza). Do v0.130.0 CALA sekwencja skrzynki byla
     // NIEMA: spadanie, huk, trzy tapniecia, wybuch i reveal szly w ciszy, mimo ze to
     // glowny hak petli nagrody. `design-values.md`: brak reakcji na interakcje = bug.
-    { key: 'crate_drop', file: 'crates/crate_drop.mp3', volume: VOLUMES.explosion * 0.8 },
-    { key: 'crate_tap',  file: 'crates/crate_tap.mp3',  volume: VOLUMES.pickup },
-    { key: 'crate_open', file: 'crates/crate_open.mp3', volume: VOLUMES.superActivate },
+    { key: 'crate_drop', file: 'crates/crate_drop.mp3', volume: 0.71 }, // v0.196.0 loudness: was VOLUMES.explosion * 0.8; rms400 -11 dB -> eff -14.0 dB (target -14)
+    { key: 'crate_tap',  file: 'crates/crate_tap.mp3',  volume: 0.68 }, // v0.196.0 loudness: was VOLUMES.pickup; rms400 -22.6 dB -> eff -25.9 dB (target -26)
+    { key: 'crate_open', file: 'crates/crate_open.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.superActivate; rms400 -18.9 dB -> eff -18.9 dB (target -14) — FILE TOO QUIET even at 1.0 (4.9 dB short), normalize asset
     // v0.128.0 — KA-CHING przy potwierdzeniu zakupu w sklepie (asset Mariusza).
     // Idzie do SOUND_LIST, a NIE do leniwego rejestru kupowanych dzwiekow: to dzwiek
     // systemowy UI, jeden dla wszystkich graczy, a nie towar. Podkatalog przechodzi
     // bez zmian w loaderze, bo sciezka sklada sie jako BASE + 'sfx/' + file.
-    { key: 'shop_purchase', file: 'system_sounds/ka-ching.mp3', volume: VOLUMES.pickup },
+    { key: 'shop_purchase', file: 'system_sounds/ka-ching.mp3', volume: 1.00 }, // v0.196.0 loudness: was VOLUMES.pickup; rms400 -35.9 dB -> eff -35.9 dB (target -22) — FILE TOO QUIET even at 1.0 (13.9 dB short), normalize asset
 ];
 
 /** Tracks autoplay-pending state — jeśli initial play() rejected, restart przy first gesture. */
@@ -826,6 +830,21 @@ export class AudioSys {
         oscBass.connect(gainBass).connect(ctx.destination);
         oscBass.start(t);
         oscBass.stop(t + 0.10);
+    }
+
+    /** v0.196.0 — wyrzut z trampoliny Zamku. */
+    playCastleJump(): void {
+        this.safePlay('castle_jump');
+    }
+
+    /** v0.196.0 — start fali Zamku (zastepuje shockwave w onWaveStart). */
+    playCastleWaveAlert(): void {
+        this.safePlay('castle_wave_alert');
+    }
+
+    /** v0.196.0 — fala Zamku przetrwana (zastepuje shockwave z P1). */
+    playCastleWaveWin(): void {
+        this.safePlay('castle_wave_win');
     }
 
     /** ARC-R2b: ryk yeti — asset yeti.mp3 (dostarczony przez Mariusza). */

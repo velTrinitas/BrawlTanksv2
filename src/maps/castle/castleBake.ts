@@ -108,7 +108,7 @@ function bricks(c: CanvasRenderingContext2D, rng: () => number, x: number, y: nu
 
 /** Ekstrudowany prostokat: sciana S (gradient) + wieko; zwraca y wieka. */
 function extrudeRect(c: CanvasRenderingContext2D, rng: () => number, x: number, y: number, w: number, h: number, H: number,
-    opts: { topFill?: string; sideBricks?: boolean; westSliver?: boolean } = {}): number {
+    opts: { topFill?: string; sideBricks?: boolean; westSliver?: boolean; sunBias?: number } = {}): number {
     // sciana poludniowa: pas (x, y+h-H .. y+h)
     const sy = y + h - H;
     const g = c.createLinearGradient(0, sy, 0, y + h);
@@ -117,21 +117,48 @@ function extrudeRect(c: CanvasRenderingContext2D, rng: () => number, x: number, 
     c.fillStyle = g;
     c.fillRect(x, sy, w, H);
     if (opts.sideBricks !== false) bricks(c, rng, x, sy, w, H, 'rgba(0,0,0,0)', P.graniteJoint, 8, 18, 0.55);
-    // cien wlasny przy ziemi (AO)
-    const ao = c.createLinearGradient(0, y + h - 8, 0, y + h);
+    // v0.196.0 — SWIATLO Z NW na scianie: poziomy gradient (zachod cieplo-jasny -> wschod w cieniu).
+    // Jeden fillRect z gradientem na bake — zero kosztu runtime.
+    const sg = c.createLinearGradient(x, 0, x + w, 0);
+    sg.addColorStop(0, 'rgba(255,238,205,0.12)');
+    sg.addColorStop(0.55, 'rgba(0,0,0,0)');
+    sg.addColorStop(1, 'rgba(0,0,0,0.16)');
+    c.fillStyle = sg;
+    c.fillRect(x, sy, w, H);
+    // cien wlasny przy ziemi (AO) — v0.196.0: wyzszy i ciemniejszy pas, bryla "siedzi" na trawie
+    const aoH = Math.min(14, H * 0.4);
+    const ao = c.createLinearGradient(0, y + h - aoH, 0, y + h);
     ao.addColorStop(0, 'rgba(0,0,0,0)');
-    ao.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ao.addColorStop(1, 'rgba(0,0,0,0.42)');
     c.fillStyle = ao;
-    c.fillRect(x, y + h - 8, w, 8);
+    c.fillRect(x, y + h - aoH, w, aoH);
     // wschodnia krawedz sciany ciemniejsza (SE w cieniu), zachodnia jasniejsza
     if (opts.westSliver !== false) {
-        c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(x + w - 3, sy, 3, H);
+        // v0.196.0: miekki gradient zamiast twardego paska 3 px (AO w naroznik SE)
+        const eg = c.createLinearGradient(x + w - 10, 0, x + w, 0);
+        eg.addColorStop(0, 'rgba(0,0,0,0)');
+        eg.addColorStop(1, 'rgba(0,0,0,0.26)');
+        c.fillStyle = eg; c.fillRect(x + w - 10, sy, 10, H);
         c.fillStyle = `rgba(255,255,255,${L.highlightAlpha * 0.6})`; c.fillRect(x, sy, 2, H);
     }
     // wieko
     const ty = y - H;
     c.fillStyle = opts.topFill ?? P.graniteTop;
     c.fillRect(x, ty, w, h);
+    // v0.196.0 — wieko w swietle NW: przekatny gradient (jasny naroznik NW -> cien SE).
+    const tg = c.createLinearGradient(x, ty, x + w, ty + h);
+    tg.addColorStop(0, 'rgba(255,245,220,0.20)');
+    tg.addColorStop(0.5, 'rgba(0,0,0,0)');
+    tg.addColorStop(1, 'rgba(0,0,0,0.16)');
+    c.fillStyle = tg;
+    c.fillRect(x, ty, w, h);
+    // sunBias: czesc po stronie NW calego zamku lekko jasniejsza, po SE ciemniejsza (+1 / -1)
+    const sb = opts.sunBias ?? 0;
+    if (sb !== 0) {
+        c.fillStyle = sb > 0 ? `rgba(255,240,210,${0.07 * sb})` : `rgba(0,0,0,${-0.08 * sb})`;
+        c.fillRect(x, ty, w, h);
+        c.fillRect(x, sy, w, H);
+    }
     // krawedz wieka: jasna N/W, ciemna S/E
     c.fillStyle = `rgba(255,255,255,${L.highlightAlpha})`;
     c.fillRect(x, ty, w, 2); c.fillRect(x, ty, 2, h);
@@ -257,7 +284,8 @@ export function bakeWall(w: number, h: number, side: WallSide, tier: DamageTier)
         if (tier === 3) { rubble(c, rng, x, y, w, h); return; }
 
         contactShadow(c, x, y, w, h, WALL_H);
-        const ty = extrudeRect(c, rng, x, y, w, h, WALL_H);
+        // v0.196.0: mury N/W stoja od strony slonca (NW) -> jasniejsze; E/S w cieniu bryly zamku
+        const ty = extrudeRect(c, rng, x, y, w, h, WALL_H, { sunBias: side === 'N' || side === 'W' ? 1 : -1 });
         // wieko: chodnik + parapet wewnetrzny (ciemna linia po stronie podworza)
         const horizontal = w > h;
         c.fillStyle = 'rgba(0,0,0,0.16)';
@@ -362,13 +390,7 @@ export function bakeKeep(w: number, h: number, tier: DamageTier): BakedPart {
         // DACH piramidowy nad pietrem
         const apexX = ux + upW / 2, apexY = ty2 + upH / 2 - roofRise;
         const corners = [[ux - 6, ty2 - 6], [ux + upW + 6, ty2 - 6], [ux + upW + 6, ty2 + upH + 6], [ux - 6, ty2 + upH + 6]];
-        const shades = [P.crimsonLight, P.crimson, P.crimsonDark, P.crimson]; // N lit, E mid, S dark, W mid
-        for (let i = 0; i < 4; i++) {
-            const a = corners[i], b = corners[(i + 1) % 4];
-            c.fillStyle = shades[i];
-            c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(apexX, apexY); c.closePath(); c.fill();
-            c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 1; c.stroke();
-        }
+        roofFaces(c, corners, apexX, apexY); // v0.196.0: gradienty + rim-light ze slonca NW
         // szwy dachowek
         c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 1;
         for (let k = 1; k < 5; k++) {
@@ -794,22 +816,42 @@ export function bakeStone(): PIXI.Texture {
 // gradient + cien kontaktowy = spojne fake 3D z donzonem.
 // =================================================================
 
+/**
+ * v0.196.0 — polacie dachu piramidowego w swietle NW (wspolne dla donzonu, wiez i wiezyczek).
+ * corners: [NW, NE, SE, SW]; polac i = krawedz corners[i] -> corners[i+1]: 0=N, 1=E, 2=S, 3=W.
+ * N i W w sloncu (jasne), E i S w cieniu. Kazda polac: gradient od kalenicy (jasniej) do okapu,
+ * plus cieply rim-light na kalenicach NW (linie wierzcholek -> naroznik NW) i na okapie N/W.
+ */
+function roofFaces(c: CanvasRenderingContext2D, corners: number[][], apexX: number, apexY: number): void {
+    // hierarchia jasnosci N > W > E > S (slonce NW) — kazda polac wyraznie inna, czyta sie jako bryla
+    // indeksy: 0=N, 1=E, 2=S, 3=W
+    const top = ['#ef6a70', '#9a1a23', P.crimsonDark, P.crimsonLight];
+    const bottom = [P.crimsonLight, P.crimsonDark, '#5e0c12', P.crimson];
+    for (let i = 0; i < 4; i++) {
+        const a = corners[i], b = corners[(i + 1) % 4];
+        const g = c.createLinearGradient(apexX, apexY, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        g.addColorStop(0, top[i]);
+        g.addColorStop(1, bottom[i]);
+        c.fillStyle = g;
+        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(apexX, apexY); c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 1; c.stroke();
+    }
+    // rim-light: kalenica do naroznika NW + okap N i W (strona slonca)
+    c.save();
+    c.strokeStyle = 'rgba(255,225,190,0.55)'; c.lineWidth = 1.5; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(apexX, apexY); c.lineTo(corners[0][0], corners[0][1]); c.stroke();
+    c.strokeStyle = 'rgba(255,225,190,0.35)';
+    c.beginPath(); c.moveTo(corners[3][0], corners[3][1]); c.lineTo(corners[0][0], corners[0][1]); c.lineTo(corners[1][0], corners[1][1]); c.stroke();
+    c.restore();
+}
+
 /** Dach piramidowy nad kwadratem (x,y,w,h) — rise = wysokosc wierzcholka nad srodkiem. */
 export function pyramidRoof(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rise: number, overhang = 6): void {
     const apexX = x + w / 2, apexY = y + h / 2 - rise;
     const corners = [[x - overhang, y - overhang], [x + w + overhang, y - overhang], [x + w + overhang, y + h + overhang], [x - overhang, y + h + overhang]];
     c.fillStyle = 'rgba(0,0,0,0.22)';
     c.fillRect(x - overhang + 4, y - overhang + 5, w + overhang * 2, h + overhang * 2);
-    const shades = [P.crimsonLight, P.crimson, P.crimsonDark, P.crimson];
-    for (let i = 0; i < 4; i++) {
-        const a = corners[i], b = corners[(i + 1) % 4];
-        const g = c.createLinearGradient(apexX, apexY, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-        g.addColorStop(0, i === 0 ? P.crimsonLight : shades[i]);
-        g.addColorStop(1, i === 2 ? '#5e0c12' : P.crimsonDark);
-        c.fillStyle = g;
-        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(apexX, apexY); c.closePath(); c.fill();
-        c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 1; c.stroke();
-    }
+    roofFaces(c, corners, apexX, apexY);
     c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 1;
     for (let k = 1; k < 4; k++) {
         const f = k / 4;

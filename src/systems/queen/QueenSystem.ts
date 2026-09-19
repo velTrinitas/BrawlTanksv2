@@ -377,7 +377,7 @@ export class QueenSystem {
             this.phaseId = pd.id; this.phase = pd.id;
             if (pd.id === 'siege') { this.opts.banner(t('queen.phase.siege'), COL_SIEGE, 130); this.opts.audio.playShockwave(); }
             else if (pd.id === 'panic') {
-                this.opts.banner(t('queen.phase.panic'), COL_PANIC, 130); this.opts.audio.playYetiRoar(); this.opts.effects.shake(6, 18);
+                this.opts.banner(t('queen.phase.panic'), COL_PANIC, 130); this.opts.audio.playShockwave(); this.opts.effects.shake(6, 18); // v0.196.0: bylo playYetiRoar (yeti = Arktyka)
                 this.nextGeyserAt = this.elapsedMs + 1500;
                 this.opts.onPanic?.();
             }

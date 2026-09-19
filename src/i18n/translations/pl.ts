@@ -789,7 +789,7 @@ export const pl = {
     'hud.castle.gateBroken': 'WSZYSTKIE WYŁAMANE',
     'hud.castle.intro': '🏰 PRZYGOTUJ SIĘ: {s}s',
     'hud.castle.wave': '⚔ FALA {n}/{total} · wrogów: {left}',
-    'hud.castle.build': '🔨 BUDOWA {s}s · N = następna fala',
+    'hud.castle.build': '🔨 BUDOWA {s}s',
     'hud.castle.allWaves': '✅ WSZYSTKIE FALE ODPARTE!',
     'hud.castle.defeat': '💀 DONŻON UPADŁ',
     'hud.castle.respawn': 'ODRODZENIE ZA',
@@ -806,6 +806,9 @@ export const pl = {
     'queen.heart': 'Królowa: „Trzymaj się!" ❤️',
     'queen.rescued': 'OCALONA!',
     'queen.captured': 'PORWANA!',
+    // v0.191.0: smierc gracza NIE jest porwaniem Krolowej — osobny komunikat, bo PORWANA
+    // przy zniszczeniu czolgu czytala sie nielogicznie (uwaga Mariusza 2026-09-19).
+    'queen.destroyed': 'CZOŁG ZNISZCZONY!',
     'queen.flex.lastSecond': 'W OSTATNIEJ SEKUNDZIE! +50',
     'queen.flex.lightning': 'BŁYSKAWICA! +50',
     'queen.boss': 'BOSS WYJEŻDŻA Z KRATY!',
@@ -847,6 +850,7 @@ export const pl = {
     'queen.end.rescued.title': 'OCALONA!',
     'queen.end.rescued.subtitle': 'Królowa jest bezpieczna. Zostało {s} s!',
     'queen.end.captured.title': 'PORWANA!',
+    'queen.end.destroyed.title': 'CZOŁG ZNISZCZONY!',
     'queen.end.captured.timeout': 'Zabrali ją w ostatniej chwili…',
     'queen.end.captured.death': 'Nie dotarłeś na czas…',
     'queen.end.bricks': 'Cegły',

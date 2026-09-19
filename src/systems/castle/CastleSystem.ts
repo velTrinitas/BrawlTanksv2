@@ -206,8 +206,8 @@ export class CastleSystem {
         this.tutStepAt = now;
         this.opts.audio.playMenuClick();
         const key = next === 2 ? 'castle.tut.step2' : next === 3 ? 'castle.tut.step3' : 'castle.tut.step4';
+        // v0.191.0: bylo baner + notif z TYM SAMYM tekstem w jednej klatce. Zostaje baner.
         this.opts.banner(t(key), '#e0b53c', 170);
-        this.opts.hudNotif(t(key), '#e0b53c');
         if (next === 3) {
             this.director.spawnScouts(3, 'S');
             this.noteLane('S');
@@ -276,17 +276,9 @@ export class CastleSystem {
         const now = Date.now();
         if (this.phase === 'tutorial') { this.tutFinish(now, true); return 0; } // przycisk = "Pomin szkolenie"
         if (this.phase !== 'build' && this.phase !== 'intro') return 0;
+        // v0.191.0: bonus za wczesny start SKASOWANY razem z przyciskiem (decyzja Mariusza).
+        // Bez przycisku nie da sie go zdobyc, wiec sufit wyniku spada jednakowo dla wszystkich.
         const secLeft = Math.max(0, Math.floor((this.phaseUntil - now) / 1000));
-        const c = this.opts.session.castle;
-        if (this.phase === 'build' && c) {
-            const bonus = Math.min(T.earlyStartMax, secLeft * T.earlyStartPerSec);
-            if (bonus > 0) {
-                this.opts.audio.playSuperShotActivate();
-                this.opts.session.addCastleStaticBonus(bonus, 'earlyStart');
-                c.earlyStarts++;
-                this.opts.hudNotif(t('castle.earlyStart', { n: String(bonus) }), '#e0b53c');
-            }
-        }
         this.beginWave(this.wave + 1, now);
         return secLeft;
     }
@@ -302,7 +294,8 @@ export class CastleSystem {
         this.opts.effects.shake(10, 14);
         this.opts.audio.playExplosion();
         player.container.visible = false;
-        this.opts.hudNotif(t('castle.respawnIn', { s: String(Math.round(T.respawnMs / 1000)) }), '#ff6b6b');
+        // v0.191.0: notif WYCIETY — ten sam odliczany czas pokazuje juz wielki licznik respawnu
+        // na srodku ekranu (HUD.drawCastleRespawn). Dwa razy to samo = szum.
     }
 
     /** Moc NAPRAWA (PowerSystem.onRepairActivated): +30% najblizszej uszkodzonej czesci w 160 px. */
@@ -385,7 +378,8 @@ export class CastleSystem {
         }
 
         // F6 (#6): 3 podpowiedzi intro po kolei (droga->brama, furtki/brama, naprawa)
-        if (this.phase === 'intro' && this.hintIdx < 3 && now >= this.nextHintAt) {
+        // v0.191.0: bylo 3 podpowiedzi co 3.3 s — za duzo tekstu na starcie. Zostaje pierwsza.
+        if (this.phase === 'intro' && this.hintIdx < 1 && now >= this.nextHintAt) {
             const keys = ['castle.hint1', 'castle.hint2', 'castle.hint3'] as const;
             this.opts.banner(t(keys[this.hintIdx]), '#e0b53c', 170);
             this.hintIdx++;
@@ -470,8 +464,9 @@ export class CastleSystem {
         // P1: start budowy musi byc SLYSZALNY i widoczny (zielony pierscien na graczu)
         this.opts.audio.playShockwave();
         this.opts.effects.spawnShockwaveRing(this.playerX, this.playerY, 160, 0x2ecc71);
-        this.opts.hudNotif(t('castle.buildPhase', { s: String(Math.round(T.buildPhaseMs / 1000)) }), '#e0b53c');
-        // F6 (#5): naprawa musi byc ZAKOMUNIKOWANA — baner + markery na uszkodzonych czesciach
+        // v0.191.0: notif castle.buildPhase WYCIETY — pigulka fazy w HUD pokazuje ten sam
+        // odliczany czas przez cala faze. Zostaje wylacznie baner o naprawie i TYLKO gdy jest
+        // co naprawiac (wczesniej leecialy oba naraz, w tej samej klatce).
         if (this.opts.parts.some(p => p.destructible && p.hp < p.maxHp)) this.opts.banner(t('castle.repairHint'), '#2ecc71', 150);
         this.opts.onBuildPhase(Math.round(T.buildPhaseMs / 1000));
     }

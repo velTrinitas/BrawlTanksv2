@@ -1442,8 +1442,8 @@ window.addEventListener('keydown', e => {
     if (k === '1') {
         tryActivateSuper(0);
     }
-    // OBRON ZAMEK F3: N = nastepna fala teraz (faza budowy; bonus za pozostale sekundy)
-    if (k === 'n' && castleSystem && gameState === 'PLAYING') {
+    // v0.191.0: N dziala juz TYLKO jako "pomin szkolenie" — fale przychodza same po czasie.
+    if (k === 'n' && castleSystem && gameState === 'PLAYING' && castleSystem.getHudInfo().phase === 'tutorial') {
         castleSystem.startNextWaveNow();
     }
     if (k === '2' || k === 'q') {
@@ -3189,7 +3189,8 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
     const subBg = isVictory ? '#27ae60' : '#c0392b';
     const icon = isVictory ? '🏆' : '💀';
     // SAVE THE QUEEN Q2: OCALONA! / PORWANA! (podtytul per powod: timeout vs smierc — ton nadziei, nie porazki)
-    const title = d.queenResult ? (isVictory ? t('queen.end.rescued.title') : t('queen.end.captured.title'))
+    // v0.191.0: tytul idzie za PRZYCZYNA przegranej — smierc gracza to nie porwanie Krolowej.
+    const title = d.queenResult ? (isVictory ? t('queen.end.rescued.title') : d.queenResult === 'death' ? t('queen.end.destroyed.title') : t('queen.end.captured.title'))
         : isVictory ? t('end.victory.title') : t('end.defeat.title');
     const subtitle = d.queenResult ? (isVictory ? t('queen.end.rescued.subtitle', { s: d.queenRescueSec ?? 0 }) : d.queenResult === 'death' ? t('queen.end.captured.death') : t('queen.end.captured.timeout'))
         : isVictory ? t('end.victory.subtitle') : t('end.defeat.subtitle');
@@ -5025,9 +5026,13 @@ function runLogicStep(delta: number): void {
         castleHudInfo.keepAlarm = ci.keepAlarm;
         castleHudInfo.cameraX = camera.x; castleHudInfo.cameraY = camera.y; castleHudInfo.zoom = ZOOM;
         hud.castleInfo = castleHudInfo;
+        // v0.191.0 (Mariusz): przycisk NASTEPNA FALA znika — fale przychodza SAME po czasie
+        // (i tak startowaly same, przycisk tylko skracal przerwe). Przycisk zostaje WYLACZNIE
+        // jako "pomin szkolenie" w tutorialu — to inna funkcja i jej usuniecie zabraloby
+        // graczowi mozliwosc przeskoczenia szkolenia.
         const btn = ensureCastleNextBtn();
-        const showBtn = (ci.phase === 'build' || ci.phase === 'tutorial') && gameState === 'PLAYING';
-        const label = ci.phase === 'tutorial' ? t('castle.tut.skip') : t('hud.castle.nextWave');
+        const showBtn = ci.phase === 'tutorial' && gameState === 'PLAYING';
+        const label = t('castle.tut.skip');
         if (showBtn) { if (btn.style.display !== 'block' || btn.textContent !== label) { btn.textContent = label; btn.style.display = 'block'; } }
         else if (btn.style.display !== 'none') btn.style.display = 'none';
     } else {
@@ -5040,6 +5045,7 @@ function runLogicStep(delta: number): void {
         queenHudInfo.phase = qi.phase; queenHudInfo.remainingMs = qi.remainingMs;
         queenHudInfo.pathBroken = qi.pathBroken; queenHudInfo.pathTotal = qi.pathTotal; queenHudInfo.pathFlash = qi.pathFlash;
         queenHudInfo.keystoneDown = qi.keystoneDown;
+        queenHudInfo.endedByDeath = qi.endedByDeath; // v0.191.0: pigulka pisze CZOLG ZNISZCZONY zamiast PORWANA
         queenHudInfo.queen.wx = qi.queen.x; queenHudInfo.queen.wy = qi.queen.y;
         queenHudInfo.lanes.length = 0;
         for (const sp of qi.activeLanes) queenHudInfo.lanes.push({ wx: sp.x, wy: sp.y, label: '⚠' }); // Q6: punkt swiezego spawnu

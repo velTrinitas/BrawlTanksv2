@@ -106,6 +106,8 @@ export interface HudCastleInfo {
  */
 export interface HudQueenInfo {
     phase: 'calm' | 'siege' | 'panic' | 'rescued' | 'captured';
+    /** v0.191.0: przegrana przez SMIERC gracza — wtedy nie piszemy PORWANA (Krolowej nikt nie porwal). */
+    endedByDeath?: boolean;
     remainingMs: number;
     pathBroken: number;
     pathTotal: number;
@@ -448,7 +450,9 @@ export class HUD {
         const wy = 66;
         const secTotal = Math.ceil(info.remainingMs / 1000);
         const mm = Math.floor(secTotal / 60), ss = secTotal % 60;
-        const txt = info.phase === 'rescued' ? tr('queen.rescued') : info.phase === 'captured' ? tr('queen.captured') : `${mm}:${ss < 10 ? '0' : ''}${ss}`;
+        const txt = info.phase === 'rescued' ? tr('queen.rescued')
+            : info.phase === 'captured' ? (info.endedByDeath ? tr('queen.destroyed') : tr('queen.captured'))
+            : `${mm}:${ss < 10 ? '0' : ''}${ss}`;
         const col = info.phase === 'calm' ? '#ffffff' : info.phase === 'siege' ? '#ff9f1a' : info.phase === 'panic' || info.phase === 'captured' ? '#ff3b3b' : '#ff5fb0';
         const scale = 1; // v0.186.0: bez pulsu skali w panice — sygnal niesie kolor (#ff3b3b) i sam zegar
         c.save();

@@ -51,6 +51,8 @@ export type QueenPhase = QueenPhaseId | 'rescued' | 'captured';
 export type QueenEndReason = 'rescued' | 'timeout' | 'death';
 
 export interface QueenHudInfo {
+    /** v0.191.0: mecz skonczyl sie SMIERCIA gracza, nie uplywem czasu (inny komunikat w HUD). */
+    endedByDeath?: boolean;
     phase: QueenPhase;
     remainingMs: number;
     pathBroken: number;
@@ -304,7 +306,8 @@ export class QueenSystem {
         const q = this.opts.session.queen;
         if (q) { q.result = 'death'; q.remainingSecAtEnd = this.remainingSec; }
         // POLISH-1 (Mariusz): bez ryku yeti przy przegranej
-        this.opts.banner(t('queen.captured'), COL_PANIC, 140);
+        // v0.191.0: wlasny komunikat — Krolowej nikt nie porwal, to gracz zginal.
+        this.opts.banner(t('queen.destroyed'), COL_PANIC, 140);
     }
 
     public getHudInfo(): QueenHudInfo {
@@ -321,6 +324,7 @@ export class QueenSystem {
             keyPos: this.key.taken ? null : { x: this.key.x, y: this.key.y },
             doorOpen: this.door.isOpen,
             hasKey: this.hasKey,
+            endedByDeath: this.endReason === 'death', // v0.191.0: HUD wybiera tekst po przyczynie
         };
     }
 

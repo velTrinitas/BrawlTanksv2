@@ -24,7 +24,7 @@ export const CASTLE_TUNING = Object.freeze({
     /** Odleglosc srodka wroga od AABB celu, przy ktorej liczy sie kontakt (po dojezdzie). */
     contactReach: 70,
     /** Fazy. */
-    buildPhaseMs: 15000,
+    buildPhaseMs: 10000, // v0.191.0: bylo 15000 — przycisk "nastepna fala" znikl, wiec przerwa krotsza
     firstWaveDelayMs: 12000, // F6: miejsce na 3 podpowiedzi intro
     respawnMs: 5000,
     spawnInvulMs: 3000,

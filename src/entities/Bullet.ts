@@ -389,20 +389,41 @@ export class Bullet {
      */
     styleAsTowerTracer(): void {
         this.source = 'tower';
-        this.radius = 4;                 // maly tracer MG (wchodzi do hit-testu jako +radius)
-        this.brawlerColor = 0x4dd7c8;    // smuga w barwie wiezy
+        // v0.190.0: +50% (bylo 4). Uwaga: `radius` wchodzi TAKZE do hit-testu, wiec pocisk wiezy
+        // jest teraz realnie latwiejszy do trafienia w cel — zmiana wizualna z konsekwencja w balansie.
+        this.radius = 6;
+        this.brawlerColor = 0x4dd7c8;    // smuga w barwie wiezy (teal = "to Twoje")
         if (this.bakerActive && this.sprite) {
             this.sprite.tint = 0x4dd7c8;
-            this.sprite.scale.set(BULLET_DISPLAY_SCALE * 0.6);
+            this.sprite.scale.set(BULLET_DISPLAY_SCALE * 0.9); // bylo 0.6 => +50%
         } else if (this.gfx) {
             this.gfx.clear();
+            // Poswiata: dwa pierscienie zamiast filtra — filtr pelnoekranowy to fill-rate,
+            // a dwa dodatkowe kola kosztuja tyle, co nic (regula mobile-first §3).
+            this.gfx.beginFill(0x4dd7c8, 0.18);
+            this.gfx.drawCircle(0, 0, this.radius * 2.1);
+            this.gfx.endFill();
+            this.gfx.beginFill(0x4dd7c8, 0.35);
+            this.gfx.drawCircle(0, 0, this.radius * 1.45);
+            this.gfx.endFill();
             this.gfx.beginFill(0xaef3ec);
             this.gfx.drawCircle(0, 0, this.radius);
             this.gfx.endFill();
-            this.gfx.beginFill(0xffffff, 0.7);
-            this.gfx.drawCircle(-1.2, -1.2, 1.6);
+            this.gfx.beginFill(0xffffff, 0.85);
+            this.gfx.drawCircle(-1.6, -1.6, 2.2);
             this.gfx.endFill();
         }
+        // SMUGA: wieza ma ja ZAWSZE, niezaleznie od brawlera. `trailLen` pochodzi normalnie
+        // z TRAIL_LEN_MAP i dla czesci brawlerow (np. Snajper) wynosi 0 — bez tego tracer wiezy
+        // bywalby bez smugi zaleznie od wybranego czolgu, co czytaloby sie jak niespojnosc.
+        this.trailLen = Math.max(this.trailLen, 9);
+        if (!this.trailGfx) {
+            this.trailGfx = new PIXI.Graphics();
+            this.worldContainer.addChild(this.trailGfx);
+        }
+        this.trailGfx.clear();
+        this.trailGfx.zIndex = this.y + 9;
+        this.trailGfx.visible = true;
     }
 
     /** FAZA P5 Batch 2 — ustaw behavior + params z profilu (po new Bullet w fire loop). */

@@ -15,6 +15,8 @@ import {
     bakeSmokePuff,
 } from '../rendering/Tier3Baker'; // v0.112.0 — pieczony art z gradientami (Canvas 2D)
 import { t } from '../i18n/i18n'; // v0.112.0 — kwestie Babci (literal keys)
+// v0.189.0 FAZA 3 — art wiezy MG pieczony w Canvas 2D (gradienty walca, cien, AO)
+import { getTowerBodyTexture, getTowerTurretTexture, isTowerBakeEnabled, TOWER_BODY_ANCHOR } from '../rendering/TowerBaker';
 import { WORLD_W, WORLD_H } from '../config/constants'; // v0.112.0 — kaczka odbija sie od granic PLANSZY
 import { AudioSys } from '../audio/AudioSys'; // F7b-3: tuk-tuk wystrzalow (precedens: Bullet.ts)
 import { getBrawlerTextures } from '../rendering/SpriteFactory'; // F7b-4: kopia czolgu gracza
@@ -25,7 +27,11 @@ export type { ActivationResult } from '../config/powers';
 const HOLE_VISUAL_SCALE = 1.2;
 
 // ── F7b-2: stale WIZUALNE wiezy (balans zyje w TOWER_CONFIG — tu tylko wyglad/animacja) ──
-const TOWER_TOP_LIFT = 36;      // px — wysokosc platformy lufy nad gruntem (2.5D bryla)
+// v0.190.0 (Mariusz): wieza ma byc WYZSZA i WIEKSZA. 36 -> 54 px wysokosci gniazda glowicy,
+// plus TOWER_VISUAL_SCALE na sprite'ach. Skala wizualna NIE rusza logiki: zasieg, celnosc i
+// dlugosc lufy do spawnu pocisku zyja w TOWER_CONFIG (balans osobno od wygladu).
+const TOWER_TOP_LIFT = 54;      // px — wysokosc platformy lufy nad gruntem (2.5D bryla)
+const TOWER_VISUAL_SCALE = 1.35; // powiekszenie bryly i glowicy (czysto wizualne)
 const TOWER_TILT_Y = 0.8;       // scale.y wrapa lufy — obrot zatacza elipse (perspektywa)
 const TOWER_DROP_FRAMES = 11;   // ~0.18s spadania (sync z whoosh w super_tower.wav)
 const TOWER_DROP_HEIGHT = 110;  // px — z jakiej wysokosci bryla spada
@@ -98,9 +104,11 @@ export class PowerSystem {
     // w kontenerze ze scale.y=TILT (elipsa obrotu = tania perspektywa) + zrzut z nieba
     // z przysiadem, kurzem i wstrzasem w klatce LADOWANIA.
     private towerShadow: PIXI.Graphics | null = null;
-    private towerBody: PIXI.Graphics | null = null;
+    // v0.189.0: Sprite (baker 2.5D) albo Graphics przy `?towerbake=0` — obie klasy maja
+    //  x/y/alpha/scale/zIndex, wiec animacje zrzutu i przysiadu dzialaja tak samo.
+    private towerBody: PIXI.Container | null = null;
     private towerTurretWrap: PIXI.Container | null = null;
-    private towerTurret: PIXI.Graphics | null = null;
+    private towerTurret: PIXI.Container | null = null;
     private towerX = 0;
     private towerY = 0;
     private towerAngle = 0;
@@ -628,6 +636,26 @@ export class PowerSystem {
             this.worldContainer.addChild(shadow);
             this.towerShadow = shadow;
 
+            if (isTowerBakeEnabled()) {
+                // v0.189.0 FAZA 3 — art pieczony w Canvas 2D (gradienty walca, rzutowany cien, AO).
+                // Zywe PIXI.Graphics nie maja gradientow, wiec wieza czytala sie plasko; technika
+                // 1:1 z wiezy Krolowej, ktora na produkcji wyglada "bardzo 3D".
+                const bodySpr = new PIXI.Sprite(getTowerBodyTexture(TOWER_TOP_LIFT));
+                bodySpr.anchor.set(TOWER_BODY_ANCHOR.x, TOWER_BODY_ANCHOR.y);
+                bodySpr.scale.set(TOWER_VISUAL_SCALE);
+                this.worldContainer.addChild(bodySpr);
+                this.towerBody = bodySpr;
+
+                const wrapB = new PIXI.Container();
+                wrapB.scale.y = TOWER_TILT_Y;
+                const turretSpr = new PIXI.Sprite(getTowerTurretTexture());
+                turretSpr.anchor.set(0.5);
+                turretSpr.scale.set(TOWER_VISUAL_SCALE);
+                wrapB.addChild(turretSpr);
+                this.worldContainer.addChild(wrapB);
+                this.towerTurretWrap = wrapB;
+                this.towerTurret = turretSpr;
+            } else {
             // BRYLA — cokol + kolumna 2.5D (jasny front / ciemny prawy bok = kierunek
             // swiatla jak budynki) + blue-camo z sim + tealowy pasek LED (kolor mocy).
             const body = new PIXI.Graphics();
@@ -697,6 +725,7 @@ export class PowerSystem {
             this.worldContainer.addChild(wrap);
             this.towerTurretWrap = wrap;
             this.towerTurret = turret;
+            }
         }
 
         // Pozycje + Y-sort (statyczne — ustawiane raz; drop animuje tylko offset y).
@@ -811,7 +840,12 @@ export class PowerSystem {
                 const a = this.towerAngle + (worldRng.next() - 0.5) * 2 * TOWER_CONFIG.spreadRad; // Z0.1: seeded
                 const mx = this.towerX + Math.cos(this.towerAngle) * TOWER_CONFIG.barrelLen;
                 const my = pivotY + Math.sin(this.towerAngle) * TOWER_CONFIG.barrelLen;
+                // v0.190.0: WYRAZNY blysk na wylocie — dwa flashe (jeden lekko cofniety wzdluz lufy,
+                // zeby czytal sie jako stozek, nie kropka) + iskry w barwie wiezy. Nadal z PULI
+                // czasteczek, wiec zero nowego kosztu poza kilkoma spritami na strzal.
                 effects.spawnMuzzleFlash(mx, my, a);
+                effects.spawnMuzzleFlash(mx - Math.cos(this.towerAngle) * 7, my - Math.sin(this.towerAngle) * 7, a);
+                effects.spawnEnemyHitSparks(mx, my, 0x4dd7c8);
                 this.towerBulletSpawner(mx, my, a);
             }
         }

@@ -127,7 +127,7 @@ export const TOWER_CONFIG = {
     aimToleranceRad: 0.35,  // strzela dopiero gdy lufa ~w celu (zero tracerow w plecy)
     aimLerpPerFrame: 0.2,   // szybkosc obrotu lufy (sim: lerp 12/s przy 60fps)
     spreadRad: 0.06,        // lekki rozrzut MG
-    barrelLen: 34,          // px od srodka do wylotu lufy (spawn pocisku + muzzle flash)
+    barrelLen: 52,          // v0.190.0: DLUZSZA lufa (bylo 34) — spawn pocisku i blysk na wylocie
     bulletSpeed: 20,        // px/klatka — szybki tracer (miedzy scout 27 a heavy 13)
     bulletMaxDist: 460,     // nieco ponad range, zeby pocisk nie znikal tuz przed celem
     dmgMult: 0.5,           // % dmg brawlera per pocisk (sim 1:1) — skaluje sie z czolgiem

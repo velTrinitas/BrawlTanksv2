@@ -117,6 +117,11 @@ function getWreckTexture(): PIXI.Texture {
 // v0.18.5 FAZA 5a — Sand particle color palette (piaskowe odcienie z desert texture)
 const SAND_KICK_COLORS = [0xd4ab6e, 0xc8a870, 0xb88858, 0xe5b878, 0xa87848, 0xeecf90];
 
+/** v0.192.0 — jak dlugo trzyma sie slad przypalenia (klatki). 7 s, jak krater katapulty. */
+const SCORCH_FRAMES = 420;
+/** Twardy limit sladow naraz — Zamek potrafi miec kilka bomb pod rzad. */
+const MAX_SCORCHES = 6;
+
 export class EffectsManager {
     // Containers
     public particleContainer: PIXI.ParticleContainer;
@@ -135,6 +140,8 @@ export class EffectsManager {
     // Pools
     private particles: Particle[] = [];
     private trackMarks: TrackMark[] = [];
+    /** v0.192.0 — slady przypalenia po mega bombie (decal gruntu, chwilowy). */
+    private scorches: Array<{ g: PIXI.Graphics; life: number; max: number }> = [];
     private wrecks: Wreck[] = [];
     private floatingTexts: FloatingTextItem[] = [];
 
@@ -542,17 +549,72 @@ export class EffectsManager {
             scaleDecay: 0.03,
         });
 
-        this.shake(15, 25);
+        this.shake(22, 32); // v0.192.0: mocniejszy wstrzas — "ma byc soczysty" (Mariusz)
 
         // v0.155.3 (D2): tick gry zamiast wlasnego rAF — zamiera z hit-stopem.
         this.addTickAnim(ring, 30, (g, t) => {
-            const radius = 50 + (200 * t);
+            const radius = 50 + (225 * t); // v0.192.0: za blastRadius 275 (bylo 250)
             g.clear();
-            g.lineStyle(8 - t * 6, 0xff4400, 1 - t);
+            g.lineStyle(10 - t * 8, 0xff4400, 1 - t);
             g.drawCircle(0, 0, radius);
-            g.lineStyle(4 - t * 3, 0xffaa00, 1 - t);
-            g.drawCircle(0, 0, radius - 6);
+            g.lineStyle(5 - t * 4, 0xffaa00, 1 - t);
+            g.drawCircle(0, 0, radius - 7);
         });
+
+        // v0.192.0 — DRUGI pierscien, szybszy i wezszy, startuje od razu ale goni pierwszy.
+        // Dwa pierscienie o roznych krzywych czytaja sie jako "uderzenie + fala", a kosztuja
+        // tyle co nic (Graphics). SWIADOMIE nie dokladam czastek: pula ma cap 200 i przy pelnej
+        // NADPISUJE zywe czastki, wiec wiecej iskier = urwane inne efekty na ekranie.
+        const ring2 = new PIXI.Graphics();
+        ring2.x = x; ring2.y = y; ring2.zIndex = 499;
+        this.worldContainer.addChild(ring2);
+        this.addTickAnim(ring2, 22, (g, t) => {
+            const radius = 20 + (275 * Math.sqrt(t)); // sqrt = szarpniecie na starcie, potem hamuje
+            g.clear();
+            g.lineStyle(4 - t * 3.5, 0xfff0c0, 0.9 - t * 0.9);
+            g.drawCircle(0, 0, radius);
+        });
+
+        this.spawnScorch(x, y);
+    }
+
+    /**
+     * v0.192.0 — SLAD PRZYPALENIA po mega bombie (prosba Mariusza: "jakis efekt przypalenia
+     * trawy, nieregularny ksztalt, chwilowy").
+     *
+     * Wzorzec decala 1:1 z kraterami (`PowerSystem.strikeSpawnCrater`, `BossBomb`, `CatapultStone`):
+     * `zIndex = 9` = grunt POD wszystkim Y-sortowanym, fade liniowy, zycie liczone w klatkach.
+     * Roznica: tamte sa regularnymi elipsami, ten ma byc NIEREGULARNY — losowy wielokat
+     * o zmiennym promieniu czyta sie jak wypalona plama, a nie jak dziura po pocisku.
+     *
+     * Limit sztuk jest twardy: to Graphics na warstwie gruntu, a Zamek potrafi miec kilka bomb
+     * pod rzad. Najstarszy slad znika, gdy wchodzi nowy ponad limit.
+     */
+    private spawnScorch(x: number, y: number): void {
+        const g = new PIXI.Graphics();
+        const pts: Array<[number, number]> = [];
+        const N = 11;
+        for (let i = 0; i < N; i++) {
+            const a = (i / N) * Math.PI * 2;
+            const r = 74 + Math.random() * 46;           // nieregularny obrys
+            pts.push([Math.cos(a) * r, Math.sin(a) * r * 0.62]); // splaszczenie = widok z gory
+        }
+        const poly = (scale: number): void => {
+            g.moveTo(pts[0][0] * scale, pts[0][1] * scale);
+            for (let i = 1; i < N; i++) g.lineTo(pts[i][0] * scale, pts[i][1] * scale);
+            g.closePath();
+        };
+        g.beginFill(0x1c1108, 0.62); poly(1); g.endFill();      // przypalona ziemia
+        g.beginFill(0x3a2410, 0.45); poly(0.74); g.endFill();   // jasniejszy rdzen
+        g.beginFill(0x0d0703, 0.35); poly(0.42); g.endFill();   // epicentrum
+        g.x = x; g.y = y;
+        g.zIndex = 9;
+        this.worldContainer.addChild(g);
+        this.scorches.push({ g, life: SCORCH_FRAMES, max: SCORCH_FRAMES });
+        while (this.scorches.length > MAX_SCORCHES) {
+            const old = this.scorches.shift();
+            if (old) old.g.destroy();
+        }
     }
 
     /**
@@ -804,6 +866,14 @@ export class EffectsManager {
                 p.active = false;
                 p.sprite.visible = false;
             }
+        }
+
+        // === v0.192.0: slady przypalenia (fade liniowy, jak kratery) ===
+        for (let i = this.scorches.length - 1; i >= 0; i--) {
+            const sc = this.scorches[i];
+            sc.life -= delta;
+            if (sc.life <= 0) { sc.g.destroy(); this.scorches.splice(i, 1); continue; }
+            sc.g.alpha = Math.min(1, sc.life / (sc.max * 0.5)); // pelne krycie przez polowe zycia
         }
 
         // === Track marks (fade) ===

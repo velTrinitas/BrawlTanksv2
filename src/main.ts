@@ -70,8 +70,6 @@ import { CastleSolidProp } from './maps/castle/CastleSolidProp'; // OBRON ZAMEK 
 import { CastleWheatField } from './maps/castle/CastleWheatField'; // OBRON ZAMEK F2
 import { CastlePennants, type PennantAnchor } from './maps/castle/CastlePennants'; // OBRON ZAMEK F2
 import { prebakeCastle, towerSquarePennantAnchor, keepPennantAnchor } from './maps/castle/castleBake'; // OBRON ZAMEK F2/F6
-import { CastleMediPad } from './maps/castle/CastleMediPad'; // OBRON ZAMEK F6
-import { CastlePowerPad } from './maps/castle/CastlePowerPad'; // OBRON ZAMEK F6
 import { CastleHayBale } from './maps/castle/CastleHayBale'; // OBRON ZAMEK F6
 import { CastleCrows } from './maps/castle/CastleCrows'; // OBRON ZAMEK F6
 import { isCastleMode } from './config/castleFlag'; // OBRON ZAMEK F1
@@ -377,8 +375,8 @@ let seasonNextSpawnAt = 0;
 let seasonMissStreak = 0;          // proby bez przedmiotu o wartosci 6 (pity)
 let seasonContentCache: SeasonContentDef | null = null;
 let powerCubes: PowerCube[] = []; // v0.44.0 FAZA 8.6
-let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad | MarsMediPad | CastleMediPad> = [];
-let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad | MarsPowerPad | CastlePowerPad> = [];
+let mediPads: Array<HoverRepairPad | DesertHeartPad | CloverMediPad | RuinsMediPad | MarsMediPad> = [];
+let powerPads: Array<PowerHoverPad | DesertStormPad | StumpPowerPad | RuinsPowerPad | MarsPowerPad> = [];
 let river: RiverNile | null = null;
 let bridges: Bridge[] = [];
 let waterLife: WaterLife | null = null;
@@ -2433,9 +2431,11 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             solidBuildings.push(rock);
         }
 
-        // Pady: F1 = Ruins (kamienne — pasuja do granitu); F6 reskin CastleMediPad/CastlePowerPad.
-        mediPads = CASTLE_MEDI_PAD_POSITIONS.map(p => new CastleMediPad(p.x, p.y, worldContainer)); // F6 reskin
-        powerPads = CASTLE_POWER_PAD_POSITIONS.map(p => new CastlePowerPad(p.x, p.y, worldContainer)); // F6 reskin
+        // Pady: F1 = Ruins (kamienne — pasuja do granitu); v0.192.0 standardowe HoverRepairPad/PowerHoverPad.
+        // v0.192.0 (Mariusz): pady UJEDNOLICONE na wszystkich mapach — te same, co na City.
+        // Sygnatury `update()` sa identyczne, wiec podmiana klasy nie rusza petli w main.ts.
+        mediPads = CASTLE_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+        powerPads = CASTLE_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
 
         // ── F2: ZAMEK — czesci z pieczonym artem (castleBake), hitbox == AABB z layoutu ──
         // Prebake calego kompletu tekstur TERAZ (jedna kosztowna chwila na starcie,
@@ -2521,8 +2521,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         dungeonBats = new DungeonBats(worldContainer, [{ x: 120, y: 120 }, { x: 2880, y: 120 }, { x: 120, y: 2880 }, { x: 2880, y: 2880 }, { x: 1300, y: 90 }, { x: 1700, y: 2910 }]);
 
         // Pady: Q1 = Zamku (granitowe daisy pasuja do lochow); Q5 reskin DungeonMediPad/DungeonPowerPad.
-        mediPads = DUNGEON_MEDI_PAD_POSITIONS.map(p => new CastleMediPad(p.x, p.y, worldContainer));
-        powerPads = DUNGEON_POWER_PAD_POSITIONS.map(p => new CastlePowerPad(p.x, p.y, worldContainer));
+        // v0.192.0: Lochy uzywaly padow Zamku (reuzyte bez reskinu) — teraz standardowe, jak wszedzie.
+        mediPads = DUNGEON_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
+        powerPads = DUNGEON_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     }
 
     effects = new EffectsManager(worldContainer);

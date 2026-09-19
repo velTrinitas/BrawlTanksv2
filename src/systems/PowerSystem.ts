@@ -932,6 +932,11 @@ export class PowerSystem {
         body.endFill();
         c.addChild(body);
         this.worldContainer.addChild(c);
+        // v0.192.0 (Mariusz): rakiety +50%. Skala idzie na KONTENER, nie na plomien —
+        // flicker nadpisuje `flame.scale.x` co klatke (rocketsUpdate), wiec skala na plomieniu
+        // znikalaby natychmiast. Zmiana czysto wizualna: `contactDist` i `explosionRadius`
+        // zostaja, wiec — inaczej niz przy pociskach wiezy — balans sie NIE zmienia.
+        c.scale.set(1.5);
         this.rocketVisuals.push({ c, flame });
         return this.rocketVisuals.length - 1;
     }

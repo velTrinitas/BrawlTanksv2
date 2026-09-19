@@ -110,7 +110,7 @@ export interface PowerDef {
  * v0.46.0: damage x100 (8 -> 800). blastRadius to dystans, NIETKNIETY.
  */
 export const MEGA_BOMB_CONFIG = {
-    blastRadius: 250,
+    blastRadius: 275, // v0.192.0: +10% (Mariusz) — bylo 250
     damage: 800,
 };
 
@@ -331,11 +331,11 @@ export const BURP_CONFIG = {
      *   ostatnie 3,0 s `cloudFadeMs` — stopniowe rozwianie (nachodzi na faze stania).
      * Czyli: pelna sila przez 2 s, potem 3 s gasniecia; lacznie 5 s widocznosci.
      */
-    cloudMs: 5000,
+    cloudMs: 8000,   // v0.192.0: +3 s (Mariusz) — bylo 5000
     cloudFadeMs: 3000,
     cloudExpandMs: 1600,
     /** Parametr ROZRZUTU klebow, nie widoczna krawedz (v0.146.3: 320 -> 400 = +25%). */
-    cloudRadius: 400,
+    cloudRadius: 500, // v0.192.0: +25% (Mariusz) — bylo 400
     /** v0.146.2: bylo 0x9ae66e (blada zielen) — teraz nasycony, „chemiczny" odcien. */
     cloudColor: 0x74e03c,
     /** Krycie pojedynczego kleba u szczytu (v0.146.2: bylo 0.52). */
@@ -351,8 +351,11 @@ export const BURP_CONFIG = {
      * 1,6-2,5 s): poziomo ~215 px, pionowo ~150 px przy cloudRadius 400. Kolo bylo by
      * klamstwem w jedna albo w druga strone — a Czytelnosc mowi: hitbox = wizual.
      */
-    cloudHitX: 215,
-    cloudHitY: 150,
+    // v0.192.0: podniesione o te same 25% co `cloudRadius` (215->269, 150->188). Te wartosci
+    // NIE skaluja sie same — sa zmierzone recznie z artu. Bez tej korekty hitbox przestalby
+    // pasowac do tego, co widac, a regula nr 1 mowi: hitbox = wizual.
+    cloudHitX: 269,
+    cloudHitY: 188,
     /** Tick co 0,5 s — chmura to teren skazony, nie druga eksplozja. */
     cloudTickFrames: 30,
     /**
@@ -362,7 +365,10 @@ export const BURP_CONFIG = {
      * dobija sie pierwszym tickiem. Ratuje go odrzut — fala wyrzuca go na 320 px, czyli
      * POZA elipse chmury. Karane jest wracanie, nie samo oberwanie bekiem.
      */
-    cloudTickDmg: 60,
+    // v0.192.0: 60 -> 38. Chmura zyje teraz 8 s zamiast 5, czyli 16 tikow zamiast 10.
+    // Przy 60 dmg laczna sila skoczylaby z 600 na 960 (cichy buff mocy). Decyzja Mariusza:
+    // "wyglad wiekszy, sila bez zmian" — 16 x 38 = 608, czyli praktycznie tyle co bylo.
+    cloudTickDmg: 38,
     /**
      * Ponizej tego krycia chmura przestaje razic. Bez tego wrogowie ginelyby od gazu,
      * ktorego juz praktycznie nie widac — a to jest dokladnie ten rodzaj „zginal

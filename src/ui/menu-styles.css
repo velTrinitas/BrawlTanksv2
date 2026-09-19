@@ -4258,6 +4258,26 @@
 .bt-lb-status.is-error { color: #ff8a8a; }
 
 .bt-lb-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+
+/* v0.192.0 (Mariusz): "scroll w rankingu niech nie bedzie jak w Windows". Hub ma juz pasek
+   w stylu gry (hub-styles.css, v0.126.0), ale jego selektor jest zawezony do potomkow
+   `.bt-hub0-screen`, a ekran rankingu ma klasy `bt-settings-screen bt-lb-screen` — wiec go
+   nie lapal i zostawal systemowy, jasny pasek Windows.
+   Kolory sa tu WPISANE WPROST (a nie przez `var(--hub-steel-*)`), bo tamte zmienne sa
+   zadeklarowane wylacznie na `.bt-hub0-screen` / `.bt-identity-screen` i poza hubem nie istnieja
+   — uzycie zmiennej dalo by pasek bezbarwny. Wartosci 1:1 z tokenami huba. */
+.bt-lb-screen *::-webkit-scrollbar { width: 10px; height: 10px; }
+.bt-lb-screen *::-webkit-scrollbar-track { background: #0d141b; border-radius: 999px; }
+.bt-lb-screen *::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, #31465a, #243545);
+    /* Ramka w kolorze toru udaje odstep — `margin` na kciuku nie dziala. */
+    border: 2px solid #0d141b;
+}
+.bt-lb-screen *::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #ffd75e, #e0b53c 70%); }
+.bt-lb-screen *::-webkit-scrollbar-corner { background: transparent; }
+/* Firefox nie wspiera ::-webkit-*; ma wlasna, ubozsza sciezke — dwa kolory i tyle. */
+.bt-lb-screen * { scrollbar-width: thin; scrollbar-color: #31465a #0d141b; }
 .bt-lb-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 10px;
     background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.07);

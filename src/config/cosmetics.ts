@@ -38,11 +38,12 @@ export const SHOP_ONLY_TYPES: ReadonlySet<CosmeticType> =
     // (patrz cosmeticIdsOfRarity) — bez wpisu skiny wypadalyby ze skrzynek i jednoczesnie
     // stalyby na sprzedaz, czyli sklep kanibalizowalby sam siebie, a pula losowania
     // rozjechalaby sie o 8 pozycji.
-    // SKIN-1: 'tankSkin' ŚWIADOMIE POZA tym zbiorem (decyzja Mariusza: drop ze
-    // skrzynek + sklep ROWNOLEGLE). Kanibalizacja jest tu mechanicznie bezpieczna:
-    // kupiony skin => skrzynkowy duplikat konwertuje na srubki (CRATE_DUP_BOLTS),
-    // a sklepowy kafel posiadanego pokazuje "posiadane" (ShopSection).
-    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice', 'crosshair', 'profileSkin']);
+    // v0.198.0 (decyzja Mariusza przy flipie SKINS_LIVE): 'tankSkin' JEST tu — skiny to na
+    // start towar WYLACZNIE sklepowy. Powod: 42 defy w puli dropow rozcienczylyby ja ponad
+    // dwukrotnie (r 6->15, e 5->22), psujac czas do konkretnego kosmetyku, a sigmy dostaja
+    // wreszcie realne ujscie. ODWRACALNE i transzowalne: usuniecie 'tankSkin' stad przywraca
+    // drop ze skrzynek (wczesniej, do v0.197.1, tak wlasnie bylo).
+    new Set<CosmeticType>(['title', 'sticker', 'horn', 'voice', 'crosshair', 'profileSkin', 'tankSkin']);
 
 export interface CosmeticDef {
     readonly id: string;

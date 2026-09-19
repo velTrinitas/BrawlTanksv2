@@ -7,15 +7,21 @@
  * naraz; dane sa odporne (equipped['tankSkin'] przy OFF jest po prostu
  * ignorowany, owned przechodzi merge — defy zostaja w rejestrze na zawsze).
  *
- * Playtest: ?choose=1&skins=1 (pasek skinow w Garazu wymaga OBU flag).
+ * v0.198.0 (2026-09-19): DEFAULT ON — Mariusz przetestowal skiny na desktopie i mobile
+ * („dzialaja super"). Rollback bez rebuildu: ?skins=0 (wzorzec ?choose=0 / ?hub=0).
+ * UWAGA: `?choose` nie jest juz potrzebne — CHOOSE_LIVE=true od GARAZ-4.
+ * Skiny sa od tego flipu towarem WYLACZNIE SKLEPOWYM (SHOP_ONLY_TYPES w cosmetics.ts):
+ * pula dropow skrzynek zostaje nietknieta.
  */
 
-export const SKINS_LIVE = false;
+export const SKINS_LIVE = true;
 
-/** Tryb SKIN-1 aktywny? Kill switch kompilowany + ?skins=1 (dev/playtest). */
+/** Tryb SKIN-1 aktywny? Kill switch kompilowany, ?skins=0 wylacza, ?skins=1 wlaczal przed flipem. */
 export function isSkinsEnabled(): boolean {
     try {
+        const q = new URLSearchParams(location.search).get('skins');
+        if (q === '0') return false;   // rollback: musi bic flage, inaczej nie ma jak wycofac bez deployu
         if (SKINS_LIVE) return true;
-        return new URLSearchParams(location.search).get('skins') === '1';
-    } catch { return false; }
+        return q === '1';
+    } catch { return SKINS_LIVE; }
 }

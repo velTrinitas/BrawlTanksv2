@@ -14,7 +14,13 @@
 
 export const TELEMETRY_LIVE = true;
 
-/** Telemetria aktywna? (kill switch — patrz naglowek) */
+/**
+ * Telemetria aktywna? (kill switch — patrz naglowek)
+ * v0.198.1: `?telemetry=0` wylacza wysylke bez redeployu (wzorzec `?castle=0`/`?skins=0`).
+ */
 export function isTelemetryEnabled(): boolean {
+    try {
+        if (new URLSearchParams(location.search).get('telemetry') === '0') return false;
+    } catch { /* brak location (test/SSR) — zostaje stala */ }
     return TELEMETRY_LIVE;
 }

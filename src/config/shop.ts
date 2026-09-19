@@ -32,12 +32,18 @@ import { isSkinsEnabled } from './skins'; // SKIN-1 — gate taba i SKU barw czo
  */
 export const SHOP_LIVE = true;
 
-/** Sekcja SKLEP w nawigacji: zawsze przy SHOP_LIVE, inaczej tylko za flaga. */
+/**
+ * Sekcja SKLEP w nawigacji: zawsze przy SHOP_LIVE, inaczej tylko za flaga.
+ * v0.198.1: `?shop=0` wylacza mimo SHOP_LIVE — wzorzec `?castle=0`/`?skins=0`, zeby wycofanie
+ * nie wymagalo redeployu (przed ta zmiana flaga ON nie miala zadnej sciezki wyjscia).
+ */
 export function isShopEnabled(): boolean {
     try {
+        const q = new URLSearchParams(location.search).get('shop');
+        if (q === '0') return false;
         if (SHOP_LIVE) return true;
-        return new URLSearchParams(location.search).get('shop') === '1';
-    } catch { return false; }
+        return q === '1';
+    } catch { return SHOP_LIVE; }
 }
 
 /** Piaskownica aktywna zawsze, gdy sklep dziala spoza produkcji. */

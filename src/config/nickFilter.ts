@@ -30,8 +30,15 @@
 
 export const NICK_FILTER_LIVE = true;
 
-/** Kill switch (rollback = flip the const, no other changes needed). */
+/**
+ * Kill switch. v0.198.1: `?nickfilter=0` disables it without a redeploy (pattern: `?castle=0`).
+ * NOTE: this only relaxes the creation/nick-change predicate; `isValidNickname` in types/Profile.ts
+ * stays untouched, so stored profiles are never dropped.
+ */
 export function isNickFilterEnabled(): boolean {
+    try {
+        if (new URLSearchParams(location.search).get('nickfilter') === '0') return false;
+    } catch { /* no location (test/SSR) — fall back to the const */ }
     return NICK_FILTER_LIVE;
 }
 

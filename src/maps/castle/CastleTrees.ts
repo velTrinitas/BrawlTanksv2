@@ -28,6 +28,15 @@ import { isPointInView } from '../cullGate';
 /** Wylacznik bujania (korony zostaja, ale stoja). */
 export const CASTLE_TREE_SWAY = true;
 
+/**
+ * v0.198.1 — `?treesway=0` zatrzymuje bujanie bez redeployu. To JEDYNY element transzy 2 artu
+ * Zamku z realnym kosztem per klatka, wiec gdy A54 zacznie ciac, ratunek ma byc pod reka.
+ * Liczone RAZ (modul), nie per klatka — czytanie `location.search` w petli byloby marnotrawstwem.
+ */
+const SWAY_ENABLED: boolean = CASTLE_TREE_SWAY && (() => {
+    try { return new URLSearchParams(location.search).get('treesway') !== '0'; } catch { return true; }
+})();
+
 const RES = 2;
 /** Plotno wariantu (jednostki swiata) i punkt podstawy drzewa w nim. */
 const CW = 80, CH = 72, BX = 42, BY = 56;
@@ -116,13 +125,13 @@ export class CastleTrees {
             const vis = isPointInView(f.cx, f.cy, camX, camY, viewW, viewH, f.r);
             // PIXI v7 nie culluje sam — bez tego ~280 koron szloby do batcha takze poza kadrem.
             for (const c of f.crowns) c.s.renderable = vis;
-            if (!vis || !CASTLE_TREE_SWAY) continue;
+            if (!vis || !SWAY_ENABLED) continue;
             for (const c of f.crowns) CastleTrees.sway(c, t);
         }
         for (const c of this.loose) {
             const vis = isPointInView(c.wx, c.wy, camX, camY, viewW, viewH, 60);
             c.s.renderable = vis;
-            if (vis && CASTLE_TREE_SWAY) CastleTrees.sway(c, t);
+            if (vis && SWAY_ENABLED) CastleTrees.sway(c, t);
         }
     }
 

@@ -319,7 +319,11 @@ function getVolleyOffsets(brawler: Brawler, isSuperShot: boolean): number[] {
 // Domyslnie OFF => produkcja (flat i bake) bit-for-bit. Test: ?superv2=1. Gdy cala P5 sprawdzona:
 // SUPER_V2_DEFAULT=true (flip = 1 linia, rollback trywialny). Niezalezne od BAKER_ENABLED.
 const SUPER_V2_DEFAULT = true; // P5 przetestowany -> live dla wszystkich (rollback = false)
-const SUPER_V2_ENABLED: boolean = SUPER_V2_DEFAULT || new URLSearchParams(location.search).has('superv2');
+// v0.198.1: `?superv2=0` wylacza bez redeployu (wzorzec ?castle=0/?skins=0). Stare `?superv2`
+// bylo od flipu MARTWE — OR z default=true nie dawal sie niczym zbic.
+const SUPER_V2_ENABLED: boolean = new URLSearchParams(location.search).get('superv2') === '0'
+    ? false
+    : SUPER_V2_DEFAULT || new URLSearchParams(location.search).has('superv2');
 
 // === End-screen v2 — landscape two-column layout (375px gate) ===
 // Problem: stary single-column endcard nie miescil sie w landscape (~375px wys.) -> scroll do przycisku.

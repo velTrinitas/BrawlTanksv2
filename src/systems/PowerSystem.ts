@@ -11,7 +11,7 @@ import {
     type PowerId, type LoadoutTriple, type PowerActivationCtx, type ActivationResult,
 } from '../config/powers';
 import {
-    bakeDuck, bakeLocker, bakeLockerLed, bakeParcel, bakeGranny, bakeDiscoBall, bakeSoftShadow,
+    bakeDuck, DUCK_ANCHOR_Y, bakeLocker, bakeLockerLed, bakeParcel, bakeGranny, bakeDiscoBall, bakeSoftShadow,
     bakeSmokePuff,
 } from '../rendering/Tier3Baker'; // v0.112.0 — pieczony art z gradientami (Canvas 2D)
 import { t } from '../i18n/i18n'; // v0.112.0 — kwestie Babci (literal keys)
@@ -1869,7 +1869,7 @@ export class PowerSystem {
         this.duckTurnT = DUCK_CONFIG.turnEveryFrames;
         if (!this.duckSprite) {
             this.duckSprite = new PIXI.Sprite(bakeDuck());
-            this.duckSprite.anchor.set(0.5, 0.62);
+            this.duckSprite.anchor.set(0.5, DUCK_ANCHOR_Y); // v0.193.0: plotno wyzsze (helm)
             this.duckSprite.zIndex = 1e6 - 1; // LECI nad polem (pod cieniem samolotow nalotu)
             this.worldContainer.addChild(this.duckSprite);
             this.duckShadow = new PIXI.Sprite(bakeSoftShadow());

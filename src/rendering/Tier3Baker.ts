@@ -87,11 +87,23 @@ export function bakeSmokePuff(): PIXI.Texture {
     });
 }
 
-/** GIGA KACZKA — gumowa kaczka premium (profil w prawo; lot robi scale.x flip). */
+/**
+ * GIGA KACZKA — gumowa kaczka premium (profil w prawo; lot robi scale.x flip).
+ *
+ * v0.193.0 (Mariusz): kaczka-zolnierz — HELM wojskowy + PAS Z NABOJAMI na piersi.
+ * Helm wystaje ponad glowe, wiec plotno uroslo o DUCK_TOP_PAD u gory (128 -> 152).
+ * Uklad rysunku przesuniety o tyle samo w dol, a kotwica w PowerSystem przeliczona
+ * (DUCK_ANCHOR_Y) — punkt zaczepienia w swiecie jest identyczny jak przed zmiana.
+ */
+const DUCK_TOP_PAD = 24;
+const DUCK_H = 128 + DUCK_TOP_PAD;
+/** Stara kotwica 0.62 z plotna 128 px, przeniesiona na nowe plotno (ten sam punkt kaczki). */
+export const DUCK_ANCHOR_Y = (0.62 * 128 + DUCK_TOP_PAD) / DUCK_H;
+
 export function bakeDuck(): PIXI.Texture {
-    return baked('t3duck', 150, 128, (c) => {
+    return baked('t3duck2', 150, DUCK_H, (c) => {
         c.save();
-        c.translate(72, 70);
+        c.translate(72, 70 + DUCK_TOP_PAD);
         // KORPUS — soczysty zolty z radialnym swiatlem (gumowa kaczka!)
         let g = c.createRadialGradient(-12, -18, 8, 0, 0, 58);
         g.addColorStop(0, '#fff3a8');
@@ -120,6 +132,9 @@ export function bakeDuck(): PIXI.Texture {
         c.strokeStyle = 'rgba(160,110,0,0.55)';
         c.lineWidth = 2.5;
         c.stroke();
+        // v0.193.0 — PAS Z NABOJAMI (bandolier) po skosie przez piers, NAD skrzydlem,
+        // POD glowa (glowa rysowana pozniej przykrywa gorny koniec pasa = pas "za szyja").
+        drawDuckBandolier(c);
         // GLOWA
         g = c.createRadialGradient(28, -46, 6, 34, -40, 30);
         g.addColorStop(0, '#fff3a8');
@@ -165,8 +180,117 @@ export function bakeDuck(): PIXI.Texture {
         c.beginPath();
         c.ellipse(-6, -22, 24, 8, -0.15, 0, Math.PI * 2);
         c.fill();
+        // v0.193.0 — HELM na samym koncu: przykrywa czubek glowy.
+        drawDuckHelmet(c);
         c.restore();
     });
+}
+
+/**
+ * Pas z nabojami: skorzany pas z gradientem + mosiezne luski z miedzianymi czubkami,
+ * ustawione POPRZECZNIE do pasa. Kontury grube — detal ma sie czytac przy zoom 0.6.
+ * Wspolrzedne w ukladzie kaczki (glowa ~(34,-40), korpus ~(0,6)).
+ */
+function drawDuckBandolier(c: CanvasRenderingContext2D): void {
+    const x0 = 30, y0 = -26;   // przy szyi (schowane pod glowa)
+    const x1 = -26, y1 = 42;   // dol brzucha
+    const ang = Math.atan2(y1 - y0, x1 - x0);
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    c.save();
+    c.translate(x0, y0);
+    c.rotate(ang);
+    // PAS — skora
+    const bw = 13;
+    let g = c.createLinearGradient(0, -bw / 2, 0, bw / 2);
+    g.addColorStop(0, '#9a5b2a');
+    g.addColorStop(0.5, '#7a4219');
+    g.addColorStop(1, '#552c0e');
+    c.fillStyle = g;
+    roundRect(c, 0, -bw / 2, len, bw, 4);
+    c.fill();
+    c.strokeStyle = '#3a1d07';
+    c.lineWidth = 2;
+    c.stroke();
+    // NABOJE — co 11 px, wystaja w obie strony pasa
+    for (let s = 14; s < len - 6; s += 11) {
+        g = c.createLinearGradient(s - 3.5, 0, s + 3.5, 0);
+        g.addColorStop(0, '#fff0a0');
+        g.addColorStop(0.45, '#e6b422');
+        g.addColorStop(1, '#a8780a');
+        c.fillStyle = g;
+        roundRect(c, s - 3.5, -11, 7, 18, 2);   // luska (mosiadz)
+        c.fill();
+        c.strokeStyle = '#6b4a05';
+        c.lineWidth = 1.3;
+        c.stroke();
+        c.fillStyle = '#c8602a';                 // czubek (miedz)
+        c.beginPath();
+        c.moveTo(s - 3.5, -11);
+        c.quadraticCurveTo(s, -19, s + 3.5, -11);
+        c.closePath();
+        c.fill();
+        c.stroke();
+    }
+    // SPRZACZKA na brzuchu
+    c.fillStyle = '#d9d9d9';
+    roundRect(c, len - 16, -8, 11, 16, 2);
+    c.fill();
+    c.strokeStyle = '#555';
+    c.lineWidth = 2;
+    c.stroke();
+    c.restore();
+}
+
+/**
+ * Helm wojskowy (oliwkowa skorupa + rondo + pasek pod dziob). Kopula przesunieta
+ * lekko do tylu glowy (w lewo), rondo wystaje nad oko — klasyczny "zolnierzyk".
+ */
+function drawDuckHelmet(c: CanvasRenderingContext2D): void {
+    const hx = 31, hy = -57; // rondo NAD okiem (oko ~y -46) — oko musi zostac widoczne
+    // PASEK POD BRODE — pod skorupa, z boku glowy do nasady dzioba
+    c.strokeStyle = '#3d4a22';
+    c.lineWidth = 3.5;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(hx - 7, hy + 4);   // ZA okiem (oko x 31..49) — pasek nie moze go przecinac
+    c.quadraticCurveTo(hx - 11, hy + 24, hx - 1, hy + 34);
+    c.stroke();
+    // KOPULA
+    let g = c.createRadialGradient(hx - 10, hy - 20, 4, hx, hy - 6, 36);
+    g.addColorStop(0, '#9fb35a');
+    g.addColorStop(0.55, '#6b7d34');
+    g.addColorStop(1, '#46531f');
+    c.fillStyle = g;
+    c.beginPath();
+    c.ellipse(hx, hy, 29, 24, 0, Math.PI, Math.PI * 2);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = '#2b3412';
+    c.lineWidth = 2.5;
+    c.stroke();
+    // PLAMY KAMUFLAZU
+    c.fillStyle = 'rgba(58,70,26,0.75)';
+    c.beginPath();
+    c.ellipse(hx - 12, hy - 12, 7, 4, -0.4, 0, Math.PI * 2);
+    c.ellipse(hx + 10, hy - 18, 6, 3.5, 0.3, 0, Math.PI * 2);
+    c.ellipse(hx + 2, hy - 6, 5, 3, 0, 0, Math.PI * 2);
+    c.fill();
+    // RONDO — splaszczona elipsa, ciemniejsza od kopuly
+    g = c.createLinearGradient(0, hy - 4, 0, hy + 6);
+    g.addColorStop(0, '#5c6d2b');
+    g.addColorStop(1, '#39441a');
+    c.fillStyle = g;
+    c.beginPath();
+    c.ellipse(hx + 3, hy, 38, 6.5, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#2b3412';
+    c.lineWidth = 2.5;
+    c.stroke();
+    // POLYSK na kopule
+    c.fillStyle = 'rgba(255,255,255,0.28)';
+    c.beginPath();
+    c.ellipse(hx - 12, hy - 17, 9, 4, -0.5, 0, Math.PI * 2);
+    c.fill();
 }
 
 /** PACZKOMAT — metaliczna szafa ze skrytkami (pas LED = osobna tekstura, blink tintem). */

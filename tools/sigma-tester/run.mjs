@@ -72,7 +72,7 @@ async function runOne(browser, r, idx) {
     const t0 = Date.now();
     const snaps = []; const shots = [];
     // S5b: naruszenia i proby liczone po stronie runnera (obrot, predkosc, zwiniecie, CTA) — dolaczane do oracles
-    const extra = []; const probes = {}; let hudShot = false;
+    const extra = []; const probes = {}; let hudShot = false; let badShotShot = false; let lastShotFrame = 0;
     const extraIds = [{ id: 'J1', title: 'CTA ekranu koncowego w viewport' }];
     if (r.mobile) extraIds.push({ id: 'J7', title: 'obrot do pionu: ostrzezenie, pauza, powrot' }, { id: 'J9', title: 'predkosc gracza = baseSpeed x mnoznik mobile' }, { id: 'J10', title: 'zwiniecie karty: muzyka pauzowana i wznawiana' });
     let outcome = null; let firstDeathShot = false;
@@ -106,6 +106,9 @@ async function runOne(browser, r, idx) {
             // S5b: jeden zrzut "hud" w pierwszej sekundzie nachodzenia znacznika/powiadomienia na panel lub kontrolke
             // (dowod wizualny dla J2 i persony — geometria sama nie wystarcza do zgloszenia)
             if (!hudShot && snap.gameState === 'PLAYING' && hudOverlap(snap.layout)) { hudShot = true; shots.push(await shot(page, outDir, runId, 'hud')); }
+            // D5: dowod wizualny "strzal nie z lufy" — zrzut w sekundzie, w ktorej padl pierwszy zly strzal
+            if (!badShotShot && snap.gameState === 'PLAYING' && await page.evaluate((f) => window.__sigmaTest.oracles.badShotSince(f), lastShotFrame)) { badShotShot = true; shots.push(await shot(page, outDir, runId, 'shot')); }
+            lastShotFrame = snap.frame;
             snaps.push(snap);
             if (sec === 2) shots.push(await shot(page, outDir, runId, 'start'));
             if (r.mobile && snap.gameState === 'PLAYING') {

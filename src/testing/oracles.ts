@@ -83,6 +83,50 @@ const D1: Oracle = {
     },
 };
 
+/** D5 progi: kat lotu vs widoczna lufa (25 st.) i wylot vs koniec lufy (30 px). */
+export const D5_MAX_ANGLE_DEG = 25;
+export const D5_MAX_MUZZLE_PX = 30;
+type ShotEv = Extract<SigmaEvent, { t: 'shot' }>;
+/**
+ * D5 — rozjazd jednego strzalu. `angle` to SRODEK serii (rozrzut bossa 0.30 rad dokleja main.ts po
+ * zwroceniu strzalu), wiec porownanie srodka z lufa jest uczciwe i nie wymaga tolerancji na spread.
+ * Kwantyzacja atlasu bake (36 klatek = 10 st.) daje max 5 st. — duzo ponizej progu.
+ */
+export function shotMismatch(e: ShotEv): { deg: number; px: number; bad: boolean } {
+    let d = e.angle - e.barrel;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    const deg = Math.abs(d) * 180 / Math.PI;
+    const px = Math.hypot(e.x - (e.cx + Math.cos(e.barrel) * e.muzzle), e.y - (e.cy + Math.sin(e.barrel) * e.muzzle));
+    return { deg, px, bad: deg > D5_MAX_ANGLE_DEG || px > D5_MAX_MUZZLE_PX };
+}
+const D5: Oracle = {
+    id: 'D5', title: 'strzal wroga wychodzi z WIDOCZNEJ lufy (kat lotu i wylot) — zero smierci "znikad"',
+    run: ({ events }) => {
+        // agregat per (typ wroga, rola): liczba zlych strzalow, max rozjazdu i pierwszy przyklad
+        const agg = new Map<string, { n: number; bad: number; maxDeg: number; maxPx: number; first: Stamped<ShotEv> | null }>();
+        for (const ev of events) {
+            if (ev.t !== 'shot') continue;
+            const e = ev as Stamped<ShotEv>;
+            const key = `${e.kind}${e.role ? '/' + e.role : ''}`;
+            const a = agg.get(key) ?? { n: 0, bad: 0, maxDeg: 0, maxPx: 0, first: null };
+            const m = shotMismatch(e);
+            a.n++;
+            if (m.bad) { a.bad++; if (!a.first) a.first = e; }
+            a.maxDeg = Math.max(a.maxDeg, m.deg); a.maxPx = Math.max(a.maxPx, m.px);
+            agg.set(key, a);
+        }
+        const out: Violation[] = [];
+        for (const [key, a] of agg) {
+            if (!a.bad || !a.first) continue;
+            out.push({ id: 'D5', severity: 'P0', frame: a.first.frame,
+                msg: `${key}: ${a.bad}/${a.n} strzalow nie z lufy (max ${a.maxDeg.toFixed(0)} st., wylot ${a.maxPx.toFixed(0)} px od konca lufy; progi ${D5_MAX_ANGLE_DEG} st./${D5_MAX_MUZZLE_PX} px)`,
+                evidence: { first: a.first, ...shotMismatch(a.first) } });
+        }
+        return out.slice(0, 10);
+    },
+};
+
 // ── E. Pociski ───────────────────────────────────────────────────────────
 const E1: Oracle = {
     id: 'E1', title: 'brak leaku pociskow (licznik nie rosnie monotonicznie)',
@@ -232,7 +276,7 @@ const L1: Oracle = {
     run: ({ events }) => events.filter(e => e.t === 'error').slice(0, 10).map(e => ({ id: 'L1', severity: 'P0', frame: e.frame, msg: (e as { msg: string }).msg.slice(0, 200), evidence: (e as { stack: string }).stack.slice(0, 600) })),
 };
 
-export const ORACLES: Oracle[] = [A1, A2, C2, D1, E1, E3, F1, F2, F3, F4, G1, G5, J1, J2, J4, J8, L1];
+export const ORACLES: Oracle[] = [A1, A2, C2, D1, D5, E1, E3, F1, F2, F3, F4, G1, G5, J1, J2, J4, J8, L1];
 
 export function runOracles(inp: OracleInput): Violation[] {
     const out: Violation[] = [];

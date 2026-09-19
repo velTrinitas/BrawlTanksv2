@@ -34,6 +34,7 @@
 - [ ] **D2** Pocisk wroga nie przechodzi przez `solidBuildings` (kolizja pocisku aktywna). → needs: trajektorie EnemyBullet + trafienia ściany.
 - [ ] **D3** Telegraf ataku bossa/NPC pokrywa się z realnym hitboxem ataku (czytelność = 0 śmierci „znikąd"). → needs: obrys telegrafu vs obrys ataku.
 - [ ] **D4** Boss się spawnuje w każdym meczu KTB/Castle i jest **beatowalny na Easy** (cel R3). → needs: boss spawn + HP + outcome.
+- [ ] **D5** Strzał wroga wychodzi z WIDOCZNEJ lufy: |kąt lotu − kąt lufy| ≤ 25°, wylot ≤ 30 px od końca lufy (zero śmierci „znikąd”; regresja fixa v0.196.0 na Zamku). → needs: zdarzenie `shot` (kąt lotu, widoczny kąt lufy z klatki bake, wylot).
 
 ## E. Pociski & fizyka walki
 - [ ] **E1** Każdy pocisk umiera (trafienie/zasięg/czas) — brak leaku (licznik żywych pocisków nie rośnie w nieskończoność). → needs: live-bullet count.

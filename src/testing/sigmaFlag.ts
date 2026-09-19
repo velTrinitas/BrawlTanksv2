@@ -23,7 +23,10 @@ export type SigmaEvent =
     | { t: 'outcome'; result: 'victory' | 'gameover'; scenario: string; map: string; score: number; seconds: number }
     | { t: 'banner'; text: string }
     | { t: 'error'; msg: string; stack: string }
-    | { t: 'mark'; tag: string };
+    | { t: 'mark'; tag: string }
+    /** D5 (v0.197.x): strzal wroga — wylot (x,y), srodek czolgu (cx,cy), kat lotu (angle, srodek serii),
+     *  WIDOCZNY kat lufy (barrel: w bake = kat skwantowany do klatki atlasu) i dlugosc lufy (muzzle). */
+    | { t: 'shot'; id: number; kind: 'enemy' | 'boss' | 'mega' | 'pursuit'; role: string | null; x: number; y: number; cx: number; cy: number; angle: number; barrel: number; muzzle: number };
 
 /** Wskaznik emitera — no-op w prod; SigmaTest podmienia go po zaladowaniu (setSigmaEmitter). */
 export let sigmaEmit: (e: SigmaEvent) => void = () => { /* no-op poza ?bot=1 */ };

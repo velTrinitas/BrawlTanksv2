@@ -7,7 +7,7 @@ import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
 import { GameConfigBuilder } from '../types/GameConfig';
 import { setSigmaEmitter, sigmaFrame, type SigmaEvent } from './sigmaFlag';
-import { runOracles, ORACLES, type OracleInput } from './oracles';
+import { runOracles, ORACLES, shotMismatch, type OracleInput } from './oracles';
 import { BotPolicy, type BotMode } from './BotPolicy';
 
 /**
@@ -225,6 +225,8 @@ export function installSigmaTest(bridge: SigmaBridge): void {
     const oracles = {
         ids: ORACLES.map(o => ({ id: o.id, title: o.title })),
         run: (inp: OracleInput) => runOracles(inp),
+        /** D5: czy od klatki `since` byl strzal nie z lufy (runner robi wtedy zrzut "shot" w tej sekundzie). */
+        badShotSince: (since: number): boolean => events.some(e => e.t === 'shot' && e.frame >= since && shotMismatch(e).bad),
     };
 
     /** S5b: uklad ekranu do oracle J1/J2/J4 (DOM rects liczone tylko tu, nie w snapshot() bota). */

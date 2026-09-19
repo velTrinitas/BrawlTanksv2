@@ -1,12 +1,12 @@
 import * as PIXI from 'pixi.js';
 import { getEnemyTextures, BAKER_ENABLED } from '../rendering/SpriteFactory';
-import { sigmaEmit } from '../testing/sigmaFlag'; // SigmaTester: zdarzenia spawn/damage/kill (no-op poza ?bot=1)
+import { sigmaEmit, SIGMA_BOT } from '../testing/sigmaFlag'; // SigmaTester: zdarzenia spawn/damage/kill (no-op poza ?bot=1)
 import { checkRectCollision } from '../systems/Physics';
 import { worldRng } from '../systems/Rng'; // Z0.1: seeded gameplay RNG
 import type { DamageSource } from '../types/DamageSource'; // Z0.5
 import { WORLD_W, WORLD_H } from '../config/constants'; // FAZA CTF F2 — clampy guarda
 import { BRAWLERS } from '../config/brawlers';
-import { EnemySpriteBaker, ENEMY_TEX_SIZE, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
+import { EnemySpriteBaker, ENEMY_TEX_SIZE, ENEMY_BAKE_ANGLES, type EnemyArchetype } from '../rendering/EnemySpriteBaker';
 import type { EnemyBulletType } from '../rendering/EnemyBulletSpriteBaker';
 import type { EffectsManager } from '../rendering/Effects';
 import type { EnemyConfig } from '../config/enemies';
@@ -1052,11 +1052,20 @@ export class Enemy {
                 const now = Date.now();
                 this.lastShotTime = now;
                 const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : (this.isPursuit ? 48 : 40);
+                const muzzleX = this.x + Math.cos(facing) * muzzleOffset;
+                const muzzleY = this.y + Math.sin(facing) * muzzleOffset;
+                // SigmaTester D5 ("strzal z lufy"): tylko pod ?bot=1 — w prod jeden `if` na strzal.
+                // barrel = kat, ktory gracz WIDZI: w bake klatka atlasu (kwantyzacja), inaczej rotacja wiezy.
+                if (SIGMA_BOT) {
+                    const step = (Math.PI * 2) / ENEMY_BAKE_ANGLES;
+                    const barrel = this.bakerArch ? Math.round(facing / step) * step : this.turret.rotation;
+                    sigmaEmit({ t: 'shot', id: this.sigmaId, kind: this.isMegaBoss ? 'mega' : this.isBoss ? 'boss' : this.isPursuit ? 'pursuit' : 'enemy', role: this.castleRole, x: muzzleX, y: muzzleY, cx: this.x, cy: this.y, angle: aimAngle, barrel, muzzle: muzzleOffset });
+                }
                 // Wylot liczony z WIDOCZNEGO kata lufy (`facing`), kierunek lotu = cel. Poza Zamkiem
                 // facing === aimAngle, wiec nic sie nie zmienia.
                 return {
-                    x: this.x + Math.cos(facing) * muzzleOffset,
-                    y: this.y + Math.sin(facing) * muzzleOffset,
+                    x: muzzleX,
+                    y: muzzleY,
                     angle: aimAngle,
                     speed: this.bulletSpeed,
                     dmg: this.bulletDmg,

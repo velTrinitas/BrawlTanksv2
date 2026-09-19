@@ -1960,7 +1960,7 @@ export class PowerSystem {
         // Transformy: pozycja + machanie (rotacja sinusem) + flip wg kierunku +
         // podskok lotu (sprite buja sie NAD cieniem = 2.5D).
         if (sp) {
-            const hop = Math.sin(this.duckWob * 1.7) * 7;
+            const hop = Math.sin(this.duckWob * 1.7) * 10; // v0.194.0: 7 -> 10, podskok ma byc widac
             sp.x = this.duckX;
             sp.y = this.duckY - 26 + hop;
             sp.rotation = Math.sin(this.duckWob) * 0.14;
@@ -1969,9 +1969,13 @@ export class PowerSystem {
         if (sh) {
             sh.x = this.duckX;
             sh.y = this.duckY + 24;
-            const hopN = (Math.sin(this.duckWob * 1.7) + 1) / 2;
-            sh.scale.set(0.9 - 0.12 * hopN);       // cien oddycha z wysokoscia lotu
-            sh.alpha = 0.8 - 0.25 * hopN;
+            // v0.194.0 — FIX odwroconej fazy: `hop` > 0 = sprite NIZEJ (y rosnie w dol),
+            // a do v0.193.0 cien byl wtedy NAJMNIEJSZY i najbledszy, czyli na odwrot.
+            // `alt` = 1 gdy kaczka najwyzej. Zakres wzmocniony (prosba Mariusza: cien przy
+            // podskoku ledwo widoczny) — nisko: duzy i ciemny, wysoko: maly i blady.
+            const alt = (1 - Math.sin(this.duckWob * 1.7)) / 2;
+            sh.scale.set(1.0 - 0.3 * alt);
+            sh.alpha = 0.95 - 0.5 * alt;
         }
     }
 

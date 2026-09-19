@@ -782,6 +782,8 @@ export const pl = {
     'castle.tut.step4': '4/4 · Mur oberwał. STAŃ przy nim nieruchomo, aż się naprawi',
     'castle.tut.done': '✅ SZKOLENIE ZALICZONE — teraz prawdziwe oblężenie!',
     'castle.tut.skip': 'Pomiń szkolenie',
+    // GRUPA E — trampoliny zamku (zawsze, v0.194.0)
+    'castle.jump.blocked': 'Lądowisko zajęte — zjedź i spróbuj za chwilę',
     // OBRON ZAMEK F5 — HUD
     'hud.castle.wall': 'MUR',
     'hud.castle.keep': 'ZAMEK',

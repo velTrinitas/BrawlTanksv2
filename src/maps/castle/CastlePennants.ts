@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { bakePennant } from './castleBake';
 import { isPointInView } from '../cullGate';
+import { CastleCampFlags } from './CastleCampFlags';
 
 /**
  * CastlePennants — proporce na wiezach + sztandar glowny donzonu (OBRON ZAMEK F2).
@@ -15,9 +16,12 @@ export class CastlePennants {
     private container: PIXI.Container;
     private sprites: PIXI.Sprite[];
     private anchors: PennantAnchor[];
+    /** B3 (v0.194.0): flagi obozow jada na tym samym update/destroy — zero nowych wpiec w main.ts. */
+    private campFlags: CastleCampFlags;
 
     constructor(anchors: PennantAnchor[], worldContainer: PIXI.Container) {
         this.anchors = anchors;
+        this.campFlags = new CastleCampFlags(worldContainer);
         this.container = new PIXI.Container();
         this.container.zIndex = 5000; // nad dachami (wyzej niz kazda bryla, ponizej overlayow 1e6)
         worldContainer.addChild(this.container);
@@ -32,6 +36,7 @@ export class CastlePennants {
     }
 
     public update(camX: number, camY: number, viewW: number, viewH: number): void {
+        this.campFlags.update(camX, camY, viewW, viewH);
         const t = Date.now() / 1000;
         for (let i = 0; i < this.sprites.length; i++) {
             const s = this.sprites[i], a = this.anchors[i];
@@ -45,6 +50,7 @@ export class CastlePennants {
     }
 
     public destroy(): void {
+        this.campFlags.destroy();
         this.container.destroy({ children: true });
     }
 }

@@ -74,6 +74,7 @@ import { CastleHayBale } from './maps/castle/CastleHayBale'; // OBRON ZAMEK F6
 import { CastleCrows } from './maps/castle/CastleCrows'; // OBRON ZAMEK F6
 import { isCastleMode } from './config/castleFlag'; // OBRON ZAMEK F1
 import { CastleSystem } from './systems/castle/CastleSystem'; // OBRON ZAMEK F3
+import { CastleJump } from './systems/castle/CastleJump'; // GRUPA E: trampoliny wyskoku z zamku (v0.194.0)
 import { CASTLE_TUNING, CASTLE_WAVES_TOTAL } from './systems/castle/castleWaves'; // OBRON ZAMEK F3
 import {
     buildDungeonTexture, DUNGEON_PLAYABLE, DUNGEON_ROCK_E, DUNGEON_CAGE, DUNGEON_PILLARS, DUNGEON_PLAYER_SPAWN, DUNGEON_LANES,
@@ -405,6 +406,7 @@ let castleEnemyBulletSolids: ICollidable[] | null = null;
 let wasInWheatLastFrame = false; // OBRON ZAMEK F2 — stealth w zbozu
 /** OBRON ZAMEK F3 — rdzen scenariusza (fale, cele, obrazenia struktur, respawn). */
 let castleSystem: CastleSystem | null = null;
+let castleJump: CastleJump | null = null; // GRUPA E — null poza Zamkiem
 let castleFrameDelta = 1; // delta biezacej klatki dla targetFor (anti-grind liczony w klatkach)
 // SAVE THE QUEEN Q1 — mapa LOCHY: gruba skalna granica + kolumnada (reszta: Q2 cegly, Q4 lawa).
 let dungeonBorder: DungeonBorder | null = null;
@@ -497,7 +499,7 @@ const ctfHudInfo: HudCtfInfo = {
 };
 // OBRON ZAMEK F5 — dane HUD zamku (obiekt reuzywany per klatke, zero alokacji)
 const castleHudInfo: HudCastleInfo = {
-    phase: 'intro', wave: 0, wavesTotal: 6, phaseSecondsLeft: 0, wallPct: 1, gatePct: 1, gateDestroyed: false, gatesAlive: 4, gatesTotal: 4, wallsDestroyed: 0,
+    phase: 'intro', wave: 0, wavesTotal: 6, phaseSecondsLeft: 0, wallPct: 1, gatePct: 1, gateDestroyed: false, gatePcts: [], gatesAlive: 4, gatesTotal: 4, wallsDestroyed: 0,
     keepPct: 1, respawnSecondsLeft: 0, enemiesAlive: 0, megaAlive: false, lanes: [], breaches: [], machines: [], keepAlarm: false,
     cameraX: 0, cameraY: 0, zoom: 1,
 };
@@ -1758,6 +1760,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     castleEnemyBulletSolids = null;
     wasInWheatLastFrame = false;
     castleSystem?.destroy(); castleSystem = null; // OBRON ZAMEK F3
+    castleJump?.destroy(); castleJump = null; // GRUPA E
     queenSystem?.destroy(); queenSystem = null; // SAVE THE QUEEN Q2
     queenDirector?.destroy(); queenDirector = null; // SAVE THE QUEEN Q3
     if (castleNextBtn) castleNextBtn.style.display = 'none'; // F5
@@ -2434,8 +2437,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // Pady: F1 = Ruins (kamienne — pasuja do granitu); v0.192.0 standardowe HoverRepairPad/PowerHoverPad.
         // v0.192.0 (Mariusz): pady UJEDNOLICONE na wszystkich mapach — te same, co na City.
         // Sygnatury `update()` sa identyczne, wiec podmiana klasy nie rusza petli w main.ts.
-        mediPads = CASTLE_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
-        powerPads = CASTLE_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
+        // v0.194.0 (Mariusz): na Zamku pady -10% (miejsce na trampoliny w narozach). Tylko Zamek.
+        mediPads = CASTLE_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer, 0.9));
+        powerPads = CASTLE_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer, 0.9));
 
         // ── F2: ZAMEK — czesci z pieczonym artem (castleBake), hitbox == AABB z layoutu ──
         // Prebake calego kompletu tekstur TERAZ (jedna kosztowna chwila na starcie,
@@ -2892,10 +2896,12 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             onTutorialDone: () => { try { localStorage.setItem('bt2:castle_tut_done', '1'); } catch { /* prywatny tryb */ } },
         });
         powerSystem.onRepairActivated = (x, y) => castleSystem?.onRepairPower(x, y);
+        castleJump = new CastleJump(worldContainer); // GRUPA E — trampoliny zawsze (decyzja Mariusza, v0.194.0)
         // debug F12 (P0.13: tylko DEV / ?perf=1): castleInfo() -> stan HUD scenariusza; castleWave(n) -> natychmiastowy start fali n
         if (CASTLE_DEBUG_HOOKS) {
         (window as any).castleInfo = () => castleSystem?.getHudInfo();
         (window as any).castleSys = () => castleSystem;
+        (window as any).castleJumpSys = () => castleJump; // GRUPA E: stan trampolin (armed/readyAt)
         (window as any).castlePlayerPos = () => localPlayer ? [Math.round(localPlayer.x), Math.round(localPlayer.y)] : null;
         (window as any).castleTut = () => (castleSystem as unknown as { tutStep: number; tutWentOut: boolean } | null)?.tutStep;
         (window as any).castleTeleport = (x: number, y: number) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } };
@@ -4130,7 +4136,7 @@ function runLogicStep(delta: number): void {
     if (castleSystem) {
         castleFrameDelta = delta;
         spawnSystem.pickupsSuppressed = castleSystem.isBuildPhase();
-        const cr = castleSystem.update(delta, localPlayer, powerSystem.isInvulnerable);
+        const cr = castleSystem.update(delta, localPlayer, powerSystem.isInvulnerable || (castleJump?.isAirborne() ?? false)); // GRUPA E: w locie kamienie nie trafiaja
         if (cr.victory) { triggerVictory(); return; }
         if (cr.defeat) { triggerGameOver(); return; }
     }
@@ -4339,7 +4345,12 @@ function runLogicStep(delta: number): void {
 
     // OBRON ZAMEK F3: martwy gracz (czeka na respawn) — zero inputu/ruchu/strzalu.
     const castlePlayerDead = castleSystem ? castleSystem.isPlayerDead() : false;
+    // GRUPA E: wyskok z zamku — w locie CastleJump sam prowadzi pozycje/wizual czolgu, zero inputu.
+    const castleAirborne = castleJump
+        ? castleJump.update(delta, localPlayer, buildings, effects, !castlePlayerDead && gameState === 'PLAYING', (tx, c) => hud.addNotif(tx, c))
+        : false;
     if (castlePlayerDead) { isMouseDown = false; localPlayer.firing = false; }
+    else if (castleAirborne) { localPlayer.firing = false; } // isMouseDown zostaje: po ladowaniu trzymany strzal dziala dalej
     else {
         localPlayer.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
 
@@ -4599,7 +4610,7 @@ function runLogicStep(delta: number): void {
     }
 
     const now = Date.now();
-    if (isMouseDown && now - lastShotTime > localPlayer.brawler.reload) {
+    if (isMouseDown && !(castleJump?.isAirborne() ?? false) && now - lastShotTime > localPlayer.brawler.reload) { // GRUPA E: w locie bez strzalu
         // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
         // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
         // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
@@ -4673,7 +4684,7 @@ function runLogicStep(delta: number): void {
     // OBRON ZAMEK F3: sanktuarium apronu donzonu + nietykalnosc po respawnie + martwy gracz
     // wchodza do TEJ SAMEJ flagi co sanktuarium CTF (jedno zrodlo prawdy dla obu sciezek obrazen).
     const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(localPlayer.x, localPlayer.y)
-        : castleSystem ? (castleSystem.isInSanctuary(localPlayer.x, localPlayer.y) || castleSystem.isSpawnInvul() || castleSystem.isPlayerDead())
+        : castleSystem ? (castleSystem.isInSanctuary(localPlayer.x, localPlayer.y) || castleSystem.isSpawnInvul() || castleSystem.isPlayerDead() || (castleJump?.isAirborne() ?? false)) // GRUPA E: nietykalny w locie
         : queenSystem ? queenSystem.isPlayerProtected() // SAVE THE QUEEN Q4.5/Q6: laska startowa 3 s + flourish OCALONA = realna nietykalnosc
         : false;
 
@@ -5016,6 +5027,7 @@ function runLogicStep(delta: number): void {
         castleHudInfo.phase = ci.phase; castleHudInfo.wave = ci.wave; castleHudInfo.wavesTotal = ci.wavesTotal;
         castleHudInfo.phaseSecondsLeft = ci.phaseSecondsLeft; castleHudInfo.wallPct = ci.wallPct;
         castleHudInfo.gatePct = ci.gatePct; castleHudInfo.gateDestroyed = ci.gateDestroyed; castleHudInfo.keepPct = ci.keepPct;
+        castleHudInfo.gatePcts = ci.gatePcts; // v0.194.0 — segmenty bram w pasku HP Zamku
         castleHudInfo.gatesAlive = ci.gatesAlive; castleHudInfo.gatesTotal = ci.gatesTotal; castleHudInfo.wallsDestroyed = ci.wallsDestroyed;
         castleHudInfo.respawnSecondsLeft = ci.respawnSecondsLeft; castleHudInfo.enemiesAlive = ci.enemiesAlive; castleHudInfo.megaAlive = ci.megaAlive;
         castleHudInfo.lanes.length = 0;

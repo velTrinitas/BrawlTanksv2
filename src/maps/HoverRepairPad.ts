@@ -120,13 +120,20 @@ export class HoverRepairPad {
     private progressLabel: PIXI.Text;
     private cooldownLabel: PIXI.Text;
     
-    constructor(x: number, y: number, worldContainer: PIXI.Container) {
+    /** v0.194.0: skala padu (Zamek 0.9). Skalowane wokol SRODKA — srodek aktywacji i `x/y` (TOP-LEFT
+     *  100x100) bez zmian, a zasieg aktywacji maleje razem z wizualem (hitbox = wizual). */
+    private readonly padScale: number;
+
+    constructor(x: number, y: number, worldContainer: PIXI.Container, scale = 1) {
+        this.padScale = scale;
         this.x = x;
         this.y = y;
         
         this.container = new PIXI.Container();
-        this.container.x = x;
-        this.container.y = y;
+        this.container.pivot.set(PAD_SIZE / 2, PAD_SIZE / 2);
+        this.container.x = x + PAD_SIZE / 2;
+        this.container.y = y + PAD_SIZE / 2;
+        this.container.scale.set(scale);
         this.container.zIndex = y + 50;
         worldContainer.addChild(this.container);
         
@@ -199,7 +206,7 @@ export class HoverRepairPad {
             const dx = playerX - cx, dy = playerY - cy;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < ACTIVATE_RANGE && playerHp < playerMaxHp) {
+            if (dist < ACTIVATE_RANGE * this.padScale && playerHp < playerMaxHp) {
                 if (!isPlayerMoving) {
                     if (!this._repairStart) this._repairStart = now;
                     this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS);

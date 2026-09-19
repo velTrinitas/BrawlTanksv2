@@ -121,6 +121,18 @@ export function bakeDuck(): PIXI.Texture {
         c.quadraticCurveTo(-50, -12, -38, -14);
         c.closePath();
         c.fill();
+        // v0.194.0 — SPOD KORPUSU w cieniu (fake-3D): pionowy gradient przyciemnia dolna
+        // polowe brzucha, przyciety do elipsy korpusu, wiec kontur kaczki sie nie zmienia.
+        c.save();
+        c.beginPath();
+        c.ellipse(0, 6, 52, 40, 0, 0, Math.PI * 2);
+        c.clip();
+        g = c.createLinearGradient(0, 4, 0, 46);
+        g.addColorStop(0, 'rgba(150,90,0,0)');
+        g.addColorStop(1, 'rgba(150,90,0,0.45)');
+        c.fillStyle = g;
+        c.fillRect(-60, 4, 120, 44);
+        c.restore();
         // SKRZYDLO — cieplejszy gradient + kontur (czytelny detal przy zoom 0.6)
         g = c.createLinearGradient(-30, -16, 10, 22);
         g.addColorStop(0, '#ffca1a');

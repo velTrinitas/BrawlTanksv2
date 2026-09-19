@@ -189,11 +189,11 @@ export const CASTLE_HAY: readonly CastleRect[] = [
 
 /** Pady (footprint 100x100, TOP-LEFT): 1 medi + 1 power na podworzu, 1 + 1 za pierscieniem. */
 export const CASTLE_MEDI_PAD_POSITIONS: readonly CastlePoint[] = [
-    { x: 1230, y: 1230 }, // podworze NW
+    { x: 1255, y: 1255 }, // podworze NW (v0.194.0: +25 px od trampoliny NW)
     { x: 1620, y: 700 },  // za pierscieniem N
 ];
 export const CASTLE_POWER_PAD_POSITIONS: readonly CastlePoint[] = [
-    { x: 1670, y: 1670 }, // podworze SE
+    { x: 1645, y: 1645 }, // podworze SE (v0.194.0: -25 px od trampoliny SE)
     { x: 1280, y: 2200 }, // za pierscieniem S
 ];
 /** Pola zboza — stealth (passable). */
@@ -263,6 +263,26 @@ export function buildCastleTexture(): PIXI.Texture {
         c.restore();
     }
 
+    // B2 (v0.194.0): detal trawy i drogi losowany OSOBNYM rng. Glowny `rng` zasila
+    // pozniejsze dekoracje (namioty, ogniska, kamienie) — dodatkowe wywolania na nim
+    // przestawilyby caly dalszy uklad mapy. `rngB2` = zero wplywu na reszte bake'u.
+    const rngB2 = makeRng(0x0b2a7a55);
+
+    // ── 2b. Gradient patches — miekkie plamy (slonce/cien chmur), wieksza wariacja tonalna ──
+    const PATCH_TONES = ['143,206,104', '106,168,74', '168,210,98', '86,146,62'];
+    for (let i = 0; i < 90; i++) {
+        const x = rngB2() * WORLD_W, y = rngB2() * WORLD_H;
+        const r = 90 + rngB2() * 240;
+        const tone = PATCH_TONES[Math.floor(rngB2() * PATCH_TONES.length)];
+        const a = 0.10 + rngB2() * 0.12;
+        const g = c.createRadialGradient(x, y, r * 0.1, x, y, r);
+        g.addColorStop(0, `rgba(${tone},${a})`);
+        g.addColorStop(0.6, `rgba(${tone},${a * 0.5})`);
+        g.addColorStop(1, `rgba(${tone},0)`);
+        c.fillStyle = g;
+        c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+
     // ── 3. Grass tufts (short strokes, T1 lean SE) ──
     c.strokeStyle = CASTLE_PALETTE.meadowDark;
     c.lineWidth = 2;
@@ -278,11 +298,42 @@ export function buildCastleTexture(): PIXI.Texture {
     }
     c.globalAlpha = 1;
 
+    // ── 3b. Kepki z cieniem: 3 zdzbla w roznych tonach + cien kontaktowy SE (T1) ──
+    const BLADE_TONES = [CASTLE_PALETTE.meadowDark, CASTLE_PALETTE.forestMid, CASTLE_PALETTE.meadowLight, '#5e9a40'];
+    c.lineCap = 'round';
+    c.lineWidth = 1.8;
+    for (let i = 0; i < 1500; i++) {
+        const x = rngB2() * WORLD_W, y = rngB2() * WORLD_H;
+        const s = 0.8 + rngB2() * 0.7;
+        c.fillStyle = 'rgba(28,58,20,0.22)';
+        c.beginPath(); c.ellipse(x + 2 * s, y + 1.5 * s, 6 * s, 2.2 * s, 0, 0, Math.PI * 2); c.fill();
+        for (let b = -1; b <= 1; b++) {
+            c.strokeStyle = BLADE_TONES[Math.floor(rngB2() * BLADE_TONES.length)];
+            const h = (7 + rngB2() * 6) * s;
+            c.beginPath();
+            c.moveTo(x + b * 2.5 * s, y);
+            c.quadraticCurveTo(x + b * 3 * s, y - h * 0.6, x + b * 4.5 * s + 2 * s, y - h);
+            c.stroke();
+        }
+    }
+    c.lineCap = 'butt';
+
     // ── 4. Ring road — dirt loop through the 8 waypoints (enemy route, readable) ──
     const ROAD_W = 64;
     c.save();
     c.lineJoin = 'round';
     c.lineCap = 'round';
+    // B2: ciemniejszy obrys drogi (pod krawedzia) — trasa wrogow czytelniejsza na trawie
+    c.strokeStyle = '#6f5f42';
+    c.globalAlpha = 0.32;
+    c.lineWidth = ROAD_W + 18;
+    strokeRing(c);
+    for (const lane of CASTLE_LANES) {
+        const rp = CASTLE_RING.find(r => r.id === lane.ring)!;
+        const bc = CASTLE_BRIDGE_CENTERS[lane.id];
+        c.beginPath(); c.moveTo(lane.x, lane.y); c.lineTo(rp.x, rp.y); c.lineTo(bc.x, bc.y); c.stroke();
+    }
+    c.globalAlpha = 1;
     c.strokeStyle = CASTLE_PALETTE.roadEdge;
     c.lineWidth = ROAD_W + 10;
     c.globalAlpha = 0.55;
@@ -313,6 +364,56 @@ export function buildCastleTexture(): PIXI.Texture {
     strokeRing(c, -14);
     strokeRing(c, 14);
     c.setLineDash([]);
+
+    // B2: wydeptany, jasniejszy srodek (ring + lane'y)
+    c.strokeStyle = '#d2bf93';
+    c.globalAlpha = 0.38;
+    c.lineWidth = ROAD_W * 0.38;
+    strokeRing(c);
+    for (const lane of CASTLE_LANES) {
+        const rp = CASTLE_RING.find(r => r.id === lane.ring)!;
+        const bc = CASTLE_BRIDGE_CENTERS[lane.id];
+        c.beginPath(); c.moveTo(lane.x, lane.y); c.lineTo(rp.x, rp.y); c.lineTo(bc.x, bc.y); c.stroke();
+    }
+    // B2: glebokie koleiny — ciagly ciemny zlobek + jasny rant od NW (T1)
+    c.globalAlpha = 0.4;
+    c.strokeStyle = '#7a6848';
+    c.lineWidth = 5;
+    strokeRing(c, -14);
+    strokeRing(c, 14);
+    c.globalAlpha = 0.3;
+    c.strokeStyle = '#e0d0a8';
+    c.lineWidth = 1.5;
+    strokeRing(c, -11);
+    strokeRing(c, 17);
+    c.globalAlpha = 1;
+
+    // B2: kamyki na drodze (wzdluz segmentow ringu i lane'ow)
+    const segs: Array<[number, number, number, number]> = [];
+    for (let i = 0; i < CASTLE_RING.length; i++) {
+        const a = CASTLE_RING[i], b = CASTLE_RING[(i + 1) % CASTLE_RING.length];
+        segs.push([a.x, a.y, b.x, b.y]);
+    }
+    for (const lane of CASTLE_LANES) {
+        const rp = CASTLE_RING.find(r => r.id === lane.ring)!;
+        const bc = CASTLE_BRIDGE_CENTERS[lane.id];
+        segs.push([lane.x, lane.y, rp.x, rp.y], [rp.x, rp.y, bc.x, bc.y]);
+    }
+    for (const [ax, ay, bx, by] of segs) {
+        const len = Math.hypot(bx - ax, by - ay);
+        if (len < 1) continue;
+        const nx = -(by - ay) / len, ny = (bx - ax) / len;
+        const count = Math.floor(len / 22);
+        for (let k = 0; k < count; k++) {
+            const t = rngB2(), off = (rngB2() - 0.5) * ROAD_W * 0.85;
+            const px = ax + (bx - ax) * t + nx * off, py = ay + (by - ay) * t + ny * off;
+            const r = 1.8 + rngB2() * 2.6;
+            c.fillStyle = 'rgba(60,48,30,0.35)';
+            c.beginPath(); c.ellipse(px + 1, py + 1, r, r * 0.7, 0, 0, Math.PI * 2); c.fill();
+            c.fillStyle = rngB2() < 0.5 ? '#9a9486' : '#b1ab9c';
+            c.beginPath(); c.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2); c.fill();
+        }
+    }
     c.restore();
 
     // ── 5. Moat basin (water) + bank ──
@@ -401,7 +502,7 @@ export function buildCastleTexture(): PIXI.Texture {
         for (const [px, py] of [[cx - 80, cy + 30], [cx + 80, cy + 30]]) {
             c.strokeStyle = CASTLE_PALETTE.trunkDark; c.lineWidth = 3;
             c.beginPath(); c.moveTo(px, py); c.lineTo(px, py - 26); c.stroke();
-            c.fillStyle = CASTLE_PALETTE.enemyRed; c.fillRect(px, py - 26, 10, 7);
+            // szmata = sprite CastleCampFlags (B3 v0.194.0)
         }
     }
 

@@ -84,29 +84,40 @@ export class CatapultStone {
         return null;
     }
 
+    /**
+     * v0.194.0 (Mariusz: "wiadomo skad i gdzie spadnie") — telegraf wzmocniony, nie zdublowany:
+     * - pierscien ma promien DOKLADNIE splashR (hitbox = wizual, jak bylo),
+     * - WYPELNIENIE rosnie od srodka do krawedzi razem z lotem = odliczanie do uderzenia,
+     * - ostatnie 35% lotu kolor ucieka z zoltego w CZERWONY i puls przyspiesza = "teraz!".
+     * Puls liczony z postepu lotu, nie z Date.now() — zamiera z pauza i hit-stopem.
+     */
     private drawTelegraph(): void {
         const g = this.gfxTelegraph;
-        const time = Date.now();
+        const p = Math.max(0, this.prog);
         g.clear();
+        const late = p > 0.65;
+        const col = late ? 0xff3b30 : 0xf1c40f;
+        const pulse = Math.sin(p * (late ? 60 : 24));
         const dx = this.tx - this.sx, dy = this.ty - this.sy;
         const segs = Math.min(24, Math.max(2, Math.floor(Math.hypot(dx, dy) / 24)));
-        g.lineStyle(1.5, 0xf1c40f, 0.3 + Math.sin(time / 110) * 0.1);
+        g.lineStyle(2, 0xf1c40f, 0.35 + pulse * 0.1);
         for (let i = 0; i < segs; i += 2) {
             const t0 = i / segs, t1 = Math.min(1, (i + 1) / segs);
             g.moveTo(this.sx + dx * t0, this.sy + dy * t0);
             g.lineTo(this.sx + dx * t1, this.sy + dy * t1);
         }
         g.lineStyle(0);
-        const ringAlpha = 0.35 + Math.sin(time / 46) * 0.15;
-        g.lineStyle(3, 0xf1c40f, ringAlpha);
-        g.drawCircle(this.tx, this.ty, this.splashR);
-        g.lineStyle(0);
-        g.beginFill(0xf1c40f, 0.10);
+        g.beginFill(col, 0.10);
         g.drawCircle(this.tx, this.ty, this.splashR);
         g.endFill();
-        g.lineStyle(2, 0xf1c40f, ringAlpha + 0.2);
-        g.moveTo(this.tx - 10, this.ty); g.lineTo(this.tx + 10, this.ty);
-        g.moveTo(this.tx, this.ty - 10); g.lineTo(this.tx, this.ty + 10);
+        g.beginFill(col, late ? 0.30 : 0.20);
+        g.drawCircle(this.tx, this.ty, Math.max(4, this.splashR * p));
+        g.endFill();
+        g.lineStyle(late ? 4 : 3, col, 0.6 + pulse * 0.25);
+        g.drawCircle(this.tx, this.ty, this.splashR);
+        g.lineStyle(2.5, col, 0.85);
+        g.moveTo(this.tx - 12, this.ty); g.lineTo(this.tx + 12, this.ty);
+        g.moveTo(this.tx, this.ty - 12); g.lineTo(this.tx, this.ty + 12);
         g.lineStyle(0);
     }
 
@@ -114,16 +125,18 @@ export class CatapultStone {
         const p = this.prog;
         const bx = this.sx + (this.tx - this.sx) * p;
         const by = this.sy + (this.ty - this.sy) * p;
-        const arc = Math.sin(p * Math.PI) * 110;
+        const alt = Math.sin(p * Math.PI);          // 0 na ziemi, 1 w szczycie
+        const arc = alt * 130;                      // v0.194.0: 110 -> 130, luk ma byc widac
+        // v0.194.0 — cien jest OSOBNO na ziemi, pod torem: nisko duzy i ciemny, w gorze maly
+        // i blady (do v0.193.0 staly 10x5 px — ginal pod glazem i nie mowil nic o wysokosci).
         this.shadow.clear();
-        this.shadow.beginFill(0x000000, 0.28);
-        this.shadow.drawEllipse(bx, by, 10, 5);
+        this.shadow.beginFill(0x000000, 0.5 - alt * 0.28);
+        this.shadow.drawEllipse(bx, by, 17 - alt * 7, 8 - alt * 3);
         this.shadow.endFill();
         this.stone.visible = true;
         this.stone.x = bx; this.stone.y = by - arc;
         this.stone.rotation = p * 9;
-        const s = 0.9 + Math.sin(p * Math.PI) * 0.5; // wyzej = wiekszy (blizej kamery)
-        this.stone.scale.set(s);
+        this.stone.scale.set(0.95 + alt * 0.6); // wyzej = wiekszy (blizej kamery)
     }
 
     private drawCrater(): void {

@@ -52,6 +52,8 @@ export interface CastleHudInfo {
     wallPct: number;
     gatePct: number;
     gateDestroyed: boolean;
+    /** v0.194.0 — HP kazdej bramy osobno (0 = zniszczona), dla segmentow paska HP Zamku. */
+    gatePcts: number[];
     gatesAlive: number;
     gatesTotal: number;
     keepPct: number;
@@ -337,6 +339,7 @@ export class CastleSystem {
             wallPct: wallMax > 0 ? wallHp / wallMax : 1,
             gatePct: gateMin,
             gateDestroyed: gatesAlive < this.gates.length,
+            gatePcts: this.gates.map(g => g.isDestroyed ? 0 : g.hpPct),
             gatesAlive,
             gatesTotal: this.gates.length,
             keepPct: this.keep.hpPct,

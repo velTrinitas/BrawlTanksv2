@@ -98,22 +98,16 @@ export function drawTent(c: CanvasRenderingContext2D, rng: Rng, x: number, y: nu
     // wejscie
     c.fillStyle = '#2a2318';
     c.beginPath(); c.moveTo(x, y - 2); c.lineTo(x - 7, y + h / 2); c.lineTo(x + 7, y + h / 2); c.closePath(); c.fill();
-    // maszt z czerwonym proporcem
+    // maszt (proporzec = sprite CastleCampFlags, lopocze — B3 v0.194.0)
     c.strokeStyle = P.trunkDark; c.lineWidth = 2;
     c.beginPath(); c.moveTo(x, y - 14); c.lineTo(x, y - 34); c.stroke();
-    c.fillStyle = P.enemyRed;
-    c.beginPath(); c.moveTo(x, y - 34); c.lineTo(x + 16, y - 29); c.lineTo(x, y - 24); c.closePath(); c.fill();
     void rng;
 }
 
-/** Sztandar najezdzcow na maszcie (przy obozie) — czerwony, czarny znak. */
+/** Maszt sztandaru najezdzcow (plotno = sprite CastleCampFlags, lopocze — B3 v0.194.0). */
 export function drawWarBanner(c: CanvasRenderingContext2D, x: number, y: number): void {
     c.strokeStyle = P.trunkDark; c.lineWidth = 3;
     c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - 48); c.stroke();
-    c.fillStyle = P.enemyRed;
-    c.fillRect(x + 1, y - 48, 22, 30);
-    c.fillStyle = '#1a1a1a';
-    c.beginPath(); c.moveTo(x + 12, y - 42); c.lineTo(x + 19, y - 26); c.lineTo(x + 5, y - 26); c.closePath(); c.fill();
     c.fillStyle = P.gold; c.beginPath(); c.arc(x, y - 50, 3, 0, Math.PI * 2); c.fill();
 }
 

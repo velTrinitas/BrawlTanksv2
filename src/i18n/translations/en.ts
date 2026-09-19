@@ -764,6 +764,8 @@ export const en: typeof pl = {
     'castle.tut.step4': '4/4 · The wall took a hit. STAND still next to it until it is repaired',
     'castle.tut.done': '✅ TRAINING COMPLETE — now the real siege!',
     'castle.tut.skip': 'Skip training',
+    // GROUP E — castle trampolines (always on, v0.194.0)
+    'castle.jump.blocked': 'Landing spot blocked — roll off and try again',
     // OBRON ZAMEK F5 — HUD
     'hud.castle.wall': 'WALL',
     'hud.castle.keep': 'KEEP',

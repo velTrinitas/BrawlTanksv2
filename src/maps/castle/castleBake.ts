@@ -554,21 +554,115 @@ export function prebakeCastle(wallW: number, wallH: number, towerAabb: number, k
 
 export type SiegeKind = 'taran' | 'katapulta' | 'trebuchet';
 
-function wheel(c: CanvasRenderingContext2D, x: number, y: number, r: number): void {
-    c.fillStyle = P.iron; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
-    c.fillStyle = P.oakDark; c.beginPath(); c.arc(x, y, r - 2.5, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = P.oak; c.lineWidth = 1.5;
-    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; c.beginPath(); c.moveTo(x - Math.cos(a) * (r - 3), y - Math.sin(a) * (r - 3)); c.lineTo(x + Math.cos(a) * (r - 3), y + Math.sin(a) * (r - 3)); c.stroke(); }
-    c.fillStyle = P.iron; c.beginPath(); c.arc(x, y, 2, 0, Math.PI * 2); c.fill();
+// v0.194.0 (B1, Mariusz: "maszyny sa plaskie") — prymitywy drewna/zelaza w FAKE-3D.
+// Swiatlo T1 (slonce NW): kazdy element ma ciemny BOK przesuniety na SE (grubosc bryly),
+// wieko z gradientem jasne N/W -> ciemne S/E, gruby kontur (czytelnosc przy zoom 0.6)
+// i metal z blikiem. Rozmiary tekstur i geometria elementow BEZ ZMIAN (hitbox = wizual).
+const SIEGE_OUTLINE = 'rgba(28,16,6,0.9)';
+const SIEGE_DEPTH = 3; // grubosc bryly (px) — bok widoczny od strony cienia SE
+
+/**
+ * v0.194.1 (Mariusz: "kola wygladaja jak krecace sie mlynki") — kolo wozu w widoku Z GORY.
+ * Maszyna jedzie w +x (leb taranu z przodu), osie ida wzdluz y, wiec kolo toczace sie
+ * wzdluz jazdy widac KRAWEDZIA: waski bieznik dlugosci 2r wzdluz x. Na zewnatrz osi
+ * (`side` = -1 gora / +1 dol) wystaje czop piasty, a od strony zewnetrznej widac waski
+ * pas bocznej tarczy (2.5D). Zadnych szprych na tarczy — to one robily "mlynek".
+ */
+function wheel(c: CanvasRenderingContext2D, x: number, y: number, r: number, side: -1 | 1): void {
+    const t = 7;                    // szerokosc biezika (grubosc kola)
+    const x0 = x - r, len = r * 2;
+    const y0 = y - t / 2;
+    // cien pod kolem (SE)
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    c.fillRect(x0 + 2, y0 + 3, len, t);
+    // boczna tarcza (drewno) — waski pas widoczny od strony zewnetrznej
+    const face = side > 0 ? y0 + t - 1 : y0 - 3;
+    c.fillStyle = P.oakDark;
+    c.fillRect(x0 + 2, face, len - 4, 4);
+    // bieznik: zelazna obrecz z gradientem w poprzek (walec)
+    const g = c.createLinearGradient(0, y0, 0, y0 + t);
+    g.addColorStop(0, '#9aa0aa'); g.addColorStop(0.5, P.iron); g.addColorStop(1, '#23252a');
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(x0 + 2, y0); c.lineTo(x0 + len - 2, y0);
+    c.quadraticCurveTo(x0 + len + 1, y0 + t / 2, x0 + len - 2, y0 + t);
+    c.lineTo(x0 + 2, y0 + t);
+    c.quadraticCurveTo(x0 - 1, y0 + t / 2, x0 + 2, y0);
+    c.closePath(); c.fill();
+    c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 2; c.stroke();
+    // rowki bieznika — poprzeczne, czytaja sie jak "toczy sie wzdluz jazdy"
+    c.strokeStyle = 'rgba(20,20,24,0.65)'; c.lineWidth = 1.2;
+    for (let i = 1; i < 5; i++) { const xx = x0 + (len * i) / 5; c.beginPath(); c.moveTo(xx, y0 + 1); c.lineTo(xx, y0 + t - 1); c.stroke(); }
+    // blik wzdluz gornej krawedzi walca
+    c.strokeStyle = 'rgba(255,255,255,0.45)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x0 + 3, y0 + 1.5); c.lineTo(x0 + len - 3, y0 + 1.5); c.stroke();
+    // czop piasty wystajacy NA ZEWNATRZ osi
+    const hy = side > 0 ? y0 + t + 1 : y0 - 5;
+    c.fillStyle = P.iron; c.fillRect(x - 3, hy, 6, 4);
+    c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.2; c.strokeRect(x - 3, hy, 6, 4);
+    c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(x - 2, hy + 0.5, 1.5, 1.2);
 }
 function beam(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, dark = false): void {
-    c.fillStyle = dark ? P.oakDark : P.oak; c.fillRect(x, y, w, h);
-    c.strokeStyle = 'rgba(0,0,0,0.35)'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-    c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(x, y, w, 2);
+    const d = SIEGE_DEPTH;
+    // BOK bryly (SE) — ciemny pas pod i na prawo od wieka
+    c.fillStyle = dark ? '#2a1a0a' : '#3a2610';
+    c.fillRect(x + d, y + d, w, h);
+    // WIEKO: gradient w poprzek krotszej osi (jasne N/W -> ciemne S/E)
+    const horiz = w >= h;
+    const g = horiz ? c.createLinearGradient(0, y, 0, y + h) : c.createLinearGradient(x, 0, x + w, 0);
+    const base = dark ? P.oakDark : P.oak;
+    g.addColorStop(0, dark ? '#6a4520' : '#9a6a36');
+    g.addColorStop(0.45, base);
+    g.addColorStop(1, dark ? '#321f0c' : '#4e3217');
+    c.fillStyle = g; c.fillRect(x, y, w, h);
+    // slojowanie drewna wzdluz dluzszej osi
+    c.strokeStyle = 'rgba(30,16,4,0.28)'; c.lineWidth = 1;
+    const n = Math.max(1, Math.floor((horiz ? h : w) / 4));
+    for (let i = 1; i <= n; i++) {
+        c.beginPath();
+        if (horiz) { const yy = y + (i * h) / (n + 1); c.moveTo(x + 2, yy); c.lineTo(x + w - 2, yy + 0.6); }
+        else { const xx = x + (i * w) / (n + 1); c.moveTo(xx, y + 2); c.lineTo(xx + 0.6, y + h - 2); }
+        c.stroke();
+    }
+    // blik krawedzi N/W
+    c.fillStyle = 'rgba(255,235,200,0.30)';
+    c.fillRect(x, y, w, 1.5); c.fillRect(x, y, 1.5, h);
+    // gruby kontur calej bryly (wieko + bok)
+    c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.6;
+    c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 function ironBand(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-    c.fillStyle = P.iron; c.fillRect(x, y, w, h);
-    c.fillStyle = P.gold; c.fillRect(x + 2, y + h / 2 - 1, 2, 2); c.fillRect(x + w - 4, y + h / 2 - 1, 2, 2);
+    c.fillStyle = '#16171a'; c.fillRect(x + 1.5, y + 1.5, w, h); // bok (cien)
+    const horiz = w >= h;
+    const g = horiz ? c.createLinearGradient(0, y, 0, y + h) : c.createLinearGradient(x, 0, x + w, 0);
+    g.addColorStop(0, '#9aa0aa'); g.addColorStop(0.4, '#5a5f69'); g.addColorStop(1, '#2a2c31');
+    c.fillStyle = g; c.fillRect(x, y, w, h);
+    c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.4; c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    // nity: zlote lby + bialy blik
+    const rivet = (rx: number, ry: number): void => {
+        c.fillStyle = P.goldDark; c.beginPath(); c.arc(rx + 0.6, ry + 0.6, 1.8, 0, Math.PI * 2); c.fill();
+        c.fillStyle = P.gold; c.beginPath(); c.arc(rx, ry, 1.6, 0, Math.PI * 2); c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.85)'; c.fillRect(rx - 0.9, ry - 0.9, 0.9, 0.9);
+    };
+    if (horiz) { rivet(x + 3, y + h / 2); rivet(x + w - 3, y + h / 2); }
+    else { rivet(x + w / 2, y + 3); rivet(x + w / 2, y + h - 3); }
+}
+/** Glaz w fake-3D: cien SE + radialny gradient + kontur + blik. */
+function siegeRock(c: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+    c.fillStyle = 'rgba(0,0,0,0.35)'; c.beginPath(); c.arc(x + 1.5, y + 2, r, 0, Math.PI * 2); c.fill();
+    const g = c.createRadialGradient(x - r * 0.4, y - r * 0.4, 0.5, x, y, r);
+    g.addColorStop(0, P.graniteTop); g.addColorStop(0.7, P.granite); g.addColorStop(1, P.graniteDeep);
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.4; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.55)'; c.beginPath(); c.arc(x - r * 0.35, y - r * 0.35, Math.max(1, r * 0.25), 0, Math.PI * 2); c.fill();
+}
+/** Znak najezdzcy (czerwona tarcza) — fake-3D + kontur, zeby czytal sie z daleka jako WROG. */
+function enemyMark(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+    c.fillStyle = '#6e1a12'; c.fillRect(x + 1.5, y + 1.5, w, h);
+    const g = c.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, '#e85b4a'); g.addColorStop(1, '#8e2419');
+    c.fillStyle = g; c.fillRect(x, y, w, h);
+    c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.4; c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
 export function bakeSiegeMachine(kind: SiegeKind): PIXI.Texture {
@@ -576,15 +670,36 @@ export function bakeSiegeMachine(kind: SiegeKind): PIXI.Texture {
     const hit = cache.get(key);
     if (hit) return hit.tex;
     const size = kind === 'trebuchet' ? 132 : kind === 'katapulta' ? 104 : 104;
-    const part = baked(key, size, size, 0, 0, (c) => {
-        const cx = size / 2, cy = size / 2;
-        // cien ogolny
-        c.fillStyle = 'rgba(10,20,12,0.28)';
-        c.beginPath(); c.ellipse(cx + 4, cy + 5, size * 0.4, size * 0.26, 0, 0, Math.PI * 2); c.fill();
+    // v0.194.0: leb taranu (cx+60) i kosz katapulty (cx-55) wystawaly poza 104 px i byly
+    // obciete (trebusz: glaz procy cx-69 przy 132). Plotno poszerzone TYLKO w poziomie i SYMETRYCZNIE: `useCustomSprite` kotwiczy
+    // anchor 0.5 (srodek w tym samym punkcie swiata), a pasek HP liczy sie z WYSOKOSCI
+    // tekstury — wysokosc zostaje, wiec pasek tez. Hitbox to AABB z logiki, nie tekstura.
+    const texW = kind === 'taran' ? 128 : kind === 'katapulta' ? 120 : 144; // trebusz: glaz procy cx-69
+    const part = baked(key, texW, size, 0, 0, (c) => {
+        const cx = texW / 2, cy = size / 2;
+        // v0.194.0 — CIEN: jedna miekka elipsa z gradientem radialnym, ciasno pod obrysem ramy+kol
+        // (kilka px zapasu), przesunieta lekko SE, krycie max 0.28 -> 0 na krawedzi.
+        // Poprzednio: duza elipsa 0.30 + dwie warstwy roundRect, ktorych kolor `rgba(10,20,12,)`
+        // byl NIEPOPRAWNY (brak alfy) — canvas go odrzucal i obie warstwy rysowaly sie
+        // poprzednim kolorem 0.30, co dawalo trzy nalozone cienie = czarna plama (trebusz najgorzej).
+        // Pol-wymiary [hw, hh] i przesuniecie srodka dx wg obrysu ramy i kol kazdej maszyny.
+        const [shDx, shHw, shHh] = kind === 'taran' ? [-7, 37, 26]
+            : kind === 'katapulta' ? [0, 38, 28]
+            : [0, 52, 36];
+        c.save();
+        c.translate(cx + shDx + 3, cy + 4);
+        c.scale(1, shHh / shHw);
+        const shG = c.createRadialGradient(0, 0, shHw * 0.35, 0, 0, shHw);
+        shG.addColorStop(0, 'rgba(10,20,12,0.28)');
+        shG.addColorStop(0.7, 'rgba(10,20,12,0.16)');
+        shG.addColorStop(1, 'rgba(10,20,12,0)');
+        c.fillStyle = shG;
+        c.beginPath(); c.arc(0, 0, shHw, 0, Math.PI * 2); c.fill();
+        c.restore();
         if (kind === 'taran') {
             // rama wozu (kryty dach z desek) + 4 kola + belka z zelaznym lbem wystajaca do przodu
-            wheel(c, cx - 26, cy - 22, 9); wheel(c, cx + 14, cy - 22, 9);
-            wheel(c, cx - 26, cy + 22, 9); wheel(c, cx + 14, cy + 22, 9);
+            wheel(c, cx - 26, cy - 22, 9, -1); wheel(c, cx + 14, cy - 22, 9, -1);
+            wheel(c, cx - 26, cy + 22, 9, 1); wheel(c, cx + 14, cy + 22, 9, 1);
             beam(c, cx - 40, cy - 17, 66, 34, true);
             // deski dachu (poprzeczne)
             for (let i = 0; i < 6; i++) beam(c, cx - 38 + i * 11, cy - 15, 9, 30);
@@ -593,30 +708,40 @@ export function bakeSiegeMachine(kind: SiegeKind): PIXI.Texture {
             beam(c, cx - 30, cy - 5, 78, 10, true);
             c.fillStyle = P.oak; c.fillRect(cx - 28, cy - 3, 72, 6);
             // zelazny leb
-            c.fillStyle = P.iron;
-            c.beginPath(); c.moveTo(cx + 46, cy - 9); c.lineTo(cx + 60, cy - 4); c.lineTo(cx + 60, cy + 4); c.lineTo(cx + 46, cy + 9); c.closePath(); c.fill();
+            // v0.194.0: leb w fake-3D — bok SE, stalowy gradient, kontur, zloty grot z blikiem
+            const ramHead = (ox: number, oy: number): void => {
+                c.beginPath(); c.moveTo(cx + 46 + ox, cy - 9 + oy); c.lineTo(cx + 60 + ox, cy - 4 + oy); c.lineTo(cx + 60 + ox, cy + 4 + oy); c.lineTo(cx + 46 + ox, cy + 9 + oy); c.closePath();
+            };
+            c.fillStyle = '#16171a'; ramHead(1.5, 2); c.fill();
+            const rg = c.createLinearGradient(0, cy - 9, 0, cy + 9);
+            rg.addColorStop(0, '#a3a9b3'); rg.addColorStop(0.45, '#5a5f69'); rg.addColorStop(1, '#25272c');
+            c.fillStyle = rg; ramHead(0, 0); c.fill();
+            c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.8; c.stroke();
             c.fillStyle = P.gold; c.fillRect(cx + 50, cy - 2, 6, 4);
+            c.fillStyle = 'rgba(255,255,255,0.8)'; c.fillRect(cx + 50, cy - 2, 3, 1);
             // znak wroga na dachu
-            c.fillStyle = P.enemyRed; c.fillRect(cx - 14, cy - 12, 14, 8);
+            enemyMark(c, cx - 14, cy - 12, 14, 8);
         } else if (kind === 'katapulta') {
-            wheel(c, cx - 20, cy - 24, 9); wheel(c, cx + 20, cy - 24, 9);
-            wheel(c, cx - 20, cy + 24, 9); wheel(c, cx + 20, cy + 24, 9);
+            wheel(c, cx - 20, cy - 24, 9, -1); wheel(c, cx + 20, cy - 24, 9, -1);
+            wheel(c, cx - 20, cy + 24, 9, 1); wheel(c, cx + 20, cy + 24, 9, 1);
             beam(c, cx - 34, cy - 20, 68, 8); beam(c, cx - 34, cy + 12, 68, 8);
             beam(c, cx - 34, cy - 20, 8, 40, true); beam(c, cx + 26, cy - 20, 8, 40, true);
             // os ramienia + ramie skierowane do TYLU (-X), kosz z glazem na koncu
             ironBand(c, cx - 6, cy - 22, 12, 44);
             beam(c, cx - 44, cy - 4, 50, 8);
+            // kosz (fake-3D: bok SE + kontur) i glaz w nim
+            c.fillStyle = '#2a1a0a'; c.beginPath(); c.arc(cx - 44.5, cy + 2, 9, 0, Math.PI * 2); c.fill();
             c.fillStyle = P.oakDark; c.beginPath(); c.arc(cx - 46, cy, 9, 0, Math.PI * 2); c.fill();
-            c.fillStyle = P.granite; c.beginPath(); c.arc(cx - 46, cy, 6, 0, Math.PI * 2); c.fill();
-            c.fillStyle = P.graniteTop; c.beginPath(); c.arc(cx - 48, cy - 2, 2.5, 0, Math.PI * 2); c.fill();
+            c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.8; c.stroke();
+            siegeRock(c, cx - 46, cy, 6);
             // sznury napiete
             c.strokeStyle = '#c9b88a'; c.lineWidth = 1.5;
             c.beginPath(); c.moveTo(cx - 30, cy - 18); c.lineTo(cx + 8, cy - 2); c.moveTo(cx - 30, cy + 18); c.lineTo(cx + 8, cy + 2); c.stroke();
-            c.fillStyle = P.enemyRed; c.fillRect(cx + 12, cy - 4, 10, 8);
+            enemyMark(c, cx + 12, cy - 4, 10, 8);
         } else {
             // TREBUCHET: duza platforma, 2 A-ramy, dlugie ramie z przeciwwaga (skrzynia) i proca
-            wheel(c, cx - 34, cy - 32, 10); wheel(c, cx + 34, cy - 32, 10);
-            wheel(c, cx - 34, cy + 32, 10); wheel(c, cx + 34, cy + 32, 10);
+            wheel(c, cx - 34, cy - 32, 10, -1); wheel(c, cx + 34, cy - 32, 10, -1);
+            wheel(c, cx - 34, cy + 32, 10, 1); wheel(c, cx + 34, cy + 32, 10, 1);
             beam(c, cx - 48, cy - 28, 96, 10); beam(c, cx - 48, cy + 18, 96, 10);
             beam(c, cx - 48, cy - 28, 10, 56, true); beam(c, cx + 38, cy - 28, 10, 56, true);
             // A-ramy (jako pary belek zbiegajacych sie do osi)
@@ -625,18 +750,21 @@ export function bakeSiegeMachine(kind: SiegeKind): PIXI.Texture {
             // ramie: krotki koniec do przodu z przeciwwaga, dlugi do tylu z proca
             beam(c, cx - 58, cy - 5, 80, 10);
             // przeciwwaga (skrzynia z kamieniami) z przodu
-            c.fillStyle = P.oakDark; c.fillRect(cx + 20, cy - 16, 26, 32);
+            // skrzynia przeciwwagi = wyzsza bryla (bok 5 px) — najciezszy element, ma byc "masywny"
+            c.fillStyle = '#24160a'; c.fillRect(cx + 25, cy - 11, 26, 32);
+            beam(c, cx + 20, cy - 16, 26, 32, true);
             c.fillStyle = P.oak; c.fillRect(cx + 23, cy - 13, 20, 26);
+            c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1; c.strokeRect(cx + 23.5, cy - 12.5, 19, 25);
             ironBand(c, cx + 20, cy - 4, 26, 8);
-            c.fillStyle = P.granite; for (let i = 0; i < 4; i++) { c.beginPath(); c.arc(cx + 27 + (i % 2) * 10, cy - 7 + Math.floor(i / 2) * 12, 4, 0, Math.PI * 2); c.fill(); }
+            for (let i = 0; i < 4; i++) siegeRock(c, cx + 27 + (i % 2) * 10, cy - 7 + Math.floor(i / 2) * 12, 4);
             // proca z glazem z tylu
             c.strokeStyle = '#c9b88a'; c.lineWidth = 2;
             c.beginPath(); c.moveTo(cx - 58, cy); c.lineTo(cx - 62, cy + 14); c.stroke();
-            c.fillStyle = P.granite; c.beginPath(); c.arc(cx - 62, cy + 18, 7, 0, Math.PI * 2); c.fill();
-            c.fillStyle = P.graniteTop; c.beginPath(); c.arc(cx - 64, cy + 16, 3, 0, Math.PI * 2); c.fill();
+            siegeRock(c, cx - 62, cy + 18, 7);
             // sztandar wroga
             c.strokeStyle = P.trunkDark; c.lineWidth = 2; c.beginPath(); c.moveTo(cx - 40, cy - 30); c.lineTo(cx - 40, cy - 52); c.stroke();
             c.fillStyle = P.enemyRed; c.beginPath(); c.moveTo(cx - 40, cy - 52); c.lineTo(cx - 24, cy - 47); c.lineTo(cx - 40, cy - 42); c.closePath(); c.fill();
+            c.strokeStyle = SIEGE_OUTLINE; c.lineWidth = 1.4; c.stroke();
         }
     });
     return part.tex;

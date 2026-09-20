@@ -641,7 +641,17 @@ export class Enemy {
         this.hpBar.y = -(tex.height * displayScale) / 2 - 12;
     }
 
+    /**
+     * v0.200.0 — BEZPIECZNIK: nigdy nie rysuj po zniszczeniu kontenera.
+     *
+     * Guard `isDead` w `takeDamage` (v0.188.0) zalatal JEDNA sciezke smierci. Sigma zlapala druga:
+     * zabicie TARANEM (`main.ts`) niszczy `enemy.container` wprost w petli i do v0.200.0 NIE oznaczalo
+     * wroga jako martwego — kolejny pocisk albo AoE w tej samej klatce przechodzil przez guard
+     * i wywalal gre na `clear()` zniszczonej Graphics. Zrodlo naprawione przy taranie
+     * (`markDestroyedExternally`), a to jest druga linia obrony dla kazdej przyszlej sciezki.
+     */
     private drawHp(): void {
+        if (this.isDead || this.hpBar.destroyed) return;
         this.hpBar.clear();
         const barW = this.isMegaBoss ? 100 : (this.isBoss ? 70 : (this.isPursuit ? 55 : 40));
         this.hpBar.beginFill(0x000000, 0.5);
@@ -1132,6 +1142,16 @@ export class Enemy {
             return true;
         }
         return false;
+    }
+
+    /**
+     * v0.200.0 — wroga zniszczyl KTOS Z ZEWNATRZ (taran w `main.ts`, debug `castleKillAll`),
+     * omijajac sciezke `takeDamage`. Bez tego `isDead` zostawalo `false` i nastepne trafienie
+     * w tej samej klatce szlo prosto na zniszczona Graphics.
+     */
+    markDestroyedExternally(): void {
+        this.isDead = true;
+        this.active = false;
     }
 
     getGemDropCount(): number {

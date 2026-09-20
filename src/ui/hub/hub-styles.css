@@ -3089,7 +3089,9 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-gr2-canvas { width: clamp(112px, 38vh, 170px); height: clamp(112px, 38vh, 170px); }
     .bt-gr2-stage2 { gap: 8px; margin-bottom: 8px; }
     .bt-gr2-side { width: clamp(150px, 34vw, 240px); gap: 4px; }
-    .bt-gr2-stage2 .bt-gr2-canvas { width: clamp(130px, 40vh, 200px); height: clamp(130px, 40vh, 200px); }
+    /* v0.200.0: 40vh -> 37vh. Ostatnie ~11 px, ktorych brakowalo, zeby rzad MOCY zmiescil sie
+       na ekranie 375 px (mierzone: 377 -> 366). Czolg traci 11 px, gracz zyskuje caly rzad mocy. */
+    .bt-gr2-stage2 .bt-gr2-canvas { width: clamp(120px, 37vh, 190px); height: clamp(120px, 37vh, 190px); }
     .bt-gr2-stage2 .bt-gr2-name { font-size: 17px; }
     .bt-gr2-stats { gap: 4px; }
     .bt-gr2-draghint { display: none; }
@@ -3100,6 +3102,28 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-gr2-arrow { font-size: 40px; min-height: 56px; min-width: 44px; }
     .bt-gr2-crate { padding: 5px 10px; margin-bottom: 6px; }
     .bt-gr2-crate-open { min-height: 36px; }
+    /* BALANCE_V2 (S5): przy 4-5 wierszach statow kolumna `.bt-gr2-side` ma tu 150 px, a `em`/`u`
+       sa `flex: 0 0 auto` — sciskal sie WYLACZNIE pasek (do ~40 px), a pion rosl i wypychal sloty
+       mocy poza ekran. Dlatego w niskim landscape staty ida w SIATKE 2 kolumny (2x3 przy 5 wierszach),
+       a kolumna dostaje wiecej miejsca. */
+    .bt-gr2-stats.is-4, .bt-gr2-stats.is-5 {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px;
+    }
+    /* v0.200.0: rzad MOCY wypadal ponizej ekranu juz PRZED ta faza (mierzone: dol slotow 409 px
+       przy ekranie 375 px, z trzema statami). Skoro i tak dotykamy tego ekranu — scisnijmy go tak,
+       zeby caly Garaz miescil sie bez przewijania, bo taka byla obietnica hero-first. */
+    .bt-gr2-wrap { padding: 8px 12px 10px; margin-top: 2px; }
+    .bt-gr2-titlerow .bt-hub0-sectitle { font-size: 17px; }
+    .bt-gr2-cratechip { min-height: 38px; font-size: 15px; padding: 0 12px; }
+    .bt-gr2-cratechip .go { font-size: 12px; }
+    .bt-gr2-stage2 .bt-gr2-name { font-size: 20px; margin-bottom: 4px; padding-bottom: 4px; }
+    .bt-gr2-side .bt-gr2-skinbtn-wrap { margin-top: 6px; }
+    .bt-gr2-slotslabel { font-size: 10px; margin-bottom: 3px; }
+    .bt-gr2-stats.is-5 .cd-stat:last-child { grid-column: 1 / -1; }
+    .bt-gr2-side { width: clamp(190px, 42vw, 300px); }
+    .bt-gr2-stage2 .bt-gr2-stats .cd-stat em { font-size: 10px; width: 36px; }
+    .bt-gr2-stage2 .bt-gr2-stats .cd-stat u { font-size: 13px; width: 34px; }
+    .bt-gr2-stage2 .bt-gr2-stats .cd-stat .bar { height: 8px; min-width: 38px; }
     /* SKIN-1: pasek barw ciasniej przy niskim landscape */
     .bt-gr2-skins { margin-bottom: 8px; }
     .bt-gr2-skin .dot { width: 34px; height: 34px; }

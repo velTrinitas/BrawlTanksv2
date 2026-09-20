@@ -92,6 +92,7 @@ for a visual effect. Full detail: `.claude/rules/design-values.md`.
 @.claude/rules/mobile-first.md
 @.claude/rules/architecture.md
 @.claude/rules/delivery-workflow.md
+@.claude/rules/multiplayer-ready.md
 
 ## On-demand workflows (slash commands — read when triggered)
 

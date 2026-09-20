@@ -10,6 +10,9 @@ friction, never from skipping a gate.
 3. Produce a plan. For any prop/object placement, math-verify AABB against existing
    objects (a Python/AABB check) BEFORE writing placement code. Measure, don't guess.
 4. State the mobile cost of anything new up front (see mobile-first rule).
+5. **Answer the 5 COOP/MP questions** (`multiplayer-ready.md`) for anything touching the simulation:
+   determinism, fixed logic step, versioned data, damage source, local vs shared state. Pure art /
+   hub CSS / i18n / dev tools: one line "no effect on the simulation" is enough.
 5. Give a recommendation + reasoning, then wait for Mariusz's decision.
 
 Prefer Plan Mode (Shift+Tab) for this stage: read + plan with no edits until the plan

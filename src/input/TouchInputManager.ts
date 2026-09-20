@@ -25,6 +25,7 @@
 
 import { VirtualJoystick, type Vector2 } from './VirtualJoystick';
 import { SuperButton } from './SuperButton';
+import { DashButton } from './DashButton';   // BALANCE_V2 S3 — dash Shadowa
 
 export class TouchInputManager {
     private rootEl: HTMLElement | null = null;
@@ -32,6 +33,7 @@ export class TouchInputManager {
     private aimJoystick: VirtualJoystick;
     /** PROG-F7a: przyciski slotow (0/1) + v0.114.0 kostka 🎲 (index 2, per-mecz). */
     private superButtons: [SuperButton, SuperButton, SuperButton];
+    private dashButton: DashButton;
 
     /** v0.114.0: czy slot 🎲 aktywny w biezacym meczu (toggle "Szalone Moce" w Garazu). */
     private diceEnabled: boolean = false;
@@ -41,6 +43,8 @@ export class TouchInputManager {
 
     /** F7a: tap przycisku slotu → aktywacja mocy z tego slotu (JEDYNA sciezka aktywacji). */
     onSuperRequested: ((slot: 0 | 1 | 2) => void) | null = null;
+    /** BALANCE_V2 S3: tap w przycisk dasha (tylko gdy widoczny). */
+    onDashRequested: (() => void) | null = null;
 
     // ── SigmaTester (J6): wstrzykiwanie inputu przez TE SAME gettery, ktore czyta main.ts ──
     // Bot nie symuluje dotyku; podaje gotowe wektory. undefined = nie ruszaj tego kanalu.
@@ -61,6 +65,7 @@ export class TouchInputManager {
         // v0.23.1: right joystick = FIXED (aim precision)
         this.aimJoystick = new VirtualJoystick('right', 'fixed');
         this.superButtons = [new SuperButton(0), new SuperButton(1), new SuperButton(2)];
+        this.dashButton = new DashButton();
     }
 
     init(): void {
@@ -83,6 +88,8 @@ export class TouchInputManager {
             btn.mount(this.rootEl);
             btn.onRequest = () => this.onSuperRequested?.(i as 0 | 1 | 2);
         }
+        this.dashButton.mount(this.rootEl);
+        this.dashButton.onRequest = () => this.onDashRequested?.();
 
         this.hide();
 
@@ -95,6 +102,7 @@ export class TouchInputManager {
         this.moveJoystick.show();
         this.aimJoystick.show();
         for (const btn of this.superButtons) btn.show();
+        this.dashButton.show();
     }
 
     hide(): void {
@@ -103,6 +111,7 @@ export class TouchInputManager {
         this.moveJoystick.hide();
         this.aimJoystick.hide();
         for (const btn of this.superButtons) btn.hide();
+        this.dashButton.hide();
     }
 
     // === Bridge API for main.ts gameLoop ===
@@ -139,6 +148,17 @@ export class TouchInputManager {
      * v0.108.0: licznik cooldownu NA przycisku (mobile nie ma paska HUD) — wolane
      * per-frame z main.ts; SuperButton wewnetrznie thrash-guarduje DOM.
      */
+    /**
+     * BALANCE_V2 S3 — stan przycisku dasha, wolane per-frame z main.ts (DashButton
+     * thrash-guarduje DOM wewnetrznie). `visible=false` = czolg bez dasha: przycisku NIE MA,
+     * zamiast martwej kontrolki w kadrze.
+     */
+    updateDashState(visible: boolean, progress: number, secsLeft: number): void {
+        if (!this.isActive) return;
+        this.dashButton.setVisible(visible);
+        if (visible) this.dashButton.setCooldown(progress, secsLeft);
+    }
+
     updateSuperCooldown(slot: 0 | 1 | 2, progress: number, secsLeft: number): void {
         if (!this.isActive) return;
         this.superButtons[slot].setCooldown(progress, secsLeft);

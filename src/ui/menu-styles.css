@@ -3166,6 +3166,51 @@
 }
 /* (v0.23.1 long-press cycle USUNIETY w F7a — kazdy slot ma wlasny przycisk) */
 
+/* =============================================================
+   DASH BUTTON (BALANCE_V2 S3 — Shadow)
+   Prawy luk ma juz 3 sloty mocy; czwarty przycisk tam nie zmiesci sie @375px.
+   Dash ladzie po LEWEJ, lustrzanie do slotu kostki: dash to RUCH (ucieczka),
+   a ruchem steruje lewy kciuk. Rozmiar i zegar cooldownu 1:1 z przyciskiem super.
+   Widoczny tylko dla czolgu z dashem (DashButton.setVisible).
+   ============================================================= */
+.bt-dash-button {
+    position: absolute;
+    left: calc(21px + env(safe-area-inset-left, 0px));
+    bottom: calc(134px + env(safe-area-inset-bottom, 0px));
+    width: 54px;
+    height: 54px;
+    opacity: 0.4;
+    border-radius: 50%;
+    border: 4px solid var(--bt-navy);
+    background: radial-gradient(circle at 30% 30%, rgba(60, 60, 80, 0.85) 0%, rgba(30, 30, 45, 0.95) 100%);
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    appearance: none;
+    font-family: inherit;
+    box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.4);
+    transition: transform var(--transition-fast), background var(--transition-fast);
+    z-index: 3;
+}
+
+.bt-dash-button-icon { font-size: 1.5rem; line-height: 1; }
+
+/* Gotowy = wyrazny (jak .is-charged przy super): gracz ma WIDZIEC, ze moze uciec. */
+.bt-dash-button.is-charged {
+    opacity: 0.74;
+    border-color: #67e8f9;
+    box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 3px 8px rgba(0, 0, 0, 0.45), 0 0 12px rgba(103, 232, 249, 0.4);
+}
+
+.bt-dash-button.is-pressed { transform: scale(0.92); }
+
 /* === v0.114.0: wyroznienie slotu KOSTKI 🎲 (klasa nadawana tylko przy Szalonych
    Mocach) — fioletowy gradient-ring z shimmerem (rotacja conic-gradient, CSS-only,
    1 przycisk = koszt mobile ~0) + male badge 🎲 w rogu, ktore ZOSTAJE gdy ikona
@@ -3292,6 +3337,14 @@
 
     .bt-super-button--slot3 {
         right: calc(20px + env(safe-area-inset-right, 0px));
+        bottom: calc(115px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Dash: ta sama podloga 48px co przyciski mocy (komfortowy cel kciuka) */
+    .bt-dash-button {
+        width: 48px;
+        height: 48px;
+        left: calc(20px + env(safe-area-inset-left, 0px));
         bottom: calc(115px + env(safe-area-inset-bottom, 0px));
     }
 

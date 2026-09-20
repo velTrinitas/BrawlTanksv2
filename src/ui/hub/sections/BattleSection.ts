@@ -50,7 +50,18 @@ const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle', 'save_queen'
 
 // Normalizacja paskow = maksima rosteru (heavy 700hp / sniper 300dmg / scout 7.5 speed).
 // GARAZ-2: export — te same paski rysuje TankPickerOverlay i hero-row Garaza.
-export const STAT_MAX = { hp: 700, dmg: 300, speed: 7.5 } as const;
+export const STAT_MAX = { hp: 700, dmg: 300, speed: 7.5, tempo: 5, range: 1400 } as const;
+
+/**
+ * BALANCE_V2 (S5, v0.200.0) — TEMPO jako STRZALY NA SEKUNDE, nie reload w ms.
+ *
+ * Reload to najwieksza UKRYTA statystyka gry (210 ms u Ogniarza vs 1000 ms u Snajpera = 4.8x),
+ * a UI nigdy jej nie pokazywalo: dziecko czyta „DMG 300" u Snajpera i dostaje czolg, ktory strzela
+ * pieciokrotnie rzadziej. Pokazujemy TEMPO, bo pasek wtedy ROSNIE jak kazdy inny („wiecej = lepiej").
+ * Gdybysmy pokazali milisekundy, dluzszy pasek znaczylby GORZEJ i `statRowHtml` potrzebowalby
+ * odwracania — czyli wyjatku, ktory dziecko musi sobie przetlumaczyc.
+ */
+export const tempoOf = (reloadMs: number): number => Math.round((1000 / reloadMs) * 10) / 10;
 
 /** Rzad statu czolgu (referencja: label + pasek w kolorze czolgu + biala liczba). */
 export function statRowHtml(label: string, val: number | null, max: number): string {

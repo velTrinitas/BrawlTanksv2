@@ -610,6 +610,12 @@ export const pl = {
     'road.unlock.tower': '🎯 Moc: Wieża!',
     'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
     'hub.garage.slotsLabel': 'WYBIERZ SUPER MOCE',
+    // BALANCE_V2 (S5): etykiety statow czolgu — do v0.199.0 byly HARDKODOWANE w kodzie UI.
+    'stat.hp': 'HP',
+    'stat.dmg': 'DMG',
+    'stat.speed': 'SPEED',
+    'stat.tempo': 'TEMPO',
+    'stat.range': 'ZASIEG',
     // GARAZ-2/3 (?choose=1) — obrotnica 3/4 + karuzela czolgow w Garazu
     'hub.garage.dragHint': 'Przeciągnij, aby obrócić',
     'hub.garage.loadoutHint': 'Tapnij puste pole, potem moc z listy — z tym wjedziesz do bitwy!',

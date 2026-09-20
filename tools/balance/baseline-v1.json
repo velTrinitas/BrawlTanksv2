@@ -1,0 +1,507 @@
+{
+  "when": "2026-09-20T15:01:18.545Z",
+  "url": "http://localhost:5173/BrawlTanksv2/",
+  "seeds": 5,
+  "minutes": "2",
+  "perBrawler": {
+    "twardy": {
+      "runs": 5,
+      "killsMed": 30,
+      "scoreMed": 101,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "heavy": {
+      "runs": 5,
+      "killsMed": 41,
+      "scoreMed": 151,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "scout": {
+      "runs": 5,
+      "killsMed": 21,
+      "scoreMed": 61,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "sniper": {
+      "runs": 5,
+      "killsMed": 23,
+      "scoreMed": 73,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "plasma": {
+      "runs": 5,
+      "killsMed": 23,
+      "scoreMed": 63,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "pyro": {
+      "runs": 5,
+      "killsMed": 61,
+      "scoreMed": 252,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "shadow": {
+      "runs": 5,
+      "killsMed": 33,
+      "scoreMed": 112,
+      "deaths": 0,
+      "deathAtSecMed": null
+    },
+    "king": {
+      "runs": 5,
+      "killsMed": 61,
+      "scoreMed": 251,
+      "deaths": 0,
+      "deathAtSecMed": null
+    }
+  },
+  "rows": [
+    {
+      "brawler": "twardy",
+      "seed": 4100,
+      "kills": 21,
+      "score": 50,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 86,
+      "bossKills": 0,
+      "file": "001-ktb-city-twardy-normal-play-s4100.json"
+    },
+    {
+      "brawler": "twardy",
+      "seed": 4101,
+      "kills": 25,
+      "score": 101,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 62,
+      "bossKills": 1,
+      "file": "001-ktb-city-twardy-normal-play-s4101.json"
+    },
+    {
+      "brawler": "twardy",
+      "seed": 4102,
+      "kills": 44,
+      "score": 141,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 87,
+      "bossKills": 0,
+      "file": "001-ktb-city-twardy-normal-play-s4102.json"
+    },
+    {
+      "brawler": "twardy",
+      "seed": 4103,
+      "kills": 31,
+      "score": 111,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 72,
+      "bossKills": 0,
+      "file": "001-ktb-city-twardy-normal-play-s4103.json"
+    },
+    {
+      "brawler": "twardy",
+      "seed": 4104,
+      "kills": 30,
+      "score": 96,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 73,
+      "bossKills": 0,
+      "file": "001-ktb-city-twardy-normal-play-s4104.json"
+    },
+    {
+      "brawler": "heavy",
+      "seed": 4100,
+      "kills": 28,
+      "score": 89,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 64,
+      "bossKills": 0,
+      "file": "001-ktb-city-heavy-normal-play-s4100.json"
+    },
+    {
+      "brawler": "heavy",
+      "seed": 4101,
+      "kills": 41,
+      "score": 151,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 80,
+      "bossKills": 1,
+      "file": "001-ktb-city-heavy-normal-play-s4101.json"
+    },
+    {
+      "brawler": "heavy",
+      "seed": 4102,
+      "kills": 33,
+      "score": 103,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 73,
+      "bossKills": 0,
+      "file": "001-ktb-city-heavy-normal-play-s4102.json"
+    },
+    {
+      "brawler": "heavy",
+      "seed": 4103,
+      "kills": 46,
+      "score": 160,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 92,
+      "bossKills": 0,
+      "file": "001-ktb-city-heavy-normal-play-s4103.json"
+    },
+    {
+      "brawler": "heavy",
+      "seed": 4104,
+      "kills": 44,
+      "score": 178,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 85,
+      "bossKills": 1,
+      "file": "001-ktb-city-heavy-normal-play-s4104.json"
+    },
+    {
+      "brawler": "scout",
+      "seed": 4100,
+      "kills": 10,
+      "score": 31,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 31,
+      "bossKills": 0,
+      "file": "001-ktb-city-scout-normal-play-s4100.json"
+    },
+    {
+      "brawler": "scout",
+      "seed": 4101,
+      "kills": 28,
+      "score": 116,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 67,
+      "bossKills": 1,
+      "file": "001-ktb-city-scout-normal-play-s4101.json"
+    },
+    {
+      "brawler": "scout",
+      "seed": 4102,
+      "kills": 31,
+      "score": 109,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 70,
+      "bossKills": 1,
+      "file": "001-ktb-city-scout-normal-play-s4102.json"
+    },
+    {
+      "brawler": "scout",
+      "seed": 4103,
+      "kills": 21,
+      "score": 61,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 50,
+      "bossKills": 0,
+      "file": "001-ktb-city-scout-normal-play-s4103.json"
+    },
+    {
+      "brawler": "scout",
+      "seed": 4104,
+      "kills": 17,
+      "score": 50,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 43,
+      "bossKills": 0,
+      "file": "001-ktb-city-scout-normal-play-s4104.json"
+    },
+    {
+      "brawler": "sniper",
+      "seed": 4100,
+      "kills": 30,
+      "score": 88,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 68,
+      "bossKills": 0,
+      "file": "001-ktb-city-sniper-normal-play-s4100.json"
+    },
+    {
+      "brawler": "sniper",
+      "seed": 4101,
+      "kills": 70,
+      "score": 299,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 113,
+      "bossKills": 1,
+      "file": "001-ktb-city-sniper-normal-play-s4101.json"
+    },
+    {
+      "brawler": "sniper",
+      "seed": 4102,
+      "kills": 23,
+      "score": 73,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 58,
+      "bossKills": 0,
+      "file": "001-ktb-city-sniper-normal-play-s4102.json"
+    },
+    {
+      "brawler": "sniper",
+      "seed": 4103,
+      "kills": 23,
+      "score": 72,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 60,
+      "bossKills": 0,
+      "file": "001-ktb-city-sniper-normal-play-s4103.json"
+    },
+    {
+      "brawler": "sniper",
+      "seed": 4104,
+      "kills": 22,
+      "score": 64,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 55,
+      "bossKills": 0,
+      "file": "001-ktb-city-sniper-normal-play-s4104.json"
+    },
+    {
+      "brawler": "plasma",
+      "seed": 4100,
+      "kills": 22,
+      "score": 63,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 62,
+      "bossKills": 0,
+      "file": "001-ktb-city-plasma-normal-play-s4100.json"
+    },
+    {
+      "brawler": "plasma",
+      "seed": 4101,
+      "kills": 41,
+      "score": 134,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 78,
+      "bossKills": 0,
+      "file": "001-ktb-city-plasma-normal-play-s4101.json"
+    },
+    {
+      "brawler": "plasma",
+      "seed": 4102,
+      "kills": 15,
+      "score": 41,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 55,
+      "bossKills": 0,
+      "file": "001-ktb-city-plasma-normal-play-s4102.json"
+    },
+    {
+      "brawler": "plasma",
+      "seed": 4103,
+      "kills": 29,
+      "score": 96,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 68,
+      "bossKills": 0,
+      "file": "001-ktb-city-plasma-normal-play-s4103.json"
+    },
+    {
+      "brawler": "plasma",
+      "seed": 4104,
+      "kills": 23,
+      "score": 61,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 64,
+      "bossKills": 0,
+      "file": "001-ktb-city-plasma-normal-play-s4104.json"
+    },
+    {
+      "brawler": "pyro",
+      "seed": 4100,
+      "kills": 69,
+      "score": 252,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 111,
+      "bossKills": 1,
+      "file": "001-ktb-city-pyro-normal-play-s4100.json"
+    },
+    {
+      "brawler": "pyro",
+      "seed": 4101,
+      "kills": 79,
+      "score": 390,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": null,
+      "bossKills": 3,
+      "file": "001-ktb-city-pyro-normal-play-s4101.json"
+    },
+    {
+      "brawler": "pyro",
+      "seed": 4102,
+      "kills": 27,
+      "score": 104,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 62,
+      "bossKills": 0,
+      "file": "001-ktb-city-pyro-normal-play-s4102.json"
+    },
+    {
+      "brawler": "pyro",
+      "seed": 4103,
+      "kills": 43,
+      "score": 178,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 78,
+      "bossKills": 1,
+      "file": "001-ktb-city-pyro-normal-play-s4103.json"
+    },
+    {
+      "brawler": "pyro",
+      "seed": 4104,
+      "kills": 61,
+      "score": 270,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 101,
+      "bossKills": 1,
+      "file": "001-ktb-city-pyro-normal-play-s4104.json"
+    },
+    {
+      "brawler": "shadow",
+      "seed": 4100,
+      "kills": 33,
+      "score": 112,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 73,
+      "bossKills": 0,
+      "file": "001-ktb-city-shadow-normal-play-s4100.json"
+    },
+    {
+      "brawler": "shadow",
+      "seed": 4101,
+      "kills": 75,
+      "score": 296,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": null,
+      "bossKills": 1,
+      "file": "001-ktb-city-shadow-normal-play-s4101.json"
+    },
+    {
+      "brawler": "shadow",
+      "seed": 4102,
+      "kills": 23,
+      "score": 69,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 64,
+      "bossKills": 0,
+      "file": "001-ktb-city-shadow-normal-play-s4102.json"
+    },
+    {
+      "brawler": "shadow",
+      "seed": 4103,
+      "kills": 72,
+      "score": 288,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": null,
+      "bossKills": 1,
+      "file": "001-ktb-city-shadow-normal-play-s4103.json"
+    },
+    {
+      "brawler": "shadow",
+      "seed": 4104,
+      "kills": 20,
+      "score": 50,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 56,
+      "bossKills": 0,
+      "file": "001-ktb-city-shadow-normal-play-s4104.json"
+    },
+    {
+      "brawler": "king",
+      "seed": 4100,
+      "kills": 48,
+      "score": 169,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 94,
+      "bossKills": 1,
+      "file": "001-ktb-city-king-normal-play-s4100.json"
+    },
+    {
+      "brawler": "king",
+      "seed": 4101,
+      "kills": 68,
+      "score": 251,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 111,
+      "bossKills": 1,
+      "file": "001-ktb-city-king-normal-play-s4101.json"
+    },
+    {
+      "brawler": "king",
+      "seed": 4102,
+      "kills": 61,
+      "score": 266,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 101,
+      "bossKills": 2,
+      "file": "001-ktb-city-king-normal-play-s4102.json"
+    },
+    {
+      "brawler": "king",
+      "seed": 4103,
+      "kills": 66,
+      "score": 274,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": null,
+      "bossKills": 1,
+      "file": "001-ktb-city-king-normal-play-s4103.json"
+    },
+    {
+      "brawler": "king",
+      "seed": 4104,
+      "kills": 42,
+      "score": 144,
+      "seconds": null,
+      "died": null,
+      "deathAtSec": 84,
+      "bossKills": 1,
+      "file": "001-ktb-city-king-normal-play-s4104.json"
+    }
+  ],
+  "killsSpreadPct": 190.47619047619045
+}

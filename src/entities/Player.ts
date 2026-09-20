@@ -7,6 +7,7 @@ import { hpColorHex } from '../rendering/hpColor'; // v0.187.0 — ten sam kolor
 import { heartbeat } from '../rendering/heartbeat'; // v0.187.0 — rytm tetna wspolny z HUD
 import type { DamageSmoke } from '../rendering/DamageSmoke'; // v0.188.0 — dym uszkodzenia (poza pula czasteczek)
 import { checkRectCollision } from '../systems/Physics';
+import { DASH_CONFIG } from '../config/balanceRules'; // BALANCE_V2 S3 — dash Shadowa (kroki, nie ms)
 import type { EffectsManager } from '../rendering/Effects';
 import type { ICollidable } from '../types/MapType';
 import type { DamageSource } from '../types/DamageSource'; // Z0.5
@@ -17,7 +18,12 @@ import type { FlagId } from '../types/Profile';
 
 interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 
-const SUPER_SHOT_DURATION_MS = 5000;
+/**
+ * Okno super strzalu. EKSPORTOWANE od v0.200.0 (BALANCE_V2 S4): `main.ts` liczy z niego sprawiedliwy
+ * dmg supera (`(okno / reload) x dmg_salwy = stala`). Skopiowana liczba rozjechalaby sie przy
+ * pierwszym tuningu — jedno zrodlo prawdy.
+ */
+export const SUPER_SHOT_DURATION_MS = 5000;
 const SUPER_MAX_CHARGES = 9;
 const SUPER_TINT = 0xc850ff;
 // SKIN-2: reduced-motion gasi sin pulsu skina (stale alpha) — odczyt raz na load.
@@ -165,6 +171,17 @@ export class Player {
     public superActive: boolean = false;
     public superEndTime: number = 0;
     private superRingGfx: PIXI.Graphics;
+
+    // ── DASH (BALANCE_V2 S3, Shadow) ────────────────────────────────────────────────────
+    // STAN GRY (musi przejsc przez symulacje): ile krokow lotu zostalo, kierunek lotu,
+    // ile krokow do odnowienia. Liczone w KROKACH, nigdy w ms — patrz DASH_CONFIG.
+    /** >0 = czolg jest w trakcie dasha (tyle krokow jeszcze przeleci). */
+    private dashStepsLeft = 0;
+    /** Znormalizowany kierunek lotu, zamrozony w chwili startu (dash nie skreca w locie). */
+    private dashDirX = 0;
+    private dashDirY = 0;
+    /** Kroki pozostale do odnowienia; 0 = gotowy. */
+    private dashCdLeft = 0;
 
     private flagGfx: PIXI.Graphics;
     private tracksGfx: PIXI.Graphics;
@@ -533,6 +550,73 @@ export class Player {
         return Math.max(0, (this.superEndTime - Date.now()) / 1000);
     }
 
+    // ── DASH (BALANCE_V2 S3) ────────────────────────────────────────────────────────────
+
+    /** Czy ten czolg w ogole ma dash (ruleset v2 -> `dash: true`). Przy `?bal=0` zawsze false. */
+    get hasDash(): boolean { return this.brawler.dash === true; }
+
+    /** Gotowy do odpalenia: ma dash, nie leci juz teraz i ma odnowione. */
+    get canDash(): boolean { return this.hasDash && this.dashStepsLeft <= 0 && this.dashCdLeft <= 0; }
+
+    /** true w trakcie lotu — main.ts blokuje na ten czas sterowanie ruchem. */
+    get isDashing(): boolean { return this.dashStepsLeft > 0; }
+
+    /** 0..1 — ile odnowienia ZOSTALO (1 = swiezo uzyty). Do zegara na przycisku. */
+    get dashCooldownProgress(): number {
+        return DASH_CONFIG.cooldownSteps > 0 ? this.dashCdLeft / DASH_CONFIG.cooldownSteps : 0;
+    }
+
+    /** Sekundy odnowienia — przeliczane z KROKOW przy zalozeniu 60 krokow/s (tylko do UI). */
+    get dashSecondsLeft(): number { return this.dashCdLeft / 60; }
+
+    /**
+     * Odpalenie dasha w podanym kierunku (nie musi byc znormalizowany).
+     * Bez kierunku (gracz stoi) leci w strone lufy — inaczej tap w przycisk nie robilby nic,
+     * a „przycisk, ktory czasem nie dziala" to najgorszy rodzaj niesprawiedliwosci dla dziecka.
+     *
+     * Zwraca false, gdy dash niedostepny — wolajacy decyduje, czy dac feedback.
+     */
+    tryDash(dirX: number, dirY: number, effects?: EffectsManager): boolean {
+        if (!this.canDash) return false;
+        let len = Math.hypot(dirX, dirY);
+        if (len < 0.001) { dirX = Math.cos(this._turretAngle); dirY = Math.sin(this._turretAngle); len = 1; }
+        this.dashDirX = dirX / len;
+        this.dashDirY = dirY / len;
+        this.dashStepsLeft = DASH_CONFIG.steps;
+        this.dashCdLeft = DASH_CONFIG.cooldownSteps;
+        this.lastMoveAngle = Math.atan2(this.dashDirY, this.dashDirX);
+        if (!this.bakerActive) this.hull.rotation = this.lastMoveAngle;
+        // Sensoryka: pyl na starcie (istniejaca pula czastek, zero nowego kodu efektow).
+        effects?.spawnRocketSmoke(this.x, this.y);
+        return true;
+    }
+
+    /**
+     * Jeden KROK dasha. Wolane raz na wywolanie update() — NIE skalowane `delta`, bo dash ma byc
+     * identyczny u kazdego klienta (regula MP #2: catch-up liczy stala liczbe krokow).
+     * Skutek: przy spadku FPS dash trwa dluzej w sekundach, ale tyle samo w symulacji.
+     *
+     * Kolizje sprawdzane NA KAZDYM KROKU (20 px), nie tylko w punkcie koncowym — inaczej skok
+     * o 180 px przenikalby cienkie sciany. Uderzenie = dash sie konczy w miejscu kontaktu.
+     */
+    private stepDash(buildings: ICollidable[], effects: EffectsManager): void {
+        this.dashStepsLeft--;
+        const nx = this.x + this.dashDirX * DASH_CONFIG.stepPx;
+        const ny = this.y + this.dashDirY * DASH_CONFIG.stepPx;
+        for (const b of buildings) {
+            if (checkRectCollision(b.x, b.y, b.w, b.h, nx, ny, 20)) {
+                this.dashStepsLeft = 0;     // sciana zatrzymuje dash — bez przenikania i bez slizgu
+                effects.spawnWallImpact(this.x, this.y);
+                return;
+            }
+        }
+        this.x = nx;
+        this.y = ny;
+        this.isMoving = true;
+        // Smuga: slad gasienic co krok — czytelny „ogon" bez nowej warstwy czastek.
+        effects.spawnTrackMark(this.x, this.y, this.lastMoveAngle);
+    }
+
     /**
      * FAZA P3 — wolane przez main.ts przy strzale. Recoil (barrel) + chassis kick + pitch bump.
      * 1:1 z lab.ts fire block. No-op w trybie flat (juice tylko w bake). Ustawia tylko stan;
@@ -737,6 +821,11 @@ export class Player {
         damageSmoke?: DamageSmoke | null, // v0.188.0 — dym uszkodzenia (wlasna warstwa nad czolgami)
     ): void {
         this.refreshHpBar(); // v0.187.0: lapie takze leczenie (dzieje sie poza ta klasa)
+
+        // DASH (S3): odnowienie tyka zawsze — takze w locie — zeby licznik na przycisku byl
+        // monotoniczny (gracz nie widzi „zamrozonej" sekundy przez 9 krokow lotu).
+        if (this.dashCdLeft > 0) this.dashCdLeft--;
+
         let dx = 0, dy = 0;
 
         // FAZA 8.5: touch joystick override gdy provided, else fallback do keys.wasd
@@ -754,7 +843,12 @@ export class Player {
 
         this.isMoving = false;
 
-        if (dx !== 0 || dy !== 0) {
+        if (this.dashStepsLeft > 0) {
+            // W LOCIE gracz nie steruje: dash jest zobowiazaniem, nie sugestia. Kierunek zostal
+            // zamrozony przy starcie, wiec wynik jest przewidywalny — to jest ta „kontrola",
+            // ktora ma byc nagroda za wybor Shadowa.
+            this.stepDash(buildings, effects);
+        } else if (dx !== 0 || dy !== 0) {
             this.isMoving = true;
             const len = Math.sqrt(dx * dx + dy * dy);
 

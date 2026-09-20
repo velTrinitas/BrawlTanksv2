@@ -1,0 +1,105 @@
+{
+  "target": 76.37014216733314,
+  "spreadPct": 3.3574722014440006,
+  "roster": {
+    "Twardy": {
+      "hp": 400,
+      "dmg": 145,
+      "reload": 400,
+      "speed": 5.2,
+      "maxDist": 750,
+      "n": 1,
+      "br": 7,
+      "bs": 17,
+      "style": "1 pocisk, baseline",
+      "index": 76.63473300682675
+    },
+    "Pancerny": {
+      "hp": 600,
+      "dmg": 125,
+      "reload": 860,
+      "speed": 4.3,
+      "maxDist": 750,
+      "n": 2,
+      "br": 11,
+      "bs": 13,
+      "style": "2 lufy rownolegle",
+      "index": 76.66586880660877
+    },
+    "Zwiad": {
+      "hp": 250,
+      "dmg": 100,
+      "reload": 250,
+      "speed": 7.5,
+      "maxDist": 700,
+      "n": 1,
+      "br": 7,
+      "bs": 27,
+      "style": "seria, szybki pocisk",
+      "index": 75.320822871545
+    },
+    "Snajper": {
+      "hp": 350,
+      "dmg": 275,
+      "reload": 940,
+      "speed": 4.9,
+      "maxDist": 1300,
+      "n": 1,
+      "br": 6,
+      "bs": 29,
+      "style": "1 strzal, najdalej",
+      "index": 76.76967712481253
+    },
+    "Tech": {
+      "hp": 450,
+      "dmg": 130,
+      "reload": 660,
+      "speed": 5.3,
+      "maxDist": 1000,
+      "n": 1,
+      "br": 9,
+      "bs": 17,
+      "style": "PIERCE",
+      "pierce": 1,
+      "index": 76.64677516943779
+    },
+    "Ogniarz": {
+      "hp": 400,
+      "dmg": 65,
+      "reload": 220,
+      "speed": 4.5,
+      "maxDist": 350,
+      "n": 5,
+      "br": 10,
+      "bs": 14,
+      "off": 0.34,
+      "style": "5 spread, krotki",
+      "index": 74.27588493571922
+    },
+    "Shadow": {
+      "hp": 300,
+      "dmg": 185,
+      "reload": 580,
+      "speed": 6.9,
+      "maxDist": 850,
+      "n": 1,
+      "br": 8,
+      "bs": 19,
+      "style": "DASH",
+      "dash": 1,
+      "index": 76.66680822584189
+    },
+    "King": {
+      "hp": 500,
+      "dmg": 225,
+      "reload": 740,
+      "speed": 5.6,
+      "maxDist": 700,
+      "n": 1,
+      "br": 10,
+      "bs": 14,
+      "style": "1 ciezki pocisk",
+      "index": 76.59113706565645
+    }
+  }
+}

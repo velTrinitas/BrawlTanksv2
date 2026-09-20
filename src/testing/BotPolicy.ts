@@ -21,6 +21,8 @@ export interface BotIO {
     move(v: { x: number; y: number } | null): void;
     aimWorld(x: number, y: number, fire: boolean): void;
     super(slot: 0 | 1 | 2): void;
+    /** BALANCE_V2 S3: dash (Shadow). No-op dla czolgow bez dasha — bot nie musi tego wiedziec. */
+    dash?(): void;
     release(): void;
 }
 
@@ -94,6 +96,10 @@ export class BotPolicy {
         let mv: Vec | null = null;
         const dodge = this.dodgeVector(s);
         const heal = hpFrac < HEAL_HP_FRAC ? this.healTarget(s) : null;
+        // BALANCE_V2 S3: DASH przy uniku. Bez tego Shadow byl mierzony bez swojej rekompensaty
+        // (model daje mu +28% przezywalnosci wlasnie za dash), a wynik pomiaru byl bezwartosciowy.
+        // Dash idzie TAM, GDZIE i tak uciekamy — czyli dokladnie tak, jak uzylby go gracz.
+        if (dodge && this.io.dash) this.io.dash();
         if (dodge) {
             mv = dodge;
         } else if (heal) {

@@ -594,6 +594,12 @@ export const en: typeof pl = {
     'road.unlock.tower': '🎯 Power: Tower!',
     'hub.garage.loadout': 'PICK 3 SUPER POWERS',
     'hub.garage.slotsLabel': 'PICK SUPER POWERS',
+    // BALANCE_V2 (S5): tank stat labels - hardcoded in UI code until v0.199.0.
+    'stat.hp': 'HP',
+    'stat.dmg': 'DMG',
+    'stat.speed': 'SPEED',
+    'stat.tempo': 'TEMPO',
+    'stat.range': 'RANGE',
     // GARAZ-2/3 (?choose=1) — 3/4 turntable + tank carousel in Garage
     'hub.garage.dragHint': 'Drag to rotate',
     'hub.garage.loadoutHint': 'Tap an empty field, then a power below — this is what you bring to battle!',

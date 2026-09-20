@@ -62,6 +62,8 @@ export interface SigmaBridge {
     /** mobile input (TouchInputManager.inject*) */
     injectTouch(move: { x: number; y: number } | null, aim: { x: number; y: number } | null, fire: boolean): void;
     requestSuper(slot: 0 | 1 | 2): void;
+    /** BALANCE_V2 S3: dash Shadowa — bot musi go umiec, inaczej mierzymy czolg bez jego rekompensaty. */
+    requestDash(): void;
     setGod(on: boolean): void;
     teleport(x: number, y: number): void;
 }
@@ -212,6 +214,7 @@ export function installSigmaTest(bridge: SigmaBridge): void {
             bridge.setMouse((wx - bridge.camera.x) * z, (wy - bridge.camera.y) * z, fire);
         },
         super: (slot: 0 | 1 | 2 = 0): void => bridge.requestSuper(slot),
+        dash: (): void => bridge.requestDash(),
         release: (): void => { bridge.setKeys({ w: false, a: false, s: false, d: false }); bridge.setMouse(bridge.screen.w / 2, bridge.screen.h / 2, false); bridge.injectTouch(null, null, false); },
     };
 
@@ -242,6 +245,9 @@ export function installSigmaTest(bridge: SigmaBridge): void {
         };
         document.querySelectorAll('#bt-touch-root .bt-joystick').forEach((el, i) => add('joystick-' + i, el));
         document.querySelectorAll('#bt-touch-root .bt-super-button').forEach((el, i) => add('superbtn-' + i, el));
+        // BALANCE_V2 S3: przycisk dasha MUSI byc w tym zbiorze, inaczej oracle J2 (nachodzenie)
+        // i J4 (tap >= 44 px) go nie widza i „0 naruszen" nie dowodzi niczego o nowej kontrolce.
+        document.querySelectorAll('#bt-touch-root .bt-dash-button').forEach((el, i) => add('dashbtn-' + i, el));
         add('credits-version', document.getElementById('credits'));
         return { hud: bridge.hudRects.map(r => ({ ...r })), dom, vw: window.innerWidth, vh: window.innerHeight, scrollW: document.documentElement.scrollWidth, scrollH: document.documentElement.scrollHeight };
     };

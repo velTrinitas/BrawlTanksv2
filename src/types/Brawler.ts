@@ -17,4 +17,17 @@ export interface Brawler {
     type: BrawlerType;
     flag?: string;  // 👈 DODAJ TĘ LINIJKĘ
     useExternalSprite?: boolean;  // 👈 DODAJ TĘ LINIJKĘ
+    // ── BALANCE_V2 (v0.200.0) — pola obecne TYLKO przy aktywnym rulesecie v2 ──────────────
+    // W v1 sa `undefined`, a kazdy konsument ma zachowac dzisiejsza sciezke (globalne 1000,
+    // mapy w Bullet.ts, offsety z main.ts). Patrz `src/config/balanceRules.ts`.
+    /** Zasieg pocisku w px (S2). */
+    maxDist?: number;
+    /** Promien pocisku — UKRYTA statystyka celnosci (trafienie = 30 + radius). */
+    bulletRadius?: number;
+    /** Salwa: liczba pociskow + kat rozrzutu w radianach. */
+    volley?: { count: number; spread: number };
+    /** Tech: przebicie do N wrogow (S3). */
+    pierce?: number;
+    /** Shadow: dash bez klatek nietykalnosci (S3). */
+    dash?: boolean;
 }

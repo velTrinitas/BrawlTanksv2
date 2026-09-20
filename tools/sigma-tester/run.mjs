@@ -77,7 +77,11 @@ async function runOne(browser, r, idx) {
     if (r.mobile) extraIds.push({ id: 'J7', title: 'obrot do pionu: ostrzezenie, pauza, powrot' }, { id: 'J9', title: 'predkosc gracza = baseSpeed x mnoznik mobile' }, { id: 'J10', title: 'zwiniecie karty: muzyka pauzowana i wznawiana' });
     let outcome = null; let firstDeathShot = false;
     try {
-        await page.goto(`${URL}?bot=1&seed=${r.seed}&queentut=0&castletut=0&queen=1&castle=1`, { waitUntil: 'load', timeout: 60000 });
+        // v0.200.0: --url moze juz niesc wlasne parametry (np. ?bal=1 dla rebalansu za flaga).
+        // Doklejanie '?' na sztywno robilo wtedy '...?bal=1?bot=1' i runner padal na starcie.
+        // UWAGA: stala `URL` przeslania globalne `URL`, wiec sklejamy tekstowo, bez new URL().
+        const sep = URL.includes('?') ? '&' : '?';
+        await page.goto(`${URL}${sep}bot=1&seed=${r.seed}&queentut=0&castletut=0&queen=1&castle=1`, { waitUntil: 'load', timeout: 60000 });
         await page.waitForFunction(() => !!window.__sigmaTest, null, { timeout: 60000 });
         // intro: klik START (bez rAF w headless tez dziala — DOM)
         await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => /START/i.test(b.textContent)); b && b.click(); });

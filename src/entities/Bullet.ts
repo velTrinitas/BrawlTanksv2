@@ -84,6 +84,8 @@ export class Bullet {
     public maxDist: number = 1000;
     public shockwaveRadius = 0; public shockwaveDmg = 0; // FAZA P5 Batch 3 (pancerny shockwave-on-hit; czytane w hit handlerze)
     public hitEnemies: Set<object> = new Set(); // boomerang pierce dedup (per faza)
+    /** BALANCE_V2 (S3): ile wrogow pocisk jeszcze przebije (Tech). 0 = ginie na pierwszym trafieniu. */
+    public pierceLeft = 0;
     private breakupDist = 0; private fragCount = 0; private fragSpread = 0; private fragDmgMult = 0;
     private maxOutDist = 0; private returnSpeed = 0;
     private phase: 'out' | 'back' = 'out';
@@ -148,7 +150,10 @@ export class Bullet {
         this.isSuper = isSuper;
 
         const baseSpeed = SPEED_MAP[b.id] ?? 15;
-        const baseRadius = RADIUS_MAP[b.id] ?? 6;
+        // BALANCE_V2 (S1): promien pocisku to UKRYTA statystyka celnosci — trafienie liczy sie jako
+        // `30 + radius` (main.ts), wiec Zwiad/Snajper (4) mieli ~40% mniejsze pole niz King (10).
+        // Ruleset moze go nadpisac; fallback = dzisiejsza mapa, wiec Wieza/Ping-Pong bez zmian.
+        const baseRadius = b.bulletRadius ?? RADIUS_MAP[b.id] ?? 6;
         const baseTrail = TRAIL_LEN_MAP[b.id] ?? 0;
 
         this.dmg = superDmgOverride != null ? superDmgOverride : b.dmg * (isSuper ? SUPER_DMG_MULT : 1);
@@ -162,8 +167,15 @@ export class Bullet {
         // ── ZEROWANIE stanu zachowan (kluczowe: brak sladu po poprzednim strzale) ──
         this.source = 'player'; // F7b-2: pooled pocisk Wiezy nie moze wrocic jako 'tower'
         this.brawlerColor = COLOR_MAP[b.id] ?? 0x2ecc71; // F7b-2: cofniecie teal-tracera
+        // BALANCE_V2 (S3): ile jeszcze wrogow ten pocisk przebije (Tech). 0 = zwykly pocisk,
+        // ginie na pierwszym trafieniu. Zerowane TUTAJ, zeby pooled pocisk Wiezy/Ping-Ponga nigdy
+        // nie odziedziczyl przebicia po poprzednim strzale gracza.
+        this.pierceLeft = isSuper ? 0 : (b.pierce ?? 0);
         this.behavior = 'straight';
-        this.maxDist = 1000;
+        // BALANCE_V2 (S2): ZASIEG per czolg. Ustawiany TUTAJ, nigdy mnoznikiem w update() —
+        // Wieza (main.ts, 460) i Ping-Pong (900) nadpisuja `maxDist` PO resecie i dziela te sama
+        // pule pociskow; mnoznik w locie dalby im zasieg brawlera gracza.
+        this.maxDist = b.maxDist ?? 1000;
         this.shockwaveRadius = 0;
         this.shockwaveDmg = 0;
         this.hitEnemies.clear();
@@ -287,7 +299,14 @@ export class Bullet {
                 }
             }
 
-            if (this.distance > this.maxDist) { this.deactivate(); return; }
+            if (this.distance > this.maxDist) {
+                // S2: sygnal „koniec zasiegu" TYLKO tutaj — trafienie i sciana maja wlasne efekty,
+                // a pocisk Wiezy/Ping-Ponga tez przejdzie ta sciezka i to jest poprawne (on rowniez
+                // gdzies konczy lot). Wyciszone dla supera: tam i tak leci wlasna feeria.
+                if (!this.isSuper) effects.spawnRangeFizzle(this.x, this.y, this.brawlerColor);
+                this.deactivate();
+                return;
+            }
         }
 
         if (!this.active) return; // boomerang moglo zginac (zlapany/safety)

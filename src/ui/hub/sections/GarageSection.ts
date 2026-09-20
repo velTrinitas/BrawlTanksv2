@@ -9,9 +9,10 @@ import { POWERS, POWER_ORDER, TIER3_POWERS, type PowerId, type PowerDef } from '
 import { BRAWLERS } from '../../../config/brawlers';
 import { isChooseMode, TURN360_TANKS } from '../../../config/hubChoose'; // GARAZ-2 / GARAZ-2.5
 import { isSkinsEnabled, isSkinsModeEnabled } from '../../../config/skins'; // SKIN-1 + GARAZ v2
+import { isBalanceV2Enabled } from '../../../config/balanceFlag'; // BALANCE_V2 S5 — ZASIEG tylko przy v2
 import { cosmeticsByType, getCosmetic, tankSkinSwatchStyle, RARITY_COLOR, type CosmeticDef } from '../../../config/cosmetics'; // SKIN-1
 import { getShopItem } from '../../../config/shop'; // SKIN-1 — cena na kaflu locked
-import { tankName, statRowHtml, STAT_MAX } from './BattleSection'; // GARAZ-2: wspolne kawalki kart
+import { tankName, statRowHtml, STAT_MAX, tempoOf } from './BattleSection'; // GARAZ-2: wspolne kawalki kart
 import { turntableCanvasHtml, mountTankTurntable, type TurntableHandle } from '../tankTurntable'; // GARAZ-2
 import { mountTankTurn360 } from '../tankTurn360'; // GARAZ-2.5: viewer 3/4 z klatek
 import { loadoutSlotTileHtml } from '../overlays/LoadoutOverlay'; // GARAZ-3: kafle slotow
@@ -384,10 +385,17 @@ export class GarageSection implements HubSection {
                 <div class="bt-gr2-side">
                     <button class="bt-gr2-name" data-action="gr2-next" type="button"
                             style="color:${b.colorMain}">${tankName(b)}</button>
-                    <div class="bt-gr2-stats">
-                        ${statRowHtml('HP', b.hp, STAT_MAX.hp)}
-                        ${statRowHtml('DMG', b.dmg, STAT_MAX.dmg)}
-                        ${statRowHtml('SPEED', b.speed, STAT_MAX.speed)}
+                    ${/* BALANCE_V2 (S5): TEMPO zawsze (reload byl najwieksza ukryta statystyka gry),
+                          ZASIEG tylko przy rulesecie v2 — przy v1 kazdy czolg ma te same 1000 px,
+                          wiec pasek zasiegu bylby po prostu klamstwem. `is-5` przelacza CSS na
+                          siatke 2x3 przy niskim landscape (5 wierszy w kolumnie 150 px scisnieloby
+                          paski do ~40 px i wypchnelo sloty mocy poza ekran). */''}
+                    <div class="bt-gr2-stats${isBalanceV2Enabled() ? ' is-5' : ' is-4'}">
+                        ${statRowHtml(t('stat.hp'), b.hp, STAT_MAX.hp)}
+                        ${statRowHtml(t('stat.dmg'), b.dmg, STAT_MAX.dmg)}
+                        ${statRowHtml(t('stat.speed'), b.speed, STAT_MAX.speed)}
+                        ${statRowHtml(t('stat.tempo'), tempoOf(b.reload), STAT_MAX.tempo)}
+                        ${isBalanceV2Enabled() && b.maxDist ? statRowHtml(t('stat.range'), b.maxDist, STAT_MAX.range) : ''}
                     </div>
                     ${/* v0.199.1 (Mariusz): podpowiedz "Przeciagnij, aby obrocic" USUNIETA —
                           "to gracz wyczuje". Klucz i18n `hub.garage.dragHint` zostaje w plikach

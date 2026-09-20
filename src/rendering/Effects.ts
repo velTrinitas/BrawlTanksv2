@@ -389,6 +389,23 @@ export class EffectsManager {
         });
     }
 
+    /**
+     * BALANCE_V2 (S2, v0.200.0) — KONIEC ZASIEGU pocisku.
+     *
+     * Do v0.199.0 pocisk na koncu lotu PO PROSTU ZNIKAL (`deactivate()` gasil tylko `visible`),
+     * podczas gdy uderzenie w sciane mialo swoj efekt. Przy zasiegach 350 px (Ogniarz) i 1300 px
+     * (Snajper) brak sygnalu to zlamanie Czytelnosci #1: gracz nie wie, czy spudlowal, czy pocisk
+     * „nie dolecial" — a to jest roznica miedzy „celuj lepiej" a „podjedz blizej".
+     *
+     * Wyglad: pocisk GASNIE (kilka drobin w jego wlasnym kolorze, wolno, bez rozrzutu), a nie
+     * eksploduje — inaczej czytaloby sie jak trafienie. Tanie: jedna pula czastek, zero glow.
+     */
+    spawnRangeFizzle(x: number, y: number, color: number): void {
+        this.spawnParticles(x, y, color, 4, {
+            speed: 0.9, size: 2.2, decay: 0.05, scaleDecay: 0.05, spread: Math.PI * 2,
+        });
+    }
+
     /** v0.34.0 T7: Wood splinters dla crate hits + destruction */
     /**
      * ARC-R1: rozbicie kostki lodu — odlamki (3 tony lodu) + LEKKI DYMEK lodowy

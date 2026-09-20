@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
+import { isBalanceV2Enabled } from './config/balanceFlag'; // BALANCE_V2 (v0.200.0)
 import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
 import { DEFAULT_CROSSHAIR, type CrosshairId } from './rendering/crosshairs'; // SHOP-2
 import { TankSpriteBaker } from './rendering/TankSpriteBaker';
@@ -170,7 +171,7 @@ import { Quicksand } from './maps/desert/Quicksand';
 import { Oasis } from './maps/desert/Oasis';
 import { Caravan } from './maps/desert/Caravan';
 import { MAP_CONFIGS, type ICollidable } from './types/MapType';
-import { Player } from './entities/Player';
+import { Player, SUPER_SHOT_DURATION_MS } from './entities/Player';
 import { Enemy } from './entities/Enemy';
 import { ENEMY_NORMAL, ENEMY_PURSUIT, HEART_CONFIG } from './config/enemies'; // v0.58.0 Warstwa C2; FAZA B tutorial dummy/wave; SAVE THE QUEEN Q2 serce Krolowej
 import { Bullet } from './entities/Bullet';
@@ -311,6 +312,15 @@ function getVolleyOffsets(brawler: Brawler, isSuperShot: boolean): number[] {
     if (bakeActive && isSuperShot && BAKE_SUPER_LAYOUTS[brawler.id]) {
         return BAKE_SUPER_LAYOUTS[brawler.id];
     }
+    // BALANCE_V2 (S3b): SALWA Z RULESETU — liczba pociskow + kat MIEDZY nimi. To jest piata
+    // dzwignia solvera: przy zablokowanym tempie Ogniarza (220 ms) jedynym sposobem na jego
+    // zbalansowanie bylo rozsypanie salwy — pelna salwa trafia jednego wroga tylko z bliska.
+    // Bez tego Ogniarz dostawal SAM BONUS (dmg 50 -> 65) i wynik pomiaru byl absurdalny (+18 zabic).
+    if (!isSuperShot && brawler.volley) {
+        const { count, spread } = brawler.volley;
+        const mid = (count - 1) / 2;
+        return Array.from({ length: count }, (_, i) => (i - mid) * spread);
+    }
     if (brawler.type === 'spread') return [-0.2, 0, 0.2];
     if (isSuperShot) return [0, -0.1, 0.1];
     return [0];
@@ -345,6 +355,44 @@ const SUPER_PROFILES: Record<string, SuperProfile> = {
     pyro:   { offsets: [-0.42, -0.21, 0, 0.21, 0.42], dmg: 160 },  // 5 x 160 = 800  (bylo 5 x 150 = 750)
     shadow: { offsets: [-0.2, 0, 0.2], dmg: 300 },                 // 3 x 300 = 900  (bylo 5 x 450 = 2250)
 };
+/**
+ * BALANCE_V2 (S4, v0.200.0) — SPRAWIEDLIWY SUPER: dmg per pocisk LICZONY Z RELOADU.
+ *
+ * BUG, KTORY TO NAPRAWIA: super trwa `SUPER_SHOT_DURATION_MS` (5 s) i strzela NORMALNYM reloadem
+ * czolgu (warunek w petli strzalu sprawdza `brawler.reload` i robi to PRZED ustaleniem, czy to
+ * super), a profile powyzej ustalaja dmg per POCISK — czyli reload po cichu mnozyl wartosc calego
+ * supera. Zmierzone w oknie 5 s: Ogniarz 19 200 vs Snajper 4 500, rozjazd 3.6x. Snajper ma w UI
+ * najwyzsze DMG i najslabszy super w grze — dokladnie to „poczucie oszukania", ktorego zabrania
+ * Czytelnosc #1.
+ *
+ * DLACZEGO FORMULA, A NIE NOWA TABELA LICZB: w BALANCE_V2 zmieniaja sie reloady (Pancerny 700->860,
+ * Snajper 1000->940, Tech 500->660). Tabela wpisana na sztywno rozjechalaby sie po cichu przy
+ * KAZDYM przyszlym tuningu; formula wyrownuje sie sama.
+ *
+ * `mechFactor` — mechaniki, ktore zwielokrotniaja obrazenia NA JEDEN CEL:
+ *  - bumerang (Zwiad) trafia ten sam cel dwa razy (faza out + back, dedup czyszczony na zawrocie)
+ *    => x2, inaczej Zwiad dostalby podwojna pule;
+ *  - fala Pancernego NIE wchodzi: to bonus za SASIADOW (trafiony jest z niej wykluczony), a nie
+ *    wiecej obrazen w jeden cel;
+ *  - fragmenty (Twardy/Tech) NIE wchodza: leca ZAMIAST pocisku-matki (ginie na `breakupDist`),
+ *    wiec przy ~3 z 5 trafionych daja parytet, a pelne 5/5 to swiadoma nagroda za dystans.
+ */
+const SUPER_FAIR_TARGET = 10000;
+function fairSuperProfiles(): Record<string, SuperProfile> {
+    const out: Record<string, SuperProfile> = {};
+    for (const [id, p] of Object.entries(SUPER_PROFILES)) {
+        const brawler = BRAWLERS.find(b => b.id === id);
+        if (!brawler) { out[id] = p; continue; }
+        const volleys = Math.floor(SUPER_SHOT_DURATION_MS / brawler.reload) + 1;
+        const mechFactor = p.behavior === 'boomerang' ? 2 : 1;
+        const dmg = Math.round(SUPER_FAIR_TARGET / (volleys * p.offsets.length * mechFactor) / 5) * 5;
+        out[id] = { ...p, dmg };
+    }
+    return out;
+}
+const SUPER_PROFILES_ACTIVE: Record<string, SuperProfile> =
+    isBalanceV2Enabled() ? fairSuperProfiles() : SUPER_PROFILES;
+
 // FAZA P5 — NORMAL fire tweaks (gated SUPER_V2): heavy = 2 rownolegle pociski (2 lufy), dmg total /2.
 const NORMAL_PROFILES: Record<string, SuperProfile> = {
     heavy: { offsets: [-0.04, 0.04], dmg: 75 },  // 2 x 75 = 150 (bez zmiany total; efekt 2 luf)
@@ -845,6 +893,28 @@ touchManager.init();
 touchManager.onSuperRequested = (slot) => {
     tryActivateSuper(slot);
 };
+
+/**
+ * BALANCE_V2 S3 — DASH (Shadow). Kierunek: aktualny wektor ruchu (joystick/WASD), a gdy gracz
+ * stoi — kierunek lufy (patrz `Player.tryDash`). Dzwiek z istniejacej puli: dash ma byc SLYSZALNY,
+ * ale nie dostaje wlasnego assetu (Konstytucja §10).
+ */
+function requestDash(): void {
+    if (!localPlayer || gameState !== 'PLAYING') return;
+    const mv = touchManager.moveVector;
+    let dx = mv?.x ?? 0, dy = mv?.y ?? 0;
+    if (dx === 0 && dy === 0) {
+        if (keys.w) dy -= 1;
+        if (keys.s) dy += 1;
+        if (keys.a) dx -= 1;
+        if (keys.d) dx += 1;
+    }
+    if (localPlayer.tryDash(dx, dy, effects)) {
+        audio.playRocketLaunch();
+        effects.shake(3, 6);
+    }
+}
+touchManager.onDashRequested = requestDash;
 
 if (touchManager.isActive) {
     hud.uiScale = 0.7;
@@ -1445,6 +1515,11 @@ window.addEventListener('keydown', e => {
     }
     if (k === '1') {
         tryActivateSuper(0);
+    }
+    // BALANCE_V2 S3: Shift = dash (desktop). `e.repeat` odcina auto-powtarzanie klawisza —
+    // bez tego trzymanie Shifta probowaloby dashowac co klatke.
+    if (e.key === 'Shift' && !e.repeat) {
+        requestDash();
     }
     // v0.191.0: N dziala juz TYLKO jako "pomin szkolenie" — fale przychodza same po czasie.
     if (k === 'n' && castleSystem && gameState === 'PLAYING' && castleSystem.getHudInfo().phase === 'tutorial') {
@@ -2911,7 +2986,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         (window as any).castlePlayerPos = () => localPlayer ? [Math.round(localPlayer.x), Math.round(localPlayer.y)] : null;
         (window as any).castleTut = () => (castleSystem as unknown as { tutStep: number; tutWentOut: boolean } | null)?.tutStep;
         (window as any).castleTeleport = (x: number, y: number) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } };
-        (window as any).castleKillAll = () => { for (const e of enemies) if (e.castleRole && e.active) { e.active = false; if (e.container.parent) e.container.parent.removeChild(e.container); e.container.destroy({ children: true }); } };
+        (window as any).castleKillAll = () => { for (const e of enemies) if (e.castleRole && e.active) { e.markDestroyedExternally(); if (e.container.parent) e.container.parent.removeChild(e.container); e.container.destroy({ children: true }); } };
         (window as any).castleOnlyMachines = (on: boolean) => { if (castleSystem) castleSystem.debugOnlyMachines = on; };
         // debug: castleStep(n) -> recznie pompuje n klatek tickera (testy w karcie w tle, gdzie rAF stoi)
         (window as any).castleStep = (n: number) => { let tNow = performance.now(); for (let i = 0; i < n; i++) { tNow += 1000 / 60; app.ticker.update(tNow); } };
@@ -3924,6 +3999,14 @@ function runLogicStep(delta: number): void {
             // gotowa => 🎲 (Czytelnosc — dziecko widzi co wypadlo). Thrash-guard w srodku.
             touchManager.setDiceIcon(powerSystem.getDiceIcon());
         }
+        // BALANCE_V2 S3 — przycisk dasha: istnieje TYLKO dla czolgu z dashem (Shadow @ ?bal=1).
+        if (localPlayer) {
+            touchManager.updateDashState(
+                localPlayer.hasDash,
+                localPlayer.dashCooldownProgress,
+                localPlayer.dashSecondsLeft,
+            );
+        }
 
         touchMoveVector = touchManager.moveVector;
 
@@ -4655,7 +4738,7 @@ function runLogicStep(delta: number): void {
         // dmg per-pocisk * dmgMultiplier (round) jak dotad.
         // FAZA P5 — super v2 (rozdzielone od renderu): SUPER_V2 + super => SUPER_PROFILES (uklad + dmg
         // per-pocisk absolutny). Inaczej stara sciezka getVolleyOffsets (bit-for-bit).
-        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES[localPlayer.brawler.id] : null;
+        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES_ACTIVE[localPlayer.brawler.id] : null;
         const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[localPlayer.brawler.id] : null;
         const shotProfile = superProfile || normalProfile;
         const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(localPlayer.brawler, isSuperShot);
@@ -4872,6 +4955,10 @@ function runLogicStep(delta: number): void {
                     currentSession.addFrozenKillBonus(enemy.scoreValue);
                 }
 
+                // v0.200.0: OZNACZ martwego PRZED zniszczeniem. Bez tego kolejny pocisk albo AoE
+                // w TEJ SAMEJ klatce przechodzil przez guard `isDead` w `takeDamage` i wywalal gre
+                // na `drawHp()` zniszczonej Graphics (zlapane przez SigmaTestera, Pancerny seed 4100).
+                enemy.markDestroyedExternally();
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
@@ -4889,11 +4976,25 @@ function runLogicStep(delta: number): void {
             const hitDist = enemy.isMegaBoss ? 60 : enemy.isBoss ? 45 : 30;
             if ((b.x - enemy.x) ** 2 + (b.y - enemy.y) ** 2 < (hitDist + b.radius) ** 2) {
                 // FAZA P5 Batch 2 — boomerang: pierce (nie ginie), 1 hit/wroga/faza.
+                // BALANCE_V2 (S3) — TECH = PRZEBIJANIE: ten sam mechanizm co bumerang (dedup
+                // `hitEnemies` + brak deaktywacji po trafieniu), tylko z limitem celow z rulesetu.
+                // Kazdy trafiony dostaje PELNE obrazenia — to jest tozsamosc Techa, nie polowiczny
+                // bonus. Po wyczerpaniu limitu pocisk ginie normalnie.
                 const isBoomerang = b.behavior === 'boomerang';
-                if (isBoomerang && b.hitEnemies.has(enemy)) continue;
+                const pierceMax = b.pierceLeft;
+                const isPiercing = !isBoomerang && pierceMax > 0;
+                if ((isBoomerang || isPiercing) && b.hitEnemies.has(enemy)) continue;
                 const hitX = b.x, hitY = b.y;
                 if (isBoomerang) {
                     b.hitEnemies.add(enemy);
+                } else if (isPiercing) {
+                    b.hitEnemies.add(enemy);
+                    b.pierceLeft -= 1;
+                    if (b.pierceLeft <= 0) {
+                        b.deactivate();
+                        bullets.splice(j, 1);
+                        bulletPool.push(b);
+                    }
                 } else {
                     b.deactivate();
                     bullets.splice(j, 1);
@@ -5175,6 +5276,7 @@ if (SIGMA_BOT) {
             setMouse: (sx, sy, down) => { mouse.screenX = sx; mouse.screenY = sy; isMouseDown = down; },
             injectTouch: (move, aim, fire) => touchManager.inject(move, aim, fire),
             requestSuper: (slot) => { touchManager.onSuperRequested?.(slot); },
+            requestDash: () => { requestDash(); },
             setGod: () => { /* god-mode = SigmaTest odnawia HP co krok (bez zmian w Player) */ },
             teleport: (x, y) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } },
         });

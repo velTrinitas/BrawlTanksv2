@@ -68,6 +68,14 @@
     --radius-xl:  24px;
     --radius-pill: 999px;
 
+    /* === Naglowki (v0.202.0) ===
+       Jeden kolor dla KAZDEGO naglowka menu/huba. Wczesniej mieszalismy zloto
+       (--bt-gold), biel i --text-primary w jednym widoku — to lamalo Czytelnosc #1
+       (zloto = "waznie/nagroda" w HUD, wiec naglowek sekcji nie ma prawa go uzywac).
+       Wyjatek celowy: ostrzezenia (.bt-ctxlost-title, .bt-portrait-warning-title)
+       zostaja bursztynowe, bo NIE sa naglowkami sekcji tylko alarmem. */
+    --bt-heading: #ffffff;
+
     /* === Shadows (cartoon style — solid offset, no blur) === */
     --shadow-card:     0 6px 0 var(--bt-navy);
     --shadow-card-hover: 0 10px 0 var(--bt-navy);
@@ -120,7 +128,7 @@
     font-size: var(--fs-h1);
     line-height: 1.05;
     margin: 0 0 var(--space-sm);
-    color: var(--bt-gold);
+    color: var(--bt-heading);
     text-transform: uppercase;
     letter-spacing: 2px;
 }
@@ -145,7 +153,7 @@
     font-family: var(--font-display);
     font-size: var(--fs-h3);
     margin: 0;
-    color: var(--text-primary);
+    color: var(--bt-heading);
 }
 
 /* =============================================================
@@ -594,7 +602,7 @@
     color: #fff;
     background: rgba(0, 0, 0, 0.72);
     padding: 3px 10px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     border: 1.5px solid rgba(255, 255, 255, 0.25);
 }
 
@@ -936,7 +944,7 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(241, 196, 15, 0.35);
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     box-sizing: border-box;
 }
 .bt-hub-trophybar-count {
@@ -1446,7 +1454,7 @@
 .bt-picker-title {
     font-family: var(--font-display);
     font-size: 1.2rem;
-    color: var(--bt-gold);
+    color: var(--bt-heading);
     margin: 0;
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -1459,7 +1467,7 @@
     z-index: 10;
     font-family: var(--font-display);
     font-size: 1.2rem;
-    color: var(--bt-gold);
+    color: var(--bt-heading);
     margin: 0;
     padding: 8px 14px;
     letter-spacing: 1px;
@@ -2016,7 +2024,7 @@
     width: 120px;
     height: 120px;
     margin-bottom: 4px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     background: rgba(255, 255, 255, 0.06);
     border: 3px solid var(--bt-navy);
@@ -2052,7 +2060,7 @@
     line-height: 1.1;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     background: var(--bt-navy);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     border: 1.5px solid rgba(0, 0, 0, 0.3);
 }
 
@@ -2066,7 +2074,7 @@
     justify-content: space-between;
     align-items: center;
     background: rgba(0, 0, 0, 0.55);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     /* Runda 1.19 fix: padding horizontal 5px → 4px (per Mariusz: "kilka pikseli wolnego miejsca")
        Oszczednosc 2px each side = 4px total dla decimal values horizontal fit */
     padding: 4px 4px;
@@ -2252,7 +2260,7 @@
         padding: 10px 5px 12px;
     }
 
-    .bt-brawler-card-icon-wrap { width: 130px; height: 130px; border-radius: 16px; margin-bottom: 6px; }
+    .bt-brawler-card-icon-wrap { width: 130px; height: 130px; border-radius: var(--radius-md); margin-bottom: 6px; }
     .bt-brawler-card-emoji { font-size: 3.6rem; }
     .bt-brawler-card-name { font-size: 1rem; margin-bottom: 6px; padding: 4px 8px; }
     /* Runda 1.19-B3: stats container padding 5px → 3px sides (+2px extra buffer = 2px safety margin) */
@@ -2285,7 +2293,7 @@
     .bt-scenario-card-desc { font-size: 0.88rem; }
 
     .bt-brawler-card { min-height: 240px; }
-    .bt-brawler-card-icon-wrap { width: 150px; height: 150px; border-radius: 18px; margin-bottom: 8px; }
+    .bt-brawler-card-icon-wrap { width: 150px; height: 150px; border-radius: var(--radius-md); margin-bottom: 8px; }
     .bt-brawler-card-emoji { font-size: 4.2rem; }
     .bt-brawler-card-name { font-size: 1.1rem; padding: 5px 10px; }
     .bt-brawler-card-stats .stat { font-size: 1.05rem; }
@@ -2342,7 +2350,7 @@
 .bt-identity-title {
     font-family: var(--font-display);
     font-size: 1.4rem;
-    color: var(--bt-gold);
+    color: var(--bt-heading);
     margin: 0 0 6px;
     letter-spacing: 1px;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
@@ -2371,7 +2379,7 @@
 .bt-identity-section-title {
     font-family: var(--font-display);
     font-size: 1.05rem;
-    color: var(--bt-gold);
+    color: var(--bt-heading);
     margin: 0;
     padding: 6px 14px;
     letter-spacing: 0.8px;
@@ -2821,7 +2829,7 @@
     .bt-hub-chip-flag {
         width: 38px;
         height: 38px;
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
     }
 }
 
@@ -3685,7 +3693,7 @@
     margin: 0;
     font-size: 1.8rem;
     letter-spacing: 1px;
-    color: var(--bt-gold, #f1c40f);
+    color: var(--bt-heading);
     text-shadow: 2px 2px 0 #000;
     -webkit-text-stroke: 1px #000;
 }
@@ -3706,7 +3714,7 @@
 .bt-settings-section {
     background: rgba(0, 0, 0, 0.35);
     border: 2px solid rgba(241, 196, 15, 0.4);
-    border-radius: 16px;
+    border-radius: var(--radius-md);
     padding: 20px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -3714,7 +3722,7 @@
 .bt-settings-section-title {
     margin: 0 0 16px 0;
     font-size: 1.3rem;
-    color: var(--bt-gold, #f1c40f);
+    color: var(--bt-heading);
     letter-spacing: 0.5px;
     display: flex;
     align-items: center;
@@ -3824,7 +3832,7 @@
     background: rgba(0, 0, 0, 0.4);
     color: rgba(255, 255, 255, 0.7);
     border: 3px solid rgba(241, 196, 15, 0.3);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast, 0.15s ease);
     display: flex;
@@ -3994,7 +4002,7 @@
     padding: 14px 18px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     transition: background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -4030,7 +4038,7 @@
     letter-spacing: 0.6px;
     text-transform: uppercase;
     border: none;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease;
     box-shadow:
@@ -4122,7 +4130,7 @@
     margin-right: 12px;
     padding: 9px 18px;
     border: 2px solid rgba(241, 196, 15, 0.75);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: rgba(241, 196, 15, 0.16);
     color: #ffd24a;
     font-family: var(--font-body);
@@ -4194,7 +4202,7 @@
     /* replay-button w naglowku — kompaktowy na niskim viewport */
     .bt-howto-replay { padding: 6px 14px; font-size: 0.82rem; margin-right: 8px; }
     /* kompaktowe sekcje */
-    .bt-howto-screen .bt-settings-section { padding: 9px 11px; border-radius: 12px; }
+    .bt-howto-screen .bt-settings-section { padding: 9px 11px; border-radius: var(--radius-md); }
     .bt-howto-screen .bt-settings-section-title { font-size: 0.9rem; margin-bottom: 7px; gap: 6px; }
     .bt-howto-screen .bt-settings-icon { font-size: 1.1rem; }
     /* wiersze sterowania: key NAD val (waskie kolumny) */
@@ -4235,7 +4243,7 @@
         align-content: start;
     }
     /* min-width:0 na KAZDEJ karcie = klucz: karta moze sie skurczyc, tresc nie wypycha layoutu poza ekran. */
-    .bt-settings-panel .bt-settings-section { padding: 10px 12px; border-radius: 12px; min-width: 0; }
+    .bt-settings-panel .bt-settings-section { padding: 10px 12px; border-radius: var(--radius-md); min-width: 0; }
     .bt-settings-panel .bt-settings-section-title { font-size: 0.9rem; margin-bottom: 8px; }
     .bt-settings-panel .bt-settings-icon { font-size: 1.1rem; }
     /* suwak audio: etykieta+% na gorze, suwak PELNA szerokosc karty pod spodem (przeciagalny kciukiem). */
@@ -4280,7 +4288,7 @@
 .bt-lb-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .bt-lb-tab {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 14px; border-radius: 999px; cursor: pointer;
+    padding: 8px 14px; border-radius: var(--radius-pill); cursor: pointer;
     font-family: var(--font-body); font-weight: 700; font-size: 0.9rem;
     color: #e9edf8; background: rgba(0, 0, 0, 0.35);
     border: 2px solid rgba(255, 255, 255, 0.12);
@@ -4288,7 +4296,7 @@
 }
 .bt-lb-tab.is-active { color: #1a252f; background: #ffd24a; border-color: #ffd24a; }
 .bt-lb-tab.is-locked { opacity: 0.4; cursor: not-allowed; }
-.bt-lb-segment { display: flex; gap: 0; border-radius: 999px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.14); }
+.bt-lb-segment { display: flex; gap: 0; border-radius: var(--radius-pill); overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.14); }
 .bt-lb-seg {
     padding: 7px 14px; cursor: pointer; border: none; background: rgba(0, 0, 0, 0.35);
     color: #cfd6e6; font-family: var(--font-body); font-weight: 700; font-size: 0.82rem;
@@ -4299,7 +4307,7 @@
 .bt-lb-chips { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
 .bt-lb-chips:empty { display: none; }
 .bt-lb-chip {
-    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    padding: 5px 12px; border-radius: var(--radius-pill); cursor: pointer;
     font-family: var(--font-body); font-weight: 600; font-size: 0.8rem;
     color: #cfd6e6; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.14);
 }
@@ -4320,9 +4328,9 @@
    zadeklarowane wylacznie na `.bt-hub0-screen` / `.bt-identity-screen` i poza hubem nie istnieja
    — uzycie zmiennej dalo by pasek bezbarwny. Wartosci 1:1 z tokenami huba. */
 .bt-lb-screen *::-webkit-scrollbar { width: 10px; height: 10px; }
-.bt-lb-screen *::-webkit-scrollbar-track { background: #0d141b; border-radius: 999px; }
+.bt-lb-screen *::-webkit-scrollbar-track { background: #0d141b; border-radius: var(--radius-pill); }
 .bt-lb-screen *::-webkit-scrollbar-thumb {
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: linear-gradient(180deg, #31465a, #243545);
     /* Ramka w kolorze toru udaje odstep — `margin` na kciuku nie dziala. */
     border: 2px solid #0d141b;
@@ -4332,7 +4340,7 @@
 /* Firefox nie wspiera ::-webkit-*; ma wlasna, ubozsza sciezke — dwa kolory i tyle. */
 .bt-lb-screen * { scrollbar-width: thin; scrollbar-color: #31465a #0d141b; }
 .bt-lb-row {
-    display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 10px;
+    display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: var(--radius-md);
     background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.07);
     /* v0.126.0 (zgloszenie z playtestu: „pierwsze 3 miejsca to waskie paski").
        Wysokosc wiersza byla WYPADKOWA zawartosci — jesli cokolwiek w srodku sie nie
@@ -4358,7 +4366,7 @@
 .bt-lb-you { flex-shrink: 0; }
 .bt-lb-you:empty { display: none; }
 .bt-lb-you-row {
-    display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 12px;
+    display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: var(--radius-md);
     background: rgba(159, 216, 255, 0.18); border: 2px solid #9fd8ff;
 }
 .bt-lb-you-row.is-unranked { justify-content: center; color: #cfd6e6; font-family: var(--font-body); font-size: 0.9rem; }
@@ -4369,7 +4377,7 @@
 /* ── LB-F3: sensoryka/flex (animacje transform/opacity — GPU, tanie na mobile) ── */
 .bt-lb-screen .bt-settings-title { margin-right: auto; } /* pcha refresh na prawo */
 .bt-lb-refresh {
-    flex-shrink: 0; width: 40px; height: 40px; border-radius: 999px; cursor: pointer;
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: var(--radius-pill); cursor: pointer;
     border: 2px solid rgba(255, 255, 255, 0.14); background: rgba(0, 0, 0, 0.35);
     color: #e9edf8; font-size: 1.05rem;
     transition: transform 0.3s ease, background 0.15s ease;
@@ -4395,7 +4403,7 @@
 /* Skeleton ladowania (pulsujace wiersze zamiast surowego tekstu) */
 .bt-lb-skeleton .bt-lb-skel-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 12px; margin-bottom: 4px;
-    border-radius: 10px; background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-md); background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .bt-lb-skel {
     height: 14px; border-radius: 6px;
@@ -4411,7 +4419,7 @@
 /* Stan bledu + przycisk ponow (testowalny NP. teraz przy outage Supabase) */
 .bt-lb-status.is-error { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .bt-lb-retry {
-    padding: 9px 20px; border-radius: 999px; cursor: pointer;
+    padding: 9px 20px; border-radius: var(--radius-pill); cursor: pointer;
     border: 2px solid rgba(241, 196, 15, 0.75); background: rgba(241, 196, 15, 0.16);
     color: #ffd24a; font-family: var(--font-body); font-weight: 700; font-size: 0.9rem;
     transition: background 0.15s ease, transform 0.1s ease;

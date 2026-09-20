@@ -164,7 +164,7 @@ import { Sphinx } from './maps/desert/Sphinx';
 import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
 import { WaterLife } from './maps/desert/WaterLife';
-import { Rock } from './maps/desert/Rock';
+import { Rock, ROCK_HITBOX_PADDING_DESERT } from './maps/desert/Rock';
 import { setPropBakeRenderer, disposePropCache } from './maps/propBaker'; // v0.133.0 — pieczenie statycznych propow; v0.187.0 — zwalnianie cache miedzy meczami
 import { SandstormBorder } from './maps/desert/SandstormBorder';
 import { Quicksand } from './maps/desert/Quicksand';
@@ -2111,13 +2111,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         );
 
         DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
-            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
+            // v0.202.0: hitbox = bryla skaly (padding 8 zamiast 60). Patrz Rock.ts.
+            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer, undefined, ROCK_HITBOX_PADDING_DESERT);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
 
         DESERT_RIVER_CATARACT_ROCKS.forEach(r => {
-            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer);
+            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer, undefined, ROCK_HITBOX_PADDING_DESERT);
             buildings.push(rock);
             solidBuildings.push(rock);
         });

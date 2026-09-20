@@ -39,6 +39,23 @@ const PALETTE: RockPalette = {
 
 export type RockTier = 'small' | 'large';
 
+/**
+ * Domyslny padding hitboxa (LEGACY). Marsjanskie i zamkowe skaly maja ulozenie
+ * math-verified wlasnie na `size + 60` (komentarze „AABB 120x120" przy `size: 60`
+ * w `main.ts`), wiec ta wartosc NIE MOZE sie zmienic globalnie.
+ */
+export const ROCK_HITBOX_PADDING_LEGACY = 60;
+
+/**
+ * Padding pustynny (v0.202.0) — hitbox = bryla skaly, zgodnie z Czytelnoscia #1
+ * („hitboxy pokrywaja sie z tym, co narysowane"). Bryla to osmiokat o promieniu
+ * `hS * (0.85 +- 0.15)` plus 3 px cienia, wiec jej AABB jest w najciasniejszym
+ * przypadku rowne `size + 6`; 8 daje 2 px zapasu i ZERO penetracji wizualnej
+ * (polygon zawsze zawiera sie w prostokacie). Dotad bylo 60 = 30 px powietrza na
+ * kazda os — gracz zatrzymywal sie pol czolgu przed skala.
+ */
+export const ROCK_HITBOX_PADDING_DESERT = 8;
+
 export class Rock implements ICollidable {
     public x: number;
     public y: number;
@@ -62,6 +79,7 @@ export class Rock implements ICollidable {
         seed: number,
         worldContainer: PIXI.Container,
         palette: RockPalette = PALETTE,   // FAZA MARS M3 (default = pustynia)
+        hitboxPadding: number = ROCK_HITBOX_PADDING_LEGACY,
     ) {
         this.visualX = x;
         this.visualY = y;
@@ -72,7 +90,9 @@ export class Rock implements ICollidable {
         
         // Hitbox: large = collision, small = 0 (effectively no collision)
         if (tier === 'large') {
-            const hitboxSize = size + 60;  // padding mniejszy niż piramida (skała okrągła)
+            // v0.202.0: padding parametryzowany — pustynia dostaje hitbox rowny bryle,
+            // Mars/Zamek zostaja przy LEGACY 60 (ich layouty sa na tym math-verified).
+            const hitboxSize = size + hitboxPadding;
             this.x = x - hitboxSize / 2;
             this.y = y - hitboxSize / 2;
             this.w = hitboxSize;

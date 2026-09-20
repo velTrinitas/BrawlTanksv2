@@ -8,6 +8,7 @@ import type { HubSection, HubSelection } from './sections/HubSection';
 import { BattleSection } from './sections/BattleSection';
 import { GarageSection } from './sections/GarageSection';
 import { LoadoutOverlay } from './overlays/LoadoutOverlay'; // GARAZ-3 — wybor mocy (?choose=1)
+import { SkinsOverlay } from './overlays/SkinsOverlay';     // GARAZ v2 — przymierzalnia barw
 import { sessionService } from '../../services/SessionService';  // GARAZ-2 — seed HubSelection
 import { BRAWLERS } from '../../config/brawlers';                // GARAZ-2 — walidacja seedu
 import { QuestsSection } from './sections/QuestsSection';
@@ -83,6 +84,8 @@ export class HubShell implements IScreen {
     private readonly garage = new GarageSection(this.hubSel);
     /** GARAZ-3 — pelnoekranowy wybor mocy; otwierany tylko z Garaza (?choose=1). */
     private readonly loadout = new LoadoutOverlay();
+    /** GARAZ v2 — przymierzalnia barw czolgu (duzy czolg + siatka, WYSIWYG). */
+    private readonly skins = new SkinsOverlay();
     private readonly quests = new QuestsSection();
     private readonly rank = new RankSection();
     /** SHOP-1 — sekcja tylko za flaga ?shop=1 (towar to jeszcze placeholdery). */
@@ -129,13 +132,35 @@ export class HubShell implements IScreen {
         // GARAZ-3 — Garaz prosi o pelnoekranowy wybor mocy, shell montuje go
         // w swoim roocie (ta sama sciezka co CrateOverlay). Po zamknieciu
         // targeted refresh rzedu slotow (obrotnica NIE remountuje sie).
+        // v0.199.1 (Mariusz: "szerokosc strony z wyborem mocy ma byc jak RANKING i ROZKAZY"):
+        // overlay montuje sie w `.bt-hub0-main`, czyli w tej samej kolumnie tresci co sekcje
+        // (te same gutter'y desktopu). Wczesniej szedl w `rootEl` i przykrywal rail + topbar,
+        // przez co byl szerszy niz kazdy inny ekran hubu.
         this.garage.onOpenLoadout = (slot) => {
-            if (this.rootEl) this.loadout.open(this.rootEl, this.pid(), slot,
+            const host = this.rootEl?.querySelector<HTMLElement>('.bt-hub0-main') ?? this.rootEl;
+            if (host) this.loadout.open(host, this.pid(), slot,
                 () => this.garage.refreshSlots());
         };
         // SKIN-1 — hint preview skina prowadzi do SKLEPU (gdy sklep w nawigacji)
         this.garage.onOpenShop = () => {
             if (isShopEnabled()) this.setActive('shop');
+        };
+        // GARAZ v2 — PRZYMIERZALNIA barw. Overlay montuje wlasna obrotnice (singleton
+        // modulu ubija gablote Garazu), wiec `onDone` MUSI ja przemontowac.
+        // Zakup: Garaz przymierza, Sklep sprzedaje — CTA prowadzi wprost do karty SKU.
+        this.garage.onOpenSkins = () => {
+            if (!this.rootEl) return;
+            this.skins.open(this.rootEl, {
+                pid: this.pid(),
+                brawlerId: this.hubSel.brawlerId,
+                flagId: ProfileService.getActiveProfile()?.flagId ?? null,
+                onBuy: (sku) => {
+                    if (!isShopEnabled()) return;
+                    this.setActive('shop');
+                    if (this.rootEl) this.shopModal.openDetail(this.rootEl, sku, this.pid());
+                },
+                onDone: () => this.garage.refreshAfterSkins(),
+            });
         };
         this.garage.onOpenCrate = () => {
             if (this.rootEl) this.crate.open(this.rootEl, this.pid(), () => {
@@ -265,6 +290,7 @@ export class HubShell implements IScreen {
         this.rankUp.close();
         this.shopModal.close();
         this.loadout.close(); // GARAZ-3
+        this.skins.close();   // GARAZ v2
         this.rootEl?.remove();
         this.rootEl = null;
     }

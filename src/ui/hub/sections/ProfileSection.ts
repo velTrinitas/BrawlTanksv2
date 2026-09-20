@@ -7,7 +7,7 @@ import { leaderboardService } from '../../../services/ScoreService';
 import { LEADERBOARD_BOARDS } from '../../../services/leaderboard';
 import {
     getCosmetic, nickColorStyle, frameStyle, avatarBgStyle, profileSkinStyle,
-    COSMETICS, cosmeticsByType, RARITY_COLOR,
+    countedCosmetics, cosmeticsByType, RARITY_COLOR,
     type CosmeticType,
 } from '../../../config/cosmetics';
 import { AVATARS } from '../../../config/avatars';
@@ -50,8 +50,10 @@ type ProfileTab = 'overview' | 'records' | 'collection';
  */
 const isCountedCosmetic = (type: string): boolean =>
     type !== 'title' && (type !== 'tankSkin' || isSkinsEnabled());
+// v0.199.0: przez countedCosmetics — wycofane barwy (hidden) wypadaja z mianownika,
+// inaczej licznik "STYL x/y" obiecywalby pozycje, ktorych nie da sie juz zdobyc.
 const activeCosmeticCount = (): number =>
-    COSMETICS.filter(c => isCountedCosmetic(c.type)).length;
+    countedCosmetics(isCountedCosmetic).length;
 
 export class ProfileSection implements HubSection {
     public readonly id = 'profile';

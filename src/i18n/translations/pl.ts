@@ -475,6 +475,8 @@ export const pl = {
     'hub.garage.type.tankSkin': 'Barwy czołgu',
     'hub.garage.skinPreview': 'Podgląd — kup w Sklepie za {n} ⚙',
     'hub.garage.skinBase': 'Baza',
+    'hub.garage.skinsHint': 'Dotknij barwy — czołg od razu ją zakłada',
+    'hub.garage.skinBuy': 'KUP W SKLEPIE — {n} ⚙',
     'shop.tab.tankSkins': 'BARWY CZOŁGU',
     'shop.item.tankSkin.desc': 'Twój czołg w tych barwach — w każdym meczu.',
 
@@ -607,6 +609,7 @@ export const pl = {
     'road.unlock.repair': '🔧 Moc: Naprawa!',
     'road.unlock.tower': '🎯 Moc: Wieża!',
     'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
+    'hub.garage.slotsLabel': 'WYBIERZ SUPER MOCE',
     // GARAZ-2/3 (?choose=1) — obrotnica 3/4 + karuzela czolgow w Garazu
     'hub.garage.dragHint': 'Przeciągnij, aby obrócić',
     'hub.garage.loadoutHint': 'Tapnij puste pole, potem moc z listy — z tym wjedziesz do bitwy!',

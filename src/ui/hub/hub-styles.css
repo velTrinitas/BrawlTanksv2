@@ -1269,6 +1269,10 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
 /* v0.114.0 — OSOBNA sekcja "Szalone Moce" (fioletowa, spojna z wyroznieniem kostki
    w meczu): toggle + pokazowa pula losowania. T3 nie wchodzi do loadoutu. */
 .bt-hub0-crazy {
+    /* v0.199.1 (Mariusz): sekcja Szalonych Mocy dotykala ostatniego rzedu kafli nad soba
+       (kafle maja wlasna poswiate, wiec "zachodzily na siebie"). Odstep u gory rozdziela
+       dwie pule wizualnie — to dwie rozne kategorie, nie jedna lista. */
+    margin-top: 18px;
     margin-bottom: 16px; padding: 12px 14px;
     border: 1px solid rgba(142, 68, 173, 0.45); border-radius: var(--radius-md, 14px);
     background: linear-gradient(110deg, #241028, #1a2530 70%);
@@ -2724,6 +2728,26 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     text-transform: uppercase; color: var(--hub-ink-faint);
     width: 44px; flex: 0 0 auto;
 }
+/* v0.199.1 (Mariusz: "wyroznij jakos staty czolgu") — tylko w Garazu (.bt-gr2-stats):
+   grubszy pasek z poswiata w barwie czolgu, wieksza liczba, jasniejsza etykieta.
+   Karta czolgu w BITWIE (.bt-gr2-info) zostaje bez zmian — to osobny kontekst.
+   UWAGA: reguly bazowe `.bt-gr2-info .cd-stat ...` stoja NIZEJ w pliku, wiec przy rownej
+   specyficznosci wygralyby kolejnoscia — stad prefiks `.bt-gr2-stage2` (wyzsza waga). */
+.bt-gr2-stage2 .bt-gr2-stats .cd-stat { gap: 8px; }
+.bt-gr2-stage2 .bt-gr2-stats .cd-stat em { font-size: 13px; color: var(--hub-ink); opacity: 0.8; }
+.bt-gr2-stage2 .bt-gr2-stats .cd-stat .bar {
+    /* v0.199.1: "lekko grubszy pasek" 10 -> 12 px + mocniejszy glow. */
+    height: 12px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bt-gr2-stage2 .bt-gr2-stats .cd-stat .bar b {
+    box-shadow: 0 0 16px var(--tank, var(--hub-accent)), 0 0 6px var(--tank, var(--hub-accent));
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0));
+}
+.bt-gr2-stage2 .bt-gr2-stats .cd-stat u {
+    font-size: 19px; width: 46px;
+    text-shadow: 0 0 12px color-mix(in srgb, var(--tank, #fff) 35%, transparent), 0 2px 4px rgba(0, 0, 0, 0.6);
+}
 .bt-gr2-info .cd-stat .bar, .bt-gr2-stats .cd-stat .bar {
     flex: 1 1 auto; max-width: 220px; height: 6px; border-radius: 999px; overflow: hidden;
     background: var(--hub-steel-950);
@@ -2748,6 +2772,70 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     gap: clamp(8px, 2vw, 28px);
     margin-bottom: 12px;
 }
+/* GARAZ v2 / transza A (v0.199.0): WINIETA + swietlny pool pod podium.
+   Czolg miał plaskie tlo i zlewal sie z sekcja — ciemniejsze krawedzie + cieply
+   radial pod padem "wystawiaja" go jak w gablocie.
+   KOSZT: zero. To statyczny gradient w DOM (jeden malowany element, bez animacji),
+   NIE render — canvas gabloty nie wie o jego istnieniu.
+   Z-ORDER: warstwa siedzi POD trescia stage2 (z-index 0 vs 1), wiec nie gasi
+   czolgu, strzalek, nazwy ani statow; `pointer-events:none` zostawia drag/flick. */
+/* v0.199.1 (Mariusz, zrzut): winieta obejmuje CALA sekcje Garazu — od tytulu po pasek
+   skrzynek — a nie sama gablote. Przy waskiej winiecie kompozycja rozpadala sie na
+   "jasny prostokat w ciemnym tle"; pelna szerokosc scala hero, staty i sloty w jeden kadr. */
+/* v0.199.1 (zrzut Mariusza): winieta ma OTACZAC wszystko — chip skrzynek u gory i rzad mocy
+   u dolu wystawaly poza ramke, bo byla ona wsunieta o 20 px z kazdej strony. Teraz odstep
+   robi PADDING wrappera (tresc wewnatrz ramki), a gradient lezy na calym wrapperze. */
+.bt-gr2-wrap { position: relative; padding: 16px 16px 18px; margin-top: 8px; }
+.bt-gr2-wrap > * { position: relative; z-index: 1; }
+.bt-gr2-wrap::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background:
+        radial-gradient(46% 30% at 38% 52%, rgba(255, 206, 110, 0.26), rgba(255, 186, 74, 0.10) 48%, rgba(0, 0, 0, 0) 74%),
+        radial-gradient(78% 72% at 42% 46%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.30) 76%, rgba(0, 0, 0, 0.48) 100%);
+    border-radius: 18px;
+}
+.bt-gr2-stage2 { position: relative; }
+.bt-gr2-stage2::before {
+    content: ''; position: absolute; inset: -8% -6%; pointer-events: none; z-index: 0;
+    display: none; /* v0.199.1: winieta przeniesiona na .bt-gr2-wrap (cala sekcja) */
+    background:
+        /* pool: cieply snop pod czolgiem (srodek gabloty, nie srodek wiersza) */
+        radial-gradient(52% 34% at 38% 76%, rgba(255, 206, 110, 0.30), rgba(255, 186, 74, 0.12) 46%, rgba(0, 0, 0, 0) 74%),
+        /* winieta: przyciemnione krawedzie kompozycji */
+        radial-gradient(72% 78% at 38% 52%, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.26) 78%, rgba(0, 0, 0, 0.42) 100%);
+    border-radius: 24px;
+}
+.bt-gr2-stagerow, .bt-gr2-side { position: relative; z-index: 1; }
+/* v0.199.1 — etykieta nad rzedem super mocy (mala, biala, dyskretna). */
+.bt-gr2-slotslabel {
+    font-size: 12px; font-weight: 800; letter-spacing: 1.2px; color: #fff;
+    opacity: 0.85; margin: 0 0 6px 4px; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+/* v0.199.1 — pasek tytulu sekcji: GARAZ + chip skrzynek po prawej (box pod mocami zniknal). */
+.bt-gr2-titlerow { display: flex; align-items: center; gap: 12px; }
+/* v0.199.1 (Mariusz: "tytul sekcji GARAZ daj wiekszy") — tylko Garaz, reszta sekcji bez zmian. */
+.bt-gr2-titlerow .bt-hub0-sectitle {
+    margin-bottom: 0; font-size: clamp(20px, 2.1vw, 26px); letter-spacing: 1px;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+/* v0.199.1: chip +50% (uwaga Mariusza) — to jedyna akcja "do klikniecia" w tym pasie,
+   wiec ma byc wyraznym celem takze pod kciukiem. */
+.bt-gr2-cratechip {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 10px;
+    min-height: 51px; padding: 0 18px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(224, 181, 60, 0.45); background: rgba(224, 181, 60, 0.10);
+    color: var(--hub-ink); font-family: inherit; font-size: 19px; font-weight: 800;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.bt-gr2-cratechip .art { display: grid; place-items: center; }
+.bt-gr2-cratechip .go {
+    font-size: 15px; letter-spacing: 0.5px; color: var(--hub-accent);
+}
+.bt-gr2-cratechip.is-ready { box-shadow: 0 0 14px rgba(241, 196, 15, 0.28); }
+.bt-gr2-cratechip.is-ready:hover { transform: translateY(-1px); background: rgba(224, 181, 60, 0.18); }
+.bt-gr2-cratechip:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+/* v0.199.1 (uwaga z A54): wejscie do przymierzalni 15 px nizej — oddziela je od statow. */
+.bt-gr2-side .bt-gr2-skinbtn-wrap { margin-top: 15px; }
 .bt-gr2-stagerow { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .bt-gr2-side {
     display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
@@ -2773,10 +2861,27 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 }
 .bt-gr2-arrow:active { transform: scale(0.94); }
 /* Nazwa czolgu = button (tap = nastepny), stylem czysty tytul. */
+/* v0.199.1 (Mariusz: "brakuje uatrakcyjnienia nazwy czolgu"): nazwa jako TYTUL BOHATERA —
+   wieksza, z poswiata w barwie czolgu/skina (--tank) i zlotym podkresleniem-akcentem.
+   `currentColor` w cieniu = poswiata sama idzie za barwa skina (inline `color` ustawia JS). */
 .bt-gr2-stage2 .bt-gr2-name {
-    border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left;
-    font-family: inherit; font-size: 26px; font-weight: 800; letter-spacing: 0.5px;
+    border: 0; background: transparent; cursor: pointer; padding: 0 0 6px; text-align: left;
+    /* v0.199.1: +10% (34 -> 37px) i mocniejsza poswiata (uwaga Mariusza). */
+    /* v0.199.1: 10 px odstepu do statow MARGINESEM, nie paddingiem — padding odsunalby
+       tez zloty akcent (::after siedzi na dole przycisku), a on ma zostac pod napisem. */
+    margin-bottom: 10px;
+    font-family: inherit; font-size: 37px; font-weight: 800; letter-spacing: 1px;
+    line-height: 1.05; text-transform: uppercase;
+    text-shadow: 0 0 26px color-mix(in srgb, currentColor 62%, transparent),
+        0 0 10px color-mix(in srgb, currentColor 40%, transparent), 0 2px 6px rgba(0, 0, 0, 0.6);
+    position: relative;
 }
+.bt-gr2-stage2 .bt-gr2-name::after {
+    content: ''; position: absolute; left: 0; bottom: 0; width: 46px; height: 3px;
+    border-radius: 2px; background: linear-gradient(90deg, currentColor, transparent);
+    opacity: 0.85;
+}
+.bt-gr2-stage2 .bt-gr2-name:hover { filter: brightness(1.12); }
 .bt-gr2-stats { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 /* Rzad 3 slotow mocy — kafle record-boxa w button-wrapperze bez wlasnego stylu. */
 .bt-gr2-slots {
@@ -2803,6 +2908,29 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
         0 0 14px rgba(241, 196, 15, 0.35);
 }
 .bt-hub0-stat--slot.is-dice { opacity: 0.9; }
+/* v0.199.1 (Mariusz: "brakuje uatrakcyjnienia ... jego mocy"): kafle mocy w Garazu dostaja
+   zloty akcent u dolu, glebsze tlo i reakcje na dotyk. Zmiana dotyczy TYLKO rzedu w Garazu
+   (.bt-gr2-slots), wiec LoadoutOverlay i inne uzycia kafla zostaja bez zmian. */
+.bt-gr2-slots .bt-ld-slotbtn { transition: transform 0.12s ease; }
+.bt-gr2-slots .bt-ld-slotbtn:hover { transform: translateY(-2px); }
+.bt-gr2-slots .bt-ld-slotbtn:active { transform: translateY(0) scale(0.985); }
+.bt-gr2-slots .bt-hub0-stat--slot {
+    position: relative; overflow: hidden;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.22));
+    transition: box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.bt-gr2-slots .bt-hub0-stat--slot::after {
+    content: ''; position: absolute; left: 10%; right: 10%; bottom: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--hub-accent), transparent);
+    opacity: 0.55;
+}
+.bt-gr2-slots .bt-hub0-stat--slot.is-empty::after { opacity: 0.18; }
+.bt-gr2-slots .bt-ld-slotbtn:hover .bt-hub0-stat--slot {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 0 16px rgba(241, 196, 15, 0.22);
+}
+.bt-gr2-slots .bt-hub0-stat--slot .slot-emoji {
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+}
 /* Komplet wybrany (auto-close): sloty pulsuja "wskoczylo" tuz przed zamknieciem. */
 .bt-ld-slots.is-done .bt-hub0-stat {
     animation: bt-ld-done 0.55s ease;
@@ -2918,7 +3046,11 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 /* ── LoadoutOverlay: PELNOEKRANOWY wybor mocy (wzorzec .bt-rankup) ──────────
    Scroll WYLACZNIE w .bt-ld-scroll (gate wysokosci: sam Garaz nie scrolluje). */
 .bt-ld {
-    position: absolute; inset: 0; z-index: 30;
+    /* v0.199.1 (Mariusz): TA SAMA szyna co ROZKAZY/RANKING. Overlay siedzi w `.bt-hub0-main`,
+       ale `inset:0` ignorowal jego padding, wiec szedl od krawedzi do krawedzi. `--hub-gutter`
+       (definiowany na `.bt-hub0-screen`, na desktopie = (100vw - rail - 1200px) / 2) daje
+       dokladnie ta sama kolumne tresci co kazda sekcja. Na mobile zmienna nie istnieje -> 0. */
+    position: absolute; inset: 0 var(--hub-gutter, 0px); z-index: 30;
     display: flex; flex-direction: column;
     background: rgba(9, 14, 20, 0.96);
     animation: bt-hub0-fade 0.16s ease;
@@ -3005,4 +3137,117 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-hub0-cards--scen .cd-name { font-size: 12px; }
     .bt-hub0-cards--scen .cd-sub,
     .bt-hub0-cards--scen .cd-maphint { font-size: 10px; }
+}
+
+/* ══ GARAZ v2 / TRANSZE E+F (v0.199.0) — przymierzalnia barw czolgu ═════════
+   E: widok glowny traci tasme 42 kafli; zostaje JEDEN przycisk-wejscie.
+   F: SkinsOverlay = duzy czolg (gora) + SIATKA probek (dol). Siatka zamiast
+   poziomego scrolla, bo wzrok skanuje kolumny, a nie przewijany pasek.
+   Klasy dopisane NA KONCU pliku (rownolegla praca nad .bt-gr2-hero/.bt-gr2-arrow). */
+
+/* ── E: przycisk-wejscie pod hero ─────────────────────────────────────────── */
+.bt-gr2-skinbtn-wrap { display: flex; justify-content: center; margin-bottom: 12px; }
+.bt-gr2-skinbtn {
+    display: flex; align-items: center; gap: 10px;
+    min-height: 48px; padding: 6px 12px 6px 8px; /* 48 px = tap-target pod kciuk */
+    border: 1px solid var(--hub-line); border-radius: 12px;
+    background: var(--hub-steel-850); color: var(--hub-ink);
+    font-family: inherit; cursor: pointer; max-width: 320px; width: 100%;
+}
+.bt-gr2-skinbtn:hover { border-color: var(--hub-accent); }
+.bt-gr2-skinbtn .sw {
+    flex: 0 0 auto; width: 48px; height: 30px; border-radius: 6px;
+    border: 2px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.bt-gr2-skinbtn .tx { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.bt-gr2-skinbtn .tx b { font-size: 12.5px; font-weight: 800; letter-spacing: 0.4px; }
+.bt-gr2-skinbtn .tx small {
+    font-size: 10.5px; color: var(--hub-ink-faint);
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bt-gr2-skinbtn .ch { font-size: 22px; color: var(--hub-ink-dim); line-height: 1; }
+
+/* ── F: overlay przymierzalni (dziedziczy .bt-ld: inset 0, z-index 30) ───────
+   v0.199.0 (uwagi Mariusza): ZERO SCROLLA w calym trybie, siatka 12x3 i czolg
+   tak duzy, jak pozwoli reszta. Uklad jest kolumna flex: naglowek i siatka maja
+   staly rozmiar, a gablota bierze CALA reszte wysokosci (`flex: 1 1 auto`).
+   Canvas skaluje sie WYSOKOSCIA (`height:100%` + `aspect-ratio`), bo to wysokosc
+   jest tu zasobem deficytowym — `mountTankTurntable` czyta `clientWidth`, wiec
+   bufor sam dopasowuje sie do wyliczonego rozmiaru. */
+.bt-sk { display: flex; flex-direction: column; overflow: hidden; }
+.bt-sk-top { flex: 0 0 auto; }
+/* v0.199.1 (uwagi Mariusza): (1) pion wyrownany — mniej powietrza u gory, wiecej oddechu
+   nad siatka; (2) gablota OSADZONA: kolumna informacji ma STALA szerokosc, bo przy
+   `justify-content:center` kazda zmiana dlugosci nazwy barwy przesuwala czolg w bok
+   (to byl ten "skok" przy klikaniu miedzy skinami); (3) czolg -20%. */
+.bt-sk-stage {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; padding: 0 16px 10px;
+    /* Swietlny pool POD czolgiem — statyczny gradient, zero kosztu per klatke. */
+    background: radial-gradient(ellipse 60% 70% at 38% 62%, rgba(241, 196, 15, 0.13), rgba(0, 0, 0, 0) 70%);
+}
+.bt-sk-stage .bt-gr2-canvas {
+    /* 80% = prosba Mariusza "pomniejsz o 20%" (bylo 100% wysokosci sceny). */
+    width: auto; height: 80%; aspect-ratio: 1 / 1; max-width: 42vw;
+}
+/* Kafel BAZA w naglowku — siatka ma byc rowne 12x3, wiec "zdejmij barwe" stoi obok tytulu. */
+.bt-sk-base { margin-left: auto; }
+.bt-sk-base .bt-gr2-skin { min-width: 0; }
+.bt-sk-base .bt-gr2-skin .dot { width: 46px; height: 28px; }
+/* STALA szerokosc = gablota stoi w miejscu przy kazdej dlugosci nazwy (fix "skakania"). */
+.bt-sk-info {
+    display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+    flex: 0 0 auto; width: clamp(150px, 20vw, 260px); min-width: 0;
+}
+.bt-sk-name {
+    font-size: clamp(16px, 2.4vw, 22px); font-weight: 800; letter-spacing: 0.5px;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bt-sk-tank { font-size: 11px; color: var(--hub-ink-faint); letter-spacing: 0.4px; }
+.bt-sk-buy {
+    margin-top: 4px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+    border: 1px solid var(--hub-accent); background: rgba(241, 196, 15, 0.12);
+    color: var(--hub-accent); font-family: inherit; font-size: 12px; font-weight: 800;
+    letter-spacing: 0.4px; cursor: pointer;
+}
+/* SIATKA 12x3 = 36 barw (6 palet + 5 kategorii wzorow po 6). Sztywne 12 kolumn,
+   NIE auto-fill: liczba kafli jest znana i stala, a auto-fill rozjechalby rzedy
+   przy kazdej szerokosci. `max-width` zostawia marginesy po bokach (uwaga Mariusza:
+   „wykorzystaj szerokosc, ale nie cala"). */
+.bt-sk-rack {
+    flex: 0 0 auto; overflow: hidden;
+    width: min(86%, 1180px); margin: 0 auto; padding: 4px 0 12px;
+    display: grid; grid-template-columns: repeat(12, 1fr);
+    gap: clamp(4px, 0.7vw, 10px); justify-items: stretch;
+}
+.bt-sk-rack .bt-gr2-skin { min-width: 0; width: 100%; padding: 0; }
+/* Kafel EKSPONUJE barwe: probka na pelna szerokosc kolumny, wyrazna wysokosc. */
+.bt-sk-rack .bt-gr2-skin .dot {
+    width: 100%; height: clamp(34px, 5.6vh, 58px); border-radius: 8px;
+}
+.bt-sk-rack .bt-gr2-skin small {
+    max-width: 100%; font-size: 9.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Telefon w poziomie: czolg i siatka musza zmiescic sie na ~375 px wysokosci. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-sk-top { padding: 6px 12px 4px; }
+    .bt-sk-top .bt-hub0-lhint { display: none; }
+    /* v0.199.1 (uwaga z A54): czolg i siatka byly przyklejone do dolnej krawedzi —
+       scena traci dolny padding na rzecz racka, ktory dostaje wlasny oddech. */
+    .bt-sk-stage { gap: 10px; padding: 0 12px 4px; }
+    .bt-sk-name { font-size: 15px; }
+    .bt-sk-buy { min-height: 34px; font-size: 11px; }
+    /* Telefon: nadal 12x3 (ten sam uklad, mniejsze kafle) i nadal bez scrolla —
+       podpisy pod probkami padaja, bo przy ~60 px na kolumne i tak byly nieczytelne. */
+    .bt-sk-rack { width: min(94%, 760px); gap: 3px; padding: 0 0 14px; }
+    .bt-sk-rack .bt-gr2-skin .dot { height: clamp(22px, 8vh, 34px); border-radius: 6px; }
+    .bt-sk-rack .bt-gr2-skin small { display: none; }
+    .bt-sk-base .bt-gr2-skin .dot { width: 38px; height: 22px; }
+    .bt-sk-base .bt-gr2-skin small { display: none; }
+    .bt-gr2-skinbtn { min-height: 42px; }
+    .bt-gr2-skinbtn-wrap { margin-bottom: 8px; }
 }

@@ -335,6 +335,65 @@ export function mountTankTurntable(
         }
     }
 
+    /**
+     * v0.199.0 (PERF) — PODIUM PIECZONE RAZ.
+     *
+     * Podium bylo rysowane OD ZERA w kazdej klatce (~60 sciezek + 8 gradientow), mimo ze
+     * jego wyglad zalezy WYLACZNIE od: stylu (pad/disc), `cssPx`, `dpr`, `CAMERA_TILT_Y`
+     * i `min(zoom, 1.15)`. Pierwsze cztery sa stale przez cale zycie instancji (canvas nie
+     * ma resize handlera, tilt to stala render2d), wiec w praktyce re-bake zdarza sie tylko
+     * przy zmianie zoomu. Idle spin i animowany wzor skina — czyli 100% normalnego czasu
+     * w Garazu — nie kosztuja juz NIC poza jednym `drawImage`.
+     *
+     * Wyglad jest identyczny co do piksela, bo offscreen dostaje DOKLADNIE ten sam setup co
+     * canvas widoczny: ten sam rozmiar bufora (cssPx * dpr), `setTransform(dpr,...)` i
+     * `_lwBase = dpr`. To ostatnie jest krytyczne: `render2d` patchuje globalnie
+     * `CanvasRenderingContext2D.prototype.stroke` i kompensuje `lineWidth` wzgledem
+     * `_lwBase` vs skala transformu (render2d.ts:119-141). Bez tego pola obrysy podium
+     * wyszlyby w innej grubosci niz przed zmiana.
+     */
+    let podiumTex: HTMLCanvasElement | null = null;
+    let podiumKey = '';
+    /** Rollback bez rebuildu (wzorzec ?skins=0 z v0.198.1): wraca rysowanie per klatka. */
+    const podiumBake = ((): boolean => {
+        try { return new URLSearchParams(window.location.search).get('podiumbake') !== '0'; }
+        catch { return true; }
+    })();
+
+    function podiumTexture(): HTMLCanvasElement | null {
+        if (!podiumBake) return null;
+        // `zoom` wchodzi do rysunku wylacznie jako min(zoom, 1.15) — powyzej progu
+        // podium zastyga, wiec zoom 1.2 i 1.4 trafiaja w ten sam bake.
+        const pz = Math.min(zoom, 1.15);
+        const tilt = (r2d && typeof r2d.CAMERA_TILT_Y === 'number') ? r2d.CAMERA_TILT_Y : 0.866;
+        const key = `${podiumStyle}|${cssPx}|${dpr}|${pz.toFixed(3)}|${tilt}`;
+        if (podiumTex && podiumKey === key) return podiumTex;
+
+        try {
+            const off = podiumTex ?? document.createElement('canvas');
+            off.width = canvas.width;
+            off.height = canvas.height;
+            const oc = off.getContext('2d');
+            if (!oc) return null;
+            oc.setTransform(dpr, 0, 0, dpr, 0, 0);
+            (oc as unknown as { _lwBase: number })._lwBase = dpr;
+            oc.clearRect(0, 0, cssPx, cssPx);
+            const cx = cssPx / 2;
+            const cy = cssPx / 2;
+            if (podiumStyle === 'disc') drawPodiumDisc(oc, cx, cy);
+            else drawPodiumPad(oc, cx, cy + cssPx * 0.06);
+            podiumTex = off;
+            podiumKey = key;
+            return off;
+        } catch (e) {
+            console.error('[TankTurntable] podium bake failed:', (e as Error).stack ?? e,
+                { brawlerId: currentId, podiumStyle, cssPx, dpr });
+            podiumTex = null;
+            podiumKey = '';
+            return null;
+        }
+    }
+
     function draw(): void {
         if (!ctx || !r2d) return;
         const b = currentBrawler();
@@ -351,7 +410,11 @@ export function mountTankTurntable(
         const s = (cssPx / ENVELOPE_PX) * zoom;
 
         // ── PODIUM (programistyczne — §10; normal-alpha, zero glow) ─────────
-        if (podiumStyle === 'disc') drawPodiumDisc(ctx, cx, cy);
+        // v0.199.0: jeden drawImage z bake'u zamiast ~60 sciezek per klatke.
+        // Fallback na rysowanie wprost, gdyby bake padl (nigdy cichy brak podium).
+        const pod = podiumTexture();
+        if (pod) ctx.drawImage(pod, 0, 0, cssPx, cssPx);
+        else if (podiumStyle === 'disc') drawPodiumDisc(ctx, cx, cy);
         else drawPodiumPad(ctx, cx, cy + cssPx * 0.06);
 
         // ── CZOLG (ten sam art co mecz — drawTank rysuje tez wlasny cien) ───
@@ -483,6 +546,9 @@ export function mountTankTurntable(
             canvas.removeEventListener('pointermove', onMove);
             canvas.removeEventListener('pointerup', onUp);
             canvas.removeEventListener('pointercancel', onUp);
+            // v0.199.0: zwolnij bake podium od razu (0x0 oddaje pamiec bufora, nie czeka na GC)
+            if (podiumTex) { podiumTex.width = 0; podiumTex.height = 0; podiumTex = null; }
+            podiumKey = '';
             if (activeHandle === handle) activeHandle = null;
         },
     };

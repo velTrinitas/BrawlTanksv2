@@ -143,7 +143,9 @@ export function cosmeticGroupsHtml(cos: CosmeticState, types: readonly CosmeticT
         // SKIN-2: skiny czolgu w podgrupach po kategorii (42 pozycje w jednym
         // rzedzie bylyby slepym scrollem) — mini-naglowki --sub + rzad per grupa.
         if (type === 'tankSkin') {
-            const defs = [...cosmeticsByType(type)].sort((a, b) =>
+            // v0.199.0: `cos.owned` — wycofana barwa, ktora gracz KUPIL, zostaje w jego
+            // Kolekcji (znika tylko ze sprzedazy i przymierzalni).
+            const defs = [...cosmeticsByType(type, cos.owned)].sort((a, b) =>
                 TANK_SKIN_CAT_ORDER.indexOf(a.patternCat) - TANK_SKIN_CAT_ORDER.indexOf(b.patternCat));
             let lastCat: string | undefined = '__none';
             const inner = defs.map(def => {
@@ -161,7 +163,7 @@ export function cosmeticGroupsHtml(cos: CosmeticState, types: readonly CosmeticT
                 ${inner}
             </div>`;
         }
-        const items = cosmeticsByType(type).map(def => cosmeticChipHtml(def, cos)).join('');
+        const items = cosmeticsByType(type, cos.owned).map(def => cosmeticChipHtml(def, cos)).join('');
         return `<div class="bt-hub0-cos-group">
             <div class="bt-hub0-cos-grouptitle">${t(TYPE_LABEL_KEY[type])}</div>
             <div class="bt-hub0-cos-grid${rowCls}">${items}</div>

@@ -25,3 +25,21 @@ export function isSkinsEnabled(): boolean {
         return q === '1';
     } catch { return SKINS_LIVE; }
 }
+
+/**
+ * GARAZ v2 / TRANSZA E+F (v0.199.0) — PRZYMIERZALNIA zamiast tasmy skinow w widoku
+ * glownym Garazu. ON: hero + przycisk BARWY CZOLGU -> SkinsOverlay.
+ * `?skinsmode=0`: wraca stara tasma pod obrotnica (pelna sciezka rollbacku —
+ * obie zyja obok siebie do akceptacji Mariusza po playtescie).
+ */
+export const SKINS_MODE_LIVE = true;
+
+export function isSkinsModeEnabled(): boolean {
+    if (!isSkinsEnabled()) return false; // bez skinow nie ma czego przymierzac
+    try {
+        const q = new URLSearchParams(location.search).get('skinsmode');
+        if (q === '0') return false;
+        if (SKINS_MODE_LIVE) return true;
+        return q === '1';
+    } catch { return SKINS_MODE_LIVE; }
+}

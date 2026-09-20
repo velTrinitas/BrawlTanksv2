@@ -115,6 +115,17 @@ export interface CosmeticDef {
     /** tankSkin (SKIN-2): kategoria wzoru do chipsow/grup UI (palety = undefined). */
     readonly patternCat?: 'animals' | 'games' | 'elements' | 'military' | 'seasonal';
     /**
+     * v0.199.0 — WYCOFANY Z OBIEGU, ale NIE skasowany. Def zostaje w rejestrze, wiec:
+     *  - gracz, ktory zdazyl go kupic po flipie SKINS_LIVE (v0.198.0), dalej go ma
+     *    i moze go miec zalozonego (`getCosmetic` NIE filtruje — equip i sync po
+     *    rejestrze przechodza bez bledu, `mergeCosmetics` nie wyrzuca owned),
+     *  - znika z: przymierzalni, sklepu, puli dropow i licznika kolekcji
+     *    (`cosmeticsByType` / `cosmeticIdsOfRarity` / `countedCosmetics`).
+     * Posiadany ukryty kosmetyk WIDAC dalej w Kolekcji — patrz `cosmeticsByType(type, owned)`.
+     * ODWRACALNE: skasuj `hidden` i def wraca wszedzie.
+     */
+    readonly hidden?: true;
+    /**
      * tankSkin (SKIN-2, tylko animated): kolor akcentu meczowego PULSU
      * (overlay ADD na kadlubie — pelna animacja zyje tylko w Garazu).
      */
@@ -289,11 +300,11 @@ export const COSMETICS: readonly CosmeticDef[] = [
     // Legendarny "Zloty Sigma" gra z waluta gry — czytelny cel zbierania.
     { id: 'ts_desert',    type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.ts_desert',    hex: '#c9a35a', filter3d: 'sepia(0.5) hue-rotate(15deg) saturate(0.9) brightness(1.08)' },
     { id: 'ts_snow',      type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.ts_snow',      hex: '#c3ced8', filter3d: 'saturate(0.15) brightness(1.32)' },
-    { id: 'ts_bubblegum', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_bubblegum', hex: '#ff5fa2', filter3d: 'hue-rotate(330deg) saturate(1.15) brightness(1.1)' },
+    { id: 'ts_bubblegum', type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_bubblegum', hex: '#ff5fa2', filter3d: 'hue-rotate(330deg) saturate(1.15) brightness(1.1)', hidden: true },
     { id: 'ts_toxic',     type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_toxic',     hex: '#a7f320', filter3d: 'hue-rotate(110deg) saturate(1.2)' },
-    { id: 'ts_wave',      type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_wave',      hex: '#17b8a6', filter3d: 'hue-rotate(185deg) saturate(1.05)' },
+    { id: 'ts_wave',      type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_wave',      hex: '#17b8a6', filter3d: 'hue-rotate(185deg) saturate(1.05)', hidden: true },
     { id: 'ts_lava',      type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_lava',      hex: '#ff6b35', filter3d: 'hue-rotate(20deg) saturate(1.35) brightness(1.05)' },
-    { id: 'ts_night',     type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_night',     hex: '#2f3d55', filter3d: 'hue-rotate(230deg) saturate(0.5) brightness(0.8)' },
+    { id: 'ts_night',     type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_night',     hex: '#2f3d55', filter3d: 'hue-rotate(230deg) saturate(0.5) brightness(0.8)', hidden: true },
     { id: 'ts_sigma',     type: 'tankSkin', rarity: 'l', labelKey: 'cosmetic.ts_sigma',     hex: '#f4c842', filter3d: 'hue-rotate(55deg) saturate(1.3) brightness(1.12)' },
 
     // ── SKIN-2 (v0.160.0): WZORY PREMIUM (tp_*) + nowe palety ────────────────
@@ -404,9 +415,9 @@ export const COSMETICS: readonly CosmeticDef[] = [
 
     // NOWE PALETY (4 — omijaja 8 istniejacych ts_* i barwy bazowe czolgow)
     { id: 'ts_mint',    type: 'tankSkin', rarity: 'c', labelKey: 'cosmetic.ts_mint',    hex: '#8fe3c0', filter3d: 'hue-rotate(150deg) saturate(0.7) brightness(1.22)' },
-    { id: 'ts_choco',   type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_choco',   hex: '#7b4b2a', filter3d: 'sepia(0.6) hue-rotate(-10deg) saturate(1.1) brightness(0.9)' },
-    { id: 'ts_indigo',  type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_indigo',  hex: '#4b2ea8', filter3d: 'hue-rotate(255deg) saturate(1.15) brightness(0.92)' },
-    { id: 'ts_fuchsia', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_fuchsia', hex: '#c026d3', filter3d: 'hue-rotate(300deg) saturate(1.35) brightness(1.05)' },
+    { id: 'ts_choco',   type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_choco',   hex: '#7b4b2a', filter3d: 'sepia(0.6) hue-rotate(-10deg) saturate(1.1) brightness(0.9)', hidden: true },
+    { id: 'ts_indigo',  type: 'tankSkin', rarity: 'r', labelKey: 'cosmetic.ts_indigo',  hex: '#4b2ea8', filter3d: 'hue-rotate(255deg) saturate(1.15) brightness(0.92)', hidden: true },
+    { id: 'ts_fuchsia', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.ts_fuchsia', hex: '#c026d3', filter3d: 'hue-rotate(300deg) saturate(1.35) brightness(1.05)', hidden: true },
 ];
 
 /**
@@ -436,8 +447,21 @@ const _BY_ID: Record<string, CosmeticDef> = Object.fromEntries(COSMETICS.map(c =
 
 export function getCosmetic(id: string): CosmeticDef | undefined { return _BY_ID[id]; }
 
-export function cosmeticsByType(type: CosmeticType): CosmeticDef[] {
-    return COSMETICS.filter(c => c.type === type);
+/**
+ * Defy danego typu do POKAZANIA w UI i katalogach.
+ *
+ * v0.199.0: pomija wycofane (`hidden`) — patrz komentarz przy polu. `owned` jest
+ * furtka dla Kolekcji w Profilu: kosmetyk, ktory gracz JUZ MA, widac dalej, mimo ze
+ * zniknal ze sprzedazy. Sklep/przymierzalnia/dropy wolaja BEZ `owned`, wiec u nich
+ * wycofane nie istnieja.
+ */
+export function cosmeticsByType(type: CosmeticType, owned?: readonly string[]): CosmeticDef[] {
+    return COSMETICS.filter(c => c.type === type && (!c.hidden || !!owned?.includes(c.id)));
+}
+
+/** Kosmetyki liczone do "x/y" w Kolekcji — bez wycofanych (inaczej licznik nie domknie sie). */
+export function countedCosmetics(pred: (type: CosmeticType) => boolean): CosmeticDef[] {
+    return COSMETICS.filter(c => !c.hidden && pred(c.type));
 }
 
 /**
@@ -455,7 +479,9 @@ export function cosmeticsByType(type: CosmeticType): CosmeticDef[] {
 export function cosmeticIdsOfRarity(rarity: Rarity): string[] {
     // SKIN-1: przy fladze OFF skiny czolgu NIE dropia (skrzynka nie moze dac
     // "niewidzialnego" kosmetyku, ktorego zaden ekran nie pokaze).
+    // v0.199.0: wycofane (`hidden`) nigdy nie wpadaja do losowania.
     return COSMETICS.filter(c => c.rarity === rarity
+        && !c.hidden
         && !SHOP_ONLY_TYPES.has(c.type)
         && (c.type !== 'tankSkin' || isSkinsEnabled())).map(c => c.id);
 }

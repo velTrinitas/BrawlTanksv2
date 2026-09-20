@@ -461,6 +461,8 @@ export const en: typeof pl = {
     'hub.garage.type.tankSkin': 'Tank colors',
     'hub.garage.skinPreview': 'Preview — buy in the Shop for {n} ⚙',
     'hub.garage.skinBase': 'Base',
+    'hub.garage.skinsHint': 'Tap a color — your tank wears it instantly',
+    'hub.garage.skinBuy': 'BUY IN SHOP — {n} ⚙',
     'shop.tab.tankSkins': 'TANK COLORS',
     'shop.item.tankSkin.desc': 'Your tank in these colors — in every match.',
 
@@ -591,6 +593,7 @@ export const en: typeof pl = {
     'road.unlock.repair': '🔧 Power: Repair!',
     'road.unlock.tower': '🎯 Power: Tower!',
     'hub.garage.loadout': 'PICK 3 SUPER POWERS',
+    'hub.garage.slotsLabel': 'PICK SUPER POWERS',
     // GARAZ-2/3 (?choose=1) — 3/4 turntable + tank carousel in Garage
     'hub.garage.dragHint': 'Drag to rotate',
     'hub.garage.loadoutHint': 'Tap an empty field, then a power below — this is what you bring to battle!',

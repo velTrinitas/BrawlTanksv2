@@ -378,9 +378,9 @@ const SUPER_PROFILES: Record<string, SuperProfile> = {
  *    wiec przy ~3 z 5 trafionych daja parytet, a pelne 5/5 to swiadoma nagroda za dystans.
  */
 const SUPER_FAIR_TARGET = 10000;
-function fairSuperProfiles(): Record<string, SuperProfile> {
+function fairSuperProfiles(src: Record<string, SuperProfile> = SUPER_PROFILES): Record<string, SuperProfile> {
     const out: Record<string, SuperProfile> = {};
-    for (const [id, p] of Object.entries(SUPER_PROFILES)) {
+    for (const [id, p] of Object.entries(src)) {
         const brawler = BRAWLERS.find(b => b.id === id);
         if (!brawler) { out[id] = p; continue; }
         const volleys = Math.floor(SUPER_SHOT_DURATION_MS / brawler.reload) + 1;
@@ -390,8 +390,20 @@ function fairSuperProfiles(): Record<string, SuperProfile> {
     }
     return out;
 }
+/**
+ * BALANCE_V2 iteracja 1 (v0.201.0) — dwa zyczenia Mariusza do UKLADU supera (nie do liczb):
+ *  - Ogniarz: 4 wiazki zamiast 5 (dmg per pocisk przeliczy sie sam, formula dzieli przez liczbe wiazek),
+ *  - Twardy: +20% zasiegu supera, czyli rozpad na 264 px zamiast 220 (dalej rozsypuje sie na 5 odlamkow).
+ * Stosowane TYLKO przy aktywnym rulesecie v2 — sciezka v1 zostaje bit-for-bit.
+ */
+function v2SuperLayout(p: Record<string, SuperProfile>): Record<string, SuperProfile> {
+    const out = { ...p };
+    if (out.pyro) out.pyro = { ...out.pyro, offsets: [-0.315, -0.105, 0.105, 0.315] };
+    if (out.twardy) out.twardy = { ...out.twardy, breakupDist: 264 };
+    return out;
+}
 const SUPER_PROFILES_ACTIVE: Record<string, SuperProfile> =
-    isBalanceV2Enabled() ? fairSuperProfiles() : SUPER_PROFILES;
+    isBalanceV2Enabled() ? fairSuperProfiles(v2SuperLayout(SUPER_PROFILES)) : SUPER_PROFILES;
 
 // FAZA P5 — NORMAL fire tweaks (gated SUPER_V2): heavy = 2 rownolegle pociski (2 lufy), dmg total /2.
 const NORMAL_PROFILES: Record<string, SuperProfile> = {

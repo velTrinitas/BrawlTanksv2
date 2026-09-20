@@ -63,17 +63,40 @@ export const DASH_CONFIG = {
 export const DASH_TOTAL_PX = DASH_CONFIG.steps * DASH_CONFIG.stepPx;
 
 /**
- * v2 — wynik solvera. Reload Ogniarza (220) i Twardego (400) byly ZABLOKOWANE: feel karabinu
- * i baseline cadence zostaja, solver szukal balansu pozostalymi osiami. Dlatego Ogniarz placi
- * zasiegiem (350 px) i szerszym rozrzutem — pelna salwa trafia jednego wroga tylko do ~118 px.
+ * v2 — ITERACJA 1 (v0.201.0). Wartosci NIE pochodza juz z solvera: solver oblal walidacje empiryczna
+ * (obiecywal +-5%, pomiar dal 270% rozrzutu — gorzej niz dzisiejsze 190%), bo wazyl ZASIEG, ktory
+ * w pomiarze nie mial zadnego zwiazku z wynikiem.
+ *
+ * ZRODLO: model wyciagniety z NASZYCH 16 pomiarow bota (8 czolgow x 2 rulesety):
+ *   `zabicia ≈ 0.068 × (DPS × (pole_trafienia/40)²) + 14.6`   (korelacja 0.83)
+ * Najsilniejsze czynniki: surowe DPS (0.76) i PROMIEN POCISKU (0.62). Zasieg: brak zwiazku.
+ *
+ * TRZY USTALENIA, KTORE UKSZTALTOWALY TE LICZBY (zwykly wrog ma 300 HP — `enemies.ts`):
+ *  1. Progi strzalow biją procenty. Pancerny +50 dmg nic nie dawal (salwa 150 i 250 to TAK SAMO
+ *     dwie salwy na wroga). Twardy 100 -> 150 to realny przeskok z 3 strzalow na 2.
+ *  2. Kinga nie da sie oslabic obrazeniami (200 -> 150 dalej zabija w 2 strzalach) — tylko TEMPEM.
+ *  3. Zwiad i Snajper mieli promien pocisku 4, King i Ogniarz 10. Pole trafienia = `30 + promien`,
+ *     wiec ich pole bylo mniejsze o 28% POWIERZCHNI — ukryta kara, ktorej gracz nie widzi w UI.
+ *     Decyzja Mariusza: WYROWNAC WSZYSTKIM DO 8 i nie uzywac promienia jako dzwigni strojenia.
+ *
+ * `speed` (predkosc ruchu) CELOWO nietknieta — jedna zmienna mniej przy pomiarze porownawczym.
+ * Zasieg zostaje jako TOZSAMOSC (Ogniarz 350 = miotacz, Snajper 1300 = najdalej), nie jako balans.
  */
 export const BALANCE_V2_STATS: Readonly<Record<string, BalanceStats>> = Object.freeze({
-    twardy: { hp: 400, dmg: 145, reload: 400, speed: 5.2, maxDist: 750,  bulletRadius: 7 },
-    heavy:  { hp: 600, dmg: 125, reload: 860, speed: 4.3, maxDist: 750 },
-    scout:  { hp: 250, dmg: 100, reload: 250, speed: 7.5, maxDist: 700,  bulletRadius: 7 },
-    sniper: { hp: 350, dmg: 275, reload: 940, speed: 4.9, maxDist: 1300, bulletRadius: 6 },
-    plasma: { hp: 450, dmg: 130, reload: 660, speed: 5.3, maxDist: 1000, pierce: 3 },
-    pyro:   { hp: 400, dmg: 65,  reload: 220, speed: 4.5, maxDist: 350,  volley: { count: 5, spread: 0.34 } },
-    shadow: { hp: 300, dmg: 185, reload: 580, speed: 6.9, maxDist: 850,  dash: true },
-    king:   { hp: 500, dmg: 225, reload: 740, speed: 5.6, maxDist: 700 },
+    // dmg 100->150 = prog 2 strzalow zamiast 3; tempo +5%
+    twardy: { hp: 400, dmg: 150, reload: 380, speed: 5.0, maxDist: 800,  bulletRadius: 8 },
+    // +40/pocisk (salwa 230): zysk przeciw poscigowym (500 HP), zero inflacji przeciw zwyklym
+    heavy:  { hp: 700, dmg: 115, reload: 700, speed: 4.0, maxDist: 800,  bulletRadius: 8 },
+    // najwiekszy pakiet: jako JEDYNY systematycznie wypadal ponizej modelu (-13 zabic).
+    // 425 HP to swiadomy naddatek Mariusza ponad wyliczone 350.
+    scout:  { hp: 425, dmg: 120, reload: 190, speed: 7.5, maxDist: 800,  bulletRadius: 8 },
+    // 400 dmg = JEDEN strzal na zwyklego wroga; tempo 1000->750 (dalej wolny, ale kara za pudlo mniejsza)
+    sniper: { hp: 350, dmg: 400, reload: 750, speed: 4.5, maxDist: 1300, bulletRadius: 8 },
+    // tempo +25% (zyczenie Mariusza) + pierce; pierce byl wart +12 zabic w pomiarze
+    plasma: { hp: 400, dmg: 130, reload: 400, speed: 5.0, maxDist: 1000, bulletRadius: 8, pierce: 3 },
+    // zasieg 350 NIE zadzialal jako kara (zmierzone: mial 350 i byl pierwszy) — placi obrazeniami
+    pyro:   { hp: 450, dmg: 40,  reload: 260, speed: 4.8, maxDist: 350,  bulletRadius: 8, volley: { count: 5, spread: 0.34 } },
+    shadow: { hp: 300, dmg: 150, reload: 640, speed: 6.5, maxDist: 900,  bulletRadius: 8, dash: true },
+    // spowolniony, nie oslabiony (patrz ustalenie 2)
+    king:   { hp: 500, dmg: 220, reload: 800, speed: 5.5, maxDist: 800,  bulletRadius: 8 },
 });

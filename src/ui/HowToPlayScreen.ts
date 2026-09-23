@@ -1,6 +1,7 @@
 import type { IScreen } from './MainMenu';
 import { AudioSys } from '../audio/AudioSys';
 import { t } from '../i18n/i18n';
+import { backArrowIcon } from './hub/gameIcons';
 
 /**
  * HowToPlayScreen — ekran "JAK GRAC" w menu (3. warstwa onboardingu: stala sciaga do wgladu).
@@ -28,7 +29,7 @@ export class HowToPlayScreen implements IScreen {
         this.rootEl.innerHTML = `
             <header class="bt-settings-header">
                 <button class="bt-settings-back" type="button" aria-label="${t('common.back')}">
-                    <span class="bt-settings-back-arrow" aria-hidden="true">←</span>
+                    ${backArrowIcon(22)}
                     <span class="bt-settings-back-label">${t('common.back')}</span>
                 </button>
                 <h2 class="bt-settings-title">${t('howto.title')}</h2>

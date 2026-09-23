@@ -15,6 +15,7 @@ import { DEFAULT_FLAG_ID } from '../../../config/flags';
 import { flagImgHtml, sortedFlagIds, FLAG_NAME_KEY } from '../../flagArt';
 import { showToast } from '../../toast';
 import { playUiClick } from '../../uiSounds';
+import { backArrowIcon } from '../gameIcons';
 
 /**
  * ProfileEditView — PROFILE-1 (v0.118.0). Edycja profilu W JEZYKU HUBA,
@@ -122,7 +123,7 @@ export class ProfileEditView {
                 </div>
 
                 <div class="bt-hub0-pedit-footer">
-                    <button class="bt-hub0-pbtn" data-action="edit-back" type="button">← ${t('common.back')}</button>
+                    <button class="bt-hub0-pbtn" data-action="edit-back" type="button">${backArrowIcon(20)} ${t('common.back')}</button>
                     <button class="bt-hub0-pbtn bt-hub0-pbtn--gold" data-action="edit-save" type="button" disabled>
                         💾 ${t('profile.edit.saveButton')}
                     </button>

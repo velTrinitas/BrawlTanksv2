@@ -24,6 +24,7 @@ import { ProfileEditView } from './ProfileEditView';
 import { playUiClick } from '../../uiSounds';
 import { getCurrentSeason } from '../../../config/season';          // SEASON KIT — zakladka SEZON
 import { getSeasonContent } from '../../../config/seasonContent';
+import { backArrowIcon } from '../gameIcons';
 
 /**
  * ProfileSection — PROFILE-1 (v0.118.0). Strona PROFILU GRACZA, otwierana tapnieciem
@@ -97,7 +98,7 @@ export class ProfileSection implements HubSection {
         if (!profile) {
             el.innerHTML = `
                 <div class="bt-hub0-phead">
-                    <button class="bt-hub0-pback" data-action="profile-back" type="button">←</button>
+                    <button class="bt-hub0-pback" data-action="profile-back" type="button">${backArrowIcon(20)}</button>
                     <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.profile.title')}</h2>
                 </div>
                 <div class="bt-hub0-phero"><b>${t('profile.edit.noProfileTitle')}</b></div>`;
@@ -108,7 +109,7 @@ export class ProfileSection implements HubSection {
         if (this.editMode) {
             el.innerHTML = `
                 <div class="bt-hub0-phead">
-                    <button class="bt-hub0-pback" data-action="profile-back" type="button">←</button>
+                    <button class="bt-hub0-pback" data-action="profile-back" type="button">${backArrowIcon(20)}</button>
                     <h2 class="bt-hub0-sectitle">✏️ ${t('profile.edit.title')}</h2>
                 </div>
                 <div data-edit-slot></div>`;
@@ -120,7 +121,7 @@ export class ProfileSection implements HubSection {
 
         el.innerHTML = `
             <div class="bt-hub0-phead">
-                <button class="bt-hub0-pback" data-action="profile-back" type="button">←</button>
+                <button class="bt-hub0-pback" data-action="profile-back" type="button">${backArrowIcon(20)}</button>
                 <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.profile.title')}</h2>
             </div>
             ${this.heroHtml()}

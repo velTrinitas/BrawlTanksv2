@@ -66,7 +66,7 @@ export class MapPickerOverlay {
                  aria-label="${t('picker.mapTitle')}">
                 <button class="bt-hub0-modal-close" data-action="close" type="button"
                         aria-label="${t('common.close')}">✕</button>
-                <h3 class="bt-hub0-modal-title">🗺️ ${t('picker.mapTitle')}</h3>
+                <h3 class="bt-hub0-modal-title">${t('picker.mapTitle')}</h3>
                 <div class="bt-mp-grid">${cards}</div>
             </div>`;
         parent.appendChild(this.el);

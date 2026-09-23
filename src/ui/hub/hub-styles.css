@@ -7,6 +7,37 @@
    body.bt-desktop = rail (konwencja repo, jak endcard scale 1.5).
    ============================================================ */
 
+/* ============================================================
+   v0.203.0 — NIEBIESKI BLYSK PRZY DOTKNIECIU: wylaczony GLOBALNIE.
+   Zgloszenie Mariusza (playtest mobile): przytrzymanie przycisku w dolnej belce
+   pokazywalo niebieskawe tlo. To nie byl nasz styl, tylko DOMYSLNY tap-highlight
+   przegladarki (Chrome na Androidzie rysuje polprzezroczysty prostokat na kazdym
+   klikalnym elemencie). Dotad gasilismy go PUNKTOWO (skrzynka, reroll, chipy nicku),
+   wiec wracal w kazdym nowym miejscu — stad jedna regula na cale UI.
+   To gra, nie formularz: podswietlenie systemowe nie niesie tu zadnej informacji,
+   bo kazdy przycisk ma wlasny stan :active.
+   ============================================================ */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Sticky :hover na dotyku — Android zostawia stan hover PO tapnieciu, wiec przycisk
+   wygladal na wcisniety jeszcze dlugo po puszczeniu palca. Efekty hover tylko tam,
+   gdzie istnieje prawdziwy kursor. */
+@media (hover: none) {
+    .bt-hub0-navbtn:hover { color: var(--hub-ink-dim); background: transparent; }
+    .bt-hub0-navbtn.is-active:hover {
+        color: var(--hub-accent); background: rgba(241, 196, 15, 0.12);
+    }
+}
+
+/* STRZALKA WSTECZ — inline SVG z gameIcons.backArrowIcon(). "display: block" wyjmuje
+   ja z ukladu linii bazowej (to wlasnie baseline sprawial, ze glif ← wydawal sie
+   opadniety), a "flex-shrink: 0" chroni ja przed scisnieciem w waskich pigulkach. */
+.bt-ico-back {
+    display: block; flex-shrink: 0;
+}
+
 /* Tokeny command-deck — WSPOLNE dla huba i onboardingu, ale nadal SCOPED
    (nie leja sie na reszte menu). IdentityScreen renderuje kafle .bt-hub0-*,
    wiec musi widziec te same zmienne; bez tego ekran wychodzi bezbarwny.
@@ -497,14 +528,45 @@ body.bt-desktop .bt-hub0-road-list {
     display: grid; place-items: center; font-size: 15px;
     background: rgba(0, 0, 0, 0.25);
 }
-.bt-hub0-node .info { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+/* v0.203.0 (Mariusz, playtest mobile): kafel nagrody mial cala tresc wciesnieta w lewa
+   1/3, a ~60% szerokosci stalo puste. Teraz DWIE KOLUMNY: prog po lewej, NAGRODA po
+   prawej. To nie jest tylko wypelnienie pustki — nagroda jest tu marchewka, wiec ma byc
+   WIDOCZNA (wartosc "Flex"), a nie opisana drobnym drukiem obok progu.
+   Przy okazji znika dlug TYPO-P1-3: stary wiersz `.reward` mial 11 px, czyli ponizej
+   progu 12 px dla grupy 9-12 lat. Teraz sigmy maja 13 px, a nagroda dodatkowa 12 px. */
+.bt-hub0-node .info { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; flex: 1 1 auto; }
 .bt-hub0-node .info b {
-    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700; font-size: 13px;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700; font-size: 14px;
     color: var(--hub-ink); font-variant-numeric: tabular-nums;
 }
-.bt-hub0-node .info .reward { font-size: 11px; font-weight: 700; color: var(--hub-ink-dim); }
+/* Kolumna nagrody. Zawijanie dzieje sie na poziomie CALEGO KAFLA, nie w srodku
+   napisu: przy trzech kolumnach na telefonie w poziomie kafel ma ~260 px i "Moc: Salwa
+   Rakiet!" nie miesci sie obok sigm. Bez `nowrap` tekst lamal sie w polowie ("Moc: Salwa"
+   / "Rakiet!"), robil TRZY linie i rozpychal caly rzad siatki. Teraz nagroda schodzi
+   w calosci do drugiego wiersza kafla — zawsze najwyzej dwie linie i rowne rzedy. */
+.bt-hub0-node { flex-wrap: wrap; }
+.bt-hub0-node .prize {
+    flex: 0 1 auto; margin-left: auto;
+    display: flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap;
+    gap: 10px; text-align: right;
+}
+.bt-hub0-node .prize .p-extra { white-space: nowrap; }
+/* `.reward` NIE znika razem z przebudowa kafla nagrody — zostaja dwa miejsca, ktore
+   uzywaja go jako zwyklego podpisu: teaser "WKROTCE 1500+" na Szlaku i podpowiedz
+   o odblokowaniu w ROZKAZACH. Regula zostaje, ale w 12 px zamiast dawnych 11 px
+   (prog czytelnosci dla grupy 9-12 lat, TYPO-P1-3). */
+.bt-hub0-node .info .reward { font-size: 12px; font-weight: 700; color: var(--hub-ink-dim); }
+.bt-hub0-node .prize .p-sigma {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 13px;
+    color: var(--hub-ink); font-variant-numeric: tabular-nums;
+}
+.bt-hub0-node .prize .p-extra {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 700; color: var(--hub-accent);
+}
 .bt-hub0-node .tag {
-    margin-left: auto; flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+    flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
     text-transform: uppercase; color: #1a2530; background: var(--hub-accent);
     padding: 3px 8px; border-radius: var(--radius-pill);
 }
@@ -575,23 +637,42 @@ body.bt-desktop .bt-hub0-road-list {
    Tap-target 44 px (bramka dotyku), na dole gradient tla, zeby czerwien nie zlewala sie z ciemnym UI. */
 .bt-hub0-modal-close {
     position: absolute; top: 10px; right: 10px;
-    width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+    /* v0.203.0 (Mariusz, playtest mobile): bylo 44x44 i NACHODZILO na tresc — w popupie
+       wyboru mapy krzyzyk kladl sie na kafel TROPIKI, i tak samo w kazdym innym modalu,
+       bo regula jest wspolna. Zmniejszone do 38 px, a tap-target trzyma niewidoczne
+       ::after rozciagniete do 44 px — wizualnie mniejszy przycisk, dotykowo ten sam.
+       Samo zmniejszenie NIE wystarcza: miejsce pod krzyzyk rezerwuje `--modal-close-gap`
+       w `.bt-hub0-modal-title` ponizej, inaczej przy szerokim modalu tresc i tak
+       wjechalaby pod niego. */
+    width: 38px; height: 38px; min-width: 38px; min-height: 38px;
     border: 2px solid #ff5a5a;
     background: linear-gradient(180deg, rgba(255, 90, 90, 0.20), rgba(255, 90, 90, 0.08));
     color: #ff6b6b; border-radius: var(--radius-md); cursor: pointer;
-    font-size: 20px; font-weight: 900; line-height: 1;
+    font-size: 17px; font-weight: 900; line-height: 1;
     display: grid; place-items: center;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.55);
     transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+    z-index: 2;
+}
+/* Niewidoczne powiekszenie pola dotyku do 44 px (bramka dotyku z mobile-first).
+   Kciuk 9-latka celuje w 44, oko widzi 38. */
+.bt-hub0-modal-close::after {
+    content: ''; position: absolute; top: -3px; right: -3px; bottom: -3px; left: -3px;
 }
 .bt-hub0-modal-close:hover {
     color: #fff; background: #ff5a5a; transform: scale(1.06);
 }
 .bt-hub0-modal-close:active { transform: scale(0.94); }
+/* Pasek tytulu REZERWUJE miejsce na krzyzyk — pionowo (min-height) i poziomo
+   (padding-right). Bez tego pierwszy wiersz tresci wjezdza pod przycisk zamkniecia:
+   krzyzyk siega 10 + 38 = 48 px od gory modalu, a sam tytul (15 px) konczyl sie
+   wyzej. Jedna regula = wszystkie modale naraz (mapa, sklep, moce, skrzynki, skiny). */
 .bt-hub0-modal-title {
     font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 15px;
     letter-spacing: 0.5px; margin: 0 0 14px;
     color: var(--bt-heading);
+    display: flex; align-items: center;
+    min-height: 32px; padding-right: 46px;
 }
 .bt-hub0-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 body.bt-desktop .bt-hub0-stats { grid-template-columns: repeat(3, 1fr); }
@@ -1984,6 +2065,67 @@ body.bt-desktop .bt-hub0-flag-grid { grid-template-columns: repeat(3, 94px); }
     color: var(--hub-ink-faint);
 }
 .bt-hub0-input-hint.is-error { color: #e74c3c; }
+
+/* ==========================================================================
+   v0.203.0 — PSEUDONIM: kostka losowania + GLOSNY blad "nick zajety"
+   ==========================================================================
+   Kontekst: to jedyny blad, na ktory gracz moze trafic PRZED pierwsza gra, a do
+   v0.202.0 byl komunikatem 10 px pod polem. Dziecko go nie widzialo i utykalo na
+   ekranie powitalnym. Tu czerwien jest uzasadniona (alarm), a nie dekoracyjna —
+   zgodnie z podzialem z v0.202.0: bursztyn/czerwien TYLKO na ostrzezeniach.
+   ========================================================================== */
+.bt-nick-row { display: flex; gap: 8px; align-items: stretch; }
+.bt-nick-row .bt-hub0-input { flex: 1; }
+.bt-nick-reroll {
+    flex: 0 0 auto; width: 46px; min-width: 46px; min-height: 46px;
+    border: 2px solid var(--hub-line); border-radius: var(--radius-md);
+    background: var(--hub-steel-850); color: var(--hub-ink);
+    font-size: 20px; line-height: 1; cursor: pointer;
+    display: grid; place-items: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.bt-nick-reroll:hover { border-color: var(--hub-gold); transform: scale(1.06); }
+.bt-nick-reroll:active { transform: scale(0.92) rotate(-12deg); }
+
+.bt-nick-alert {
+    margin: 0 0 8px; padding: 10px 12px;
+    border: 2px solid #ff5a5a; border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(231, 76, 60, 0.22), rgba(231, 76, 60, 0.08));
+}
+.bt-nick-alert[hidden] { display: none; }
+.bt-nick-alert-head {
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-weight: 900; font-size: 16px; color: #fff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.55);
+}
+.bt-nick-alert-sub {
+    margin-top: 4px; font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.85);
+}
+.bt-nick-alert-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* Propozycje to CELE POD KCIUK, nie linki — stad 40 px wysokosci i pelna pigulka. */
+.bt-nick-chip {
+    min-height: 40px; padding: 0 14px; cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.35); border-radius: var(--radius-pill);
+    background: rgba(12, 16, 22, 0.55); color: #fff;
+    font-family: inherit; font-weight: 800; font-size: 14px;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.bt-nick-chip:hover { border-color: var(--hub-gold); background: rgba(241, 196, 15, 0.18); }
+.bt-nick-chip:active { transform: scale(0.94); }
+
+.bt-nick-shake { animation: bt-nick-shake 0.34s ease; }
+@keyframes bt-nick-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    45% { transform: translateX(6px); }
+    70% { transform: translateX(-4px); }
+}
+/* Reguly dostepnosci: kto wylaczyl animacje, dostaje sam kolor + karte. */
+@media (prefers-reduced-motion: reduce) {
+    .bt-nick-shake { animation: none; }
+}
 .bt-hub0-pedit-footer {
     display: flex; gap: 10px; justify-content: space-between; margin-top: 16px;
 }

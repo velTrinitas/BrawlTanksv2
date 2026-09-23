@@ -43,6 +43,7 @@ import { flagImgHtml, sortedFlagIds, FLAG_NAME_KEY } from './flagArt';
 import './hub/hub-styles.css';
 import { ProfileService } from '../services/ProfileService';
 import { isCleanNickname } from '../config/nickFilter';
+import { generateNickname, generateNicknames } from '../config/nickGenerator';
 import { supabaseProfileService } from '../services/SupabaseProfileService';
 import { pushProfileToCloud } from '../services/profileSync';
 import { playUiClick, playUiSelect } from './uiSounds';
@@ -100,8 +101,6 @@ export class IdentityScreen implements IScreen {
     selectedFlagId: FlagId | null = null;
     nicknameValue: string = '';
 
-    /** True jezeli user recznie zmienil nickname — wtedy avatar click NIE nadpisuje. */
-    private nicknameManuallyEdited: boolean = false;
 
     /** v0.47.0 FAZA 9b.3b: guard przeciw double-submit podczas async check. */
     private isSubmitting: boolean = false;
@@ -119,6 +118,23 @@ export class IdentityScreen implements IScreen {
         this.el = this.render();
         root.appendChild(this.el);
         this.wireEvents();
+        // v0.203.0 — pole ma byc WYPELNIONE od pierwszej sekundy. Puste pole na ekranie
+        // powitalnym to zadanie domowe („wymysl nazwe"), a nie zaproszenie do gry.
+        this.rollNickname();
+    }
+
+    /**
+     * Losuje nick w jezyku gracza i wstawia go do pola. Jezyk jest juz znany — i18n
+     * ustawia sie w konstruktorze singletona, czyli PRZED montowaniem tego ekranu.
+     */
+    private rollNickname(): void {
+        const nick = generateNickname(detectBrowserLanguage());
+        this.nicknameValue = nick;
+        const input = this.el?.querySelector<HTMLInputElement>('[data-action="nickname"]');
+        if (input) input.value = nick;
+        this.hideNicknameAlert();
+        this.updateNicknameValidation();
+        this.updateCtaButton();
     }
 
     unmount(): void {
@@ -148,18 +164,30 @@ export class IdentityScreen implements IScreen {
 
                 <div class="bt-hub0-pedit">
                     <div class="bt-hub0-subhead">✏️ ${t('profile.onboarding.nicknameLabel')}</div>
-                    <input
-                        type="text"
-                        class="bt-hub0-input"
-                        data-action="nickname"
-                        placeholder="${t('profile.onboarding.nicknamePlaceholder')}"
-                        maxlength="${NICKNAME_MAX_LENGTH}"
-                        autocomplete="off"
-                        autocapitalize="off"
-                        spellcheck="false"
-                        inputmode="text"
-                        aria-label="${t('profile.onboarding.nicknameLabel')}"
-                    />
+                    <!-- v0.203.0 — karta bledu „pseudonim zajety" STOI NAD POLEM i jest
+                         pusta do czasu bledu. Do v0.202.0 komunikat byl 10-pikselowym
+                         czerwonym tekstem POD polem; dziecko go nie widzialo i utykalo
+                         na pierwszym ekranie gry. -->
+                    <div class="bt-nick-alert" data-role="nickname-alert" hidden></div>
+                    <!-- Pole + kostka w jednym rzedzie: losowanie musi byc TUZ przy
+                         nicku, inaczej nie czyta sie jako „zmien te nazwe". -->
+                    <div class="bt-nick-row">
+                        <input
+                            type="text"
+                            class="bt-hub0-input"
+                            data-action="nickname"
+                            placeholder="${t('profile.onboarding.nicknamePlaceholder')}"
+                            maxlength="${NICKNAME_MAX_LENGTH}"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            inputmode="text"
+                            aria-label="${t('profile.onboarding.nicknameLabel')}"
+                        />
+                        <button class="bt-nick-reroll" data-action="reroll" type="button"
+                                title="${t('profile.onboarding.nicknameReroll')}"
+                                aria-label="${t('profile.onboarding.nicknameReroll')}">🎲</button>
+                    </div>
                     <small class="bt-hub0-input-hint" data-role="nickname-hint">
                         ${t('profile.onboarding.nicknameHint')}
                     </small>
@@ -261,6 +289,21 @@ export class IdentityScreen implements IScreen {
                 return;
             }
 
+            // v0.203.0 — kostka: losuje nowy nick. Stoi PRZED obsluga awatarow, bo
+            // siedzi w tym samym delegacie i ma wlasne `data-action`.
+            if (target.closest<HTMLElement>('[data-action="reroll"]')) {
+                playUiSelect();
+                this.rollNickname();
+                return;
+            }
+
+            const suggestionBtn = target.closest<HTMLElement>('[data-suggest]');
+            if (suggestionBtn) {
+                playUiClick();
+                this.applyNickname(suggestionBtn.dataset.suggest || '');
+                return;
+            }
+
             const startBtn = target.closest<HTMLElement>('[data-action="start"]');
             if (startBtn && !(startBtn as HTMLButtonElement).disabled) {
                 void this.handleStartClick();
@@ -273,10 +316,8 @@ export class IdentityScreen implements IScreen {
             nicknameInput.addEventListener('input', (e) => {
                 this.handleNicknameInput(e.target as HTMLInputElement);
             });
-            // Track manual edits — once user types, avatar click stops auto-prefilling
-            nicknameInput.addEventListener('keydown', () => {
-                this.nicknameManuallyEdited = true;
-            });
+            // v0.203.0 — nasluch `keydown` na flage „recznej edycji" zniknal razem
+            // z auto-prefillem z awatara (nie ma juz czego chronic przed nadpisaniem).
         }
     }
 
@@ -288,19 +329,12 @@ export class IdentityScreen implements IScreen {
             c.classList.toggle('is-selected', c === cardEl);
         });
 
-        // Auto-prefill nickname jezeli user jeszcze nie tyknal recznie
-        if (!this.nicknameManuallyEdited) {
-            const suggestedName = t(AVATAR_NAME_KEYS[id]);
-            // Avatar names moga miec spacje/specjalne (np. "Inzynier") — sanitize
-            const sanitized = sanitizeNickname(suggestedName);
-            this.nicknameValue = sanitized;
-
-            const input = this.el?.querySelector<HTMLInputElement>('[data-action="nickname"]');
-            if (input) input.value = sanitized;
-
-            this.updateNicknameValidation();
-        }
-
+        // v0.203.0 — WYBOR AWATARA JUZ NIE NADPISUJE NICKU (decyzja Mariusza).
+        // Do v0.202.0 klik w postac wstawial jej imie do pola. Przy 9 awatarach na cala
+        // baze graczy oznaczalo to kolizje niemal pewna, a od teraz pole jest wypelnione
+        // wylosowanym nickiem JUZ przy wejsciu na ekran — nadpisywanie go wyborem
+        // postaci kasowaloby nazwe, ktora gracz wlasnie polubil. Kto chce inna,
+        // ma kostke 🎲 albo po prostu pisze swoja.
         this.updateCtaButton();
     }
 
@@ -322,7 +356,9 @@ export class IdentityScreen implements IScreen {
             input.value = sanitized;
         }
         this.nicknameValue = sanitized;
-        this.nicknameManuallyEdited = true;
+        // Gracz pisze wlasna nazwe — karta „zajety" dotyczyla POPRZEDNIEJ wartosci
+        // i wisienie jej nad nowym tekstem bylo by po prostu klamstwem.
+        this.hideNicknameAlert();
 
         this.updateNicknameValidation();
         this.updateCtaButton();
@@ -417,19 +453,81 @@ export class IdentityScreen implements IScreen {
         }
     }
 
-    /** v0.47.0 FAZA 9b.3b: pokaz komunikat "nick zajety" (po server check). */
+    /**
+     * v0.47.0 FAZA 9b.3b: komunikat "nick zajety" (po server check).
+     * v0.203.0: GLOSNY. Do v0.202.0 byl to 10-pikselowy czerwony tekst pod polem —
+     * jedyny blad, na ktory gracz moze trafic PRZED pierwsza gra, i akurat on byl
+     * nieczytelny. Teraz: czerwona karta nad polem + shake pola + TRZY WOLNE
+     * propozycje do tapniecia, zeby wyjscie z bledu kosztowalo jeden ruch, a nie
+     * wymyslanie nowej nazwy przez dziecko, ktore chcialo tylko zagrac.
+     */
     private showNicknameTaken(): void {
         if (!this.el) return;
         const input = this.el.querySelector<HTMLInputElement>('[data-action="nickname"]');
-        const hint = this.el.querySelector<HTMLElement>('[data-role="nickname-hint"]');
         if (input) {
             input.classList.remove('is-valid');
             input.classList.add('is-invalid');
+            // Restart animacji: bez tego drugi bled z rzedu nie drgnie.
+            input.classList.remove('bt-nick-shake');
+            void input.offsetWidth;
+            input.classList.add('bt-nick-shake');
         }
-        if (hint) {
-            hint.classList.add('is-error');
-            hint.textContent = t('profile.onboarding.nicknameTaken');
+        const alert = this.el.querySelector<HTMLElement>('[data-role="nickname-alert"]');
+        if (!alert) return;
+        alert.innerHTML = `
+            <div class="bt-nick-alert-head">⚠️ ${t('profile.onboarding.nicknameTaken')}</div>
+            <div class="bt-nick-alert-sub">${t('profile.onboarding.nicknameSuggestions')}</div>
+            <div class="bt-nick-alert-chips" data-role="nickname-suggestions"></div>`;
+        alert.hidden = false;
+        void this.fillSuggestions();
+    }
+
+    /**
+     * Dokleja propozycje do karty bledu — pokazuje TYLKO te, ktore serwer potwierdzil
+     * jako wolne. Podanie zajetej propozycji byloby gorsze niz brak propozycji: gracz
+     * tapnalby ja i dostal ten sam blad drugi raz.
+     *
+     * Sprawdzamy rownolegle i bez blokowania UI. Gdy siec milczy (offline / timeout),
+     * karta zostaje z sama trescia bledu — onboarding NIGDY nie moze utknac na sieci.
+     */
+    private async fillSuggestions(): Promise<void> {
+        const box = this.el?.querySelector<HTMLElement>('[data-role="nickname-suggestions"]');
+        if (!box) return;
+        const candidates = generateNicknames(detectBrowserLanguage(), 5);
+        try {
+            const checked = await Promise.all(candidates.map(async (nick) => {
+                try {
+                    return await supabaseProfileService.isNicknameAvailable(nick) ? nick : null;
+                } catch { return null; }
+            }));
+            const free = checked.filter((n): n is string => !!n).slice(0, 3);
+            if (!free.length) return;
+            box.innerHTML = free
+                .map(n => `<button class="bt-nick-chip" type="button" data-suggest="${n}">${n}</button>`)
+                .join('');
+        } catch (error) {
+            console.warn('[IdentityScreen] nick suggestions failed',
+                (error as Error)?.stack ?? error, { candidates });
         }
+    }
+
+    /** Wstawia gotowa nazwe (propozycja z karty bledu) i czysci stan bledu. */
+    private applyNickname(nick: string): void {
+        if (!nick) return;
+        this.nicknameValue = nick;
+        const input = this.el?.querySelector<HTMLInputElement>('[data-action="nickname"]');
+        if (input) input.value = nick;
+        this.hideNicknameAlert();
+        this.updateNicknameValidation();
+        this.updateCtaButton();
+    }
+
+    /** Chowa karte bledu (nowy nick = stary komunikat przestaje byc prawda). */
+    private hideNicknameAlert(): void {
+        const alert = this.el?.querySelector<HTMLElement>('[data-role="nickname-alert"]');
+        if (!alert) return;
+        alert.hidden = true;
+        alert.innerHTML = '';
     }
 
     private updateCtaButton(): void {

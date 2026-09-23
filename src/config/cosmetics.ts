@@ -292,6 +292,16 @@ export const COSMETICS: readonly CosmeticDef[] = [
     { id: 'ps_amber',  type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_amber',  bgImage: 'profileBG/Y-Square_mini.jpg' },
     { id: 'ps_plum',   type: 'profileSkin', rarity: 'r', labelKey: 'cosmetic.ps_plum',   bgImage: 'profileBG/V-Square_mini.jpg' },
     { id: 'ps_lava',   type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_lava',   bgImage: 'profileBG/R-Square_mini.jpg' },
+    // v0.203.0 — SEZONOWY skin profilu. Pytanie Mariusza brzmialo „jak zalozyc profil
+    // z sezonu 3" i odpowiedz do v0.202.0 byla: NIJAK. Plik `public/seasons/s3/decor.jpg`
+    // (2400x400, 28 KB — zeszyty, plecaki, globusy, jesienne liscie) lezal w repo od
+    // 29.08, jest opisany w kontrakcie SEASON_ENGINE jako „tlo panelu gracza" i NIE BYL
+    // CZYTANY PRZEZ ZADNA LINIE KODU. To jest ten jeden brakujacy wiersz.
+    //
+    // Dlaczego `e`, a nie `l`: sezonowe ma byc osiagalne w trakcie trwania sezonu
+    // (2400 Σ), a nie byc szczytem kolekcji. Sklep podlapie go sam — `profileSkinSkus()`
+    // mapuje KAZDY kosmetyk typu `profileSkin`, wiec zero zmian w `shop.ts`.
+    { id: 'ps_s3_school', type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_s3_school', bgImage: 'seasons/s3/decor.jpg' },
 
     // ── SKIN-1 (v0.159.0): BARWY CZOLGU (8 palet, c2/r3/e2/l1) ───────────────
     // hex CELOWO omija 8 barw bazowych czolgow (#27ae60/#8e44ad/#f1c40f/#3498db/

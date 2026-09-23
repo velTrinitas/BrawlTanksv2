@@ -41,7 +41,10 @@ export class TrophyRoadSection implements HubSection {
                     <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
                     <div class="info">
                         <b>${m.threshold} 🏆</b>
-                        <span class="reward"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${m.bolts}${m.labelKey ? ` · ${t(m.labelKey)}` : ''}</span>
+                    </div>
+                    <div class="prize">
+                        <span class="p-sigma"><img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${m.bolts}</span>
+                        ${m.labelKey ? `<span class="p-extra">${t(m.labelKey)}</span>` : ''}
                     </div>
                     ${isNext ? `<span class="tag">${t('hub.road.next')}</span>` : ''}
                 </div>`;
@@ -98,7 +101,10 @@ export class TrophyRoadSection implements HubSection {
                     <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
                     <div class="info">
                         <b>${m.threshold} 🏆</b>
-                        <span class="reward"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""> ${m.bolts}${m.crates ? ` · ${crateIcon(15)}${m.crates > 1 ? ` x${m.crates}` : ''}` : ''}</span>
+                    </div>
+                    <div class="prize">
+                        <span class="p-sigma"><img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${m.bolts}</span>
+                        ${m.crates ? `<span class="p-extra">${crateIcon(18)}${m.crates > 1 ? ` x${m.crates}` : ''}</span>` : ''}
                     </div>
                     ${isNext ? `<span class="tag">${t('hub.road.next')}</span>` : ''}
                 </div>`;

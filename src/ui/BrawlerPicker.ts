@@ -38,6 +38,7 @@ import { type MapId } from '../types/MapType';
 import { DIFFICULTY_CONFIGS, type DifficultyId } from '../types/GameConfig';
 import { BRAWLERS } from '../config/brawlers';
 import { playUiClick } from './uiSounds';
+import { backArrowIcon } from './hub/gameIcons';
 
 // ============================================================
 // Types
@@ -168,7 +169,7 @@ export class BrawlerPicker implements IScreen {
 
                 <div class="bt-picker-footer">
                     <button class="bt-btn-secondary" type="button" data-action="back">
-                        ← ${t('common.back')}
+                        ${backArrowIcon(20)} ${t('common.back')}
                     </button>
                     <button class="bt-cta-button" type="button" data-action="play" disabled>
                         <span class="bt-cta-label">${this.computeCtaText()}</span>

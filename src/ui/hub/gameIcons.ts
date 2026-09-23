@@ -112,3 +112,31 @@ export function iconFromToken(token: string, px: number): string | null {
         default: return null;
     }
 }
+
+/**
+ * STRZALKA WSTECZ — inline SVG, NIE znak `←` (U+2190).
+ *
+ * DIAGNOZA (zgloszenie Mariusza, v0.203.0: „strzalka sprawia wrazenie wyrownanej do
+ * dolu"): Titan One NIE MA glifu U+2190, wiec przegladarka podstawiala pod niego
+ * pierwszy font z fallbacku. Znak strzalki w fontach systemowych siedzi na OSI
+ * MATEMATYCZNEJ (mniej wiecej w polowie x-height), a wielkie litery Titan One stoja na
+ * linii bazowej — dwa rozne ukladu odniesienia w jednym wierszu. Stad wrazenie, ze
+ * strzalka opadla. `line-height: 1` tego nie naprawia, bo problem jest WEWNATRZ glifu,
+ * nie w wysokosci wiersza; `vertical-align` tez nie, bo przesuniecie zalezy od tego,
+ * ktory font akurat wygral fallback (inny na Androidzie, inny na Windows).
+ *
+ * Dlatego geometria zamiast glifu: SVG ma znana skrzynke 24x24 i rysuje strzalke
+ * DOKLADNIE w jej srodku, wiec `align-items: center` rodzica ustawia ja idealnie na
+ * kazdym systemie. Przy okazji znika zaleznosc od fallbacku fontu — a to ta sama
+ * pulapka, ktora wraca przy kazdym nowym znaku spoza Titan One.
+ *
+ * `currentColor` => strzalka dziedziczy kolor przycisku (zloto pigulki, jasny ink
+ * przyciskow hubu) i nie trzeba jej kolorowac osobno w zadnym miejscu.
+ */
+export function backArrowIcon(px = 20): string {
+    return `<svg class="bt-ico-back" viewBox="0 0 24 24" width="${px}" height="${px}"
+        aria-hidden="true" focusable="false" fill="none" stroke="currentColor"
+        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/>
+    </svg>`;
+}

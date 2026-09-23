@@ -32,15 +32,27 @@ const CRATE_ART = {
  * jawne pule z % ("Co moze wypasc?"). Juice = CSS transform/opacity (mobile-safe, zero
  * PIXI/overdraw), prefers-reduced-motion respektowany w hub-styles. Wzorzec StatsOverlay.
  */
+/**
+ * v0.203.0 — FAZA JAKO STAN W JS, NIE TYLKO W CSS.
+ *
+ * Do v0.202.0 bramki faz siedzialy WYLACZNIE w CSS (`pointer-events: none` na
+ * `.is-dropping` / `.is-bursting`). To dzialalo, dopoki klikalne bylo samo pudelko.
+ * Od chwili, gdy tapnac mozna CALY ekran (prosba Mariusza), klik nie trafia juz
+ * w `.bt-hub0-crate-box`, wiec `pointer-events` go nie zatrzyma — faze musi znac JS.
+ */
+type CratePhase = 'dropping' | 'tapping' | 'bursting' | 'reveal';
+
 export class CrateOverlay {
     private el: HTMLElement | null = null;
     private tapsLeft = 3;
     private onDone: (() => void) | null = null;
+    private phase: CratePhase = 'dropping';
 
     open(parent: HTMLElement, profileId: string, onDone: () => void): void {
         this.close();
         this.onDone = onDone;
         this.tapsLeft = 3;
+        this.phase = 'dropping';
 
         this.el = document.createElement('div');
         this.el.className = 'bt-hub0-overlay';
@@ -61,7 +73,7 @@ export class CrateOverlay {
                     </button>
                     <div class="bt-hub0-crate-dust" aria-hidden="true"></div>
                 </div>
-                <div class="bt-hub0-crate-hint">${t('crate.tap')} (${this.tapsLeft}/3)</div>
+                <div class="bt-hub0-crate-hint">${t('crate.tapAnywhere')} (${this.tapsLeft}/3)</div>
                 <button class="bt-hub0-rankfull" data-action="pools" type="button">${t('crate.pools')}</button>
             </div>`;
     }
@@ -69,11 +81,24 @@ export class CrateOverlay {
     private wireScene(profileId: string): void {
         const el = this.el;
         if (!el) return;
+        // v0.203.0 — CALY EKRAN TAPUJE (prosba Mariusza). Kolejnosc warunkow NIE jest
+        // dowolna i to jest najwazniejsza rzecz w tym handlerze:
+        //
+        //  - `[data-action]` MUSI wygrac z tapem w tlo. Krzyzyk i „Co moze wypasc?"
+        //    lezą wewnatrz nakladki, wiec bez tego priorytetu klik w ✕ przy
+        //    `tapsLeft === 1` OTWORZYLBY skrzynke zamiast zamknac ekran.
+        //  - Klik w tlo tapuje TYLKO w fazie `tapping`. W locie skrzyni (0.855 s) i
+        //    w trakcie wybuchu ma byc martwy — wczesniej pilnowal tego `pointer-events`
+        //    na samym pudelku, ale klik w tlo w ogole go nie dotyka.
+        //  - Zamkniecie klikiem w tlo zostaje TYLKO na ekranie nagrody. Do v0.202.0
+        //    dzialalo w kazdej fazie i bylo pulapka: gracz pudlowal w pudelko i zamiast
+        //    tapnac — wyrzucalo go z animacji.
         el.addEventListener('click', (e) => {
             const action = (e.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
-            if (action === 'done' || (e.target === el)) { this.close(); this.onDone?.(); }
-            else if (action === 'tap') this.onTap(profileId);
-            else if (action === 'pools') this.showPools();
+            if (action === 'done' || action === 'back') { this.close(); this.onDone?.(); return; }
+            if (action === 'pools') { this.showPools(); return; }
+            if (this.phase === 'tapping' && (action === 'tap' || !action)) { this.onTap(profileId); return; }
+            if (this.phase === 'reveal' && e.target === el) { this.close(); this.onDone?.(); }
         });
         // v0.144.0 — DZWIEK STARTUJE NA POCZATKU LOTU, NIE PO LADOWANIU.
         //
@@ -96,6 +121,7 @@ export class CrateOverlay {
         box?.addEventListener('animationend', (ev) => {
             if ((ev as AnimationEvent).animationName !== 'bt-crate-drop') return;
             box.classList.remove('is-dropping');
+            this.phase = 'tapping';   // v0.203.0 — dopiero teraz tlo zaczyna tapowac
             const modal = el.querySelector<HTMLElement>('.bt-hub0-crate-modal');
             modal?.classList.add('thud');
             // v0.131.0 — scena drga WLASNYM, krotszym wstrzasem niz modal: sam modal
@@ -187,9 +213,12 @@ export class CrateOverlay {
         AudioSys.getInstance().playCrateTap(3 - this.tapsLeft - 1);
         const hint = this.el.querySelector('.bt-hub0-crate-hint');
         if (this.tapsLeft > 0) {
-            if (hint) hint.textContent = `${t('crate.tap')} (${this.tapsLeft}/3)`;
+            if (hint) hint.textContent = `${t('crate.tapAnywhere')} (${this.tapsLeft}/3)`;
             return;
         }
+        // Od tego momentu tlo przestaje tapowac — inaczej kolejne kliki w czasie
+        // 700 ms do revealu probowalyby otworzyc juz otwarta skrzynke.
+        this.phase = 'bursting';
         const result = ProgressionService.openCrate(profileId);
         if (!result) { this.close(); this.onDone?.(); return; } // brak skrzynek (nie powinno)
 
@@ -230,6 +259,7 @@ export class CrateOverlay {
 
     private renderReveal(r: CrateOpenResult): void {
         if (!this.el) return;
+        this.phase = 'reveal';   // v0.203.0 — od teraz klik w tlo znow ZAMYKA
         const color = RARITY_COLOR[r.rarity];
         const cosDef = r.cosmeticId ? getCosmetic(r.cosmeticId) : undefined;
         const rewardLine = cosDef
@@ -248,8 +278,10 @@ export class CrateOverlay {
                     <button class="bt-hub0-play" data-action="done" type="button">${t('common.close')}</button>
                 </div>
             </div>`;
-        // re-wire (nowy DOM)
-        this.el.querySelector('[data-action="done"]')?.addEventListener('click', () => { this.close(); this.onDone?.(); });
+        // v0.203.0 — BEZ re-wire. Delegat z `wireScene()` siedzi na `this.el`, a tu
+        // podmieniamy tylko `innerHTML`, wiec `data-action="done"` lapie sie sam.
+        // Dotad byl TU jeszcze bezposredni listener i klik w „Zamknij" wywolywal
+        // `onDone()` DWA RAZY (hub przeladowywal sie podwojnie).
     }
 
     private showPools(): void {
@@ -266,7 +298,10 @@ export class CrateOverlay {
                 <h3 class="bt-hub0-modal-title">${t('crate.pools')}</h3>
                 <div class="bt-hub0-ranklist">${rows}</div>
             </div>`;
-        this.el.querySelector('[data-action="back"]')?.addEventListener('click', () => { this.close(); this.onDone?.(); });
+        // Bez re-wire — delegat obsluguje `data-action="back"` (patrz `renderReveal`).
+        // Faza MUSI wyjsc z `tapping`, inaczej klik w liste pul liczylby sie jako tap
+        // w skrzynke, ktorej na ekranie juz nie ma. `reveal` = tlo zamyka, tresc nie tapuje.
+        this.phase = 'reveal';
     }
 
     close(): void {

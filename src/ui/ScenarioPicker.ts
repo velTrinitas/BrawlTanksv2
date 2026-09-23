@@ -25,6 +25,7 @@ import { renderMapPreview } from './MapPreview';
 import { renderScenarioPreview, type ScenarioPreviewId } from './ScenarioPreview';
 import { showToast } from './toast';
 import { playUiClick } from './uiSounds';
+import { backArrowIcon } from './hub/gameIcons';
 
 // ============================================================
 // ScenarioPicker
@@ -86,7 +87,7 @@ export class ScenarioPicker implements IScreen {
 
                 <div class="bt-picker-footer">
                     <button class="bt-btn-secondary" type="button" data-action="back">
-                        ← ${t('common.back')}
+                        ${backArrowIcon(20)} ${t('common.back')}
                     </button>
                     <button class="bt-btn-primary" type="button" data-action="next" disabled>
                         ${t('common.next')} →

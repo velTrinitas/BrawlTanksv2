@@ -290,6 +290,7 @@ export const en: typeof pl = {
     'crate.rarity.l': 'Legendary',
     'crate.title': 'Supply Drop',
     'crate.tap': 'Tap to open!',
+    'crate.tapAnywhere': 'Tap anywhere!',
     'crate.pools': 'What can drop?',
     'crate.close': 'Close',
     'crate.newCosmetic': 'New cosmetic!',
@@ -394,6 +395,7 @@ export const en: typeof pl = {
     'cosmetic.ps_amber': 'Amber',
     'cosmetic.ps_plum': 'Plum',
     'cosmetic.ps_lava': 'Lava',
+    'cosmetic.ps_s3_school': 'Back to School',
     // v0.147.0 — SINGULAR category names (crate reward prefix).
     'cosmetic.cat.nickColor': 'Nick color',
     'cosmetic.cat.frame': 'Avatar frame',
@@ -930,6 +932,8 @@ export const en: typeof pl = {
     'profile.onboarding.nicknameHint': '2-16 characters: letters and digits',
     'profile.onboarding.nicknameError': 'Nickname must be 2-16 letters or digits',
     'profile.onboarding.nicknameTaken': 'Nickname taken — choose another',
+    'profile.onboarding.nicknameSuggestions': 'These are free — tap to take one:',
+    'profile.onboarding.nicknameReroll': 'Roll another name',
     'profile.onboarding.nicknameBlocked': 'This nickname is not allowed — pick another one',
 
     // ============================================================

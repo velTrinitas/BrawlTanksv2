@@ -14,6 +14,7 @@ import type { IScreen } from './MainMenu';
 import { AudioSys } from '../audio/AudioSys';
 import { i18n, t, type Language } from '../i18n/i18n';
 import { ProfileService } from '../services/ProfileService';
+import { backArrowIcon } from './hub/gameIcons';
 
 /** Inline SVG flagi dla language toggle. */
 const FLAG_SVG_PL = `<svg viewBox="0 0 8 5" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
@@ -72,7 +73,7 @@ export class SettingsScreen implements IScreen {
         this.rootEl.innerHTML = `
             <header class="bt-settings-header">
                 <button class="bt-settings-back" type="button" aria-label="${t('common.back')}">
-                    <span class="bt-settings-back-arrow" aria-hidden="true">←</span>
+                    ${backArrowIcon(22)}
                     <span class="bt-settings-back-label">${t('common.back')}</span>
                 </button>
                 <h2 class="bt-settings-title">${t('settings.title')}</h2>

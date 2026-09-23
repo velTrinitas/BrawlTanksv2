@@ -3676,11 +3676,6 @@
     transform: translateX(-1px) scale(0.95);
 }
 
-.bt-settings-back-arrow {
-    font-size: 1.5rem;
-    line-height: 1;
-}
-
 .bt-settings-back-label {
     font-size: 1rem;
     letter-spacing: 1px;
@@ -3918,11 +3913,7 @@
         border-radius: 25px;
     }
 
-    .bt-settings-back-arrow {
-        font-size: 1.7rem;
-    }
-
-    .bt-settings-back-label {
+        .bt-settings-back-label {
         font-size: 1.15rem;
     }
 
@@ -3957,11 +3948,7 @@
         gap: 6px;
     }
 
-    .bt-settings-back-arrow {
-        font-size: 1.35rem;
-    }
-
-    .bt-settings-back-label {
+        .bt-settings-back-label {
         font-size: 0.9rem;
         letter-spacing: 0.5px;
     }

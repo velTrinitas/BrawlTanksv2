@@ -299,6 +299,7 @@ export const pl = {
     'crate.rarity.l': 'Legendarny',
     'crate.title': 'Zrzut zaopatrzenia',
     'crate.tap': 'Tapnij, by otworzyć!',
+    'crate.tapAnywhere': 'Tapnij gdziekolwiek!',
     'crate.pools': 'Co może wypaść?',
     'crate.close': 'Zamknij',
     'crate.newCosmetic': 'Nowy kosmetyk!',
@@ -405,6 +406,7 @@ export const pl = {
     'cosmetic.ps_amber': 'Bursztyn',
     'cosmetic.ps_plum': 'Śliwka',
     'cosmetic.ps_lava': 'Lawa',
+    'cosmetic.ps_s3_school': 'Powrót do Szkoły',
     // v0.147.0 — nazwy kategorii w LICZBIE POJEDYNCZEJ (prefiks nagrody ze skrzynki).
     // Osobne od 'hub.garage.type.*', które są w mnogiej, bo tamte tytułują grupy.
     'cosmetic.cat.nickColor': 'Kolor nicku',
@@ -950,6 +952,8 @@ export const pl = {
     'profile.onboarding.nicknameHint': '2-16 znaków: litery i cyfry',
     'profile.onboarding.nicknameError': 'Pseudonim musi mieć 2-16 liter lub cyfr',
     'profile.onboarding.nicknameTaken': 'Pseudonim zajęty — wybierz inny',
+    'profile.onboarding.nicknameSuggestions': 'Te są wolne — stuknij, żeby wziąć:',
+    'profile.onboarding.nicknameReroll': 'Wylosuj inną nazwę',
     'profile.onboarding.nicknameBlocked': 'Ten pseudonim jest niedozwolony — wybierz inny',
 
     // ============================================================

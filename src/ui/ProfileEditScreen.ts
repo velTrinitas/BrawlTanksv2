@@ -47,6 +47,7 @@ import { showToast } from './toast';
 // 9 czolgistow + 18 flag), koniec z lokalnymi duplikatami tablic.
 import { AVATAR_IDS, DEFAULT_AVATAR_ID } from '../config/avatars';
 import { FLAG_IDS, DEFAULT_FLAG_ID } from '../config/flags';
+import { backArrowIcon } from './hub/gameIcons';
 
 export class ProfileEditScreen implements IScreen {
     private rootEl: HTMLElement | null = null;
@@ -124,7 +125,7 @@ export class ProfileEditScreen implements IScreen {
 
                 <div class="bt-picker-footer">
                     <button class="bt-btn-secondary" type="button" data-action="back">
-                        ← ${t('common.back')}
+                        ${backArrowIcon(20)} ${t('common.back')}
                     </button>
                     <button class="bt-cta-button" type="button" data-action="save" disabled>
                         <span class="bt-cta-label">💾 ${t('profile.edit.saveButton')}</span>
@@ -244,7 +245,7 @@ export class ProfileEditScreen implements IScreen {
                 </div>
                 <div class="bt-picker-footer" style="justify-content: center;">
                     <button class="bt-btn-secondary" type="button" data-action="back">
-                        ← ${t('common.back')}
+                        ${backArrowIcon(20)} ${t('common.back')}
                     </button>
                 </div>
             </div>

@@ -221,7 +221,18 @@ export class AudioSys {
 
     // v0.24.0 FAZA 8a: volume multipliers per channel (0..1)
     private musicVolMult: number = 1.0;
-    private sfxVolMult: number = 1.0;
+    /**
+     * v0.203.0 (decyzja Mariusza): efekty startuja na 70%, nie 100%.
+     * Po ujednoliceniu glosnosci z v0.196.0/v0.197.0 kazdy efekt gra na swoim docelowym
+     * poziomie, wiec suma kanalu (strzaly + trafienia + wybuchy + UI naraz) byla przy
+     * 100% glosniejsza od muzyki i meczyla przy dluzszym graniu.
+     *
+     * UWAGA: to wartosc STARTOWA, nadpisywana przez `bt2:audio:sfxVol` z localStorage
+     * (loadVolumeSettings). Gracz, ktory juz kiedykolwiek ruszyl suwak — albo tylko
+     * wszedl w Ustawienia, jesli te zapisuja przy wejsciu — zostaje przy swojej
+     * wartosci. Zmiana dziala wiec dla NOWYCH instalacji i po wyczyszczeniu danych.
+     */
+    private sfxVolMult: number = 0.7;
 
     // v0.42.0: autoplay-policy fallback
     private pendingPlay: PendingPlay | null = null;

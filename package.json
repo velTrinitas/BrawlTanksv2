@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "sigma": "node tools/sigma-tester/run.mjs",
     "sigma:smoke": "node tools/sigma-tester/run.mjs --matrix smoke",
-    "sigma:report": "node tools/sigma-tester/report.mjs"
+    "sigma:report": "node tools/sigma-tester/report.mjs",
+    "analysis": "node tools/analysis/analyze.mjs && node tools/analysis/render.mjs && node tools/analysis/make-pdf.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",

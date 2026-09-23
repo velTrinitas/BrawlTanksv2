@@ -17,6 +17,7 @@ import { LEADERBOARD_BOARDS, type BoardDefinition, type LeaderboardEntry, type M
 import { AVATARS, AVATAR_IDS } from '../config/avatars';
 import type { AvatarId } from '../types/Profile';
 import type { MapId } from '../types/MapType';
+import { backArrowIcon } from './hub/gameIcons';
 
 const WINDOWS: readonly TimeWindow[] = ['all', 'week', 'day'];
 const DEFAULT_AVATAR: AvatarId = AVATAR_IDS[0];
@@ -51,7 +52,7 @@ export class LeaderboardScreen implements IScreen {
         this.rootEl.innerHTML = `
             <header class="bt-settings-header">
                 <button class="bt-settings-back" type="button" aria-label="${t('common.back')}">
-                    <span class="bt-settings-back-arrow" aria-hidden="true">←</span>
+                    ${backArrowIcon(22)}
                     <span class="bt-settings-back-label">${t('common.back')}</span>
                 </button>
                 <h2 class="bt-settings-title">${t('leaderboard.title')}</h2>

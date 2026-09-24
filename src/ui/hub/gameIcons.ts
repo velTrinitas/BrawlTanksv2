@@ -13,6 +13,8 @@
  * i sciezki sie rozjezdzaja.
  */
 
+import { getCosmetic } from '../../config/cosmetics';
+
 const BASE = import.meta.env.BASE_URL;
 
 /** Wspolny renderer: kwadratowy <img> o zadanym boku, wyrownany do linii tekstu. */
@@ -133,6 +135,22 @@ export function iconFromToken(token: string, px: number): string | null {
  * `currentColor` => strzalka dziedziczy kolor przycisku (zloto pigulki, jasny ink
  * przyciskow hubu) i nie trzeba jej kolorowac osobno w zadnym miejscu.
  */
+/**
+ * v0.206.0 — miniatura kosmetyku po `bgImage` z rejestru (dzis: skiny profilu, np. dekor
+ * sezonu). Powod: bramki sezonu pokazywaly 🏅 („metal?" — Mariusz) i 👑 za nagrody,
+ * ktorych kod NIE dawal. Teraz nagroda = prawdziwy art tego, co gracz dostanie
+ * (sigmy przez istniejace `sigmaIcon`, skin przez te funkcje).
+ * Zwraca '' dla kosmetyku bez obrazka — wolajacy decyduje, co pokazac zamiast.
+ * `object-fit: cover` w `.bt-gameicon--thumb`: dekor to panorama 2400x400, w kwadracie
+ * ma byc kadr, nie splaszczony pasek.
+ */
+export function cosmeticThumb(id: string, px = 18): string {
+    const def = getCosmetic(id);
+    if (!def?.bgImage) return '';
+    return `<img class="bt-gameicon bt-gameicon--thumb" src="${BASE}${def.bgImage}" alt="" draggable="false"
+        style="width:${px}px;height:${px}px;">`;
+}
+
 export function backArrowIcon(px = 20): string {
     return `<svg class="bt-ico-back" viewBox="0 0 24 24" width="${px}" height="${px}"
         aria-hidden="true" focusable="false" fill="none" stroke="currentColor"

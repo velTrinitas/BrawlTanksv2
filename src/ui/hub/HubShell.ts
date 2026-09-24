@@ -12,6 +12,7 @@ import { SkinsOverlay } from './overlays/SkinsOverlay';     // GARAZ v2 — przy
 import { sessionService } from '../../services/SessionService';  // GARAZ-2 — seed HubSelection
 import { BRAWLERS } from '../../config/brawlers';                // GARAZ-2 — walidacja seedu
 import { QuestsSection } from './sections/QuestsSection';
+import { QuestService } from '../../services/QuestService'; // v0.207.0 — kropka ROZKAZY
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
 import { ProfileSection } from './sections/ProfileSection'; // PROFILE-1 (zastapil StatsOverlay)
@@ -230,6 +231,53 @@ export class HubShell implements IScreen {
     private refreshReadout(): void {
         const top = this.rootEl?.querySelector('.bt-hub0-top') as HTMLElement | null;
         if (top) top.innerHTML = this.renderReadout();
+        // v0.207.0 — kropki na doku jada na tej samej sciezce co readout: mount, powrot
+        // z meczu, merge z chmury, otwarcie skrzynki, odebranie rozkazu. Zero nowych hookow.
+        this.refreshBadges();
+    }
+
+    /**
+     * v0.207.0 (Mariusz, playtest mobile: "skrzynki w Garazu trudno zidentyfikowac").
+     * Kryterium kropki jest JEDNO: akcja gracza czeka i ZNIKNIE po kliknieciu. Nie
+     * "nowosc", nie "informacja" — inaczej po tygodniu kropki sa wszedzie i gracz
+     * przestaje je widziec. Dlatego tylko GARAZ (nieotwarte skrzynki) i ROZKAZY
+     * (ukonczone, nieodebrane). Pucharki/Sezon wyplacaja sie same i wracaja tu jako
+     * skrzynki, wiec ich kropka bylaby duplikatem.
+     */
+    private badgeCounts(): Partial<Record<SectionId, number>> {
+        const pid = this.pid();
+        const out: Partial<Record<SectionId, number>> = {};
+        try {
+            out.garage = ProgressionService.getCosmeticState(pid).crateCount;
+            const board = QuestService.getBoard(pid, ProgressionService.getSnapshot(pid).trophies);
+            if (board.unlocked) {
+                const claimable = (q: { done: boolean; claimed: boolean }) => q.done && !q.claimed;
+                out.quests = board.daily.filter(claimable).length
+                    + board.weekly.filter(claimable).length
+                    + (board.dailySetReady && !board.dailySetClaimed ? 1 : 0)
+                    + (board.weeklySetReady && !board.weeklySetClaimed ? 1 : 0);
+            }
+        } catch (err) {
+            console.error('[HubShell] badgeCounts failed', pid, (err as Error).stack ?? err);
+        }
+        return out;
+    }
+
+    /** DOM-patch, nie re-render: chrome doku nie jest odswiezany po meczu, wiec kropka
+     *  wpisana w szablon gnilaby. Jeden <i> w .gi (przy ikonie — dziala i w row, i w column).
+     *  Bez liczby (Mariusz: liczby zabijaly czytelnosc) — licznik jest na chipie w Garazu. */
+    private refreshBadges(): void {
+        if (!this.rootEl) return;
+        const counts = this.badgeCounts();
+        this.rootEl.querySelectorAll<HTMLElement>('.bt-hub0-navbtn[data-section]').forEach(btn => {
+            const id = btn.dataset.section as SectionId;
+            const n = counts[id] ?? 0;
+            const host = btn.querySelector('.gi');
+            if (!host) return;
+            let dot = host.querySelector<HTMLElement>('.bt-hub0-dot');
+            if (n <= 0) { dot?.remove(); return; }
+            if (!dot) { dot = document.createElement('i'); dot.className = 'bt-hub0-dot'; host.appendChild(dot); }
+        });
     }
 
     mount(root: HTMLElement): void {
@@ -249,6 +297,7 @@ export class HubShell implements IScreen {
         this.rootEl.innerHTML = this.renderChrome();
         root.appendChild(this.rootEl);
         this.wire();
+        this.refreshBadges(); // v0.207.0 — mount maluje chrome bez refreshReadout, wiec kropki osobno
         this.renderMain();
         this.maybeCelebrateRank(); // RANKS-1 — awans z ostatniego meczu (powrot do huba)
     }
@@ -297,8 +346,10 @@ export class HubShell implements IScreen {
 
     // ── render ──────────────────────────────────────────────────────────────
     private renderChrome(): string {
-        // v0.108.0 — BITWA dostaje modyfikator: na mobile dock centruje ja jako
-        // wyniesiony zloty FAB (feedback Mariusza: glowna akcja byla nieodroznialna).
+        // v0.108.0 — BITWA dostala modyfikator `--battle` (wtedy: wyniesiony zloty FAB).
+        // v0.206.0 (Mariusz, playtest mobile): FAB ZDJETY — przycisk nazywa sie TRYB GRY
+        // i wyglada jak reszta doku; zloto i ⚔️ przeszly na GRAJ, bo to TAM zaczyna sie
+        // walka. Modyfikator zostaje jako hak (dzis bez stylu).
         const nav = this.sections
             .filter(s => NAV_SECTIONS.has(s.id))
             .map(s => `
@@ -316,7 +367,7 @@ export class HubShell implements IScreen {
         const play = `
             <button class="bt-hub0-navbtn bt-hub0-navbtn--play" data-action="play-dock" type="button"
                     aria-label="${t('hub.play')}">
-                <span class="np-arrow" aria-hidden="true">»</span>
+                <span class="np-ico" aria-hidden="true">⚔️</span>
                 <span class="np-label">${t('hub.play')}</span>
                 <span class="np-arrow" aria-hidden="true">»</span>
             </button>`;
@@ -389,9 +440,25 @@ export class HubShell implements IScreen {
         // PROFILE-1 — profil to ukryta sekcja poza nav (wejscie przez chip w readoucie).
         if (this.activeSection === 'profile') {
             this.profile.render(main);
-            return;
+        } else {
+            this.sections.find(s => s.id === this.activeSection)?.render(main);
         }
-        this.sections.find(s => s.id === this.activeSection)?.render(main);
+        // v0.206.0 (bug z playtestu: „Sezon 3 wrzuca mnie w polowe strony"). `innerHTML=''`
+        // i `render()` wykonuja sie w JEDNYM zadaniu, bez layoutu pomiedzy, wiec przegladarka
+        // nie ma momentu, w ktorym kontener jest pusty i moglaby przyciac scrollTop do zera —
+        // nowa sekcja montuje sie juz przewinieta o tyle, o ile byla poprzednia. Dotyczylo
+        // KAZDEGO przejscia (garaz -> sklep, pucharki -> rozkazy); pill sezonu byl tylko
+        // najbardziej widoczny, bo PUCHARKI to najdluzsza strona, a SEZON krotka.
+        main.scrollTop = 0;
+    }
+
+    /** Powrot na gore biezacej sekcji — klik w aktywna sekcje/pill ma cos robic. */
+    private scrollMainToTop(): void {
+        const main = this.rootEl?.querySelector('.bt-hub0-main') as HTMLElement | null;
+        if (main) main.scrollTop = 0;
+        // BITWA przewija wlasny `.bt-battle-scroll` (tryb dzielony) — jego tez.
+        const battle = this.rootEl?.querySelector('.bt-battle-scroll') as HTMLElement | null;
+        if (battle) battle.scrollTop = 0;
     }
 
     // ── input ───────────────────────────────────────────────────────────────
@@ -438,7 +505,7 @@ export class HubShell implements IScreen {
 
     /** PROFILE-1 — otworz strone profilu (chip); ← wraca do zapamietanej sekcji. */
     private openProfile(): void {
-        if (this.activeSection === 'profile') return;
+        if (this.activeSection === 'profile') { this.scrollMainToTop(); return; }
         this.prevSection = this.activeSection;
         this.activeSection = 'profile';
         // Zdejmij podswietlenie nav (profil nie jest przypisany do zadnego przycisku).
@@ -449,7 +516,8 @@ export class HubShell implements IScreen {
     }
 
     private setActive(id: SectionId): void {
-        if (id === this.activeSection) return;
+        // Juz tu jestesmy => „wroc na gore" zamiast nic (drugi wariant zgloszenia o pillu).
+        if (id === this.activeSection) { this.scrollMainToTop(); return; }
         this.activeSection = id;
         this.rootEl?.querySelectorAll<HTMLElement>('.bt-hub0-navbtn').forEach(btn => {
             btn.classList.toggle('is-active', btn.dataset.section === id);

@@ -1295,8 +1295,9 @@ export class HUD {
 
         // v0.139.0 (pkt 3): podpis „Książki" -> „Znajdźki". Playtest: slowo „ksiazki"
         // nic graczowi nie mowilo, bo znajdzki sezonu to nie tylko ksiazki, a nazwa
-        // musialaby sie zmieniac z kazdym sezonem. „Znajdźki" jest sezono-niezalezne
-        // i pokrywa sie ze slowem, ktorego uzywa juz strona sezonu (season.findThemAll).
+        // musialaby sie zmieniac z kazdym sezonem. Slowo jest sezono-niezalezne
+        // i pokrywa sie ze strona sezonu — od v0.206.0 wszedzie „Sezoniaki"
+        // (`hud.finds`, `season.currentSeasonals`, `end.seasonPickups`).
         //
         // EMOJI USUNIETE — sama liczba. Ikonka 📕 dublowala to samo (zle) znaczenie,
         // a po jej wycieciu wartosc miesci sie bez kurczenia.

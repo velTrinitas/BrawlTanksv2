@@ -57,6 +57,8 @@
     --hub-ink-dim: #8ba3b6;
     --hub-ink-faint: #5d7284;
     --hub-line: rgba(255, 255, 255, 0.07);
+    /* v0.207.0 — jedyna czerwien hubu: kropka "masz cos do odebrania" + bledy formularza */
+    --hub-danger: #e74c3c;
 }
 
 .bt-hub0-screen {
@@ -134,10 +136,15 @@ body.bt-desktop .bt-hub0-screen {
     font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums;
 }
 .bt-hub0-coin .ic { font-size: 13px; line-height: 1; }
+/* v0.206.0 (Mariusz, playtest mobile): trybik byl JEDYNYM kolkiem na belce — chip profilu,
+   oba coiny i pill sezonu maja `--radius-pill`. Wyrownany do gramatyki coinow: pill +
+   padding zamiast sztywnych 40x40, wiec wysokosc wynika z tej samej czcionki i paddingu.
+   `min-width` trzyma pole dotyku pod kciuk. */
 .bt-hub0-gear {
-    width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
+    flex: 0 0 auto; border-radius: var(--radius-pill);
+    min-width: 44px; padding: 5px 12px;
     border: 1px solid var(--hub-line); background: var(--hub-steel-800);
-    color: var(--hub-ink-dim); font-size: 16px; cursor: pointer;
+    color: var(--hub-ink-dim); font-size: 16px; line-height: 1; cursor: pointer;
     display: grid; place-items: center; transition: transform 0.15s, color 0.15s;
 }
 .bt-hub0-gear:hover { color: var(--hub-accent); transform: rotate(35deg); }
@@ -171,17 +178,43 @@ body.bt-desktop .bt-hub0-nav {
     border-top: 0;
     border-right: 1px solid var(--hub-line);
 }
+/* v0.206.0 (Mariusz, playtest mobile): w DOKU ikona stoi OBOK napisu (row), nie nad nim.
+   Przy 812 px w poziomie kazdy z 7 slotow ma ~100 px — starcza na ikone 16 px + etykiete
+   10 px w jednym wierszu. Desktopowy RAIL zostaje pionowy (58 px szerokosci nie zmiesci
+   „ROZKAZY" obok ikony) — nadpisanie nizej. */
 .bt-hub0-navbtn {
     flex: 1 1 0;
     min-width: 44px; min-height: 44px;
     border: 1px solid transparent; background: transparent; border-radius: var(--radius-md);
     color: var(--hub-ink-dim); cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 5px;
     transition: color 0.15s, background 0.15s;
     position: relative;
 }
-body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
-.bt-hub0-navbtn .gi { font-size: 19px; line-height: 1; }
+/* v0.206.0: 66 px (bylo 58) — TRYB GRY w 10 px lamalo sie na dwie linie w pionowej
+   szynie; rail ma 76 px, wiec jest zapas. Etykieta w jednej linii (nowrap). */
+body.bt-desktop .bt-hub0-navbtn {
+    flex: 0 0 auto; width: 66px; height: 56px;
+    flex-direction: column; gap: 2px;
+}
+body.bt-desktop .bt-hub0-navbtn small { white-space: nowrap; }
+.bt-hub0-navbtn .gi { font-size: 19px; line-height: 1; position: relative; }
+/* v0.207.0 — KROPKA "masz cos do odebrania" (wzorzec Brawl Stars, prosba Mariusza).
+   Siedzi przy IKONIE (.gi), nie przy krawedzi przycisku — jedna regula dziala w docku
+   mobile (ikona obok napisu) i w pionowej szynie desktopu. Pierwsza wersja (18 px
+   + liczba) "zaslaniala wszystko" (Mariusz) — teraz MALA kropka bez liczby, obwodka
+   w kolorze tla doku, puls BARDZO lekki (opacity, nie skala). Liczbe niesie chip w Garazu. */
+.bt-hub0-dot {
+    position: absolute; top: -2px; right: -3px; z-index: 2;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--hub-danger);
+    box-shadow: 0 0 0 1.5px var(--hub-steel-900); pointer-events: none;
+    font-size: 0; color: transparent;
+    animation: bt-dot-pop 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) both, bt-dot-pulse 2.4s ease-in-out 0.5s infinite;
+}
+@keyframes bt-dot-pop { from { transform: scale(0); } 60% { transform: scale(1.3); } to { transform: scale(1); } }
+@keyframes bt-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+.bt-gr2-cratechip .bt-hub0-dot, .bt-hub0-cratebox .bt-hub0-dot { top: -3px; right: -4px; width: 8px; height: 8px; }
+.bt-gr2-cratechip .art, .bt-hub0-crate-art { position: relative; }
 .bt-hub0-navbtn small { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
 .bt-hub0-navbtn:hover { color: var(--hub-ink); background: rgba(255, 255, 255, 0.04); }
 .bt-hub0-navbtn.is-active {
@@ -214,14 +247,10 @@ body.bt-desktop .bt-hub0-navbtn { flex: 0 0 auto; width: 58px; height: 56px; }
    wejscie niz przycisk z etykieta — na telefonie nikt jej nie czytal jako nawigacji.
    Dok ma teraz SIEDEM slotow.
 
-   WYSRODKOWANIE FAB-a: BITWA musi miec DOKLADNIE TYLE SAMO przyciskow przed soba
-   co za soba. Przy siedmiu slotach to pozycja 4 — stad trzy przed (GARAZ, ROZKAZY,
-   SKLEP) i trzy za (TROFEA, RANKING, GRAJ). Ta regula juz raz sie zemscila
-   (v0.125.0: shop=2 dawal tylko jeden przycisk przed BITWA bez flagi ?shop=1),
-   wiec licz sloty za kazdym razem, gdy cokolwiek tu dochodzi lub znika.
-   UWAGA: liczba zaklada SHOP_LIVE=true. Gdyby sklep kiedys wrocil za flage, sekcji
-   bedzie szesc i FAB wypadnie z osi — wtedy trzeba przenumerowac.
-     GARAZ · ROZKAZY · SKLEP · [BITWA] · TROFEA · RANKING · GRAJ */
+   v0.206.0: FAB zdjety (TRYB GRY to zwykly przycisk), wiec wysrodkowanie przestalo byc
+   wymogiem — kolejnosc zostaje ta sama dla ciaglosci nawyku (v0.125.0 pokazalo, ze
+   przestawianie slotow kosztuje regresje):
+     GARAZ · ROZKAZY · SKLEP · TRYB GRY · PUCHARKI · RANKING · GRAJ */
 body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]   { order: 1; }
 body:not(.bt-desktop) .bt-hub0-nav [data-section="quests"]   { order: 2; }
 body:not(.bt-desktop) .bt-hub0-nav [data-section="shop"]     { order: 3; }
@@ -238,24 +267,24 @@ body:not(.bt-desktop) .bt-hub0-nav .bt-hub0-navbtn--play     { order: 7; }
    kolejnosc WIZUALNA rozjezdza sie z kolejnoscia w DOM. Selektory rodzenstwa (`+`)
    dzialaja po DOM, wiec rysowalyby kreski w zupelnie zlych miejscach.
 
-   Kreski NIE MA przy: GARAZU (wizualnie pierwszy, nie ma czego oddzielac), BITWIE
-   i TROFEACH (czyli po obu stronach FAB-a) — wyniesiony zloty krazek ma wokol siebie
-   oddech, a kreska doklejona do niego czytalaby sie jak usterka. */
+   Kreski NIE MA przy GARAZU (wizualnie pierwszy, nie ma czego oddzielac). v0.206.0:
+   po zdjeciu FAB-a TRYB GRY i PUCHARKI dostaja kreski jak reszta slotow. */
 body:not(.bt-desktop) .bt-hub0-nav > *::before {
     content: '';
     position: absolute; left: -3px; top: 22%; bottom: 22%;
     width: 1px; background: var(--hub-line);
     pointer-events: none;
 }
-body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]::before,
-body:not(.bt-desktop) .bt-hub0-nav [data-section="battle"]::before,
-body:not(.bt-desktop) .bt-hub0-nav [data-section="trophies"]::before { content: none; }
+body:not(.bt-desktop) .bt-hub0-nav [data-section="garage"]::before { content: none; }
 
-/* Siedem slotow zamiast pieciu = ~30% mniej szerokosci na przycisk. Etykiety schodza
-   o stopien i traca luz miedzyliterowy, zeby dluzsze slowa („ROZKAZY", „RANKING")
-   nie lamaly sie na dwie linie. Ikony zostaja — to one niosa rozpoznanie. */
-body:not(.bt-desktop) .bt-hub0-navbtn small { font-size: 9px; letter-spacing: 0.2px; }
-body:not(.bt-desktop) .bt-hub0-navbtn .gi { font-size: 18px; }
+/* Siedem slotow = ciasno. v0.206.0: uklad poziomy (ikona obok napisu) pozwolil PODNIESC
+   etykiete z 9 na 10 px — 9 px bylo najmniejszym stopniem w hubie (TYPO-P1-3). `nowrap`
+   pilnuje, zeby „ROZKAZY"/„RANKING" nie lamaly sie w dwie linie; ikona 16 px, zeby nie
+   dominowala nad slowem w jednym wierszu. Zweryfikowane zrzutem @812x375. */
+body:not(.bt-desktop) .bt-hub0-navbtn small { font-size: 10px; letter-spacing: 0.2px; white-space: nowrap; }
+body:not(.bt-desktop) .bt-hub0-navbtn .gi { font-size: 16px; }
+/* v0.207.0 — w docku ikona stoi OBOK napisu; maly margines, zeby kropka nie dotykala litery. */
+body:not(.bt-desktop) .bt-hub0-navbtn .gi { margin-right: 3px; }
 
 /* GRAJ w doku — DELIKATNE zloto (prosba Mariusza: „nie napastliwie, bez mocnego
    odciecia krecha"). Zamiast obramowania: gradient wygaszajacy sie w lewo, wiec
@@ -267,7 +296,8 @@ body:not(.bt-desktop) .bt-hub0-navbtn .gi { font-size: 18px; }
    nienaruszona — GRAJ wtapia sie w belke od strony RANKINGU i nasyca dopiero przy
    krawedzi ekranu. Podniesione sa same wartosci (0.10/0.26 -> 0.18/0.46) plus
    delikatna poswiata od dolu, zeby pole czytalo sie jako POWIERZCHNIA, a nie jako
-   sam napis. Pelne zloto zostaje zarezerwowane dla FAB-a BITWY. */
+   sam napis. v0.206.0: ⚔️ przeszlo tu z FAB-a BITWY (FAB zdjety) — GRAJ jest teraz
+   jedynym „walecznym" przyciskiem doku. */
 .bt-hub0-navbtn--play {
     flex-direction: row; gap: 3px;
     color: #ffe066;
@@ -294,6 +324,8 @@ body:not(.bt-desktop) .bt-hub0-navbtn .gi { font-size: 18px; }
 body:not(.bt-desktop) .bt-hub0-navbtn--play { flex: 1.5 1 0; }
 /* Strzalki ciemniejsze od slowa — prowadza wzrok w prawo, ale nie konkuruja z napisem. */
 .bt-hub0-navbtn--play .np-arrow { font-size: 12px; opacity: 0.55; line-height: 1; }
+/* v0.206.0 — ⚔️ po lewej od GRAJ (bylo: druga strzalka »). */
+.bt-hub0-navbtn--play .np-ico { font-size: 18px; line-height: 1; }
 .bt-hub0-navbtn--play:active { transform: translateY(2px); }
 @media (hover: hover) {
     .bt-hub0-navbtn--play:hover {
@@ -308,29 +340,10 @@ body:not(.bt-desktop) .bt-hub0-navbtn--play { flex: 1.5 1 0; }
    w pasku akcji sekcji BITWA (.bt-battle-bar). */
 body.bt-desktop .bt-hub0-navbtn--play { display: none; }
 
-body:not(.bt-desktop) .bt-hub0-navbtn--battle {
-    flex: 0 0 auto;
-    width: 64px;
-    height: 64px;
-    margin-top: -20px; /* FAB wystaje NAD dock (z-index nav 3 > main 1) */
-    border-radius: 50%;
-    background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 60%, #d8a20c);
-    color: #1a2530;
-    border: 3px solid var(--hub-steel-900);
-    box-shadow: 0 4px 16px rgba(241, 196, 15, 0.45);
-}
-body:not(.bt-desktop) .bt-hub0-navbtn--battle .gi { font-size: 26px; }
-/* TYPO-P1-3, priorytet audytu: 8px na etykiecie NAJWAZNIEJSZEGO przycisku w hubie.
-   11px miesci sie w kole FAB 64px zarowno dla PL „BITWA", jak i dluzszego EN „BATTLE". */
-body:not(.bt-desktop) .bt-hub0-navbtn--battle small {
-    font-size: 11px; font-weight: 800; color: #1a2530; letter-spacing: 0.2px;
-}
-body:not(.bt-desktop) .bt-hub0-navbtn--battle:hover { color: #1a2530; background: linear-gradient(180deg, #ffd75e, var(--hub-accent) 60%, #d8a20c); }
-body:not(.bt-desktop) .bt-hub0-navbtn--battle.is-active {
-    color: #1a2530;
-    border-color: #fff3c4; /* aktywna sekcja = jasny ring zamiast zlotego (FAB juz zloty) */
-    box-shadow: 0 4px 20px rgba(241, 196, 15, 0.65);
-}
+/* v0.206.0 — FAB BITWY ZDJETY (Mariusz, playtest mobile). Od v0.108.0 srodkowy przycisk
+   byl wyniesionym zlotym kolem 64 px; teraz nazywa sie TRYB GRY (🎮) i wyglada jak reszta
+   doku — bo wybiera sie tu scenariusz, a nie zaczyna walki. Zloto i ⚔️ przeszly na GRAJ.
+   Klasa `--battle` zostaje w markupie jako hak bez stylu. */
 
 /* ---------- MAIN CONTENT ---------- */
 .bt-hub0-main {
@@ -459,26 +472,8 @@ body:not(.bt-desktop) .bt-battle-bar {
 }
 
 /* ---------- BITWA (HUB-1) ---------- */
-.bt-hub0-season {
-    display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
-    padding: 12px 14px; border-radius: var(--radius-md);
-    border: 1px solid var(--hub-line);
-    background: linear-gradient(110deg, #2a2412, #1a2530 60%, #241a10);
-}
-.bt-hub0-season-art {
-    width: 48px; height: 48px; flex: 0 0 auto; border-radius: var(--radius-md);
-    display: grid; place-items: center; font-size: 26px;
-    background: linear-gradient(160deg, #3a2f12, #1a2530);
-    box-shadow: inset 0 0 0 2px rgba(241, 196, 15, 0.18);
-}
-.bt-hub0-season-eyebrow {
-    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--hub-accent); font-weight: 800;
-}
-.bt-hub0-season-info h3 {
-    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700;
-    font-size: 16px; margin: 3px 0 0;
-}
+/* v0.206.0 — baner `.bt-hub0-season*` USUNIETY: wyniesiony do PUCHARKOW jako
+   `.bt-hub0-road-season-head` (sekcja TROFEA nizej). */
 
 /* (HUB-1.6b: kafle trybow .bt-hub0-mode zastapione kartami .bt-hub0-mapcard
    z animowanymi podgladami ScenarioPreview — stare reguly usuniete.) */
@@ -515,8 +510,47 @@ body:not(.bt-desktop) .bt-battle-bar {
     color: var(--hub-ink-faint); margin: 12px 2px 8px;
 }
 .bt-hub0-road-list { display: flex; flex-direction: column; gap: 6px; }
+/* v0.206.0 (Mariusz, pkt 6) — DWIE KOLUMNY: Szlak Pucharkow (moce) | Sciezka Sezonu.
+   Do tej wersji oba tory lecialy jednym strumieniem i gracz nie widzial, ze to dwie
+   rozne logiki (pucharki odblokowujace moce vs sezonowe z wlasnym licznikiem).
+   Ten sam breakpoint co `.ps-tracks`: ponizej 701 px kolumny wracaja pod siebie;
+   812 px (telefon w poziomie) = dwie kolumny po ~380 px. */
+.bt-hub0-road-cols { display: grid; grid-template-columns: 1fr; gap: 6px 18px; }
+@media (min-width: 701px) { .bt-hub0-road-cols { grid-template-columns: 1fr 1fr; } }
+.bt-hub0-road-col { min-width: 0; }
+/* Desktop: w KOLUMNIE dwa nody obok siebie (bylo 3 na pelnej szerokosci sekcji). */
+/* `minmax(0, 1fr)`, nie `1fr`: nody maja `nowrap` na nagrodzie, wiec zwykle `1fr`
+   (= minmax(auto, 1fr)) rozpychalo kolumne do min-content i prawa kolumna wjezdzala
+   na lewa (zrzut 812 px). */
 body.bt-desktop .bt-hub0-road-list {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+/* Baner sezonu w prawej kolumnie (art + eyebrow + nazwa + chip dni) — wyniesiony
+   z BITWY (pkt 4). Jedno miejsce prawdy o sezonie zamiast dwoch banerow. */
+.bt-hub0-road-season-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    padding: 10px 12px; border-radius: var(--radius-md);
+    border: 1px solid var(--hub-line);
+    background: linear-gradient(110deg, #2a2412, #1a2530 60%, #241a10);
+}
+.bt-hub0-road-season-head .rs-art {
+    width: 44px; height: 44px; flex: 0 0 auto; border-radius: var(--radius-md);
+    display: grid; place-items: center; font-size: 24px;
+    background: linear-gradient(160deg, #3a2f12, #1a2530);
+    box-shadow: inset 0 0 0 2px rgba(241, 196, 15, 0.18);
+}
+.bt-hub0-road-season-head .rs-info {
+    flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+}
+.bt-hub0-road-season-head .rs-eyebrow {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--hub-accent); font-weight: 800;
+}
+.bt-hub0-road-season-head .rs-name {
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 700; font-size: 15px;
+    /* dwie linie zamiast elipsy — @812 px "Sezon 3 — Powrot do szkoly" nie miesci sie
+       obok chipa dni, a uciety tytul sezonu to zla czytelnosc. */
+    line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .bt-hub0-node {
     display: flex; align-items: center; gap: 10px;
@@ -1439,6 +1473,7 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
    --grass #27ae60 (paski/badge), --sky #3498db (liczby), gold/navy = nasze tokeny
    (identyczne wartosci). Karta HORYZONTALNA wg screena: zdjecie z lewej + nazwa +
    badge typu + 3 rzedy statow (emoji + label + pasek + liczba). Grid 4x2. */
+.bt-hub0-subhead--diff { margin-top: 18px; }
 .bt-hub0-subhead {
     font-family: var(--font-body, system-ui, sans-serif);
     font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
@@ -1603,7 +1638,9 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
 .bt-hub0-diff-pills { display: flex; gap: 6px; margin: 10px 0 0; flex-wrap: wrap; }
 .bt-hub0-diff-pill {
     flex: 1 1 0; min-height: 36px; padding: 6px 8px; white-space: nowrap;
-    border-radius: var(--radius-pill); border: 2px solid var(--hub-line);
+    /* v0.207.0 (Mariusz): ten sam promien co karty scenariuszy (.bt-hub0-card) —
+       jedna gramatyka ksztaltow w sekcji BITWA, byl --radius-pill. */
+    border-radius: var(--radius-md); border: 2px solid var(--hub-line);
     background: var(--hub-steel-850); color: var(--hub-ink-dim); cursor: pointer;
     font-family: var(--font-body, system-ui, sans-serif); font-size: 12px; font-weight: 800;
     transition: border-color 0.14s, color 0.14s;
@@ -1621,6 +1658,8 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
 }
 .bt-sigma--lg { width: 22px; height: 22px; vertical-align: -4px; }
+/* v0.206.0 — miniatura kosmetyku (gameIcons.cosmeticThumb): KADR panoramy, nie splaszczony pasek. */
+.bt-gameicon--thumb { object-fit: cover; border-radius: 4px; vertical-align: -4px; }
 /* v0.128.0 — GEM jest wiekszy niz sigma, bo w pliku ma szeroka POSWIATE: w kwadracie
    22px sam krysztal mierzy realnie ~12px i przy sasiednich emoji (20px) wygladal jak
    drobinka. Ujemny margines oddaje 8px z powrotem do ukladu, wiec kafel ma dokladnie
@@ -1741,6 +1780,7 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
     .bt-hub0-pow, .bt-hub0-lslot, .bt-hub0-fun-toggle, .bt-hub0-fun-toggle .knob,
     .bt-hub0-diff-pill,
     .bt-hub0-q .qbar i { transition: none; }
+    .bt-hub0-dot { animation: none; }
     .bt-hub0-overlay, .bt-cos-shimmer, .bt-hub0-crate-box.shake, .bt-hub0-reveal,
     .bt-hub0-play--go, .bt-hub0-crate-modal.thud, .bt-hub0-crate-dust span,
     .bt-hub0-crate-flash, .bt-hub0-reveal-rays,
@@ -2064,7 +2104,7 @@ body.bt-desktop .bt-hub0-flag-grid { grid-template-columns: repeat(3, 94px); }
     display: block; margin: 6px 2px 0; font-size: 10px; font-weight: 700;
     color: var(--hub-ink-faint);
 }
-.bt-hub0-input-hint.is-error { color: #e74c3c; }
+.bt-hub0-input-hint.is-error { color: var(--hub-danger); }
 
 /* ==========================================================================
    v0.203.0 — PSEUDONIM: kostka losowania + GLOSNY blad "nick zajety"
@@ -2178,14 +2218,14 @@ body.bt-desktop .bt-hub0-top { padding: 0 14px 0 10px; gap: 10px; }
    lewy brzeg hubu byl jedna linia, a nie schodkiem. */
 body.bt-desktop .bt-hub0-profile { padding: 4px; gap: 10px; }
 /* M5d (playtest): the chip must match the nav buttons sitting right below it —
-   .bt-hub0-navbtn is 58x56 on desktop, so the avatar was visibly smaller and the
+   .bt-hub0-navbtn is 66x56 on desktop (v0.206.0; was 58), so the avatar was visibly smaller and the
    left edge of the hub read as ragged. */
-body.bt-desktop .bt-hub0-avatar { width: 58px; height: 56px; border-radius: var(--radius-md); }
+body.bt-desktop .bt-hub0-avatar { width: 66px; height: 56px; border-radius: var(--radius-md); }
 body.bt-desktop .bt-hub0-pname { font-size: 15px; max-width: 180px; }
 body.bt-desktop .bt-hub0-coin { font-size: 14px; padding: 7px 13px 7px 10px; }
 body.bt-desktop .bt-hub0-coin .ic { font-size: 15px; }
 body.bt-desktop .bt-hub0-coin .bt-sigma { width: 18px; height: 18px; }
-body.bt-desktop .bt-hub0-gear { width: 44px; height: 44px; font-size: 18px; }
+body.bt-desktop .bt-hub0-gear { font-size: 18px; padding: 7px 14px; }
 body.bt-desktop .bt-hub0-s2 { font-size: 15px; padding: 8px 12px 8px 15px; }
 body.bt-desktop .bt-hub0-s2 small { font-size: 12px; }
 
@@ -2407,15 +2447,29 @@ body.bt-desktop .so-title { font-size: 28px; }
 }
 .ps-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
+/* v0.206.0 (Mariusz, pkt 8d): DWA WIERSZE — ikona z nazwa OBOK, liczba POD nimi, duza.
+   Liczba w Titan One i zlocie, bo to ona jest informacja („ile mam"), nazwa to podpis.
+   Tlo i ramka jak kafle statow (`.bt-hub0-stat`). Nazwa 12 px (bylo 11 — TYPO-P1-3). */
 .ps-item {
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 6px;
     background: var(--hub-steel-850); border: 1px solid var(--hub-line);
-    border-radius: var(--radius-md); padding: 10px 6px 8px; text-align: center;
+    border-radius: var(--radius-md); padding: 8px 8px 6px;
 }
-.ps-item img { width: 46px; height: 46px; object-fit: contain; }
-.ps-item-q { font-size: 34px; line-height: 46px; color: var(--hub-ink-faint); }
-.ps-item-name { font-size: 11px; font-weight: 800; color: var(--hub-ink); }
-.ps-item-n { font-size: 11px; font-weight: 800; color: var(--hub-ink-dim); font-variant-numeric: tabular-nums; }
+.ps-item-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ps-item img { width: 40px; height: 40px; object-fit: contain; flex: 0 0 auto; }
+.ps-item-q {
+    width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center;
+    font-size: 28px; color: var(--hub-ink-faint);
+}
+.ps-item-name {
+    font-size: 12px; font-weight: 800; color: var(--hub-ink); line-height: 1.15;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+.ps-item-n {
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
+    font-size: 18px; line-height: 1; text-align: center; color: var(--hub-ink-dim);
+    font-variant-numeric: tabular-nums; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
 .ps-item.is-owned {
     border-color: color-mix(in srgb, var(--g, #f1c40f) 55%, transparent);
     background:
@@ -2431,15 +2485,26 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
 @media (min-width: 701px) { .ps-tracks { grid-template-columns: 1fr 1fr; } }
 
 .ps-ths { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+/* v0.206.0 (pkt 8e): `min-height` = rowne wysokosci wierszy w OBU torach niezaleznie od
+   tresci; lewy `span` nie lamie sie (nowrap + ellipsis). Rozjazd kolumn bral sie z tego,
+   ze prawy tor mial dluzsze etykiety i emoji o innej linii niz <img> po lewej. */
 .ps-th {
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    min-height: 44px;
     background: var(--hub-steel-850); border: 1px solid var(--hub-line);
-    border-radius: var(--radius-md); padding: 8px 12px; font-size: 13px; font-weight: 700;
+    border-radius: var(--radius-md); padding: 6px 12px; font-size: 13px; font-weight: 700;
     color: var(--hub-ink-dim);
 }
+.ps-th > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ps-th.is-done { border-color: rgba(46, 204, 113, 0.45); color: var(--hub-ink); }
 .ps-th b { color: var(--hub-gold); font-variant-numeric: tabular-nums; }
-.ps-th-rew { font-size: 15px; }
+/* Nagroda = prawdziwy art (skrzynka / sigma / miniatura skina) + krotki podpis. */
+.ps-th-rew { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 13px; }
+.ps-th-rew .bt-gameicon, .ps-th-rew .bt-sigma { vertical-align: middle; }
+.ps-rew-name {
+    font-size: 11px; font-weight: 800; color: var(--hub-gold);
+    max-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .ps-season-note { font-size: 11.5px; color: var(--hub-ink-faint); margin: 4px 2px 0; }
 
 .so-bullets {
@@ -2476,10 +2541,11 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-hub0-card { padding: 6px; gap: 8px; }
     .bt-hub0-card .cd-name { font-size: 13px; }
     .bt-hub0-card .cd-stat em { width: 40px; font-size: 10px; }
-    .bt-hub0-season { padding: 7px 10px; gap: 9px; margin-bottom: 8px; }
-    .bt-hub0-season-art { font-size: 22px; }
     .bt-hub0-subhead { margin: 8px 2px 5px; }
     .bt-hub0-sectitle { margin-bottom: 6px; }
+    /* v0.207.0 (Mariusz): POZIOM TRUDNOSCI klei sie do kart scenariuszy — tylko ten
+       naglowek dostaje powietrze, reszta subheadow bez zmian. */
+    .bt-hub0-subhead--diff { margin-top: 18px; }
 }
 
 @media (orientation: landscape) and (max-height: 560px) {

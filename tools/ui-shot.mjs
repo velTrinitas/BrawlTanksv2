@@ -50,7 +50,11 @@ try {
         ['desktop', { width: 1280, height: 900 }],
         ['mobile', { width: 812, height: 375 }],
     ]) {
-        const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2 });
+        // Mobile = DOTYK: gra przelacza layout po `ontouchstart`/`maxTouchPoints`
+        // (main.ts, body.bt-desktop), nie po szerokosci okna. Bez `hasTouch` zrzut
+        // 812x375 pokazywal DESKTOPOWA szyne, nie dock — falszywa weryfikacja.
+        const touch = tag === 'mobile';
+        const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: touch, isMobile: touch });
         const page = await ctx.newPage();
         await page.goto(URL_BASE, { waitUntil: 'load' });
         await page.evaluate(([p, prog, pid]) => {

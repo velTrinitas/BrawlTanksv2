@@ -18,6 +18,7 @@
  * przedmiotu" w regulach.
  */
 import type { TranslationKey } from '../i18n/i18n';
+import { getCosmetic } from './cosmetics'; // v0.206.0 — walidacja nagrody za komplet
 
 /** Wartosc = numer przedmiotu w regulach = punkty za sztuke = tier celebracji. */
 export type SeasonItemValue = 1 | 2 | 3 | 4 | 5 | 6;
@@ -53,6 +54,19 @@ export interface SeasonContentDef {
         readonly crate: readonly SeasonItemValue[];
         readonly title: readonly SeasonItemValue[];
         readonly full: readonly SeasonItemValue[];
+    };
+    /**
+     * v0.206.0 — CO DAJA bramki `title` (5/5) i `full` (6/6). Do v0.205.0 config mial tylko
+     * tablice `value[]`, a UI pokazywalo 🏅 i 👑 za nagrody, ktorych `creditSeasonRewards`
+     * NIE wyplacal — obietnica bez pokrycia. Teraz nagroda jest DANYMI sezonu (zasada
+     * SEASON_ENGINE: nowy sezon = wpis w manifescie, zero kodu):
+     *  - `titleBolts`   — sigmy za 5/5 (ikona = art sigmy),
+     *  - `fullCosmetic` — id kosmetyku z rejestru `cosmetics.ts` za komplet 6/6
+     *                     (ikona = miniatura). Walidowany w `assertSeasonContent`.
+     */
+    readonly setRewards: {
+        readonly titleBolts: number;
+        readonly fullCosmetic: string;
     };
     readonly spawn: {
         readonly maxAlive: number;
@@ -130,6 +144,9 @@ const SEASON_CONTENT: readonly SeasonContentDef[] = [
             title: [1, 2, 3, 4, 5],
             full: [1, 2, 3, 4, 5, 6],
         },
+        // S2 nie ma wlasnego dekoru (art szkolny byl jednodniowa pozyczka pod S3), wiec
+        // za komplet dostaje ten sam skin — spojne z tym, ze itemy tez sa wspolne.
+        setRewards: { titleBolts: 200, fullCosmetic: 'ps_s3_school' },
         spawn: { maxAlive: 3, everyMs: 4000, pityAfter: 40, pityStepPct: 2 },
         size: 51,
         radius: 38,
@@ -149,6 +166,9 @@ const SEASON_CONTENT: readonly SeasonContentDef[] = [
             title: [1, 2, 3, 4, 5],
             full: [1, 2, 3, 4, 5, 6],
         },
+        // 200 Σ za 5/5 (decyzja Mariusza 24.09 — sigmy, nie kolejna skrzynka: skrzynki
+        // juz placa z czterech kranow). Komplet 6/6 = skin profilu „Powrot do Szkoly".
+        setRewards: { titleBolts: 200, fullCosmetic: 'ps_s3_school' },
         spawn: { maxAlive: 3, everyMs: 4000, pityAfter: 40, pityStepPct: 2 },
         size: 51,
         radius: 38,
@@ -171,6 +191,12 @@ function assertSeasonContent(c: SeasonContentDef): boolean {
         if (t.points <= prev) errs.push(`progi punktowe nierosnace: ${prev} -> ${t.points}`);
         prev = t.points;
     }
+    // v0.206.0 — nagroda za komplet musi istniec w rejestrze kosmetykow, inaczej gracz
+    // zbierze 6/6 i dostanie NIC (dokladnie ten blad, ktory naprawiamy).
+    if (!getCosmetic(c.setRewards.fullCosmetic)) {
+        errs.push(`setRewards.fullCosmetic='${c.setRewards.fullCosmetic}' nie istnieje w cosmetics.ts`);
+    }
+    if (!(c.setRewards.titleBolts >= 0)) errs.push(`setRewards.titleBolts=${c.setRewards.titleBolts}`);
     if (errs.length) {
         console.error(`[season] MANIFEST ${c.seasonId} NIEPOPRAWNY: ${errs.join(' | ')}`);
         return false;

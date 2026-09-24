@@ -3197,6 +3197,23 @@ QuestService.onQuestEvent = (kind, quest) => {
  * dopiero na koncu. Wolane PO recordRun (trofea z runa sa jedna z metryk).
  * Zwraca liczbe rozkazow domknietych w tym meczu (do endcardu).
  */
+/**
+ * v0.206.0 — nazwa skina profilu przyznanego za komplet 6/6 sezoniakow w TYM runie
+ * (undefined = nic nowego). Z rejestru, nie z i18n-po-id, bo `t()` przyjmuje tylko
+ * klucze typu TranslationKey — `def.labelKey` nim jest, dynamiczny string nie bylby.
+ */
+function seasonSkinNameOf(r: RunProgressionResult | null): string | undefined {
+    const id = r?.seasonReward.cosmetic;
+    const def = id ? getCosmetic(id) : undefined;
+    return def ? t(def.labelKey) : undefined;
+}
+
+/** Glosny notif o nowym skinie — Flex: nagroda za sezon ma byc SLYSZALNA, nie tylko w chipie. */
+function announceSeasonSkin(r: RunProgressionResult | null): void {
+    const name = seasonSkinNameOf(r);
+    if (name) hud.addNotif(t('hud.seasonSkin', { name }), '#c39bd3');
+}
+
 function finalizeRunQuests(trophiesGained: number, perfectRun: boolean): number {
     if (!currentSession) { QuestService.endRun(); return 0; }
     try {
@@ -3260,6 +3277,8 @@ interface EndScreenData {
     /** SEASON KIT — punkty znajdziek sezonowych z tego meczu (chip, bez nowego kafelka:
      *  siatka statow ma 8 kafli = rowne 2 rzedy, dziewiaty podnioslby endcard). */
     seasonPickups?: number;
+    /** v0.206.0 — nazwa skina profilu przyznanego za komplet sezoniakow (chip 🎨). */
+    seasonSkinName?: string;
 }
 
 /**
@@ -3371,6 +3390,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.boltsGained ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#5b6672;padding:5px 14px;border-radius:12px;border:2px solid #3a434d;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);"><img src="${import.meta.env.BASE_URL}assets/sigma.png" alt="" style="width:14px;height:14px;vertical-align:-2px;"> +${d.boltsGained} ${t('end.bolts')}</span>` : ''}
             ${d.milestoneBolts && d.milestoneBolts > 0 ? `<span style="font-family:${TITAN};font-size:0.82rem;color:#fff;background:#27ae60;padding:5px 14px;border-radius:12px;border:2px solid #1e8449;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎖️ ${t('end.milestone')}!</span>` : ''}
             ${d.questsDone && d.questsDone > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#c0721c;padding:5px 14px;border-radius:12px;border:2px solid #8a4f12;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📋 ${t('end.questsDone', { n: d.questsDone })}</span>` : ''}
+            ${d.seasonSkinName ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #5b2c7a;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎨 ${t('end.seasonSkin')}: ${d.seasonSkinName}</span>` : ''}
             ${d.diceUsed && d.diceUsed > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #6c3483;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎲 ${t('end.funMode')}</span>` : ''}
             ${d.seasonPickups && d.seasonPickups > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#2f6fb5;padding:5px 14px;border-radius:12px;border:2px solid #1f4e82;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📕 +${d.seasonPickups} ${t('end.seasonPickups')}</span>` : ''}
         </div>` : '';
@@ -3392,6 +3412,7 @@ function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: st
             ${d.questsDone && d.questsDone > 0 ? chipC('#c0721c', '#8a4f12', '#fff', `📋 ${d.questsDone}`) : ''}
             ${d.diceUsed && d.diceUsed > 0 ? chipC('#8e44ad', '#6c3483', '#fff', '🎲') : ''}
             ${d.seasonPickups && d.seasonPickups > 0 ? chipC('#2f6fb5', '#1f4e82', '#fff', `📕 +${d.seasonPickups}`) : ''}
+            ${d.seasonSkinName ? chipC('#8e44ad', '#5b2c7a', '#fff', `🎨 ${t('end.seasonSkin')}: ${d.seasonSkinName}`) : ''}
         </div>` : '';
 
     // FAZA CTF F2 — badge zwyciestwa per scenariusz: CTF = flagi 3/3, inaczej mega boss.
@@ -3716,6 +3737,7 @@ async function triggerGameOver(): Promise<void> {
     }
     // PROG-F3 — metryki koncowe rozkazow (przegrana => perfectRun=false).
     const questsDoneRun = finalizeRunQuests(runProg?.trophiesGained ?? 0, false);
+    announceSeasonSkin(runProg); // v0.206.0
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
     const tankImg = heroBrawler ? tankHeroPng(heroBrawler) : '';
@@ -3745,6 +3767,7 @@ async function triggerGameOver(): Promise<void> {
         questsDone: questsDoneRun,                        // PROG-F3
         diceUsed: currentSession?.dicePowersUsed ?? 0,    // v0.114.0 kostka 🎲
         seasonPickups: currentSession?.seasonPickupsCollected ?? 0,  // SEASON KIT
+        seasonSkinName: seasonSkinNameOf(runProg),                    // v0.206.0 skin za 6/6
     }, 'retryBtn');
     document.getElementById('retryBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');
@@ -3814,6 +3837,7 @@ async function triggerVictory(): Promise<void> {
     }
     // PROG-F3 — metryki koncowe rozkazow (zwyciestwo => Perfect Run moze domknac rozkaz Generala).
     const questsDoneVictory = finalizeRunQuests(victoryRunProg?.trophiesGained ?? 0, victoryPerfectRun);
+    announceSeasonSkin(victoryRunProg); // v0.206.0
 
     const heroBrawler = BRAWLERS.find(b => b.id === currentSession?.config.brawlerId) ?? null;
     const tankImg = heroBrawler ? tankHeroPng(heroBrawler) : '';
@@ -3843,6 +3867,7 @@ async function triggerVictory(): Promise<void> {
         questsDone: questsDoneVictory,                    // PROG-F3
         diceUsed: currentSession?.dicePowersUsed ?? 0,    // v0.114.0 kostka 🎲
         seasonPickups: currentSession?.seasonPickupsCollected ?? 0,  // SEASON KIT
+        seasonSkinName: seasonSkinNameOf(victoryRunProg),             // v0.206.0 skin za 6/6
     }, 'playAgainBtn');
     document.getElementById('playAgainBtn')!.addEventListener('click', returnToMenuFromEnd);
     screenEl.classList.add('active-screen');

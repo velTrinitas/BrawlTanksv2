@@ -10,7 +10,6 @@ import { sessionService } from '../../../services/SessionService';
 import { renderScenarioPreview, type ScenarioPreviewId } from '../../ScenarioPreview';
 import { playUiClick } from '../../uiSounds'; // Sensoryka: wybor "klika"
 import { AudioSys } from '../../../audio/AudioSys'; // v0.135.0 — prefetch muzyki mapy
-import { getCurrentSeason } from '../../../config/season'; // SEASON-2 — baner biezacego sezonu
 import { isChooseMode } from '../../../config/hubChoose'; // GARAZ-2 — wybor czolgu w Garazu
 
 /**
@@ -82,8 +81,12 @@ export function statRowHtml(label: string, val: number | null, max: number): str
 
 export class BattleSection implements HubSection {
     public readonly id = 'battle';
-    public readonly icon = '⚔️';
-    label(): string { return t('hub.nav.battle'); }
+    // v0.206.0 (Mariusz, playtest mobile): przycisk doku nazywa sie TRYB GRY (🎮), a nie
+    // BITWA — bo wybiera sie tu scenariusz/mape/trudnosc, nie zaczyna walki. Sam ekran
+    // dalej ma naglowek BITWA (`hub.nav.battle` w h2). ⚔️ przeszlo na przycisk GRAJ,
+    // gdzie faktycznie zaczyna sie walka.
+    public readonly icon = '🎮';
+    label(): string { return t('hub.nav.gameMode'); }
 
     /** Wpiete przez HubShell → MainMenu (buduje GameConfig i startuje mecz BEZPOSREDNIO). */
     public onPlay: ((scenario: ScenarioId, map: MapId, brawlerId: string, difficulty: DifficultyId) => void) | null = null;
@@ -177,15 +180,10 @@ export class BattleSection implements HubSection {
     }
 
     private html(): string {
-        const cur = getCurrentSeason(); // SEASON-2: baner zawsze pokazuje biezacy sezon
-        const season = `
-            <div class="bt-hub0-season">
-                <span class="bt-hub0-season-art" aria-hidden="true">${cur.emoji}</span>
-                <div class="bt-hub0-season-info">
-                    <span class="bt-hub0-season-eyebrow">${t('hub.season.eyebrow')}</span>
-                    <h3>${t(cur.nameKey)}</h3>
-                </div>
-            </div>`;
+        // v0.206.0 — baner „Aktywny sezon" WYNIESIONY z BITWY do PUCHARKOW (naglowek
+        // Sciezki Sezonu w TrophyRoadSection). Na telefonie zjadal ~88 px u gory ekranu
+        // nieklikalnym boxem, ktorego tresc zajmowala 30% szerokosci, a sezon ma juz trzy
+        // inne miejsca (pill na belce, strona SEZON, Sciezka Sezonu).
 
         // ── CZOLGI 3x3 (8 + placeholder Enigma) ─────────────────────────────
         // GARAZ-2 (flag ON): grid czolgow ZNIKA z BITWY — wybor mieszka w Garazu
@@ -224,7 +222,7 @@ export class BattleSection implements HubSection {
                 </span>
             </span>`;
             tanks = `
-            <div class="bt-hub0-subhead">🚜 ${t('hub.battle.pickTank')}</div>
+            <div class="bt-hub0-subhead">${t('hub.battle.pickTank')}</div>
             <div class="bt-hub0-cards bt-hub0-cards--tanks">${tankCards}${enigma}</div>`;
         }
 
@@ -271,7 +269,7 @@ export class BattleSection implements HubSection {
             </button>`;
         }).join('');
         const scenarios = `
-            <div class="bt-hub0-subhead">⚔️ ${t('picker.scenarioTitle')}</div>
+            <div class="bt-hub0-subhead">${t('picker.scenarioTitle')}</div>
             <div class="bt-hub0-cards bt-hub0-cards--scen" style="--scen-count:${SCENARIO_ORDER.length}">${scenCards}</div>`;
 
         // v0.128.0 — SEKCJA MAPY NIE ISTNIEJE. Wybor mapy zyje na karcie KTB (wyzej)
@@ -280,7 +278,7 @@ export class BattleSection implements HubSection {
 
         // ── TRUDNOSC (pigulki — bez zmian) ──────────────────────────────────
         const diffs = `
-            <div class="bt-hub0-subhead">🎚️ ${t('picker.difficultyTitle')}</div>
+            <div class="bt-hub0-subhead bt-hub0-subhead--diff">${t('picker.difficultyTitle')}</div>
             <div class="bt-hub0-diff-pills" role="radiogroup" aria-label="${t('hub.battle.difficulty')}">
                 ${DIFFICULTY_ORDER.map(id => `
                 <button class="bt-hub0-diff-pill${id === this.selectedDifficulty ? ' is-active' : ''}"
@@ -327,8 +325,7 @@ export class BattleSection implements HubSection {
 
         return `
             <div class="bt-battle-scroll">
-                <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.battle')}</h2>
-                ${season}
+                <h2 class="bt-hub0-sectitle">${t('hub.nav.battle')}</h2>
                 ${tanks}
                 ${scenarios}
                 ${diffs}

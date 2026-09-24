@@ -288,6 +288,15 @@ export interface CosmeticState {
     equipped: Partial<Record<CosmeticType, string>>;
 }
 
+/**
+ * v0.206.0 — co wyplacily bramki sezonu W TYM runie (endcard: chip skina, notif).
+ * Puste pola = nic nowego. `cosmetic` to id z rejestru `cosmetics.ts`.
+ */
+export interface SeasonRewardGrant {
+    cosmetic?: string;
+    bolts?: number;
+}
+
 /** Wynik recordRun — zasila endcard ("+X trofea", milestone) + telemetrie. */
 export interface RunProgressionResult {
     trophiesGained: number;
@@ -303,6 +312,8 @@ export interface RunProgressionResult {
     boltsTotal: number;
     /** Najblizszy nieosiagniety milestone PO runie (do paska w hubie / "jeszcze X"). */
     nextMilestone: TrophyMilestone | null;
+    /** v0.206.0 — nagrody bramek sezonu przyznane tym runem (skin / sigmy). */
+    seasonReward: SeasonRewardGrant;
 }
 
 /** Migawka stanu do UI (hub trophy bar). */
@@ -365,6 +376,10 @@ class ProgressionServiceImpl {
         const boltsFromRun = Math.round(breakdown.total * BOLTS_PER_TROPHY);
         const boltsGained = boltsFromRun + boltsFromMilestones;
 
+        // v0.206.0 — bramki sezonu moga w tym runie przyznac skin/sigmy; endcard musi
+        // o tym wiedziec, wiec wynik `creditSeasonRewards` wraca z runu.
+        let seasonReward: SeasonRewardGrant = {};
+
         // commit
         st.trophies = after;
         st.bolts += boltsGained;
@@ -392,7 +407,7 @@ class ProgressionServiceImpl {
                 }
             }
             this.creditSeasonMilestones(st);
-            this.creditSeasonRewards(st);
+            seasonReward = this.creditSeasonRewards(st);
         }
         // RANKS-1: zwyciestwo (dowolny czolg/scenariusz) => wins++ + auto-nagrody rang.
         // Guard anty-farm: mecz >= RANK_MIN_SECONDS (sub-60s liczy sie do score, nie rangi).
@@ -416,9 +431,12 @@ class ProgressionServiceImpl {
             trophiesBefore: before,
             trophiesAfter: after,
             milestonesCrossed: crossed,
-            boltsGained,
+            // Sigmy za bramke 5/5 wchodza do sumy pokazywanej na endcardzie — `st.bolts`
+            // juz je zawiera, a chip „+N sigm" ma mowic prawde o tym runie.
+            boltsGained: boltsGained + (seasonReward.bolts ?? 0),
             boltsTotal: st.bolts,
             nextMilestone: getNextMilestone(after),
+            seasonReward,
         };
     }
 
@@ -551,9 +569,10 @@ class ProgressionServiceImpl {
      * Tor ROZNORODNOSCI: bramki SET-based po `value` — kolejnosc zdobycia bez
      * znaczenia, liczy sie komplet zbioru. Gracz moze trafic "szostke" pierwsza.
      */
-    private creditSeasonRewards(st: ProgressionState): void {
+    private creditSeasonRewards(st: ProgressionState): SeasonRewardGrant {
+        const grant: SeasonRewardGrant = {};
         const content = getSeasonContent(st.season.id);
-        if (!content) return;
+        if (!content) return grant;
         const claimed = new Set(st.season.rewardsClaimed ?? []);
         const owned = st.season.items ?? {};
         const points = st.season.collected ?? 0;
@@ -567,16 +586,37 @@ class ProgressionServiceImpl {
             }
         }
         for (const [gate, values] of Object.entries(content.varietyGates)) {
-            const key = `set:${gate}`;
-            if (claimed.has(key)) continue;
             if (!(values as readonly number[]).every(has)) continue;
-            claimed.add(key);
-            // Skrzynka za pierwszy zbior; wyzsze bramki to kosmetyki, ktore
-            // przyznaje warstwa UI po odczytaniu `rewardsClaimed` (nie ma tu
-            // jeszcze inwentarza kosmetyk sezonowych — patrz SEASON_ENGINE §6).
-            if (gate === 'crate') st.cratesEarned += 1;
+            const key = `set:${gate}`;
+            if (!claimed.has(key)) {
+                claimed.add(key);
+                if (gate === 'crate') st.cratesEarned += 1;
+            }
+            // v0.206.0 — bramki 5/5 i 6/6 WYPLACAJA. Do v0.205.0 tylko oznaczaly `claimed`,
+            // a UI pokazywalo 🏅/👑 za nic („obietnica bez pokrycia"). Wyplaty sa
+            // SAMONAPRAWIALNE: gracz, ktory zamknal bramke przed ta wersja, dostaje nagrode
+            // przy pierwszym kolejnym runie — RAZ, bo:
+            //  - sigmy ida pod OSOBNYM kluczem `set:title:bolts` (stary `set:title` nie
+            //    mowi, czy zaplacono),
+            //  - skin sprawdza `ownedCosmetics` (naturalna idempotencja; kto kupil w sklepie,
+            //    nie dostaje duplikatu, a `purchase()` zwraca 'owned' posiadaczom).
+            if (gate === 'title') {
+                const payKey = 'set:title:bolts';
+                if (!claimed.has(payKey)) {
+                    st.bolts += content.setRewards.titleBolts;
+                    claimed.add(payKey);
+                    grant.bolts = content.setRewards.titleBolts;
+                }
+            } else if (gate === 'full') {
+                const id = content.setRewards.fullCosmetic;
+                if (getCosmetic(id) && !st.ownedCosmetics.includes(id)) {
+                    st.ownedCosmetics = [...st.ownedCosmetics, id];
+                    grant.cosmetic = id;
+                }
+            }
         }
         st.season.rewardsClaimed = [...claimed];
+        return grant;
     }
 
     /**

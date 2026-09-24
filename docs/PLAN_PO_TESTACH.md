@@ -16,6 +16,60 @@
 
 ---
 
+## 0a. AKTUALIZACJA SESJI 23–24.09.2026 — CO ZOSTAŁO ZROBIONE
+
+Zapis stanu po sesji roboczej. Szczegóły w Notion (Changelog + PROJECT CONTEXT + Progress log).
+
+### ✅ v0.203.0 (`6ec1542`) — domknięcie paczki testowej
+Generator nicków (pole wypełnione od wejścia + reroll + 3 propozycje przy kolizji),
+tap w tło skrzynki, kosmetyk `ps_s3_school` (dekor S3 jako tło panelu gracza), 4 poprawki
+kosmetyczne mobile (X w modalach 44→38 px z tap-targetem 44 px + koniec nachodzenia na
+treść; globalne wyłączenie niebieskiego tap-highlightu; kafel nagrody TROFEA w dwie kolumny;
+strzałka wstecz jako inline SVG — Titan One nie ma glifu U+2190), SFX domyślnie 70%.
+Narzędzia dev: `tools/analysis` (`npm run analysis`), `tools/ui-shot.mjs`, `tools/check-s3-skin.mjs`.
+
+### ✅ KROK 1 — ANALIZA LICZB (wykonana 23.09, nie 24.09)
+537 meczów / 42 graczy / 45 profili w oknie (bez 20.09 = maszyna dev), zero błędów 5xx.
+Raport PDF w `docs/reports/` (gitignored), odtwarzalny `npm run analysis`.
+**Dwie decyzje:** SMOOTH domyślnie **TAK** (bramka Z0.6 `p50 ≥ 55` przechodzi wszędzie:
+desktop 59, A54 57) z rollbackiem `?smooth=0`; ETAP 1/COOP **jeszcze nie**.
+**Najmocniejsze znalezisko:** 49% rozgrywki (120 meczów Zamku i Królowej) nie docierało
+do bazy. Dalej: „Łatwy" nie różni się od „Normalnego"; Twardy = czołg domyślny i najsłabszy;
+Pustynia = domyślna mapa i 58,7% meczów; 34,4% meczów na A54 spada < 45 fps (p05 następną
+metryką); tabela `sessions` martwa; Cloudflare Web Analytics nigdy nie było włączone.
+
+### ✅ v0.204.0 (`c7cf57a`) — KROK 2 cz. 1: ranking Zamku i Królowej odblokowany
+Zaplecze (SQL + Edge zdeployowane i zweryfikowane): whitelist `save_queen` +
+`castle_grounds`/`dungeon`, walidacja `mode`/`match_id`, filtr `mode='solo'` w RPC.
+Klient: zdjęty skip w obu ścieżkach końca meczu, obie zakładki rankingu włączone.
+Zweryfikowane na produkcji (Zamek 76 pkt, Królowa 26 pkt). Higiena: `score_version` w
+plikach kalibracyjnych 2→4, mylący log `[Score] Submitted`, martwy komentarz.
+
+### ✅ v0.205.0 (`252f0f6`) — KROK 2 cz. 2: Z0.10b + flaga CLOUD_LIVE
+**Z0.10b PRZEPROJEKTOWANE:** plan zakładał Edge `upsert-profile`, ale klient nie miał anon
+auth (`auth.uid()` = NULL), więc funkcja Edge tylko przeniosłaby dziurę — `profile_id`
+jest publiczny (zwraca go ranking). Rozwiązanie prostsze: anonimowa sesja Supabase +
+kolumna `owner_uid` + RLS `owner_uid = auth.uid()`. **Zweryfikowane na produkcji testem
+dwustronnym:** PRZED lockdownem PATCH cudzego profilu → 204 + realna zmiana, PO → 204 bez
+zmiany, legalny zapis w grze działa. Audyt 15 polityk RLS: żadna nie jest `TO anon`-only.
+**Flaga `CLOUD_LIVE`** (`src/config/cloud.ts`, `?cloud=0`) — główny wyłącznik ruchu do
+Supabase pod scenariusz Poki; strażnik na 13 wyjściach, empirycznie: `?cloud=0` → zero
+żądań. Zapis decyzji: `supabase/README.md` + `.claude/rules/backend-supabase.md`.
+
+### Werdykt coop (na pytanie Mariusza 24.09)
+Fundament (ETAP 0) gotowy; realnego coop nie ma (brak sieci, brak domyślnego fixed-step,
+`Date.now` w symulacji, `players[]` = alias jednego gracza). **Kierunek: koop LOKALNY
+najpierw** (decyzja Mariusza) — omija trzy najdroższe braki (są tylko dla koopa sieciowego).
+Kolejność bez zmian: KROK 3 przed coopem.
+
+### ⚠️ Zostało z okna testów
+- **Cloudflare deployment — NADAL do skasowania** (§1). Analiza zrobiona, nic nie blokuje.
+- **LAW** (wpis o telemetrii do polityki prywatności) — dalej otwarte (§2 poz. 8).
+- **~120 porzuconych profili testowych** (`owner_uid = NULL`) — do skasowania przed
+  publicznym uruchomieniem (świadomy kompromis Z0.10b).
+
+---
+
 ## 1. CO ROBI MARIUSZ SAM (Cloudflare — nie mam tam dostępu)
 
 Gra wygasza się **automatycznie**: `VITE_TEST_EXPIRES=2026-09-23` jest wpieczone
@@ -42,13 +96,13 @@ Wszystko zweryfikowane w kodzie, plik:linia — nie z pamięci.
 |---|---|---|---|---|
 | ☐ | 1 | `BALANCE_V2` false → true | `src/config/balanceFlag.ts:18` | zmienia sufit wyników ⇒ wymaga bumpu score_version |
 | ☐ | 2 | `CURRENT_SCORE_VERSION` 4 → 5 | `src/services/SupabaseScoreService.ts:83` | stara paczka testerów uderzałaby w zmienioną formułę |
-| ☐ | 3 | Edge whitelist scenariuszy/map | `supabase/functions/submit-score/index.ts:37-38` | `SCENARIOS` ma martwe `save_king`, brak `save_queen`; `MAPS` bez `castle_grounds` i `dungeon` |
-| ☐ | 4 | Klient nie wysyła wyniku Zamku/Królowej | `src/main.ts:3687`, `:3787` | czeka na pkt 3 |
-| ☐ | 5 | Zakładki rankingu Zamek/Królowa wyłączone | `src/services/leaderboard.ts:69,78` | czeka na pkt 3+4 |
-| ☐ | 6 | **Z0.7b** — walidacja `mode`/`match_id` w Edge + filtr `mode='solo'` w RPC | `supabase/scores_mode.sql`, `leaderboard_rpc.sql` | redeploy Edge był zakazany w oknie testów |
-| ☐ | 7 | **Z0.10b** — Edge `upsert-profile` + lockdown RLS na `profiles` | `src/config/nickFilter.ts:8-9` | **DZIURA BEZPIECZEŃSTWA** — dziś `WITH CHECK (true)` pozwala nadpisać CUDZY profil |
+| ✅ | 3 | Edge whitelist scenariuszy/map | `supabase/functions/submit-score/index.ts:37-38` | `SCENARIOS` ma martwe `save_king`, brak `save_queen`; `MAPS` bez `castle_grounds` i `dungeon` |
+| ✅ | 4 | Klient nie wysyła wyniku Zamku/Królowej | `src/main.ts:3687`, `:3787` | czeka na pkt 3 |
+| ✅ | 5 | Zakładki rankingu Zamek/Królowa wyłączone | `src/services/leaderboard.ts:69,78` | czeka na pkt 3+4 |
+| ✅ | 6 | **Z0.7b** — walidacja `mode`/`match_id` w Edge + filtr `mode='solo'` w RPC | `supabase/scores_mode.sql`, `leaderboard_rpc.sql` | redeploy Edge był zakazany w oknie testów |
+| ✅ | 7 | **Z0.10b** — Edge `upsert-profile` + lockdown RLS na `profiles` | `src/config/nickFilter.ts:8-9` | **DZIURA BEZPIECZEŃSTWA** — dziś `WITH CHECK (true)` pozwala nadpisać CUDZY profil |
 | ☐ | 8 | **LAW** — wpis o telemetrii do polityki prywatności | karta backlogu, Effort 0.5 | obowiązek prawny od v0.151.0 |
-| ☐ | 9 | Telemetria → decyzja o flipie SMOOTH + decyzja o ETAPIE 1 | kryteria Z0.6: p50 ≥ 55 | czekało na dane z realnych urządzeń |
+| ✅ | 9 | Telemetria → decyzja o flipie SMOOTH + decyzja o ETAPIE 1 | kryteria Z0.6: p50 ≥ 55 | czekało na dane z realnych urządzeń |
 
 **Punkty 3, 6, 7 to JEDEN redeploy zaplecza** — tak były planowane i tak je robimy.
 
@@ -64,10 +118,10 @@ tło skrzynki (`CrateOverlay.ts`, fix podwójnego `onDone()`), kosmetyk `ps_s3_s
 
 Nic nie dotyka Supabase ani flag. Bezpieczne równolegle do grania testerów.
 
-- [ ] Playtest **v0.203.0**: generator nicków + reroll, kolizja nicku (czerwona karta
+- [x] Playtest **v0.203.0**: generator nicków + reroll, kolizja nicku (czerwona karta
       + 3 propozycje), tap w tło skrzynki, kosmetyk S3 — desktop + A54.
-- [ ] `tsc --noEmit` + brace-check.
-- [ ] Commit v0.203.0 — **na prośbę Mariusza**, nie proaktywnie.
+- [x] `tsc --noEmit` + brace-check.
+- [x] Commit v0.203.0 — **na prośbę Mariusza**, nie proaktywnie.
 
 ### KROK 1 — 24.09 (czwartek) · **ANALIZA LICZB** · *przed zmianą backendu*
 
@@ -90,15 +144,15 @@ flip SMOOTH (tak/nie) oraz start ETAPU 1 (tak/nie).
 Kolejność jest istotna: **SQL → Edge → klient**. Każdy podkrok weryfikowany zrzutem
 z Dashboardu, zanim ruszy następny.
 
-- [ ] 1. RPC `leaderboard_top` + filtr `mode='solo'` (Z0.7b, część SQL)
-- [ ] 2. Edge `submit-score`: `SCENARIOS` = `ktb, ctf, castle, save_queen` (usunąć martwe
+- [x] 1. RPC `leaderboard_top` + filtr `mode='solo'` (Z0.7b, część SQL)
+- [x] 2. Edge `submit-score`: `SCENARIOS` = `ktb, ctf, castle, save_queen` (usunąć martwe
          `save_king`); `MAPS` + `castle_grounds`, `dungeon`; walidacja `mode`/`match_id`;
          wstawianie `fun_mode` (dziś kolumna jest, Edge jej nie pisze)
-- [ ] 3. Edge `upsert-profile` + lockdown RLS na `profiles` (Z0.10b), wzorem
+- [x] 3. Z0.10b (PRZEPROJEKTOWANE: anon auth + `owner_uid` + lockdown RLS, BEZ Edge `upsert-profile`) na `profiles` (Z0.10b), wzorem
          `rls_lockdown_scores.sql`, z rollbackiem w komentarzu
-- [ ] 4. Klient: odblokować submit Zamku/Królowej + włączyć obie zakładki rankingu
+- [x] 4. Klient: odblokować submit Zamku/Królowej + włączyć obie zakładki rankingu
 - [ ] 5. **LAW** — wpis o telemetrii do polityki prywatności
-- [ ] 6. Higiena: martwy komentarz `GameSession.ts:40`, `score_version` w
+- [x] 6. Higiena: martwy komentarz `GameSession.ts:40`, `score_version` w
          `progression_calibration.sql` / `quest_calibration.sql`
 
 ### KROK 3 — 25–29.09 · **BALANS + RANKING**
@@ -123,7 +177,7 @@ z Dashboardu, zanim ruszy następny.
 Start **wyłącznie** jeśli telemetria z KROKU 1 na to pozwoli. Bramki są twarde:
 
 - [ ] przegląd planu **innym modelem** (cross-model) **PRZED** wykonaniem,
-- [ ] rekomendacja ze specu: **odwrócić kolejność** — ETAP 2 (koop lokalny na jednym
+- [x] rekomendacja ze specu: **odwrócić kolejność** — ETAP 2 (koop lokalny na jednym
       ekranie) przed pełną symulacją bez ekranu,
 - [ ] ETAP 1-lite S1–S5: SimClock (timery wyciekają przy zwiniętej karcie), stan zamiast
       widoku, pętle po `players[]`.
@@ -146,11 +200,11 @@ i zweryfikowane w kodzie. Nieaktualne karty zostały zamknięte (patrz §4a).
 | ☐ | **120** | TYPO-P1-3 — rozmiary poniżej 12 px w Hubie (8 px na BITWA) | In progress | grupa 9–12 lat |
 | ☐ | **80** | Język startowy z przeglądarki (intro zawsze po polsku) | Not started | E=0.5 |
 | ☐ | **70** | TYPO-P1-4 — trzy niezgodne polityki wagi fontu | Not started | |
-| ☐ | **70** | MP Z0.10 — filtr wulgaryzmów w nickach | In progress | **a✅ shipped v0.149.0 · b (RLS) → KROK 2** |
+| ✅ | **70** | MP Z0.10 — filtr wulgaryzmów + lockdown RLS | Done | **a✅ v0.149.0 · b✅ v0.205.0 (anon auth + owner_uid)** |
 | ☐ | **70** | Znaczniki celów zasłaniają HUD i przyciski mocy (CTF + Zamek/Królowa) | Not started | SigmaTester, zweryfikowane zrzutami |
 | ☐ | **60** | Poki SDK + rewarded ads | Not started | osobna faza komercjalizacji |
 | ☐ | **60** | TYPO-P0-2 — czytelność tekstu world-space na mobile (5,4–9,6 px) | In progress | czekało na pomiar A54 |
-| ☐ | **60** | Sezon 3 — pełny załadunek (dekor + item + hero text) | In progress | dekor `ps_s3_school` wchodzi w v0.203.0 |
+| ☐ | **60** | Sezon 3 — pełny załadunek (dekor + item + hero text) | In progress | dekor `ps_s3_school` ✅ SHIPPED v0.203.0; item + hero text zostaja |
 | ☐ | **52,5** | Muzeum kolekcji sezonowych (rollover kasuje znajdźki) | Not started | ⏰ **termin: przed końcem S3, 31.10.2026** |
 | ☐ | **50** | LAW — polityka prywatności / telemetria | Not started | → **KROK 2**, obowiązek prawny |
 | ☐ | **48** | Mobile: gra nie pauzuje w pionie | Not started | na A54 nieosiągalne (`orientation.lock`) |
@@ -202,7 +256,7 @@ Wszystkie zweryfikowane w kodzie, nie „z pamięci":
 
 ---
 
-## 6. REJESTR FLAG — stan na 22.09.2026
+## 6. REJESTR FLAG — stan na 24.09.2026
 
 | Flaga | Wartość | Rollback URL |
 |---|---|---|
@@ -213,9 +267,14 @@ Wszystkie zweryfikowane w kodzie, nie „z pamięci":
 | `CHOOSE_LIVE` | ✅ true | `?choose=0` |
 | `NICK_FILTER_LIVE` | ✅ true | `?nickfilter=0` |
 | `TELEMETRY_LIVE` | ✅ true | `?telemetry=0` |
+| **`CLOUD_LIVE`** (nowa, v0.205.0) | ✅ true | `?cloud=0` — główny wyłącznik ruchu do Supabase (Poki) |
 | **`BALANCE_V2`** | ❌ **false** | `?bal=1` — **flip w KROKU 3** |
 | `MP_LIVE` | ❌ false | `?mp=1` — bez implementacji |
 | `TURN360_TANKS` | `[]` (pusty) | — zaparkowane (kolizja ze skinami) |
+
+> Anon auth Supabase **włączone** od v0.205.0 (Z0.10b). To nie flaga w kodzie — ustawienie
+> w Dashboardzie (Authentication → Providers → „Anonymous sign-ins"). Wyłączenie odcięłoby
+> zapis profilu/progresji do chmury (gra działa dalej na localStorage).
 
 ---
 

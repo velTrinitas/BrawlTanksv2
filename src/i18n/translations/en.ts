@@ -149,6 +149,7 @@ export const en: typeof pl = {
     'hub.trophyMax': 'All rewards unlocked! 🏆',
     // HUB-0 — Menu Hub navigation (rail/dock)
     'hub.nav.battle': 'BATTLE',
+    'hub.nav.gameMode': 'GAME MODE',
     'hub.nav.garage': 'GARAGE',
     'hub.nav.quests': 'ORDERS',
     'hub.nav.trophies': 'TROPHIES',
@@ -160,7 +161,7 @@ export const en: typeof pl = {
     'hub.season.daysLeft': '{n} days left',
     'hub.season.ended': 'Season ended',
     'hub.season.whatsNew': 'What this season brings',
-    'hub.season.itemsBox': 'Seasonal items',
+    'hub.season.itemsBox': 'Seasonals',
     'hub.season.museum': 'Season museum',
     'hub.season.viewTrack': 'VIEW SEASON TRACK',
     // Season roadmap (SEASON-2) — names + popup bullets
@@ -173,9 +174,9 @@ export const en: typeof pl = {
     'season.s3.short': 'Season 3',
     'season.s3.b1': 'New Season Track — grab sigma and crates at every step',
     'season.s3.b2': 'School vibes on the arena. School gear all over the maps.',
-    'season.s3.b3': 'Seasonal finds and a unique tank skin — coming soon!',
+    'season.s3.b3': 'Seasonals and a unique profile skin for the full collection!',
     // SEASON KIT: name of the season collectible counter (HUD, end-of-run screen).    // SEASON 2 — collectibles (art and names shared with S3)
-    'season.s2.counter': 'finds',
+    'season.s2.counter': 'seasonals',
     'season.s2.item1': 'Pencil',
     'season.s2.item2': 'Book',
     'season.s2.item3': 'Notebook',
@@ -183,7 +184,7 @@ export const en: typeof pl = {
     'season.s2.item5': 'Backpack',
     'season.s2.item6': 'Globe',
 
-    'season.s3.counter': 'finds',
+    'season.s3.counter': 'seasonals',
     // SEASON KIT — names of the 6 season-3 collectibles.
     'season.s3.item1': 'Pencil',
     'season.s3.item2': 'Book',
@@ -221,6 +222,8 @@ export const en: typeof pl = {
     // HUB-4 — Trophy Road
     'hub.road.act1': 'Act I — Recruit',
     'hub.road.act2': 'Act II — Veteran',
+    'hub.road.act3': 'Act III — Master',
+    'hub.road.title': 'Trophy Road',
     'hub.road.next': 'Next',
     'hub.road.seasonTitle': 'Season Track',
     // HUB-6 — Ranking (mini-board)
@@ -242,7 +245,8 @@ export const en: typeof pl = {
     'hub.profile.tab.records': 'Records',
     'hub.profile.tab.collection': 'Collection',
     // SEASON KIT — SEASON tab in the profile.
-    'season.findThemAll': 'Find them all!',
+    'season.currentSeasonals': 'Current seasonals',
+    'season.pts': 'pts',
     'hub.profile.season.pointTrack': 'For points',
     'hub.profile.season.setTrack': 'For sets',
     'hub.profile.season.gateCrate': 'Three commons',
@@ -594,6 +598,7 @@ export const en: typeof pl = {
     'hud.loadoutRemapped': '⚠️ POWER SWAPPED',
     'road.unlock.repair': '🔧 Power: Repair!',
     'road.unlock.tower': '🎯 Power: Tower!',
+    'road.unlock.ghost': '👻 Power: Phantom!',
     'hub.garage.loadout': 'PICK 3 SUPER POWERS',
     'hub.garage.slotsLabel': 'PICK SUPER POWERS',
     // BALANCE_V2 (S5): tank stat labels - hardcoded in UI code until v0.199.0.
@@ -687,7 +692,8 @@ export const en: typeof pl = {
     'end.questsDone': 'Orders: {n}',
     'end.funMode': 'Crazy Powers',
     // SEASON KIT — collectibles chip on the end-of-run screen.
-    'end.seasonPickups': 'textbooks',
+    'end.seasonPickups': 'seasonals',
+    'end.seasonSkin': 'NEW SKIN',
 
     // ============================================================
     // Scenario Picker
@@ -696,7 +702,7 @@ export const en: typeof pl = {
     'picker.mapTitle': 'Choose location',
     'picker.mapChangeHint': 'Change map ›',
     'picker.brawlerTitle': 'Choose vehicle',
-    'picker.difficultyTitle': 'DIFFICULTY',
+    'picker.difficultyTitle': 'Difficulty',
     'picker.step': 'Step {current} of {total}',
 
     'scenario.ktb.name': 'Kill the Boss',
@@ -1071,9 +1077,9 @@ export const en: typeof pl = {
     'hud.caravanMagnet':  '🐪 Caravan dropped 🧲',
     'hud.roverGem':       '🛰️ Rover dropped 💎',
     // SEASON KIT — HUD counter chip label.
-    'hud.finds': 'Items',
+    'hud.finds': 'Seasonals',
+    'hud.seasonSkin': '🎨 NEW PROFILE SKIN: {name}!',
     // SEASON KIT — legendary collectible (1 per day).
-    'hud.seasonLegendary': '📙 GOLDEN ENCYCLOPEDIA!',
     // SEASON KIT — first time this collectible type is picked up.
     'hud.seasonNewItem': 'NEW IN COLLECTION: {name}!',
     'hud.seasonNewShort': 'NEW!',

@@ -142,7 +142,7 @@ export class GarageSection implements HubSection {
         return `
             <div class="bt-hub0-cratebox${hasCrates ? ' is-ready' : ''}">
                 ${hasCrates ? '<div class="bt-hub0-crate-glow" aria-hidden="true"></div>' : ''}
-                <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}</div>
+                <div class="bt-hub0-crate-art" aria-hidden="true">${crateIcon(44)}${hasCrates ? '<i class="bt-hub0-dot"></i>' : ''}</div>
                 <div class="bt-hub0-crate-info">
                     <b>${t('hub.garage.crates', { n: cos.crateCount })}</b>
                     <small>${t('hub.garage.pity', { n: pityLeft })}</small>
@@ -204,7 +204,7 @@ export class GarageSection implements HubSection {
             <button class="bt-gr2-cratechip${has ? ' is-ready' : ''}" data-action="open-crate"
                     type="button" ${has ? '' : 'disabled'}
                     title="${t('hub.garage.crates', { n: cos.crateCount })}">
-                <span class="art" aria-hidden="true">${crateIcon(22)}</span>
+                <span class="art" aria-hidden="true">${crateIcon(22)}${has ? '<i class="bt-hub0-dot"></i>' : ''}</span>
                 <b>${cos.crateCount}</b>
                 ${has ? `<span class="go">${t('hub.garage.open')}</span>` : ''}
             </button>`;

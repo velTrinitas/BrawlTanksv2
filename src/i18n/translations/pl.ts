@@ -153,14 +153,16 @@ export const pl = {
     'hub.welcome': 'Witaj, {name}!',
     'hub.editProfile': 'Edytuj profil',
     // PROG-F1 — pasek trofeów w hubie
-    'hub.trophyLabel': 'TROFEA',
+    'hub.trophyLabel': 'PUCHARKI',
     'hub.trophyNext': 'jeszcze {n} 🏆 do nagrody',
     'hub.trophyMax': 'Wszystkie nagrody zdobyte! 🏆',
     // HUB-0 — nawigacja Menu Hub (rail/dock)
     'hub.nav.battle': 'BITWA',
+    // v0.206.0 — etykieta przycisku doku (sekcja dalej nazywa sie BITWA w naglowku)
+    'hub.nav.gameMode': 'TRYB GRY',
     'hub.nav.garage': 'GARAŻ',
     'hub.nav.quests': 'ROZKAZY',
-    'hub.nav.trophies': 'TROFEA',
+    'hub.nav.trophies': 'PUCHARKI',
     'hub.nav.rank': 'RANKING',
     'hub.nav.season': 'SEZON',
     // HUB-1 — baner sezonu (statyczny; realny countdown w pozniejszej fazie)
@@ -169,30 +171,30 @@ export const pl = {
     'hub.season.daysLeft': 'Do końca: {n} dni',
     'hub.season.ended': 'Sezon zakończony',
     'hub.season.whatsNew': 'Co wprowadza sezon',
-    'hub.season.itemsBox': 'Itemy sezonowe',
+    'hub.season.itemsBox': 'Sezoniaki',
     'hub.season.museum': 'Muzeum sezonów',
     'hub.season.viewTrack': 'ZOBACZ SEASON TRACK',
     // Roadmapa sezonow (SEASON-2) — nazwy + bullety popupu
     'season.s2.name': 'Sezon 2 — Arena',
     'season.s2.short': 'Sezon 2',
-    'season.s2.b1': 'Nowy Season Track: 5 nagród za trofea sezonowe',
+    'season.s2.b1': 'Nowy Season Track: 5 nagród za pucharki sezonowe',
     'season.s2.b2': 'Rangi czołgisty i nowa strona profilu',
     'season.s2.b3': 'Finał 31.08 — zgarnij nagrody, zanim znikną!',
     'season.s3.name': 'Sezon 3 — Powrót do szkoły',
     'season.s3.short': 'Sezon 3',
     'season.s3.b1': 'Nowy Season Track — zgarniaj sigmy i skrzynki na każdym progu',
     'season.s3.b2': 'Szkolny klimat na arenie. Szkolne gadżety rozsiane po mapach.',
-    'season.s3.b3': 'Sezonowe znajdźki i wyjątkowy skin czołgu — już wkrótce!',
+    'season.s3.b3': 'Sezoniaki i wyjątkowy skin profilu za całą kolekcję!',
     // SEASON KIT: nazwa licznika znajdziek sezonu (HUD, ekran konca meczu).
     // SEZON 2 — znajdzki (art i nazwy wspolne z S3, patrz seasonContent.ts)
-    'season.s2.counter': 'znajdźki',
+    'season.s2.counter': 'sezoniaki',
     'season.s2.item1': 'Ołówek',
     'season.s2.item2': 'Książka',
     'season.s2.item3': 'Zeszyt',
     'season.s2.item4': 'Ekierka',
     'season.s2.item5': 'Plecak',
     'season.s2.item6': 'Globus',
-    'season.s3.counter': 'znajdźki',
+    'season.s3.counter': 'sezoniaki',
     // SEASON KIT — nazwy 6 znajdziek sezonu 3 (dec. A, 28.08.2026).
     'season.s3.item1': 'Ołówek',
     'season.s3.item2': 'Książka',
@@ -230,6 +232,8 @@ export const pl = {
     // HUB-4 — Szlak Trofeow
     'hub.road.act1': 'Akt I — Rekrut',
     'hub.road.act2': 'Akt II — Weteran',
+    'hub.road.act3': 'Akt III — Mistrz',
+    'hub.road.title': 'Szlak Pucharków',
     'hub.road.next': 'Następna',
     'hub.road.seasonTitle': 'Ścieżka Sezonu',
     // HUB-6 — Ranking (mini-board)
@@ -251,13 +255,14 @@ export const pl = {
     'hub.profile.tab.records': 'Rekordy',
     'hub.profile.tab.collection': 'Kolekcja',
     // SEASON KIT — zakladka SEZON w profilu.
-    'season.findThemAll': 'Znajdź je wszystkie!',
+    'season.currentSeasonals': 'Aktualne sezoniaki',
+    'season.pts': 'pkt',
     'hub.profile.season.pointTrack': 'Za punkty',
     'hub.profile.season.setTrack': 'Za komplety',
     'hub.profile.season.gateCrate': 'Trzy pospolite',
-    'hub.profile.season.gateTitle': 'Piec przedmiotow',
-    'hub.profile.season.gateFull': 'Cala kolekcja',
-    'hub.profile.season.museumSoon': 'Zakonczone sezony trafia tu do muzeum kolekcji.',
+    'hub.profile.season.gateTitle': 'Pięć przedmiotów',
+    'hub.profile.season.gateFull': 'Cała kolekcja',
+    'hub.profile.season.museumSoon': 'Zakończone sezony trafią tu do muzeum kolekcji.',
     'hub.profile.rank': 'Miejsce w rankingu',
     'hub.profile.kills': 'Pokonani wrogowie',
     'hub.profile.gems': 'Zebrane gemy',
@@ -278,7 +283,7 @@ export const pl = {
     'rankup.reward': 'Nagroda',
     'rankup.cta': 'SUPER!',
     'hub.garage.cosmeticsMoved': 'Swój styl ustawisz w profilu — tapnij swój awatar!',
-    'hub.garage.cratesFrom': 'Zdobywasz je za rozkazy, trofea i sezon — albo kupujesz w sklepie.',
+    'hub.garage.cratesFrom': 'Zdobywasz je za rozkazy, pucharki i sezon — albo kupujesz w sklepie.',
     // F2a — Zrzuty (skrzynki) + kosmetyki
     'hub.garage.crates': 'Skrzynki: {n}',
     'hub.garage.pity': 'Do gwarantowanego rzadkiego: {n}',
@@ -484,7 +489,7 @@ export const pl = {
 
     // ── SKLEP ──
     'shop.title': 'SKLEP',
-    'shop.heroLine1': 'Sigmy zdobywasz w każdej bitwie — za trofea, rozkazy i rangi.',
+    'shop.heroLine1': 'Sigmy zdobywasz w każdej bitwie — za pucharki, rozkazy i rangi.',
     'shop.heroLine2': 'Tutaj zamieniasz je na coś swojego.',
     'shop.balance': 'MASZ',
     'shop.impact.none': 'Kosmetyczne — 0 wpływu na grę',
@@ -597,7 +602,7 @@ export const pl = {
     'power.granny.desc': 'Dreptaczka leczy 5% HP/s, a wrogowie w promieniu 360 px uciekają.',
     'power.burp.desc': 'Cztery fale dźwiękowe odrzucają i ogłuszają wrogów na sekundę.',
     'hub.garage.powersTitle': 'Super Moce ({n})',
-    'hub.garage.powersSub': '{n} mocy do wyboru, odblokowywanych na Szlaku Trofeów.',
+    'hub.garage.powersSub': '{n} mocy do wyboru, odblokowywanych na Szlaku Pucharków.',
     'hub.garage.funSub': '{n} szalonych mocy ze slotu 🎲 — czysta zabawa.',
     'power.chip.cooldown': '⏱ {n} s',
     'power.chip.fromStart': 'Od startu',
@@ -610,6 +615,7 @@ export const pl = {
     'hud.loadoutRemapped': '⚠️ MOC PODMIENIONA',
     'road.unlock.repair': '🔧 Moc: Naprawa!',
     'road.unlock.tower': '🎯 Moc: Wieża!',
+    'road.unlock.ghost': '👻 Moc: Widmo!',
     'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
     'hub.garage.slotsLabel': 'WYBIERZ SUPER MOCE',
     // BALANCE_V2 (S5): etykiety statow czolgu — do v0.199.0 byly HARDKODOWANE w kodzie UI.
@@ -647,7 +653,7 @@ export const pl = {
     'hub.quests.weekSetTitle': 'Komplet tygodnia',
     'hub.quests.weekSetReward': '+{bolts} sigm i {crates} skrzynki',
     'hub.quests.locked': 'Rozkazy od {n} 🏆',
-    'hub.quests.lockedHint': 'Zdobywaj trofea w meczach — zostało {n} 🏆',
+    'hub.quests.lockedHint': 'Zdobywaj pucharki w meczach — zostało {n} 🏆',
     'hub.quests.resetDaily': 'Nowe rozkazy jutro',
     'hub.quests.resetWeekly': 'Nowy zestaw w poniedziałek',
     'hub.quests.general': 'Generał Pancerz',
@@ -666,7 +672,7 @@ export const pl = {
     'quest.m_magnet': 'Złap magnesy: {n}',
     'quest.m_cube': 'Zbierz kostki mocy: {n}',
     'quest.m_combo': 'Zrób combo ×{n}',
-    'quest.m_trophies': 'Zdobądź {n} trofeów w jednym meczu',
+    'quest.m_trophies': 'Zdobądź {n} pucharków w jednym meczu',
     'quest.m_runtime': 'Przetrwaj {n} min w jednym meczu',
     'quest.m_rungems': 'Zbierz {n} gemów w jednym meczu',
 
@@ -676,14 +682,14 @@ export const pl = {
     'quest.d_stealth': 'Zniszcz wrogów ze strefy ukrycia: {n}',
     'quest.d_medipad': 'Skorzystaj z pada leczącego: {n}',
     'quest.d_flag': 'Zdobądź flagi w CTF: {n}',
-    'quest.d_trophies': 'Zdobądź dziś trofea: {n}',
+    'quest.d_trophies': 'Zdobądź dziś pucharki: {n}',
     'quest.d_map': 'Rozegraj mecz na mapie: {map}',
 
-    'quest.w_trophies': 'Zdobądź trofea w tym tygodniu: {n}',
+    'quest.w_trophies': 'Zdobądź pucharki w tym tygodniu: {n}',
     'quest.w_maps': 'Zagraj na {n} różnych mapach',
     'quest.s_perfect': 'Ukończ mecz bez utraty życia',
     'quest.s_combo': 'Zrób combo ×{n}',
-    'quest.s_trophies': 'Zdobądź {n} trofeów w jednym meczu',
+    'quest.s_trophies': 'Zdobądź {n} pucharków w jednym meczu',
 
     'quest.general.1': 'Rekrucie, te gemy same się nie zbiorą!',
     'quest.general.2': 'Melduj się po nagrodę — ale najpierw robota.',
@@ -703,7 +709,9 @@ export const pl = {
     'end.questsDone': 'Rozkazy: {n}',
     'end.funMode': 'Szalone Moce',
     // SEASON KIT — chip znajdziek na ekranie konca meczu.
-    'end.seasonPickups': 'podreczniki',
+    'end.seasonPickups': 'sezoniaki',
+    // v0.206.0 — skin profilu za komplet sezoniakow (chip na endcardzie)
+    'end.seasonSkin': 'NOWY SKIN',
 
     // ============================================================
     // Scenario Picker (Ekran 1)
@@ -1045,7 +1053,7 @@ export const pl = {
     'end.hpBonus': 'HP',
     'end.backToMenu': 'POWRÓT DO MENU',
     // PROG-F1 — progresja na endcardzie
-    'end.trophies': 'TROFEA',
+    'end.trophies': 'PUCHARKI',
     'end.bolts': 'SIGMY',
     'end.milestone': 'KAMIEŃ MILOWY',
 
@@ -1096,9 +1104,9 @@ export const pl = {
     'hud.caravanMagnet':  '🐪 Karawana dropiła 🧲',
     'hud.roverGem':       '🛰️ Łazik zgubił 💎',
     // SEASON KIT — podpis chipa licznika w HUD.
-    'hud.finds': 'Itemy',
+    'hud.finds': 'Sezoniaki',
+    'hud.seasonSkin': '🎨 NOWY SKIN PROFILU: {name}!',
     // SEASON KIT — legendarna znajdzka (1 na dobe).
-    'hud.seasonLegendary': '📙 ZŁOTA ENCYKLOPEDIA!',
     // SEASON KIT — pierwsze zdobycie danego typu znajdzki.
     'hud.seasonNewItem': 'NOWY W KOLEKCJI: {name}!',
     'hud.seasonNewShort': 'NOWY!',

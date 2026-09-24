@@ -1,10 +1,11 @@
 import { t } from '../../../i18n/i18n';
-import { crateIcon } from '../gameIcons';
+import { crateIcon, sigmaIcon, cosmeticThumb } from '../gameIcons';
 import type { HubSection } from './HubSection';
 import {
     getCurrentSeason, isSeasonActive, seasonDaysLeft, seasonElapsedPct,
 } from '../../../config/season';
 import { getSeasonContent } from '../../../config/seasonContent';
+import { getCosmetic } from '../../../config/cosmetics';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
 
@@ -25,6 +26,12 @@ import { ProgressionService } from '../../../services/ProgressionService';
  * i licznikami. Zostal wariant z profilu (`.ps-items`) — przy okazji realizuje
  * zgloszenie Mariusza "pomniejsz ikony o 50%", bo 46 to dokladnie polowa 92.
  *
+ * v0.206.0 (Mariusz, playtest mobile): kafel sezoniaka w dwoch wierszach (ikona +
+ * nazwa obok, liczba pod spodem, duza), nagrody bramek jako PRAWDZIWY ART z rejestru
+ * zamiast emoji (🏅 czytalo sie jako „metal", 👑 nic nie mowilo) — i co wazniejsze,
+ * te nagrody TERAZ ISTNIEJA w `ProgressionService.creditSeasonRewards` (sigmy za 5/5,
+ * skin profilu za 6/6). Do tej wersji ikony obiecywaly nagrody, ktorych kod nie dawal.
+ *
  * Wszystko czytane z manifestu sezonu, wiec nowy sezon nie wymaga tu zmian.
  */
 export class SeasonSection implements HubSection {
@@ -32,7 +39,7 @@ export class SeasonSection implements HubSection {
     public readonly icon = '🎖️';
     label(): string { return t('hub.nav.season'); }
 
-    /** HubShell: przejscie do TROFEOW + scroll do Season Tracku. */
+    /** HubShell: przejscie do PUCHARKOW + scroll do Season Tracku. */
     public onViewTrack: (() => void) | null = null;
 
     private el: HTMLElement | null = null;
@@ -122,7 +129,9 @@ export class SeasonSection implements HubSection {
         const season = getCurrentSeason();
         const content = getSeasonContent(season.id);
         const profile = ProfileService.getActiveProfile();
-        const head = `<h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.season')}</h2>`;
+        // v0.206.0 — bez emoji przy naglowku (Mariusz, pkt 8a); pole `icon` zostaje dla
+        // ewentualnej nawigacji.
+        const head = `<h2 class="bt-hub0-sectitle">${t('hub.nav.season')}</h2>`;
 
         // Sezon bez znajdziek (Arena w roadmapie 2027, sezony fabularne) dostaje sam
         // blok info — pusta kolekcja i tory z zerami byly by szumem, nie informacja.
@@ -132,21 +141,27 @@ export class SeasonSection implements HubSection {
         const points = ProgressionService.getSeasonCollected(profile.id);
         const claimed = new Set(ProgressionService.getSeasonRewardsClaimed(profile.id));
         const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+        const pts = t('season.pts');
 
-        // Kolekcja: 6 kafli z licznikiem. Niezdobyte to "?" — luka ciekawosci.
+        // Kolekcja: 6 kafli. v0.206.0 — DWA WIERSZE: [ikona | nazwa] nad duza liczba.
+        // Niezdobyte to "?" — luka ciekawosci; zamiast liczby pokazuja WARTOSC (N pkt).
         const tiles = content.items.map(it => {
             const n = owned[it.value] ?? 0;
             const glow = '#' + it.glow.toString(16).padStart(6, '0');
             return n > 0
                 ? `<div class="ps-item is-owned" style="--g:${glow}">
-                       <img src="${base}${it.asset}" alt="" draggable="false">
-                       <span class="ps-item-name">${t(it.nameKey)}</span>
+                       <div class="ps-item-top">
+                           <img src="${base}${it.asset}" alt="" draggable="false">
+                           <span class="ps-item-name">${t(it.nameKey)}</span>
+                       </div>
                        <span class="ps-item-n">×${n}</span>
                    </div>`
                 : `<div class="ps-item">
-                       <span class="ps-item-q">?</span>
-                       <span class="ps-item-name">???</span>
-                       <span class="ps-item-n">${it.value} pkt</span>
+                       <div class="ps-item-top">
+                           <span class="ps-item-q">?</span>
+                           <span class="ps-item-name">???</span>
+                       </div>
+                       <span class="ps-item-n">${it.value} ${pts}</span>
                    </div>`;
         }).join('');
 
@@ -154,7 +169,7 @@ export class SeasonSection implements HubSection {
         const ptRows = content.pointThresholds.map(th => {
             const done = claimed.has(`pts:${th.points}`) || points >= th.points;
             return `<div class="ps-th${done ? ' is-done' : ''}">
-                        <span>${done ? '✓' : '○'} ${th.points} pkt</span>
+                        <span>${done ? '✓' : '○'} ${th.points} ${pts}</span>
                         <span class="ps-th-rew">${crateIcon(18)}${th.crates > 1 ? ` ×${th.crates}` : ''}</span>
                     </div>`;
         }).join('');
@@ -169,14 +184,26 @@ export class SeasonSection implements HubSection {
                     </div>`;
         };
 
+        // v0.206.0 — nagrody bramek z MANIFESTU i z REJESTRU KOSMETYKOW, nie z emoji:
+        // 3/3 skrzynka (art skrzynki), 5/5 sigmy (art sigmy + kwota), 6/6 skin profilu
+        // (miniatura dekoru + nazwa). Gracz widzi DOKLADNIE to, co dostanie.
+        const { titleBolts, fullCosmetic } = content.setRewards;
+        const skinDef = getCosmetic(fullCosmetic);
+        const skinReward = skinDef
+            ? `${cosmeticThumb(fullCosmetic, 20)}<small class="ps-rew-name">${t(skinDef.labelKey)}</small>`
+            : cosmeticThumb(fullCosmetic, 20);
+        const sigmaReward = `${sigmaIcon(16)}<b>${titleBolts}</b>`;
+
         // v0.139.0 (pkt 7): dwa tory OBOK SIEBIE. Kazdy ma po 3-4 krotkie wiersze,
         // wiec ustawione pod soba zjadaly pol ekranu na powietrze. Podzial na kolumny
         // jest w CSS (`.ps-tracks`), na waskim ekranie wraca do jednej kolumny.
+        // Naglowki obu torow to <img> (nie emoji) — ten sam typ elementu = ta sama
+        // wysokosc linii = wyrownane kolumny (pkt 8e).
         return `
             ${head}
             ${this.infoHtml(points)}
             <div class="ps-season">
-                <div class="bt-hub0-subhead">🎒 ${t('season.findThemAll')}</div>
+                <div class="bt-hub0-subhead">${t('season.currentSeasonals')}</div>
                 <div class="ps-items">${tiles}</div>
 
                 <div class="ps-tracks">
@@ -185,11 +212,11 @@ export class SeasonSection implements HubSection {
                         <div class="ps-ths">${ptRows}</div>
                     </div>
                     <div class="ps-track">
-                        <div class="bt-hub0-subhead">🏅 ${t('hub.profile.season.setTrack')}</div>
+                        <div class="bt-hub0-subhead">${cosmeticThumb(fullCosmetic, 16)} ${t('hub.profile.season.setTrack')}</div>
                         <div class="ps-ths">
                             ${gate('crate', content.varietyGates.crate, t('hub.profile.season.gateCrate'), crateIcon(18))}
-                            ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), '🏅')}
-                            ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), '👑')}
+                            ${gate('title', content.varietyGates.title, t('hub.profile.season.gateTitle'), sigmaReward)}
+                            ${gate('full', content.varietyGates.full, t('hub.profile.season.gateFull'), skinReward)}
                         </div>
                     </div>
                 </div>

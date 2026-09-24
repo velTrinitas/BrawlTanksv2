@@ -146,8 +146,25 @@ export const ACT_II_MILESTONES: readonly TrophyMilestone[] = [
     { threshold: 1500, bolts: 280, crate: true, labelKey: 'road.unlock.tower' },
 ];
 
+/**
+ * v0.206.0 — AKT III „Mistrz": jeden wezel, Widmo @5000. Do v0.205.0 Szlak konczyl sie
+ * na 1500, a Widmo (Tier 1, `unlockAtTrophies: 5000`) odblokowywalo sie PO CICHU — bez
+ * celebracji, bez zapowiedzi, z teaserem „1500+ wkrotce". Komentarz przy mocy od poczatku
+ * mowil „marchewka na Szlaku, Akt III" — to jest ta marchewka.
+ *
+ * `bolts: 0` i bez `crate` CELOWO: to czysta widocznosc, nie zmiana ekonomii. Bezpieczne
+ * wstecz: idempotencja jest po WARTOSCI progu, 5000 to nowa wartosc, a `recordRun` doda
+ * `Σ m.bolts` = 0 i `creditMilestoneCrates` wymaga `crate: true`. Nikt nic nie dostanie
+ * po raz drugi. Tier 2 (2500-3500) i Tier 3 (kostka 🎲) zostaja poza Szlakiem — celowo.
+ */
+export const ACT_III_MILESTONES: readonly TrophyMilestone[] = [
+    { threshold: 5000, bolts: 0, labelKey: 'road.unlock.ghost' },
+];
+
 /** Wszystkie milestony. Zawsze posortowane rosnaco po threshold. */
-export const TROPHY_MILESTONES: readonly TrophyMilestone[] = [...ACT_I_MILESTONES, ...ACT_II_MILESTONES];
+export const TROPHY_MILESTONES: readonly TrophyMilestone[] = [
+    ...ACT_I_MILESTONES, ...ACT_II_MILESTONES, ...ACT_III_MILESTONES,
+];
 
 /** Najblizszy nieosiagniety milestone dla danej liczby trofeow (null = wszystkie zdobyte). */
 export function getNextMilestone(trophies: number): TrophyMilestone | null {

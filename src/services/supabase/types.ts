@@ -31,6 +31,13 @@ export interface ProfileInsert {
     flag_id?: string | null;
     language?: 'pl' | 'en';     // DEFAULT 'pl'
     session_count?: number;     // DEFAULT 0
+    /**
+     * Z0.10b — wlasciciel wiersza (uid anonimowej sesji). RLS pozwala pisac tylko
+     * wlascicielowi, a wiersz bez wlasciciela (`NULL`, dane sprzed Z0.10b) moze byc
+     * przejety przy pierwszym zapisie. Klient MUSI to pole wysylac, bo polityka UPDATE
+     * ma `WITH CHECK (owner_uid = auth.uid())` — brak pola = odmowa zapisu.
+     */
+    owner_uid?: string | null;
     // created_at / updated_at — NIE wysylamy (server-side)
 }
 
@@ -280,12 +287,16 @@ export interface ProgressionInsert {
     quests?: ProgressionQuests;
     powers?: ProgressionPowers;
     stats?: ProgressionStats;   // PROFILE-1 (wymaga kolumny z progression_stats.sql)
+    /** Z0.10b — wlasciciel wiersza; patrz komentarz przy `ProfileInsert.owner_uid`. */
+    owner_uid?: string | null;
     // created_at / updated_at — NIE wysylamy (server-side)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // telemetry (Z0.9 — dane techniczne wydajnosci, ZERO identyfikatorow: bez
-// profile_id/session_id/nicku. RLS: anon INSERT-only. Migracja: supabase/telemetry.sql)
+// profile_id/session_id/nicku. RLS: INSERT-only dla anon I authenticated
+// (telemetry.sql:49 — mylaca jest sama NAZWA polityki `telemetry_insert_anon`).
+// Migracja: supabase/telemetry.sql)
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface TelemetryInsert {

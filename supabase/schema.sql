@@ -145,10 +145,18 @@ CREATE TRIGGER trg_profiles_updated_at
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- ROW LEVEL SECURITY — Opcja A (write otwarty dla anon, lockdown w v0.48.0)
+-- ROW LEVEL SECURITY — HISTORYCZNA "Opcja A" (write otwarty dla anon)
 -- ══════════════════════════════════════════════════════════════════════════════
+--
+-- 🛑 NIE URUCHAMIAJ TEGO PLIKU NA PRODUKCJI. Polityki ponizej sa NIEAKTUALNE
+--    i ich odtworzenie COFNELOBY trzy wdrozone zabezpieczenia naraz:
+--      • `scores`      → `rls_lockdown_scores.sql` (anti-cheat L2a, v0.88.0)
+--      • `profiles`    → `rls_lockdown_profiles_progression.sql` (Z0.10b)
+--      • `progression` → jw. (polityki tej tabeli mieszkaja w `progression_sync.sql`)
+--    Ten plik sluzy juz TYLKO do postawienia bazy od zera; przy odtwarzaniu
+--    srodowiska uruchom go, a zaraz po nim OBA pliki lockdownu.
+--
 -- Automatic RLS jest wlaczone (event trigger), ale wlaczamy jawnie dla pewnosci.
--- Polityki pisane TO anon, authenticated — forward-compatible z anon auth.
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.scores   ENABLE ROW LEVEL SECURITY;

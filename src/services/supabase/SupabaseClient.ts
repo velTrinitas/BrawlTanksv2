@@ -18,6 +18,7 @@
  */
 
 import { createClient, type SupabaseClient as SbClient } from '@supabase/supabase-js';
+import { isCloudEnabled } from '../../config/cloud';
 
 // ── Konfiguracja z env (Vite injectuje import.meta.env.VITE_*) ────────────────
 
@@ -58,15 +59,69 @@ export function getSupabase(): SbClient {
         const env = readEnv();
         _client = createClient(env.url, env.publishableKey, {
             auth: {
-                // 9b: bez anon auth (decyzja Q2) — profil identyfikowany przez
-                // client-side UUID. Anon auth dojdzie w v0.48.0 przed external test.
-                persistSession: false,
-                autoRefreshToken: false,
+                // Z0.10b (2026-09-24): anon auth WLACZONE. Do v0.204.0 stalo tu
+                // `persistSession: false` i komentarz "anon auth dojdzie w v0.48.0" —
+                // przez co `auth.uid()` bylo NULL przy kazdym zadaniu, a RLS na
+                // `profiles`/`progression` nie mialo CZEGO sprawdzac. Sesja MUSI byc
+                // trwala: bez niej kazde odswiezenie strony dawaloby nowy uid, czyli
+                // gracz traciłby dostep do wlasnego profilu po przeladowaniu.
+                persistSession: true,
+                autoRefreshToken: true,
             },
         });
         console.log('[Supabase] Klient zainicjalizowany (singleton).');
     }
     return _client;
+}
+
+/**
+ * ANONIMOWA SESJA — tozsamosc urzadzenia dla RLS (Z0.10b).
+ *
+ * PO CO: `profiles.id` to UUID generowany po stronie klienta i PUBLICZNY — wyciek
+ * przez ranking, bo `leaderboard_top` zwraca `profile_id`. Dopoki `auth.uid()` bylo
+ * NULL, kazdy mogl odczytac cudze id z tablicy wynikow i nadpisac ten profil (RLS
+ * mial `USING (true)`). Anonimowa sesja daje serwerowi STABILNY identyfikator
+ * urzadzenia, ktorego klient nie moze podrobic — i dopiero on pozwala RLS odroznic
+ * wlasciciela wiersza od obcego.
+ *
+ * OFFLINE-FIRST: brak sesji NIE jest bledem krytycznym. localStorage pozostaje
+ * zrodlem prawdy (patrz ProgressionService), wiec gra dziala dalej — traci tylko
+ * synchronizacje z chmura. Dlatego zwracamy `null` zamiast rzucac.
+ *
+ * WYMAGANIE PO STRONIE PROJEKTU: w Supabase Dashboard musi byc wlaczony provider
+ * "Anonymous sign-ins" (Authentication → Providers). Bez tego `signInAnonymously()`
+ * zwraca blad i ta funkcja konsekwentnie oddaje `null`.
+ */
+let _uidPromise: Promise<string | null> | null = null;
+
+export function ensureAnonSession(): Promise<string | null> {
+    // Jedna proba na cykl zycia strony — inaczej rownolegle zapisy (profil + progresja
+    // przy koncu meczu) zrobilyby dwa logowania naraz i drugie nadpisaloby sesje.
+    if (_uidPromise) return _uidPromise;
+
+    _uidPromise = (async () => {
+        try {
+            // Chmura odcieta => zadnego logowania. Bez tego `?cloud=0` nadal wysylalby
+            // POST /auth/v1/signup i obietnica „zero zadan do supabase.co" bylaby falszywa.
+            if (!isCloudEnabled()) return null;
+            const sb = getSupabase();
+            const { data: existing } = await sb.auth.getSession();
+            if (existing.session?.user?.id) return existing.session.user.id;
+
+            const { data, error } = await sb.auth.signInAnonymously();
+            if (error) {
+                console.warn('[Supabase] Anonimowa sesja nieudana — sync do chmury wylaczony, '
+                    + 'gra dziala na localStorage. Sprawdz provider "Anonymous sign-ins".', error);
+                return null;
+            }
+            return data.user?.id ?? null;
+        } catch (e) {
+            console.warn('[Supabase] Anonimowa sesja rzucila wyjatkiem:', e);
+            return null;
+        }
+    })();
+
+    return _uidPromise;
 }
 
 /**

@@ -47,5 +47,9 @@ AS $$
     WHERE profile_id = p_profile_id;
 $$;
 
--- Anon klient wola RPC bezposrednio (jak leaderboard_top / leaderboard_my_rank).
-GRANT EXECUTE ON FUNCTION public.profile_lifetime_stats(uuid) TO anon;
+-- Klient wola RPC bezposrednio (jak leaderboard_top / leaderboard_my_rank).
+-- OBIE role sa konieczne: do v0.204.0 klient dzialal jako `anon`, ale po wlaczeniu
+-- anonimowej sesji (Z0.10b) dziala jako `authenticated`. Sam GRANT `TO anon` dzialal
+-- wtedy tylko PRZYPADKIEM — przez domyslne EXECUTE dla PUBLIC, ktorego nikt nie odebral.
+-- Pierwszy `REVOKE ... FROM PUBLIC` w projekcie zabralby statom profilu dostep.
+GRANT EXECUTE ON FUNCTION public.profile_lifetime_stats(uuid) TO anon, authenticated;

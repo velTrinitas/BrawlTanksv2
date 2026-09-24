@@ -32,7 +32,7 @@ export async function syncActiveProfileToCloud(): Promise<void> {
         if (e instanceof NicknameTakenError) {
             // Edge case: nick aktywnego profilu zajety w chmurze przez INNE id
             // (np. kolizja przy migracji wielu urzadzen). Log, nie crash —
-            // rozwiazanie pelne dojdzie z anon auth (v0.48.0).
+            // rozwiazanie pelne wymaga powiazania nicku z wlascicielem, nie z id.
             console.warn('[ProfileSync] Nick aktywnego profilu zajety w chmurze przez inne id:', e.nickname);
         } else {
             // Offline / blad sieci — profil zsynchronizuje sie przy nastepnym boocie.

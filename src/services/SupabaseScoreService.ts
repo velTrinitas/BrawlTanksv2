@@ -32,6 +32,7 @@ import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
 import type { DifficultyId, GameConfig } from '../types/GameConfig';
 import type { ScoreInsert, ScoreRow } from './supabase/types';
+import { isCloudEnabled } from '../config/cloud';
 import { getSupabase } from './supabase/SupabaseClient';
 import { obfuscate, deobfuscate } from './secureStore';
 import type {
@@ -154,6 +155,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
     }
 
     async flushQueue(): Promise<void> {
+        if (!isCloudEnabled()) return;   // kolejka zostaje na dysku — wroci, gdy chmura wroci
         const q = this.loadQueue();
         if (q.length === 0) return;
 
@@ -190,6 +192,11 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
     // ── IScoreService ────────────────────────────────────────────────────────────
 
     async submitScore(score: number, config: GameConfig, stats?: RunStats): Promise<ScoreEntry> {
+        // Chmura odcieta => NIE kolejkujemy. Kolejka offline istnieje po to, zeby przetrwac
+        // chwilowy brak sieci; przy trwale wylaczonym zapleczu rosla by w nieskonczonosc
+        // w localStorage i nigdy nie zostala oprozniona. Zwracamy wpis prowizoryczny,
+        // czyli dokladnie to, co sciezka bledu — ekran konca meczu dziala normalnie.
+        if (!isCloudEnabled()) return this.provisionalEntry(score, config);
         const insert: ScoreInsert = {
             profile_id: config.profileId,
             score,
@@ -240,21 +247,33 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
             } else {
                 console.warn('[ScoreService:Supabase] submit odrzucony (walidacja) — nie kolejkuje', e);
             }
-            return Object.freeze({
-                id: `pending_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-                profileId: config.profileId,
-                brawlerId: config.brawlerId,
-                score,
-                scenario: config.scenario,
-                map: config.map,
-                difficulty: config.difficulty,
-                timestamp: Date.now(),
-                sessionId: config.sessionId,
-            });
+            return this.provisionalEntry(score, config);
         }
     }
 
+    /**
+     * Wpis "jak gdyby zapisany" — zwracany, gdy wynik NIE trafil do chmury. Ekran konca
+     * meczu potrzebuje obiektu `ScoreEntry`, a nie wyjatku; gra ma isc dalej niezaleznie
+     * od stanu sieci. Uzywany w dwoch miejscach: przy bledzie submitu i przy odcietej
+     * chmurze (`isCloudEnabled() === false`) — stad wydzielenie, zeby nie rozjechaly sie
+     * dwie kopie tego samego ksztaltu.
+     */
+    private provisionalEntry(score: number, config: GameConfig): ScoreEntry {
+        return Object.freeze({
+            id: `pending_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+            profileId: config.profileId,
+            brawlerId: config.brawlerId,
+            score,
+            scenario: config.scenario,
+            map: config.map,
+            difficulty: config.difficulty,
+            timestamp: Date.now(),
+            sessionId: config.sessionId,
+        });
+    }
+
     async getTopScores(filter: ScoreFilter): Promise<ScoreEntry[]> {
+        if (!isCloudEnabled()) return [];
         try {
             const sb = getSupabase();
             let q = sb
@@ -281,6 +300,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
     }
 
     async getBestForProfile(profileId: string, scenario?: ScenarioId): Promise<ScoreEntry | null> {
+        if (!isCloudEnabled()) return null;
         const results = await this.getTopScores({ profileId, scenario, limit: 1 });
         return results[0] ?? null;
     }
@@ -288,6 +308,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
     // ── ILeaderboardService (RPC: dedupe best-per-player + join profiles + ranga) ──
 
     async getLeaderboard(board: BoardDefinition, query: LeaderboardQuery): Promise<LeaderboardEntry[]> {
+        if (!isCloudEnabled()) return [];   // ranking pusty => UI pokaze stan „brak wynikow"
         try {
             const sb = getSupabase();
             const { data, error } = await sb.rpc('leaderboard_top', {
@@ -321,6 +342,8 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
         board: BoardDefinition,
         query: Omit<LeaderboardQuery, 'limit'>,
     ): Promise<MyRank> {
+        // Ten sam ksztalt, ktory zwraca sciezka bledu — UI nie musi znac powodu.
+        if (!isCloudEnabled()) return Object.freeze({ rank: null, score: null, total: 0 });
         try {
             const sb = getSupabase();
             const { data, error } = await sb.rpc('leaderboard_my_rank', {

@@ -23,8 +23,10 @@ on safety, mobile readability, or type-safety.
 ## Stack
 
 TypeScript (strict) + Vite + PixiJS v7.4.3 + Howler.js. Supabase (eu-central-1
-Frankfurt, project `brawltanks-dev`) for profile sync + score submit (offline-first,
-anon auth, RLS read+insert). i18n in `src/i18n/` (type-safe `t('key')` with literal
+Frankfurt, project `brawltanks-dev`) for profile sync + score submit (offline-first;
+anonymous auth since v0.205.0 — before that there was NO auth at all and `auth.uid()`
+was NULL; row ownership via `owner_uid`). All cloud traffic sits behind `CLOUD_LIVE`
+(`src/config/cloud.ts`, rollback `?cloud=0`) — see `supabase/README.md`. i18n in `src/i18n/` (type-safe `t('key')` with literal
 keys, `en: typeof pl` enforcement). Capacitor wrap planned. ALL art is programmatic
 (PIXI.Graphics + Canvas 2D) — zero external assets (sole exception: `gem.png`
 endcard). Font: Titan One (single-weight; bold = faux-bold).
@@ -93,6 +95,7 @@ for a visual effect. Full detail: `.claude/rules/design-values.md`.
 @.claude/rules/architecture.md
 @.claude/rules/delivery-workflow.md
 @.claude/rules/multiplayer-ready.md
+@.claude/rules/backend-supabase.md
 
 ## On-demand workflows (slash commands — read when triggered)
 

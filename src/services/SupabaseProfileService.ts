@@ -15,13 +15,16 @@
  *   totalGamesPlayed-> session_count
  *   createdAt/lastPlayedAt -> local-only (DB created_at = server now())
  *
- * Bez anon auth w 9b (decyzja Q2). id = client-side UUID. Uniqueness nicku
- * przez DB UNIQUE constraint. v0.48.0 doda auth.uid() ownership.
+ * TOZSAMOSC (Z0.10b, 2026-09-24): `id` nadal jest client-side UUID i jest PUBLICZNY
+ * (ranking zwraca `profile_id`), wiec NIE moze pelnic roli sekretu. Wlascicielem wiersza
+ * jest `owner_uid` = uid anonimowej sesji Supabase, ktorego klient nie moze podrobic.
+ * Uniqueness nicku dalej przez DB UNIQUE constraint.
  */
 
 import type { Profile } from '../types/Profile';
 import type { ProfileInsert, ProfileRow } from './supabase/types';
-import { getSupabase } from './supabase/SupabaseClient';
+import { isCloudEnabled } from '../config/cloud';
+import { ensureAnonSession, getSupabase } from './supabase/SupabaseClient';
 
 /**
  * Rzucany gdy nick jest juz zajety w chmurze (DB UNIQUE violation, kod 23505).
@@ -45,6 +48,8 @@ export class SupabaseProfileService {
      * alfanumeryczne (isValidNickname: ^[a-zA-Z0-9]+$), wiec wildcardy nie wystapia.
      */
     async isNicknameAvailable(nickname: string, excludeProfileId?: string): Promise<boolean> {
+        // Chmura odcieta => nie ma z czym kolidowac; nick wolny (walidacja lokalna zostaje).
+        if (!isCloudEnabled()) return true;
         const sb = getSupabase();
         const { data, error } = await sb
             .from('profiles')
@@ -63,7 +68,22 @@ export class SupabaseProfileService {
      * Rzuca NicknameTakenError gdy nick zajety przez INNE id (DB 23505).
      */
     async upsertProfile(profile: Profile): Promise<void> {
+        if (!isCloudEnabled()) return;
         const sb = getSupabase();
+        // Z0.10b: bez uid RLS odrzuci zapis (`WITH CHECK (owner_uid = auth.uid())`).
+        // `ensureAnonSession()` jest idempotentne i cache'owane — kolejne wywolania
+        // oddaja ten sam uid bez dodatkowego logowania.
+        const uid = await ensureAnonSession();
+        // Brak sesji => NIE probujemy zapisu. Bez `owner_uid` RLS i tak by go odrzucil,
+        // a blad poleczialby w gore przez `pushProfileToCloud()` do UI, ktore wtedy NIE
+        // zapisuje profilu lokalnie — czyli awaria providera auth zablokowalaby
+        // zakladanie konta w ogole. Offline-first: localStorage jest zrodlem prawdy,
+        // chmura dogoni przy nastepnym boocie (`syncActiveProfileToCloud`).
+        if (!uid) {
+            console.warn('[Supabase] Profil NIE wyslany do chmury — brak anonimowej sesji. '
+                + 'Zapis lokalny dziala normalnie.');
+            return;
+        }
         const row: ProfileInsert = {
             id: profile.id,
             nickname: profile.nickname,
@@ -71,6 +91,7 @@ export class SupabaseProfileService {
             flag_id: profile.flagId,
             language: profile.language,
             session_count: profile.totalGamesPlayed,
+            owner_uid: uid,
         };
 
         const { error } = await sb.from('profiles').upsert(row, { onConflict: 'id' });
@@ -86,6 +107,7 @@ export class SupabaseProfileService {
      * Zwraca null gdy nie istnieje.
      */
     async fetchProfile(id: string): Promise<ProfileRow | null> {
+        if (!isCloudEnabled()) return null;
         const sb = getSupabase();
         const { data, error } = await sb
             .from('profiles')

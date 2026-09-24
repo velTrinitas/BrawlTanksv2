@@ -10,18 +10,33 @@
  */
 
 import type { LifetimeStatsRow, ProgressionInsert, ProgressionRow } from './supabase/types';
-import { getSupabase } from './supabase/SupabaseClient';
+import { isCloudEnabled } from '../config/cloud';
+import { ensureAnonSession, getSupabase } from './supabase/SupabaseClient';
 
 export class SupabaseProgressionService {
     /** UPSERT progresji (insert lub update po profile_id). */
     async upsert(row: ProgressionInsert): Promise<void> {
+        if (!isCloudEnabled()) return;
         const sb = getSupabase();
-        const { error } = await sb.from('progression').upsert(row, { onConflict: 'profile_id' });
+        // Z0.10b: patrz SupabaseProfileService.upsertProfile — bez `owner_uid` RLS
+        // odrzuci zapis. Ustawiamy je TUTAJ, a nie u wolajacego, zeby zaden przyszly
+        // punkt zapisu progresji nie mogl o nim zapomniec.
+        const uid = await ensureAnonSession();
+        // Jak w SupabaseProfileService: brak sesji => pomijamy zapis do chmury zamiast
+        // dobijac sie do RLS, ktory i tak odmowi. Progresja zyje w localStorage.
+        if (!uid) {
+            console.warn('[Supabase] Progresja NIE wyslana do chmury — brak anonimowej sesji.');
+            return;
+        }
+        const { error } = await sb
+            .from('progression')
+            .upsert({ ...row, owner_uid: uid }, { onConflict: 'profile_id' });
         if (error) throw error;
     }
 
     /** Pobierz progresje z chmury po profile_id (cross-device sync down). null = brak wiersza. */
     async fetch(profileId: string): Promise<ProgressionRow | null> {
+        if (!isCloudEnabled()) return null;
         const sb = getSupabase();
         const { data, error } = await sb
             .from('progression')
@@ -41,6 +56,7 @@ export class SupabaseProgressionService {
      * null = blad/offline.
      */
     async fetchWinsCount(profileId: string): Promise<number | null> {
+        if (!isCloudEnabled()) return null;
         const sb = getSupabase();
         const { count, error } = await sb
             .from('scores')
@@ -57,6 +73,7 @@ export class SupabaseProgressionService {
      * null = brak wierszy / RPC niedostepne. Idempotentny z natury (MAX-merge u klienta).
      */
     async fetchLifetimeStats(profileId: string): Promise<LifetimeStatsRow | null> {
+        if (!isCloudEnabled()) return null;
         const sb = getSupabase();
         const { data, error } = await sb.rpc('profile_lifetime_stats', { p_profile_id: profileId });
         if (error) throw error;

@@ -23,6 +23,7 @@
 
 import { getSupabase } from './supabase/SupabaseClient';
 import { isTelemetryEnabled } from '../config/telemetry';
+import { isCloudEnabled } from '../config/cloud';
 
 export interface TelemetryMatchMeta {
     map: string;
@@ -127,6 +128,10 @@ function gameVersion(): string {
  */
 export async function telemetrySubmitMatch(meta: TelemetryMatchMeta): Promise<void> {
     try {
+        // Dwie niezalezne bramki: `isCloudEnabled()` odcina CALY ruch do Supabase
+        // (scenariusz Poki), `isTelemetryEnabled()` wylacza sama telemetrie zostawiajac
+        // ranking. Nadrzedna jest chmura — stad kolejnosc.
+        if (!isCloudEnabled()) return;
         if (!isTelemetryEnabled()) return;
         if (samples.length < MIN_SAMPLES_TO_SEND) return;
 

@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Runy, w ktorych gracz uzyl slotu 🎲 (losowa moc Tier 3), maja inny sufit
 -- wyniku. Flaga = surowy podzial danych pod decyzje o splicie leaderboardu
--- (~2 tygodnie zbierania). ZERO zmian w RPC leaderboardu i score_version (=3).
+-- (~2 tygodnie zbierania). ZERO zmian w RPC leaderboardu i score_version (=4 od v0.154.0).
 --
 -- KOLEJNOSC DEPLOYU (krytyczna — patrz rls_lockdown_scores.sql):
 --   1. Uruchom TEN plik w Supabase SQL Editor (brawltanks-dev).

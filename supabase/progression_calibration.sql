@@ -5,7 +5,7 @@
 -- na PRAWDZIWYCH danych z produkcji, a nie zgadywac. Uruchom KAZDE zapytanie
 -- osobno w Supabase SQL Editor i wklej mi wyniki (screeny/CSV).
 --
--- Uwaga: filtr score_version = 2 (CURRENT_SCORE_VERSION). Tablica CTF/'ctf'
+-- Uwaga: filtr score_version = 4 (CURRENT_SCORE_VERSION). Tablica CTF/'ctf'
 -- jest PUSTA (submit CTF celowo pominiety) => kalibracja = realnie KTB.
 -- ============================================================================
 
@@ -22,9 +22,12 @@ SELECT
   count(*) FILTER (WHERE scenario = 'ctf')    AS ctf_rows,
   count(*) FILTER (WHERE scenario = 'castle') AS castle_rows
 FROM scores
-WHERE score_version = 2;
--- UWAGA v0.102.0 (PROG-F7b): CURRENT_SCORE_VERSION = 3 — filtry score_version=2 ponizej
--- obejmuja dane sprzed bumpu; nowe dane = 3 (przy re-kalibracji uzyj IN (2,3) albo =3).
+WHERE score_version = 4;
+-- UWAGA (KROK 2, 2026-09-24): filtry ustawione na CURRENT_SCORE_VERSION = 4.
+-- Wczesniej stalo tu 2 — czyli kazde zapytanie kalibracyjne puszczone po bumpie
+-- czytalo MARTWE dane i cicho zwracalo wyniki sprzed dwoch wersji formuly.
+-- Przy bumpie 4->5 w KROKU 3 podbic te filtry RAZEM z CURRENT_SCORE_VERSION;
+-- zeby objac dane sprzed bumpu, uzyj IN (4,5).
 
 
 -- ── Q2. ROZKLAD WYNIKOW per scenariusz x mapa (RDZEN KALIBRACJI) ─────────────
@@ -45,7 +48,7 @@ SELECT
   max(score)                                                        AS max,
   round(avg(score))                                                 AS avg
 FROM scores
-WHERE score_version = 2
+WHERE score_version = 4
 GROUP BY scenario, map
 ORDER BY scenario, n DESC;
 
@@ -59,7 +62,7 @@ SELECT
   round(percentile_cont(0.90) WITHIN GROUP (ORDER BY score))   AS p90,
   max(score)                                                   AS max
 FROM scores
-WHERE score_version = 2
+WHERE score_version = 4
 GROUP BY difficulty
 ORDER BY median;
 
@@ -70,7 +73,7 @@ ORDER BY median;
 WITH per_player AS (
   SELECT profile_id, count(*) AS matches
   FROM scores
-  WHERE score_version = 2
+  WHERE score_version = 4
   GROUP BY profile_id
 )
 SELECT
@@ -89,7 +92,7 @@ FROM per_player;
 WITH pb AS (
   SELECT profile_id, max(score) AS best
   FROM scores
-  WHERE score_version = 2
+  WHERE score_version = 4
   GROUP BY profile_id
 )
 SELECT
@@ -111,6 +114,6 @@ SELECT
   round(percentile_cont(0.50) WITHIN GROUP (ORDER BY score))   AS median_score,
   round(percentile_cont(0.90) WITHIN GROUP (ORDER BY score))   AS p90_score
 FROM scores
-WHERE score_version = 2
+WHERE score_version = 4
 GROUP BY brawler_id
 ORDER BY picks DESC;

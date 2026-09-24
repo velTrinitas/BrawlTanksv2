@@ -66,7 +66,11 @@ export const LEADERBOARD_BOARDS: readonly BoardDefinition[] = [
         mapChips: null,
         metric: 'score',
         sortDir: 'desc',
-        enabled: false, // locked (scenariusz jeszcze niegrywalny)
+        // KROK 2 (2026-09-24): odblokowane. Komentarz „scenariusz jeszcze niegrywalny"
+        // byl nieaktualny od v0.178.0 (`CASTLE_LIVE = true`) — grywalny byl, tylko jego
+        // wyniki nie mialy dokad trafic. `mapChips: null`, bo Zamek ma jedna mape
+        // (`castle_grounds`) — ten sam uklad co CTF.
+        enabled: true,
     },
     {
         id: 'save_queen',
@@ -75,7 +79,9 @@ export const LEADERBOARD_BOARDS: readonly BoardDefinition[] = [
         mapChips: null,
         metric: 'score',
         sortDir: 'desc',
-        enabled: false, // SAVE THE QUEEN Q1: locked do Q7 (whitelist Edge po 23.09)
+        // KROK 2 (2026-09-24): odblokowane — whitelist Edge zna juz `save_queen`/`dungeon`,
+        // czyli bramka „po 23.09" z Q1 jest domknieta.
+        enabled: true,
     },
 ] as const;
 

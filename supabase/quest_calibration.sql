@@ -16,9 +16,9 @@
 -- ============================================================================
 
 -- Q7.1 — rozklad metryk questowych na mecz (wszystkie scenariusze)
--- UWAGA v0.102.0: CURRENT_SCORE_VERSION zbity do 3 (PROG-F7b) — przy uruchamianiu
--- po 2026-08-07 zmien ponizsze filtry score_version = 2 na = 3 (albo IN (2,3)
--- jesli chcesz objac dane sprzed bumpu; staty per-run sa porownywalne miedzy wersjami).
+-- UWAGA (KROK 2, 2026-09-24): filtry ustawione na CURRENT_SCORE_VERSION = 4
+-- (wczesniej 2 — zapytania czytaly martwe dane). Przy bumpie 4->5 w KROKU 3 podbic
+-- razem; staty per-run sa porownywalne miedzy wersjami, wiec IN (4,5) jest bezpieczne.
 SELECT
     count(*)                                                              AS runs,
     percentile_cont(0.50) WITHIN GROUP (ORDER BY kills)          AS kills_p50,
@@ -36,7 +36,7 @@ SELECT
     percentile_cont(0.90) WITHIN GROUP (ORDER BY powers_used)    AS powers_p90,
     percentile_cont(0.90) WITHIN GROUP (ORDER BY cubes_collected) AS cubes_p90
 FROM public.scores
-WHERE score_version = 2;
+WHERE score_version = 4;
 
 -- Q7.2 — to samo per mapa (czy cele musza byc normalizowane per mapa jak trofea?)
 SELECT
@@ -47,7 +47,7 @@ SELECT
     percentile_cont(0.50) WITHIN GROUP (ORDER BY gems_collected) AS gems_p50,
     percentile_cont(0.90) WITHIN GROUP (ORDER BY game_seconds)   AS secs_p90
 FROM public.scores
-WHERE score_version = 2
+WHERE score_version = 4
 GROUP BY map
 ORDER BY runs DESC;
 
@@ -62,7 +62,7 @@ SELECT
 FROM (
     SELECT profile_id, date_trunc('day', created_at) AS d, count(*) AS runs_that_day
     FROM public.scores
-    WHERE score_version = 2 AND profile_id IS NOT NULL
+    WHERE score_version = 4 AND profile_id IS NOT NULL
     GROUP BY profile_id, d
 ) t;
 
@@ -72,4 +72,4 @@ SELECT
     count(*) FILTER (WHERE mega_boss_defeated)            AS victories,
     round(100.0 * count(*) FILTER (WHERE mega_boss_defeated) / nullif(count(*), 0), 1) AS victory_pct
 FROM public.scores
-WHERE score_version = 2;
+WHERE score_version = 4;

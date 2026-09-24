@@ -3681,11 +3681,18 @@ async function triggerGameOver(): Promise<void> {
     // Edge Function mial ctf/fortified_ruins na whitelscie, a mimo to swiecil pustka.
     if (currentSession) {
         try {
-            // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
-            // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
-            sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT || currentSession.config.scenario === 'castle' || currentSession.config.scenario === 'save_queen' });
-            if (!SIGMA_BOT && currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats()); // SigmaTester: bot nigdy nie wysyla wynikow
-            console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
+            // KROK 2 (2026-09-24): skip dla `castle` i `save_queen` ZDJETY — whitelist Edge
+            // Function zna juz oba scenariusze i obie ich mapy. Dane z okna testow pokazaly
+            // koszt tej blokady: 120 rozegranych meczow Zamku i Krolowej, ZERO zapisanych
+            // wynikow (49% calej rozgrywki). Zostaje wylacznie gate bota.
+            sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT });
+            if (!SIGMA_BOT) { // SigmaTester: bot nigdy nie wysyla wynikow
+                await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+                // Log MUSI byc w srodku `if` — wczesniej stal obok i meldowal "Submitted"
+                // takze wtedy, gdy nic nie poszlo. Przy diagnozie brakujacych wynikow
+                // Zamku konsola twierdzila, ze wynik zostal wyslany.
+                console.log(`[Score] Submitted (GameOver): ${currentSession.score} pts`);
+            }
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
         }
@@ -3781,11 +3788,13 @@ async function triggerVictory(): Promise<void> {
 
         // v0.136.0: submit dla WSZYSTKICH scenariuszy (patrz notka w triggerGameOver).
         try {
-            // OBRON ZAMEK F5: wynik zamku NIE idzie do Supabase do F7 (whitelist Edge Function po 23.09;
-            // dzis 4xx = drop, ale po co dobijac sie do zaplecza). Lokalnie liczy sie normalnie.
-            sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT || currentSession.config.scenario === 'castle' || currentSession.config.scenario === 'save_queen' });
-            if (!SIGMA_BOT && currentSession.config.scenario !== 'castle' && currentSession.config.scenario !== 'save_queen') await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats()); // SigmaTester: bot nigdy nie wysyla wynikow
-            console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
+            // KROK 2 (2026-09-24): skip dla `castle` i `save_queen` ZDJETY — patrz notka
+            // w triggerGameOver. Zwyciestwo Zamku/Krolowej tez trafia teraz do rankingu.
+            sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT });
+            if (!SIGMA_BOT) { // SigmaTester: bot nigdy nie wysyla wynikow
+                await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
+                console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
+            }
         } catch (e) {
             console.warn('[Score] Submit failed:', e);
         }

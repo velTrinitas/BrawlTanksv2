@@ -37,7 +37,6 @@
  *     juz aktywne z poprzedniego bullet killa, AOE kill tez dostaje mnoznik).
  *   - getScoreBreakdown() — uzywane przez end-screen do live rozbicia
  *     "Killy X · Combo +Y · Gemy Z · Hard ×1.2".
- *   - score_version BUMP DO 2 wymagany przy commitcie (TODO przed merge!).
  */
 
 import type { GameConfig } from '../types/GameConfig';

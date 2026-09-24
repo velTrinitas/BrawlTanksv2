@@ -61,6 +61,12 @@ AS $$
         WHERE s.score_version = p_score_version
           AND s.scenario      = p_scenario
           AND s.profile_id IS NOT NULL
+          -- Z0.7b: ranking jest SOLOWY. Filtr wpisany na sztywno, a NIE jako parametr
+          -- p_mode: nowy parametr zmienia sygnature funkcji, wiec GRANT EXECUTE na dole
+          -- tego pliku nie pokrylby nowego overloadu i ranking padlby na uprawnieniach.
+          -- Dzis wszystkie wiersze maja mode='solo' z DEFAULT-u, wiec filtr niczego nie
+          -- ucina — wchodzi ZANIM pojawi sie pierwszy wiersz koopa.
+          AND s.mode = 'solo'
           AND (p_map IS NULL OR s.map = p_map)
           AND s.score < 100000000                         -- sanity-clamp (TUNABLE)
           AND (
@@ -120,6 +126,12 @@ AS $$
         WHERE s.score_version = p_score_version
           AND s.scenario      = p_scenario
           AND s.profile_id IS NOT NULL
+          -- Z0.7b: ranking jest SOLOWY. Filtr wpisany na sztywno, a NIE jako parametr
+          -- p_mode: nowy parametr zmienia sygnature funkcji, wiec GRANT EXECUTE na dole
+          -- tego pliku nie pokrylby nowego overloadu i ranking padlby na uprawnieniach.
+          -- Dzis wszystkie wiersze maja mode='solo' z DEFAULT-u, wiec filtr niczego nie
+          -- ucina — wchodzi ZANIM pojawi sie pierwszy wiersz koopa.
+          AND s.mode = 'solo'
           AND (p_map IS NULL OR s.map = p_map)
           AND s.score < 100000000                         -- sanity-clamp (TUNABLE, jak wyzej)
           AND (
@@ -156,8 +168,12 @@ GRANT EXECUTE ON FUNCTION public.leaderboard_my_rank(UUID, TEXT, INTEGER, TEXT, 
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- WERYFIKACJA (uruchom po Run — powinny zwrocic wiersze bez bledu):
---   SELECT * FROM public.leaderboard_top('ktb', 2, NULL, 'all', 10);
---   SELECT * FROM public.leaderboard_top('ktb', 2, 'city', 'week', 10);
---   SELECT * FROM public.leaderboard_my_rank('<TWOJE-profile-uuid>', 'ktb', 2, NULL, 'all');
+-- WERYFIKACJA (uruchom po Run — powinny zwrocic wiersze bez bledu).
+-- DRUGI ARGUMENT TO score_version i MUSI byc rowny CURRENT_SCORE_VERSION
+-- (`src/services/SupabaseScoreService.ts:83`) — dzis 4. Przyklady stalo tu `2`, wiec
+-- „weryfikacja" zwracala PUSTO i wygladala jak zepsuty deploy, choc funkcja dzialala.
+--   SELECT * FROM public.leaderboard_top('ktb', 4, NULL, 'all', 10);
+--   SELECT * FROM public.leaderboard_top('castle', 4, NULL, 'all', 10);
+--   SELECT * FROM public.leaderboard_top('save_queen', 4, NULL, 'all', 10);
+--   SELECT * FROM public.leaderboard_my_rank('<TWOJE-profile-uuid>', 'ktb', 4, NULL, 'all');
 -- ══════════════════════════════════════════════════════════════════════════════

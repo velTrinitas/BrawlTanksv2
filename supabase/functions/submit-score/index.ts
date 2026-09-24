@@ -34,9 +34,28 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SCORE_CAP = 100_000_000;            // TUNABLE (spojne z sanity-clamp w leaderboard_rpc.sql)
 const RATE_LIMIT_PER_HOUR = 20;           // max submitow / godzine / profil
-const SCENARIOS = new Set(['ktb', 'ctf', 'castle', 'save_king']);
-const MAPS = new Set(['city', 'desert', 'tropics', 'arctic', 'fortified_ruins', 'mars']);
+// KROK 2 (2026-09-24): whitelist dopelniona o Zamek i Krolowa.
+//
+// POWOD — twarda liczba z analizy testow 01-23.09: gracze rozegrali 86 meczow
+// `save_queen` i 34 `castle` (49% calej rozgrywki), a do tabeli `scores` nie trafil
+// ANI JEDEN wynik. Telemetria leci z kazdego meczu, `scores` tylko z tych, ktore
+// przepuszcza ta lista — roznica miedzy tymi dwoma zbiorami to byl dokladnie ten blad.
+//
+// `save_king` USUNIETY: to placeholder z v0.93, ktory nigdy nie powstal i zostal
+// zastapiony przez `save_queen` (patrz `src/types/Scenario.ts:24`). Zaden klient go
+// nie wysyla, a jego obecnosc sugerowala, ze scenariusz Krolowej jest obslugiwany.
+const SCENARIOS = new Set(['ktb', 'ctf', 'castle', 'save_queen']);
+// `castle_grounds` i `dungeon` sa WYMUSZANE przez klienta dla tych scenariuszy
+// (`main.ts:1207` i `:1209-1210`), wiec bez nich Zamek odpadal na `bad_map` nawet
+// wtedy, gdy sam scenariusz byl juz na liscie powyzej.
+const MAPS = new Set([
+    'city', 'desert', 'tropics', 'arctic', 'fortified_ruins', 'mars',
+    'castle_grounds', 'dungeon',
+]);
 const DIFFICULTIES = new Set(['easy', 'normal', 'hard', 'nightmare']);
+// Z0.7b — slownik trybow, wzorem SCENARIOS. Do dzis pole `mode` bylo IGNOROWANE
+// (kolumna brala DEFAULT 'solo'), wiec klient koopa moglby wpisac cokolwiek.
+const MODES = new Set(['solo', 'coop']);
 
 const CORS = {
     'Access-Control-Allow-Origin': '*',
@@ -108,6 +127,21 @@ Deno.serve(async (req: Request) => {
     }
     const session_id = typeof body.session_id === 'string' ? body.session_id.slice(0, 100) : null;
 
+    // ── Z0.7b: mode + match_id ────────────────────────────────────────────────
+    // `mode` jest OPCJONALNE po stronie wejscia (stara kolejka offline i starszy klient
+    // go nie niosa) — brak pola => 'solo', zgodnie z DEFAULT kolumny. Ale jesli pole
+    // PRZYSZLO, musi byc ze slownika: cicha akceptacja smiecia zrobilaby z kolumny,
+    // po ktorej filtruje ranking, pole bez gwarancji.
+    const mode = body.mode === undefined || body.mode === null ? 'solo' : body.mode;
+    if (typeof mode !== 'string' || !MODES.has(mode)) return json({ error: 'bad_mode' }, 400);
+    // `match_id` wiaze wyniki jednego meczu koopa. Dzis klient go nie wysyla (pole jest
+    // NULL we wszystkich wierszach), ale walidacja wchodzi TERAZ, zeby ETAP 1 COOP
+    // zastal gotowa brame, a nie musial jej dokladac przy zmianie symulacji.
+    const match_id = body.match_id === undefined || body.match_id === null ? null : body.match_id;
+    if (match_id !== null && !isUuid(match_id)) return json({ error: 'bad_match_id' }, 400);
+    // Solo nie ma meczu do powiazania — `match_id` w trybie solo to zawsze pomylka klienta.
+    if (mode === 'solo' && match_id !== null) return json({ error: 'match_id_in_solo' }, 400);
+
     // ── Klient service-role (omija RLS) ────────────────────────────────────────
     const url = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -146,7 +180,7 @@ Deno.serve(async (req: Request) => {
     // ── Insert (created_at = server default) ───────────────────────────────────
     const { data, error } = await admin
         .from('scores')
-        .insert({ profile_id, score, scenario, map, difficulty, brawler_id, session_id, score_version, ...stats })
+        .insert({ profile_id, score, scenario, map, difficulty, brawler_id, session_id, score_version, mode, match_id, ...stats })
         .select()
         .single();
     if (error) return json({ error: 'insert_failed', detail: error.message }, 500);

@@ -47,7 +47,7 @@ zapisuje profilu lokalnie, czyli wyłączenie chmury zablokowałoby zakładanie 
 
 ## 6. `score_version` w zapytaniach musi zgadzać się z `CURRENT_SCORE_VERSION`
 
-Dziś **4** (`src/services/SupabaseScoreService.ts`). Drugi argument RPC rankingu i filtry
+Dziś **5** (od v0.212.0, flip `BALANCE_V2`; `src/services/SupabaseScoreService.ts`). Drugi argument RPC rankingu i filtry
 w plikach kalibracyjnych. Wpisanie starej wartości zwraca pustkę i wygląda jak zepsuty
 deploy, choć wszystko działa. Przy bumpie podbij RÓWNIEŻ `progression_calibration.sql`
 i `quest_calibration.sql`.

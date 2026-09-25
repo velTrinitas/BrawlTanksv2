@@ -14,8 +14,13 @@
  * pocisku, czyli desync nie do zdiagnozowania. Handshake ma ODMOWIC startu, nie "jakos to bedzie".
  */
 
-/** Kill switch kompilowany. Flip na `true` DOPIERO razem z bumpem score_version, po 23.09.2026. */
-export const BALANCE_V2 = false;
+/**
+ * Kill switch kompilowany. FLIP v0.212.0 (2026-09-26, FAZA 3 KROKU 3): roster V2 iteracja 3 na produkcji,
+ * RAZEM z bumpem CURRENT_SCORE_VERSION 4->5 (ranking startuje od zera — decyzja Mariusza 22.09).
+ * Rollback bez rebuildu: `?bal=0` (sam roster; ranking juz na 5 — cofniecie wersji wynikow = osobna decyzja).
+ * Podstawa: Strzelnica (3 macierze, range-2026-09-25-iter3.md, rozrzut 1.6x) + 16 kart Mariusza + KTB.
+ */
+export const BALANCE_V2 = true;
 
 /**
  * Ruleset aktywny w tej sesji. `?bal=0` wylacza mimo flagi, `?bal=1` wlacza przy wylaczonej —

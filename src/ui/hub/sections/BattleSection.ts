@@ -50,7 +50,8 @@ const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle', 'save_queen'
 
 // Normalizacja paskow = maksima rosteru (heavy 700hp / sniper 300dmg / scout 7.5 speed).
 // GARAZ-2: export — te same paski rysuje TankPickerOverlay i hero-row Garaza.
-export const STAT_MAX = { hp: 700, dmg: 300, speed: 7.5, tempo: 5, range: 1400 } as const;
+// v0.212.0 (flip BALANCE_V2): dmg 300 -> 400 (Snajper 400 przelewal pasek na 133%); tempo 5 zostaje (Zwiad 215 ms = 4.7).
+export const STAT_MAX = { hp: 700, dmg: 400, speed: 7.5, tempo: 5, range: 1400 } as const;
 
 /**
  * BALANCE_V2 (S5, v0.200.0) — TEMPO jako STRZALY NA SEKUNDE, nie reload w ms.

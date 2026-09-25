@@ -30,6 +30,8 @@ export const MAP_TROPHY_DIVISOR: Record<MapId, number> = {
     arctic: 5.3,
     fortified_ruins: 1.8,
     mars: 1.8, // FAZA MARS M2: provisional (jak tropics) — kalibrowac po pierwszych danych
+    // v0.212.0: NADAL prowizoryczne — ranking Zamku/Krolowej zbiera dane dopiero od v0.204.0 (24.09),
+    // a bump score_version 4->5 zaczyna zbiorke od zera. Kalibracja po ~2 tygodniach wynikow na v5.
     castle_grounds: 1.8, // OBRON ZAMEK F1: provisional — ranking Zamku wlaczany po 23.09
     dungeon: 1.8, // SAVE THE QUEEN Q1: provisional — ranking Krolowej wlaczany po 23.09 (Q7)
 };

@@ -17,7 +17,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith('--') ? [a.slice(2), arr[i + 1] && !arr[i + 1].startsWith('--') ? arr[i + 1] : 'true'] : []).filter(Boolean));
-const URL = (args.url ?? 'http://localhost:5175/BrawlTanksv2/').replace(/\/?$/, '/');
+// v0.212.0 FIX: slash doklejany TYLKO gdy URL nie ma query. Wczesniej `?bal=0` stawalo sie `bal=0/`
+// (!== '0' => domyslny ruleset), a `smooth=1/` cicho wylaczalo staly krok w KAZDEJ macierzy Strzelnicy.
+const URL = ((u) => u.includes('?') ? u : u.replace(/\/?$/, '/'))(args.url ?? 'http://localhost:5175/BrawlTanksv2/');
 const OUT_ROOT = args.out ?? 'reports';
 const HEADLESS = args.headed !== 'true';
 // L4 (v0.187.0): --killctx zabija kontekst WebGL w 15. sekundzie meczu i sprawdza, czy gra

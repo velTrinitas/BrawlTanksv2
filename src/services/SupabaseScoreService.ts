@@ -78,10 +78,14 @@ interface MyRankRow { rank: number | null; my_score: number | null; total: numbe
  *     - Perfect Run bonus (no-damage victory: +50/+75/+100/+125 POST diff mult)
  *     - Realne skalowanie trudnosci (HP/dmg/speed/spawn rate/boss thresholds)
  *
- * NASTEPNY BUMP: po anti-cheat fazie (Layer 1+2) zeby wymusic nowe walidacje
- * server-side, ALBO przy kolejnym duzym balance refactor.
+ * v5 (v0.212.0, 2026-09-26) — FLIP BALANCE_V2: roster V2 iteracja 3 (inne dmg/tempo/zasiegi, Snajper
+ *     przebicie 400->100, super z formuly reloadu, promien pocisku 8 dla wszystkich) zmienia sufit
+ *     wynikow, wiec tablice nie moga mieszac formul. Stare wiersze (v4) zostaja w bazie — filtr RPC
+ *     po score_version je ukrywa; da sie wrocic. Edge `submit-score` przyjmuje 1..1000, bez redeployu.
+ *
+ * NASTEPNY BUMP: przy kolejnym duzym balance refactor albo zmianie formuly wyniku.
  */
-export const CURRENT_SCORE_VERSION = 4;
+export const CURRENT_SCORE_VERSION = 5;
 
 const QUEUE_KEY = 'brawltanks.scores.queue.v1';
 

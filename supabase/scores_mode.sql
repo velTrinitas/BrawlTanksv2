@@ -1,7 +1,7 @@
 -- ============================================================================
 -- scores_mode.sql — Z0.7 (COOP ETAP 0, v0.154.0): wymiar `mode` + `match_id`
 -- w tabeli scores. Przygotowanie schematu ZANIM urosnie — zero zmian formuly
--- wyniku (CURRENT_SCORE_VERSION zostaje 4).
+-- wyniku (CURRENT_SCORE_VERSION zostalo 4; bump do 5 nastapil dopiero w v0.212.0 przy flipie BALANCE_V2).
 --
 -- URUCHOM w Supabase Dashboard > SQL Editor. Idempotentne.
 --

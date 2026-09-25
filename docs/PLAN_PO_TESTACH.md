@@ -94,8 +94,8 @@ Wszystko zweryfikowane w kodzie, plik:linia — nie z pamięci.
 
 | ☐ | # | Rzecz | Gdzie | Dlaczego czekało |
 |---|---|---|---|---|
-| ☐ | 1 | `BALANCE_V2` false → true | `src/config/balanceFlag.ts:18` | zmienia sufit wyników ⇒ wymaga bumpu score_version |
-| ☐ | 2 | `CURRENT_SCORE_VERSION` 4 → 5 | `src/services/SupabaseScoreService.ts:83` | stara paczka testerów uderzałaby w zmienioną formułę |
+| ✅ | 1 | `BALANCE_V2` false → true (v0.212.0) | `src/config/balanceFlag.ts:18` | zmienia sufit wyników ⇒ wymaga bumpu score_version |
+| ✅ | 2 | `CURRENT_SCORE_VERSION` 4 → 5 (v0.212.0) | `src/services/SupabaseScoreService.ts:83` | stara paczka testerów uderzałaby w zmienioną formułę |
 | ✅ | 3 | Edge whitelist scenariuszy/map | `supabase/functions/submit-score/index.ts:37-38` | `SCENARIOS` ma martwe `save_king`, brak `save_queen`; `MAPS` bez `castle_grounds` i `dungeon` |
 | ✅ | 4 | Klient nie wysyła wyniku Zamku/Królowej | `src/main.ts:3687`, `:3787` | czeka na pkt 3 |
 | ✅ | 5 | Zakładki rankingu Zamek/Królowa wyłączone | `src/services/leaderboard.ts:69,78` | czeka na pkt 3+4 |
@@ -157,14 +157,14 @@ z Dashboardu, zanim ruszy następny.
 
 ### KROK 3 — 25–29.09 · **BALANS + RANKING**
 
-- [ ] 1. **STRZELNICA** — narzędzie pomiarowe: stała fala wrogów, mierzony czas
+- [x] 1. **STRZELNICA** (v0.209.0–v0.210.0) — narzędzie pomiarowe: stała fala wrogów, mierzony czas
          wyczyszczenia, te same ziarna.
          *Powód:* pomiar bota daje **22–82 zabicia tym samym czołgiem** — jest za tępy
          do strojenia liczb. Bez strzelnicy kolejna iteracja balansu to znowu zgadywanie.
-- [ ] 2. Zmierzyć **realne dystanse walki** → przeliczyć wagi modelu → **dopiero potem**
+- [x] 2. (v0.211.0, 16 kart Mariusza: człowiek walczy na 200–400 px, mediana ~290) Zmierzyć **realne dystanse walki** → przeliczyć wagi modelu → **dopiero potem**
          wartości rosteru (kolejność ustalona przy v0.200.0).
-- [ ] 3. **Flip jednym commitem:** `BALANCE_V2 = true` + `CURRENT_SCORE_VERSION = 5`.
-- [ ] 4. Kalibracja mnożników `castle_grounds` / `dungeon` (`progression.ts:33-34`)
+- [x] 3. (v0.212.0) **Flip jednym commitem:** `BALANCE_V2 = true` + `CURRENT_SCORE_VERSION = 5`.
+- [ ] 4. (ODŁOŻONE — ranking Zamku/Królowej zbiera od 24.09, bump zaczyna od zera; wrócić po ~2 tyg. na v5) Kalibracja mnożników `castle_grounds` / `dungeon` (`progression.ts:33-34`)
          i wyniku Królowej (`queenTuning.ts:97`) — dziś prowizoryczne.
 - [ ] 5. Playtest A54 + `npm run sigma -- --matrix mobile --report`.
 
@@ -268,7 +268,7 @@ Wszystkie zweryfikowane w kodzie, nie „z pamięci":
 | `NICK_FILTER_LIVE` | ✅ true | `?nickfilter=0` |
 | `TELEMETRY_LIVE` | ✅ true | `?telemetry=0` |
 | **`CLOUD_LIVE`** (nowa, v0.205.0) | ✅ true | `?cloud=0` — główny wyłącznik ruchu do Supabase (Poki) |
-| **`BALANCE_V2`** | ❌ **false** | `?bal=1` — **flip w KROKU 3** |
+| **`BALANCE_V2`** | ✅ **true** (v0.212.0) | `?bal=0` — rollback rosteru bez rebuildu (ranking już na v5) |
 | `MP_LIVE` | ❌ false | `?mp=1` — bez implementacji |
 | `TURN360_TANKS` | `[]` (pusty) | — zaparkowane (kolizja ze skinami) |
 

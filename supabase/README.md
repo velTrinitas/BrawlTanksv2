@@ -64,7 +64,7 @@ produkcji. Odwrotna kolejność odcina graczy od zapisu.
 | `leaderboard_rpc.sql` | `leaderboard_top` + `leaderboard_my_rank` (dedupe best-per-player, okna all/week/day) |
 
 > Drugi argument RPC to `score_version` i **musi** równać się `CURRENT_SCORE_VERSION`
-> (`src/services/SupabaseScoreService.ts`) — dziś **4**. Wpisanie starej wartości zwraca
+> (`src/services/SupabaseScoreService.ts`) — dziś **5** (od v0.212.0, flip `BALANCE_V2`; wcześniej 4). Wpisanie starej wartości zwraca
 > pustkę i wygląda jak zepsuty deploy.
 
 ### Zabezpieczenia (uruchamiane OSTATNIE, każdy ma rollback w komentarzu)

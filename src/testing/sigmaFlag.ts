@@ -24,6 +24,8 @@ export type SigmaEvent =
     | { t: 'banner'; text: string }
     | { t: 'error'; msg: string; stack: string }
     | { t: 'mark'; tag: string }
+    /** v0.209.0 STRZELNICA: pelny raport stanowisk (RangeReport) po ostatnim stanowisku. */
+    | { t: 'range'; report: unknown }
     /** D5 (v0.197.x): strzal wroga — wylot (x,y), srodek czolgu (cx,cy), kat lotu (angle, srodek serii),
      *  WIDOCZNY kat lufy (barrel: w bake = kat skwantowany do klatki atlasu) i dlugosc lufy (muzzle). */
     | { t: 'shot'; id: number; kind: 'enemy' | 'boss' | 'mega' | 'pursuit'; role: string | null; x: number; y: number; cx: number; cy: number; angle: number; barrel: number; muzzle: number };

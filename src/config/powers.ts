@@ -814,6 +814,7 @@ export const ALLOWED_POWERS: Record<ScenarioId, readonly PowerId[] | null> = {
     ctf: null,
     castle: null,
     save_queen: null, // SAVE THE QUEEN Q1: pelna pula (Mur/Freeze/Widmo maja tam ciekawe interakcje)
+    range: null,      // STRZELNICA: czlowiek moze, bot w trybie 'range' mocy NIE uzywa (czysty DPS)
 };
 
 /**

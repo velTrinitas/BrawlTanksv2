@@ -1,4 +1,5 @@
 import type { SigmaSnapshot } from './SigmaTest';
+import { BRAWLERS } from '../config/brawlers'; // v0.209.0: zasieg czolgu w trybie 'range'
 
 /**
  * BotPolicy — heurystyczny gracz SigmaTestera (w przegladarce, nad snapshot + input API).
@@ -10,11 +11,13 @@ import type { SigmaSnapshot } from './SigmaTest';
  *  - wallhug: jedzie w jedna strone, po zablokowaniu skreca o 90 stopni (B1: przenikanie, B2: dziury).
  *  - idle:    stoi (K3 nuda / smierc "znikad", D1 wrogowie musza podjechac i strzelac).
  *  - fuzz:    losowy mash inputu + super co kilka klatek (L1 crash).
+ *  - range:   STRZELNICA (v0.209.0) — stoi w miejscu, celuje w najblizszego wroga, strzela gdy wrog
+ *             w ZASIEGU CZOLGU (maxDist), zero mocy i dasha: staly "gracz o stalej wprawie" do pomiaru DPS.
  * Decyzja co DECIDE_EVERY klatek; zero zaleznosci od PIXI. Deterministyczny przy tym samym seedzie
  * (wlasny LCG z seeda meczu — nie rusza worldRng gry). Bot gra PRZEWIDYWALNIE: jego wyniki = dolna granica trudnosci.
  */
 
-export type BotMode = 'play' | 'wallhug' | 'idle' | 'fuzz';
+export type BotMode = 'play' | 'wallhug' | 'idle' | 'fuzz' | 'range';
 
 export interface BotIO {
     snapshot(): SigmaSnapshot;
@@ -66,6 +69,7 @@ export class BotPolicy {
             case 'idle': this.io.release(); return;
             case 'wallhug': this.wallhug(); return;
             case 'fuzz': this.fuzz(s); return;
+            case 'range': this.range(s); return;
             default: this.play(s);
         }
     }
@@ -82,6 +86,22 @@ export class BotPolicy {
         const p = s.player!;
         this.io.aimWorld(p.x + (this.rnd() - 0.5) * 800, p.y + (this.rnd() - 0.5) * 800, this.rnd() < 0.7);
         if (this.rnd() < 0.25) this.io.super((Math.floor(this.rnd() * 3)) as 0 | 1 | 2);
+    }
+
+    /** STRZELNICA: bez ruchu, bez mocy, ogien tylko w zasiegu czolgu (Snajper 1300 vs Ogniarz 350 to ROZNE limity). */
+    private range(s: SigmaSnapshot): void {
+        const p = s.player!;
+        let target: Enemy | null = null; let td = Infinity;
+        for (const e of s.enemies) { if (!e.active) continue; const d = Math.hypot(e.x - p.x, e.y - p.y); if (d < td) { td = d; target = e; } }
+        const maxDist = BRAWLERS.find(b => b.id === s.config?.brawler)?.maxDist ?? 1000; // v1: globalny domyslny zasieg pocisku
+        // Cel poza zasiegiem -> PODJEDZ (tylko wtedy). Zmierzone: Ogniarz v2 (350 px) stojac w miejscu
+        // nigdy nie dosiegal tarcz na 450 px = 60 s timeout. Koszt krotkiego zasiegu = czas dojazdu,
+        // i to jest uczciwa miara, a nie timeout. W zasiegu bot STOI (czysty DPS).
+        const reach = maxDist - 40;
+        if (target && td > reach) this.io.move(this.toward(p, target.x, target.y));
+        else this.io.move(null);
+        if (target && td < maxDist) this.io.aimWorld(target.x, target.y, true);
+        else this.io.aimWorld(p.x + 100, p.y, false);
     }
 
     private play(s: SigmaSnapshot): void {

@@ -2,6 +2,7 @@ import { t, type TranslationKey } from '../../../i18n/i18n';
 import type { HubSection, HubSelection } from './HubSection';
 import { SCENARIO_CONFIGS, type ScenarioId } from '../../../types/Scenario';
 import { isQueenMode } from '../../../config/queenFlag'; // SAVE THE QUEEN Q1
+import { isRangeMode } from '../../../config/rangeFlag'; // STRZELNICA v0.209.0
 import { DIFFICULTY_CONFIGS, type DifficultyId } from '../../../types/GameConfig';
 import { MENU_MAP_CARDS, CTF_MAP_CARDS, type MapId, type MenuMapCard } from '../../../types/MapType';
 import { BRAWLERS } from '../../../config/brawlers';
@@ -41,8 +42,8 @@ export function tankName(b: Brawler): string {
 
 // HUB-1.7: save_king wyciety z widoku. SAVE THE QUEEN Q1: save_queen renderowany TYLKO za ?queen=1
 // (bez flagi hub bit-identyczny z v0.163.0); po flipie QUEEN_LIVE kafel wchodzi jako 4. (grid 3 kol -> 2 rzedy).
-const SCENARIO_ORDER: ScenarioId[] = isQueenMode() ? ['ktb', 'ctf', 'castle', 'save_queen'] : ['ktb', 'ctf', 'castle'];
-const SCENARIO_EMOJI: Record<string, string> = { ktb: '👑', ctf: '🚩', castle: '🏰', save_queen: '👸' };
+const SCENARIO_ORDER: ScenarioId[] = [...(isQueenMode() ? ['ktb', 'ctf', 'castle', 'save_queen'] : ['ktb', 'ctf', 'castle']) as ScenarioId[], ...(isRangeMode() ? ['range' as const] : [])]; // v0.209.0: STRZELNICA tylko za ?range=1
+const SCENARIO_EMOJI: Record<string, string> = { ktb: '👑', ctf: '🚩', castle: '🏰', save_queen: '👸', range: '🎯' };
 const AVAILABLE_MAPS = MENU_MAP_CARDS.filter(m => m.available);
 const DIFFICULTY_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare'];
 const SCEN_WITH_SVG: ScenarioPreviewId[] = ['ktb', 'ctf', 'castle', 'save_queen']; // v0.177.0: rodzina 4 ikon (brief AD)
@@ -139,6 +140,7 @@ export class BattleSection implements HubSection {
         // OBRON ZAMEK F1: castle ma mape zaszyta (fixedMapId) i ZERO kart do wyboru.
         if (this.selectedScenario === 'castle') return 'castle_grounds';
         if (this.selectedScenario === 'save_queen') return 'dungeon'; // SAVE THE QUEEN Q1: jedna mapa, bez kart
+        if (this.selectedScenario === 'range') return 'arctic'; // STRZELNICA v0.209.0: najplasza mapa, bez kart
         return this.selectedScenario === 'ctf' ? this.selectedCtfMap : this.selectedMap;
     }
 
@@ -302,6 +304,8 @@ export class BattleSection implements HubSection {
             summaryParts.push(t('map.castleGrounds.name')); // OBRON ZAMEK F1: jedna mapa, bez kart
         } else if (this.selectedScenario === 'save_queen') {
             summaryParts.push(t('map.dungeon.name')); // SAVE THE QUEEN Q1: jedna mapa, bez kart
+        } else if (this.selectedScenario === 'range') {
+            summaryParts.push(t('map.arctic.name')); // STRZELNICA
         }
         summaryParts.push(t(DIFFICULTY_CONFIGS[this.selectedDifficulty].labelKey));
         const summary = summaryParts.join(' · ');

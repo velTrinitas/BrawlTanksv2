@@ -48,7 +48,9 @@ export interface SigmaBridge {
     get buildings(): ICollidable[];
     get solidBuildings(): ICollidable[];
     get camera(): { x: number; y: number };
-    get session(): { score: number; config: GameConfig; getElapsedSeconds(): number } | null;
+    get session(): { score: number; config: GameConfig; getElapsedSeconds(): number; shotsFired: number; shotsHit: number; damageDealt: number; damageTaken: number } | null;
+    /** v0.209.0 STRZELNICA: raport stanowisk (null poza scenariuszem range) */
+    get rangeReport(): unknown;
     get seed(): number;
     get scenarioInfo(): unknown; // queen/castle/ctf HUD info (per scenariusz)
     get perfCounts(): { particles: number; floatingTexts: number; trackMarks: number; poolParticles: number };
@@ -94,6 +96,10 @@ export interface SigmaSnapshot {
     buildings: Array<{ x: number; y: number; w: number; h: number }>;
     solids: Array<{ x: number; y: number; w: number; h: number }>;
     score: number; elapsedSec: number;
+    /** v0.209.0: liczniki GameSession (celnosc, obrazenia) — bez zaleznosci od ringu zdarzen */
+    stats: { shotsFired: number; shotsHit: number; damageDealt: number; damageTaken: number } | null;
+    /** v0.209.0: RangeReport (Strzelnica) albo null */
+    range: unknown;
     scenario: unknown;
     perf: { particles: number; heapMB: number };
 }
@@ -157,6 +163,8 @@ export function installSigmaTest(bridge: SigmaBridge): void {
             buildings: bridge.buildings.filter(b => b.w > 0 && b.h > 0).map(rect),
             solids: bridge.solidBuildings.filter(b => b.w > 0 && b.h > 0).map(rect),
             score: s?.score ?? 0, elapsedSec: s?.getElapsedSeconds() ?? 0,
+            stats: s ? { shotsFired: s.shotsFired, shotsHit: s.shotsHit, damageDealt: s.damageDealt, damageTaken: s.damageTaken } : null,
+            range: bridge.rangeReport,
             scenario: bridge.scenarioInfo,
             perf: { particles: bridge.perfCounts.particles, heapMB: Math.round(mem) },
         };
@@ -180,7 +188,7 @@ export function installSigmaTest(bridge: SigmaBridge): void {
             // Swiezy profil Playwrighta = pusty localStorage = szkolenie Zamku/Krolowej ON (zero fal przez caly mecz).
             // Domyslnie bot gra WLASCIWY mecz; { tutorial: true } zostawia szkolenie (osobny test K/UX).
             if (!o.tutorial) { try { localStorage.setItem('bt2:castle_tut_done', '1'); localStorage.setItem('bt2:queen_tut_done', '1'); } catch { /* prywatny tryb */ } }
-            const map: MapId = o.map ?? (scenario === 'ctf' ? 'fortified_ruins' : scenario === 'castle' ? 'castle_grounds' : scenario === 'save_queen' ? 'dungeon' : 'desert');
+            const map: MapId = o.map ?? (scenario === 'ctf' ? 'fortified_ruins' : scenario === 'castle' ? 'castle_grounds' : scenario === 'save_queen' ? 'dungeon' : scenario === 'range' ? 'arctic' : 'desert');
             const cfg = new GameConfigBuilder().setScenario(scenario).setMap(map).setBrawlerId(o.brawler ?? 'twardy').setDifficulty(o.difficulty ?? 'normal').setProfileId('sigma-bot').build();
             bridge.hideMenu();
             events.length = 0; sigmaFrame.n = 0;

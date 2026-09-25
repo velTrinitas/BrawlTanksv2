@@ -27,6 +27,8 @@ export interface SpawnResult {
 export interface CastleSpawnMode { castleMode: true }
 /** SAVE THE QUEEN Q3: spawn z lane'ow = QueenDirector; SpawnSystem daje tylko serca/magnesy (jak Zamek). */
 export interface QueenSpawnMode { queenMode: true }
+/** STRZELNICA v0.209.0: stanowiska spawnuje RangeDirector; SpawnSystem NIC nie spawnuje (pickupsSuppressed na stale). */
+export interface RangeSpawnMode { rangeMode: true }
 
 export interface CtfSpawnMode {
     roamerCap: number;
@@ -89,9 +91,10 @@ export class SpawnSystem {
     /** OBRON ZAMEK F3: faza budowy — bez serc/magnesow (main ustawia per klatke). */
     public pickupsSuppressed: boolean = false;
 
-    constructor(modifiers: DifficultyModifiers, mode: CtfSpawnMode | CastleSpawnMode | QueenSpawnMode | null = null) {
+    constructor(modifiers: DifficultyModifiers, mode: CtfSpawnMode | CastleSpawnMode | QueenSpawnMode | RangeSpawnMode | null = null) {
         const ctfMode = mode && 'roamerCap' in mode ? mode : null;
-        this.castleMode = !!(mode && ('castleMode' in mode || 'queenMode' in mode)); // Q3: Krolowa dzieli galaz Zamku
+        this.castleMode = !!(mode && ('castleMode' in mode || 'queenMode' in mode || 'rangeMode' in mode)); // Q3: Krolowa dzieli galaz Zamku; v0.209.0: Strzelnica tez (zero ambientu)
+        if (mode && 'rangeMode' in mode) this.pickupsSuppressed = true; // Strzelnica: zero serc/magnesow — czysty pomiar
         this.modifiers = modifiers;
         this.ctfMode = ctfMode;
     }
@@ -297,8 +300,12 @@ export class SpawnSystem {
         return this.findSafeSpawnPos(playerX, playerY, buildings, 150, extraBlocked);
     }
 
+    /** v0.209.0 — hak dla RangeDirector (dystans zabicia). JEDEN punkt dla wszystkich sciezek zabicia. */
+    public onKill: ((enemy: Enemy) => void) | null = null;
+
     registerKill(enemy: Enemy): void {
         this.totalKills++;
+        this.onKill?.(enemy);
         sigmaEmit({ t: 'kill', id: enemy.sigmaId, kind: enemy.isMegaBoss ? 'mega' : enemy.isBoss ? 'boss' : 'enemy', x: enemy.x, y: enemy.y, src: enemy.lastDamageSource?.kind ?? 'unknown' });
         if (enemy.isMegaBoss) {
             this.megaBossKilled = true;

@@ -758,6 +758,9 @@ export const pl = {
     'scenario.save_queen.name': 'Uratuj Królową',
     'scenario.save_queen.desc': 'Przebij mur celi w 3:00 — jedno życie',
     'scenario.save_queen.cta': 'Ratuj Królową! 👸',
+    // STRZELNICA (v0.209.0) — poligon pomiarowy balansu, dev-only (?range=1)
+    'scenario.range.name': 'Strzelnica',
+    'scenario.range.desc': 'Poligon pomiarowy (dev) — 3 stanowiska, stałe cele',
 
     // ============================================================
     // Maps — display names + taglines

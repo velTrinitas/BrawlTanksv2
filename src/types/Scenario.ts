@@ -20,8 +20,9 @@ import type { MapId } from './MapType';
 import type { TranslationKey } from '../i18n/i18n';
 import { isCastleMode } from '../config/castleFlag'; // OBRON ZAMEK F1
 import { isQueenMode } from '../config/queenFlag'; // SAVE THE QUEEN Q1
+import { isRangeMode } from '../config/rangeFlag'; // STRZELNICA v0.209.0 (dev-only)
 
-export type ScenarioId = 'ktb' | 'ctf' | 'castle' | 'save_queen'; // Q1: save_king (placeholder v0.93, nigdy niezbudowany) -> save_queen
+export type ScenarioId = 'ktb' | 'ctf' | 'castle' | 'save_queen' | 'range'; // range = STRZELNICA (poligon pomiarowy, dev) // Q1: save_king (placeholder v0.93, nigdy niezbudowany) -> save_queen
 
 export interface ScenarioConfig {
     id: ScenarioId;
@@ -92,6 +93,18 @@ export const SCENARIO_CONFIGS: Record<ScenarioId, ScenarioConfig> = {
         available: isQueenMode(),
         comingSoonKey: 'common.locked',
         fixedMapId: 'dungeon',
+    },
+    range: {
+        id: 'range',
+        nameKey: 'scenario.range.name',
+        descKey: 'scenario.range.desc',
+        emoji: '🎯',
+        color: '#7f8c8d',
+        // STRZELNICA (v0.209.0): narzedzie pomiarowe balansu, NIE tryb dla graczy. Dostepne
+        // WYLACZNIE za ?range=1 (RANGE_LIVE = false na stale); bez flagi kafel nierenderowany.
+        available: isRangeMode(),
+        comingSoonKey: 'common.locked',
+        fixedMapId: 'arctic',
     },
 };
 

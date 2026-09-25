@@ -424,6 +424,10 @@ export class GameSession {
     public shotsFired: number = 0;
     /** Ile pociskow gracza faktycznie zadalo obrazenia (celnosc = hit/fired). */
     public shotsHit: number = 0;
+    /** v0.209.0 (STRZELNICA) — obrazenia ZADANE pociskami gracza (hpBefore - hp, nie b.dmg: tarcza megabossa absorbuje). */
+    public damageDealt: number = 0;
+    /** v0.209.0 — obrazenia OTRZYMANE (pociski wrogow + tarany), po niesmiertelnosci. */
+    public damageTaken: number = 0;
     /** Ile razy odpalono SUPER STRZAL (ladunek z gemow) — inne niz superPowersUsed. */
     public superShotsFired: number = 0;
 

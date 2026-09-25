@@ -27,7 +27,7 @@ const day = new Date().toISOString().slice(0, 10);
 const outDir = path.join(OUT_ROOT, day);
 fs.mkdirSync(outDir, { recursive: true });
 
-const DEFAULT_MAP = { ktb: 'desert', ctf: 'fortified_ruins', castle: 'castle_grounds', save_queen: 'dungeon' };
+const DEFAULT_MAP = { ktb: 'desert', ctf: 'fortified_ruins', castle: 'castle_grounds', save_queen: 'dungeon', range: 'arctic' }; // range = STRZELNICA v0.209.0
 
 function buildMatrix() {
     if (args.scenario || args.seed || args.mode) {
@@ -166,6 +166,9 @@ async function runOne(browser, r, idx) {
             powersUsed: snaps[snaps.length - 1]?.powersUsed ?? 0,
             maxWave: snaps.reduce((m, s) => Math.max(m, s.scenario?.wave ?? 0), 0) || null,
             eventsSummary: Object.fromEntries(Object.entries(events.reduce((a, e) => (a[e.t] = (a[e.t] || 0) + 1, a), {}))),
+            // v0.209.0 STRZELNICA: raport stanowisk + liczniki celnosci/obrazen z ostatniego snapshotu
+            range: snaps[snaps.length - 1]?.range ?? null,
+            stats: snaps[snaps.length - 1]?.stats ?? null,
         };
         fs.writeFileSync(path.join(outDir, runId + '.json'), JSON.stringify(report, null, 1));
         return report;

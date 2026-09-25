@@ -194,7 +194,10 @@ import { AudioSys } from './audio/AudioSys';
 
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
-import { SIGMA_BOT, sigmaEmit } from './testing/sigmaFlag'; // SigmaTester: ?bot=1 (warstwa testowa laduje sie dynamicznie na koncu bootu)
+import { SIGMA_BOT, sigmaEmit } from './testing/sigmaFlag';
+import { isRangeMode } from './config/rangeFlag';                       // STRZELNICA v0.209.0
+import { RangeDirector, type RangeReport } from './systems/range/RangeDirector'; // STRZELNICA v0.209.0
+import { RANGE_TUNING } from './systems/range/rangeTuning';             // STRZELNICA v0.209.0 // SigmaTester: ?bot=1 (warstwa testowa laduje sie dynamicznie na koncu bootu)
 import { worldRng, seedMatchRng } from './systems/Rng';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB } from './types/DamageSource'; // Z0.5
@@ -486,6 +489,7 @@ let dungeonGround: PIXI.Sprite | null = null;
 let queenSystem: QueenSystem | null = null;
 /** SAVE THE QUEEN Q3 — dyrektor spawnu (fazy z zegara, telegraf lane'u, boss z killi). */
 let queenDirector: QueenDirector | null = null;
+let rangeDirector: RangeDirector | null = null; // STRZELNICA v0.209.0 (tylko scenario 'range')
 /** Q6: po zakonczeniu/pominieciu szkolenia Krolowej mecz startuje OD NOWA bez szkolenia (takze przy ?queentut=1). */
 let queenTutSuppressOnce = false;
 
@@ -1173,6 +1177,11 @@ menu.onGameRequested = (config: GameConfig) => {
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
         return;
     }
+    if (config.scenario === 'range' && !isRangeMode()) { // STRZELNICA: dev-only (?range=1)
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Game start blocked - range is a dev tool:', config.scenario);
+        return;
+    }
     menu.hide();
     if (!isTutorialCoreDone()) {
         // FAZA A: pierwsze uruchomienie => tutorial nad sandboxem (spawn off) TYM czolgiem,
@@ -1203,6 +1212,11 @@ menu.onContinueRequested = (lastSession: LastSession) => {
     if (lastSession.scenario === 'save_queen' && !isQueenMode()) { // SAVE THE QUEEN Q1
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Continue blocked - scenario not yet implemented:', lastSession.scenario);
+        return;
+    }
+    if (lastSession.scenario === 'range' && !isRangeMode()) { // STRZELNICA: dev-only
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Continue blocked - range is a dev tool:', lastSession.scenario);
         return;
     }
     if (lastSession.scenario === 'save_queen' && lastSession.map !== 'dungeon') lastSession.map = 'dungeon'; // SAVE THE QUEEN Q1: stale sesje sprzed odblokowania
@@ -2340,11 +2354,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         penguinColonies.push(new PenguinColony(worldContainer, ARCTIC_PENGUIN_PATH_2, 5)); // 2. ekipa (ring przerebla SW)
 
         // ARC-R3: cykliczna sniezyca (particles-only — klimat, nie kara)
-        blizzard = new Blizzard(worldContainer, () => {
-            hud.addNotif(t('hud.blizzard'), '#bfe6f5');
-        });
-        // debug: recznie wyzwol zadymke z konsoli F12 -> snieg()
-        (window as any).snieg = () => blizzard?.forceStart();
+        // STRZELNICA (v0.209.0): bez sniezycy — czlowiek mierzy celnosc, nie widocznosc.
+        if (config.scenario !== 'range') {
+            blizzard = new Blizzard(worldContainer, () => {
+                hud.addNotif(t('hud.blizzard'), '#bfe6f5');
+            });
+            // debug: recznie wyzwol zadymke z konsoli F12 -> snieg()
+            (window as any).snieg = () => blizzard?.forceStart();
+        }
 
         // FAZA A: generic pady (themed Arctic pady w pozniejszej fazie, jak Tropics T1).
         mediPads = ARCTIC_MEDI_PAD_POSITIONS.map(p => new HoverRepairPad(p.x, p.y, worldContainer));
@@ -2643,6 +2660,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         config.scenario === 'ctf' ? { roamerCap: 10 }
             : config.scenario === 'castle' ? { castleMode: true } // OBRON ZAMEK F3: fale = WaveDirector
             : config.scenario === 'save_queen' ? { queenMode: true } // SAVE THE QUEEN Q3: lane'y = QueenDirector
+            : config.scenario === 'range' ? { rangeMode: true } // STRZELNICA v0.209.0: stanowiska = RangeDirector, zero ambientu
             : null,
     );
     // PROG-F7a/b: loadout z GARAZU, rozwiazany pod scenariusz + WLASNOSC (filtr po owned
@@ -2777,7 +2795,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // ARC-R1: niszczalne kostki lodu (wzorzec crates — konstrukcja PO effects/audio).
     // solidBuildings => pociski niszcza (duck-typing takeDamage w Bullet); padded box =>
     // kolizja gracza. onShatter: ~28% szansy na gem (decyzja Mariusza 2026-08-01).
-    if (config.map === 'arctic') {
+    // STRZELNICA (v0.209.0): bez kostek — najblizsza lezy 264 px od centrum, w S1 (tarcze 200-450 px).
+    if (config.map === 'arctic' && config.scenario !== 'range') {
         for (const ic of ARCTIC_ICE_CUBES_LAYOUT) {
             const cube = new IceCube(ic.x, ic.y, ic.seed, worldContainer, effects, audio,
                 (cx, cy) => { if (worldRng.chance(0.28)) spawnGem(cx, cy); }); // Z0.1: seeded
@@ -2863,9 +2882,30 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // SAVE THE QUEEN Q1: start przy wrotach S (1 zycie — brak respawnu, celowo).
         localPlayer.x = DUNGEON_PLAYER_SPAWN.x;
         localPlayer.y = DUNGEON_PLAYER_SPAWN.y;
+    } else if (config.scenario === 'range') {
+        // STRZELNICA v0.209.0: centrum strefy CENTER_CLEAR arctic — stanowiska liczone od tego punktu.
+        localPlayer.x = RANGE_TUNING.center.x;
+        localPlayer.y = RANGE_TUNING.center.y;
     }
 
     enemies = [];
+    // STRZELNICA v0.209.0 — rezyser stanowisk. MUSI powstac PO `enemies = []` (trzyma referencje
+    // do tej tablicy, jak QueenDirector). Liczniki obrazen/celnosci z GameSession, dystanse zabic
+    // przez spawnSystem.onKill (jeden hak dla pocisku / tarana / AoE).
+    rangeDirector = config.scenario === 'range' ? new RangeDirector({
+        worldContainer,
+        enemies,
+        difficulty: getDifficultyModifiers(config.difficulty),
+        onSpawn: (enemy) => { attachEnemyCubeStolenCallback(enemy); if (powerSystem?.isFreezeActive) enemy.freeze(powerSystem.freezeUntil); },
+        stats: () => currentSession
+            ? { shotsFired: currentSession.shotsFired, shotsHit: currentSession.shotsHit, damageDealt: currentSession.damageDealt, damageTaken: currentSession.damageTaken }
+            : { shotsFired: 0, shotsHit: 0, damageDealt: 0, damageTaken: 0 },
+        healPlayer: () => { if (localPlayer) localPlayer.hp = localPlayer.maxHp; },
+        playerHpFrac: () => localPlayer ? localPlayer.hp / Math.max(1, localPlayer.maxHp) : 1,
+        playerPos: () => ({ x: localPlayer?.x ?? RANGE_TUNING.center.x, y: localPlayer?.y ?? RANGE_TUNING.center.y }),
+        cull: (enemy) => { applyHazardDamageToEnemy(enemy, 1e9, SRC_POWER); },
+    }) : null;
+    spawnSystem.onKill = rangeDirector ? (enemy) => { if (localPlayer) rangeDirector?.onKill(enemy, localPlayer.x, localPlayer.y); } : null;
     bullets = [];
     bulletPool = []; // POOLING: pula pociskow gracza (stare sprite'y znika removeChildren)
     enemyBullets = [];
@@ -3114,7 +3154,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
     // FAZA C: karta celu przy 1. wejsciu w tryb (raz na urzadzenie). Nie w tutorialu — po handoff w onDone.
     if (!tutorialMode && !SIGMA_BOT && !queenSystem?.inTutorial && (config.scenario === 'ktb' || config.scenario === 'ctf' || config.scenario === 'castle' || config.scenario === 'save_queen')) { // OBRON ZAMEK F5, SAVE THE QUEEN Q1; SigmaTester: bez karty celu
-        showModeGoal(config.scenario, touchManager.isActive);
+        showModeGoal(config.scenario, touchManager.isActive); // STRZELNICA: warunek wyzej juz wyklucza range
     }
     // SAVE THE QUEEN Q6: szkolenie scenariusza (UI KTB) nad sandboxem; po nim restart meczu od zera.
     queenTutSuppressOnce = false;
@@ -3278,6 +3318,8 @@ interface EndScreenData {
     questsDone?: number;
     /** v0.114.0 — ile razy uzyto kostki 🎲 (chip "Szalone Moce"; run poza glowna formula). */
     diceUsed?: number;
+    /** v0.209.0 STRZELNICA — raport stanowisk (undefined poza scenariuszem range). */
+    rangeReport?: RangeReport;
     /** SEASON KIT — punkty znajdziek sezonowych z tego meczu (chip, bez nowego kafelka:
      *  siatka statow ma 8 kafli = rowne 2 rzedy, dziewiaty podnioslby endcard). */
     seasonPickups?: number;
@@ -3307,7 +3349,18 @@ function tankHeroPng(brawler: Brawler): string {
  * Titan One w NATURALNEJ wadze (zero faux-bold); male labele = system-ui (prawdziwa waga 600/700).
  * Wszystkie stringi przez t() — PL->PL, EN->EN.
  */
+/** STRZELNICA v0.209.0 — panel raportu na endcardzie (dev-only, EN, bez i18n: to narzedzie, nie ekran gracza). */
+function rangeReportHtml(r: RangeReport | undefined): string {
+    if (!r) return '';
+    const rows = r.stations.map(s => `<tr><td style="padding:0 6px">${s.id}${s.timedOut ? ' (T)' : ''}</td><td style="padding:0 6px">${s.seconds}s</td><td style="padding:0 6px">${s.accuracy ?? '-'}%</td><td style="padding:0 6px">${s.dps}</td><td style="padding:0 6px">${s.dmgTaken}</td><td style="padding:0 6px">${s.rescues}</td><td style="padding:0 6px">${s.kills}</td><td style="padding:0 6px">${s.killDistances.length ? Math.round(s.killDistances.reduce((a, b) => a + b, 0) / s.killDistances.length) : '-'}</td></tr>`).join('');
+    return `<div style="position:fixed;left:8px;bottom:8px;z-index:9999;background:rgba(10,16,22,.92);color:#eef5fa;font:12px/1.35 monospace;padding:8px 10px;border:1px solid rgba(241,196,15,.5);border-radius:8px;pointer-events:none">
+        <b style="color:#f1c40f">RANGE ${r.layout}${r.done ? '' : ' (partial)'} · total ${Math.round(r.totalSteps / 60)}s</b>
+        <table style="border-collapse:collapse;margin-top:4px"><tr style="color:#8ba3b6"><th align="left" style="padding:0 6px">station</th><th style="padding:0 6px">time</th><th style="padding:0 6px">acc</th><th style="padding:0 6px">dps</th><th style="padding:0 6px">taken</th><th style="padding:0 6px">resc</th><th style="padding:0 6px">kills</th><th style="padding:0 6px">avg dist</th></tr>${rows}</table></div>`;
+}
 function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: string): string {
+    return renderEndScreenBase(kind, d, btnId) + rangeReportHtml(d.rangeReport);
+}
+function renderEndScreenBase(kind: 'defeat' | 'victory', d: EndScreenData, btnId: string): string {
     const isVictory = kind === 'victory';
     const accent = isVictory ? '#f1c40f' : '#e74c3c';
     const subBg = isVictory ? '#27ae60' : '#c0392b';
@@ -3712,7 +3765,7 @@ async function triggerGameOver(): Promise<void> {
             // koszt tej blokady: 120 rozegranych meczow Zamku i Krolowej, ZERO zapisanych
             // wynikow (49% calej rozgrywki). Zostaje wylacznie gate bota.
             sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT });
-            if (!SIGMA_BOT) { // SigmaTester: bot nigdy nie wysyla wynikow
+            if (!SIGMA_BOT && currentSession.config.scenario !== 'range') { // SigmaTester: bot nigdy nie wysyla wynikow; STRZELNICA: poligon dev tez nie
                 await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
                 // Log MUSI byc w srodku `if` — wczesniej stal obok i meldowal "Submitted"
                 // takze wtedy, gdy nic nie poszlo. Przy diagnozie brakujacych wynikow
@@ -3730,7 +3783,7 @@ async function triggerGameOver(): Promise<void> {
     let runProg: RunProgressionResult | null = null;
     if (currentSession) {
         try {
-            runProg = ProgressionService.recordRun(
+            if (currentSession.config.scenario !== 'range') runProg = ProgressionService.recordRun( // STRZELNICA: bez progresji
                 currentSession.config.profileId,
                 currentSession.score,
                 currentSession.config.map,
@@ -3762,6 +3815,7 @@ async function triggerGameOver(): Promise<void> {
         tankImg,
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
         castleWaves: currentSession?.castle ? currentSession.castle.wavesCleared : null, // OBRON ZAMEK F5
+        rangeReport: rangeDirector?.report(), // STRZELNICA v0.209.0
         castleDeaths: currentSession?.castle?.deaths ?? 0,
         queenResult: currentSession?.queen?.result ?? undefined, // SAVE THE QUEEN Q2
         queenBricks: currentSession?.queen ? currentSession.queen.bricks : undefined,
@@ -3819,7 +3873,7 @@ async function triggerVictory(): Promise<void> {
             // KROK 2 (2026-09-24): skip dla `castle` i `save_queen` ZDJETY — patrz notka
             // w triggerGameOver. Zwyciestwo Zamku/Krolowej tez trafia teraz do rankingu.
             sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT });
-            if (!SIGMA_BOT) { // SigmaTester: bot nigdy nie wysyla wynikow
+            if (!SIGMA_BOT && currentSession.config.scenario !== 'range') { // SigmaTester: bot nigdy nie wysyla wynikow; STRZELNICA: poligon dev tez nie
                 await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
                 console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
             }
@@ -3829,7 +3883,7 @@ async function triggerVictory(): Promise<void> {
 
         // PROG-F1: progresja konta (po Perfect Run bonus, wiec score juz finalny).
         try {
-            victoryRunProg = ProgressionService.recordRun(
+            if (currentSession.config.scenario !== 'range') victoryRunProg = ProgressionService.recordRun( // STRZELNICA: bez progresji
                 currentSession.config.profileId,
                 currentSession.score,
                 currentSession.config.map,
@@ -3862,6 +3916,7 @@ async function triggerVictory(): Promise<void> {
         tankImg,
         ctfFlags: currentSession?.ctf ? currentSession.ctf.flagsCaptured : null, // FAZA CTF F2
         castleWaves: currentSession?.castle ? currentSession.castle.wavesCleared : null, // OBRON ZAMEK F5
+        rangeReport: rangeDirector?.report(), // STRZELNICA v0.209.0
         castleDeaths: currentSession?.castle?.deaths ?? 0,
         queenResult: currentSession?.queen?.result ?? undefined, // SAVE THE QUEEN Q2
         queenBricks: currentSession?.queen ? currentSession.queen.bricks : undefined,
@@ -4290,6 +4345,11 @@ function runLogicStep(delta: number): void {
             queenDirector.update(delta, localPlayer.x, localPlayer.y);
             queenSystem.setActiveLanes(queenDirector.activeLanes);
         }
+    }
+    // STRZELNICA v0.209.0 — stanowiska S1->S2->S3; ostatnie wyczyszczone = zwyciestwo (endcard z raportem).
+    if (rangeDirector) {
+        const rr = rangeDirector.update(delta);
+        if (rr.victory) { triggerVictory(); return; }
     }
     for (const lv of dungeonLava) lv.update(delta, camera.x, camera.y, viewW, viewH); // SAVE THE QUEEN Q2 polish (cull do kamery)
     if (dungeonTorches) dungeonTorches.update(delta, camera.x, camera.y, viewW, viewH); // Q5
@@ -4882,8 +4942,10 @@ function runLogicStep(delta: number): void {
         if (dx * dx + dy * dy < 25 * 25) {
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
+            const hpBeforeHit = localPlayer.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
             const playerDied = localPlayer.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
                 { kind: 'enemy_bullet', attackerRef: eb }); // Z0.5
+            currentSession.damageTaken += Math.max(0, hpBeforeHit - localPlayer.hp);
             if (!powerSystem.isInvulnerable) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
 
             if (powerSystem.isInvulnerable || ctfSanctuary) {
@@ -4978,8 +5040,10 @@ function runLogicStep(delta: number): void {
             const collDmg = powerSystem.isDiscoTired(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
                 : enemy.collisionDmg;
+            const hpBeforeRam = localPlayer.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
             const playerDied = localPlayer.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
                 { kind: 'enemy_ram', attackerRef: enemy }); // Z0.5; tutorial/sanktuarium => niesmiertelny
+            currentSession.damageTaken += Math.max(0, hpBeforeRam - localPlayer.hp);
             if (!powerSystem.isInvulnerable) haptic(HAPTIC.ram); // v0.208.0 — dwa impulsy: „to bylo cos wiekszego"
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
@@ -5077,6 +5141,8 @@ function runLogicStep(delta: number): void {
                     // v0.100.0 — celnosc do statow meczu. F7b-2: TYLKO pociski gracza —
                     // hity Wiezy bez shotsFired dawalyby celnosc >100% (lamie L2b).
                     if (b.source === 'player') currentSession.shotsHit++;
+                    // v0.209.0 (STRZELNICA) — obrazenia ZADANE: roznica HP, nie b.dmg (tarcza megabossa absorbuje).
+                    if (b.source === 'player') currentSession.damageDealt += Math.max(0, hpBefore - Math.max(0, enemy.hp));
                     const dmgColor = wasSuperShot ? 0xc850ff : 0xffffff;
                     effects.spawnFloatingText(hitX, hitY - 15, `${Math.round(b.dmg)}`, dmgColor);
                 }
@@ -5308,6 +5374,7 @@ if (SIGMA_BOT) {
             get solidBuildings() { return solidBuildings; },
             get camera() { return camera; },
             get session() { return currentSession; },
+            get rangeReport() { return rangeDirector?.report() ?? null; }, // STRZELNICA v0.209.0
             get seed() { return sigmaLastSeed; },
             get scenarioInfo() { return queenSystem ? queenSystem.getHudInfo() : castleSystem ? castleSystem.getHudInfo() : null; },
             // S5a: gotowosc slotow mocy (cooldown per slot — Player.superCharges to stary licznik Super Shot)

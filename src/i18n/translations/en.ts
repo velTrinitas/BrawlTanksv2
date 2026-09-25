@@ -733,6 +733,8 @@ export const en: typeof pl = {
     'scenario.save_queen.name': 'Save the Queen',
     'scenario.save_queen.desc': 'Break the cell wall in 3:00 - one life',
     'scenario.save_queen.cta': 'Save the Queen! 👸',
+    'scenario.range.name': 'Shooting Range',
+    'scenario.range.desc': 'Measurement range (dev) - 3 stations, fixed targets',
 
     // ============================================================
     // Maps

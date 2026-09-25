@@ -13,10 +13,11 @@
  *  S1 TARCZE   — 6 statycznych ENEMY_NORMAL na 200/300/450 px: surowe DPS x pole trafienia x celnosc.
  *  S2 NATARCIE — 2 fale po 4 ENEMY_NORMAL z pelnym AI z 700 px: TTK pod presja + DYSTANS zabic.
  *  S3 BOSS     — 1 ENEMY_BOSS (3000 HP) z 500 px: "gabka" — tu widac progi 2 vs 3 strzaly i pierce.
+ *  S4 SUPER    — jak S3, ale z 1 ladunkiem super strzalu na start (v0.210.0). Zero dropow w calym runie.
  * Limit 60 s (3600 krokow) na stanowisko -> timeout, run idzie dalej (jedna wpadka nie zeruje pomiaru).
  */
 
-export const RANGE_LAYOUT_ID = 'range-v1';
+export const RANGE_LAYOUT_ID = 'range-v2'; // v2: +S4 super (boss z 1 ladunkiem), zero dropow
 
 /** Punkt spawnu wzgledem centrum: promien [px] + azymut [deg], 0 = wschod, rosnie zgodnie z ruchem wskazowek. */
 export interface RangeSpawnPoint { readonly r: number; readonly deg: number }
@@ -24,7 +25,7 @@ export interface RangeSpawnPoint { readonly r: number; readonly deg: number }
 export type RangeStationDef =
     | { readonly id: 'targets'; readonly kind: 'static'; readonly points: readonly RangeSpawnPoint[] }
     | { readonly id: 'assault'; readonly kind: 'approach'; readonly waves: readonly (readonly RangeSpawnPoint[])[] }
-    | { readonly id: 'boss'; readonly kind: 'boss'; readonly point: RangeSpawnPoint };
+    | { readonly id: 'boss' | 'super'; readonly kind: 'boss'; readonly point: RangeSpawnPoint; readonly superCharges?: number };
 
 export const RANGE_TUNING = Object.freeze({
     center: Object.freeze({ x: 1500, y: 1500 }),
@@ -49,6 +50,10 @@ export const RANGE_TUNING = Object.freeze({
             ],
         },
         { id: 'boss', kind: 'boss', point: { r: 500, deg: 0 } },
+        // S4 SUPER (v0.210.0): ten sam boss, ale gracz startuje z JEDNYM ladunkiem super strzalu —
+        // odpala sie przy pierwszym strzale, okno 5 s. Roznica S4 vs S3 = realna wartosc supera czolgu
+        // (V2 obiecuje ~10 000 dmg w oknie dla kazdego — tu to sprawdzamy, nie zakladamy).
+        { id: 'super', kind: 'boss', point: { r: 500, deg: 180 }, superCharges: 1 },
     ] as readonly RangeStationDef[]),
 });
 

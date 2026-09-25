@@ -65,7 +65,7 @@ for (const bal of RULESETS) {
 }
 
 // ── agregacja ────────────────────────────────────────────────────────────────
-const STATIONS = ['targets', 'assault', 'boss'];
+const STATIONS = ['targets', 'assault', 'boss', 'super'];
 const med = a => { const b = a.filter(x => x != null && Number.isFinite(x)).slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
 const mean = a => { const b = a.filter(x => x != null && Number.isFinite(x)); return b.length ? b.reduce((s, x) => s + x, 0) / b.length : null; };
 const fmt = (x, d = 1) => x == null ? '-' : Number(x).toFixed(d);
@@ -92,6 +92,7 @@ for (const rs of ['v1', 'v2']) {
             acc: med(mine.flatMap(r => r.stations.map(s => s.accuracy))),
             dpsTargets: med(mine.map(r => stat(r, 'targets')?.dps)),
             dpsBoss: med(mine.map(r => stat(r, 'boss')?.dps)),
+            dpsSuper: med(mine.map(r => stat(r, 'super')?.dps)),
             dmgTakenAssault: med(mine.map(r => stat(r, 'assault')?.dmgTaken)),
             rescues: mine.reduce((sum, r) => sum + r.stations.reduce((x, st) => x + (st.rescues ?? 0), 0), 0),
             timeouts: mine.reduce((s, r) => s + r.stations.filter(x => x.timedOut).length, 0),
@@ -112,17 +113,17 @@ for (const rs of ['v1', 'v2']) {
 // ── markdown ─────────────────────────────────────────────────────────────────
 let md = `# STRZELNICA — ${day} · layout ${rows[0]?.layout ?? '?'} · ziarna ${SEEDS} · ${rows.length} runow\n\n`;
 md += `Czas = mediana sekund do wyczyszczenia stanowiska (60 Hz kroki logiki). (T) = timeouty w runach. Rozrzut = (max−min)/min miedzy ziarnami.\n\n`;
-md += `## Czas wyczyszczenia (s) — v1 vs v2 parami\n\n| czolg | S1 tarcze v1 | v2 | S2 natarcie v1 | v2 | S3 boss v1 | v2 | suma v1 | v2 | rozrzut max % |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n`;
+md += `## Czas wyczyszczenia (s) — v1 vs v2 parami\n\n| czolg | S1 tarcze v1 | v2 | S2 natarcie v1 | v2 | S3 boss v1 | v2 | S4 super v1 | v2 | suma v1 | v2 | rozrzut max % |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n`;
 for (const b of BRAWLERS) {
     const a1 = agg.v1[b], a2 = agg.v2[b];
     const c = (a, id) => a ? `${fmt(a.ttc[id])}${a.timeouts ? '' : ''}` : '-';
     const sp = Math.max(...[a1, a2].filter(Boolean).flatMap(a => Object.values(a.spread)));
-    md += `| ${b} | ${c(a1, 'targets')} | ${c(a2, 'targets')} | ${c(a1, 'assault')} | ${c(a2, 'assault')} | ${c(a1, 'boss')} | ${c(a2, 'boss')} | ${fmt(a1?.totalSec)} | ${fmt(a2?.totalSec)} | ${fmt(sp, 0)} |\n`;
+    md += `| ${b} | ${c(a1, 'targets')} | ${c(a2, 'targets')} | ${c(a1, 'assault')} | ${c(a2, 'assault')} | ${c(a1, 'boss')} | ${c(a2, 'boss')} | ${c(a1, 'super')} | ${c(a2, 'super')} | ${fmt(a1?.totalSec)} | ${fmt(a2?.totalSec)} | ${fmt(sp, 0)} |\n`;
 }
-md += `\n## Celnosc, DPS, presja\n\n| czolg | acc v1 | v2 | DPS tarcze v1 | v2 | DPS boss v1 | v2 | dmg otrzymane S2 v1 | v2 | ratunki v1/v2 | timeouty v1/v2 | zgony v1/v2 |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n`;
+md += `\n## Celnosc, DPS, presja\n\n| czolg | acc v1 | v2 | DPS tarcze v1 | v2 | DPS boss v1 | v2 | DPS super v1 | v2 | dmg otrzymane S2 v1 | v2 | ratunki v1/v2 | timeouty v1/v2 | zgony v1/v2 |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n`;
 for (const b of BRAWLERS) {
     const a1 = agg.v1[b], a2 = agg.v2[b];
-    md += `| ${b} | ${fmt(a1?.acc)} | ${fmt(a2?.acc)} | ${fmt(a1?.dpsTargets, 0)} | ${fmt(a2?.dpsTargets, 0)} | ${fmt(a1?.dpsBoss, 0)} | ${fmt(a2?.dpsBoss, 0)} | ${fmt(a1?.dmgTakenAssault, 0)} | ${fmt(a2?.dmgTakenAssault, 0)} | ${a1?.rescues ?? '-'}/${a2?.rescues ?? '-'} | ${a1?.timeouts ?? '-'}/${a2?.timeouts ?? '-'} | ${a1?.deaths ?? '-'}/${a2?.deaths ?? '-'} |\n`;
+    md += `| ${b} | ${fmt(a1?.acc)} | ${fmt(a2?.acc)} | ${fmt(a1?.dpsTargets, 0)} | ${fmt(a2?.dpsTargets, 0)} | ${fmt(a1?.dpsBoss, 0)} | ${fmt(a2?.dpsBoss, 0)} | ${fmt(a1?.dpsSuper, 0)} | ${fmt(a2?.dpsSuper, 0)} | ${fmt(a1?.dmgTakenAssault, 0)} | ${fmt(a2?.dmgTakenAssault, 0)} | ${a1?.rescues ?? '-'}/${a2?.rescues ?? '-'} | ${a1?.timeouts ?? '-'}/${a2?.timeouts ?? '-'} | ${a1?.deaths ?? '-'}/${a2?.deaths ?? '-'} |\n`;
 }
 for (const rs of ['v1', 'v2']) {
     const h = hist[rs];

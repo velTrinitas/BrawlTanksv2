@@ -6,8 +6,8 @@ import { sigmaEmit, SIGMA_BOT } from '../../testing/sigmaFlag';
 import { RANGE_TUNING as T, RANGE_LAYOUT_ID, rangePointXY, type RangeSpawnPoint, type RangeStationDef } from './rangeTuning';
 
 /**
- * RangeDirector — rezyser STRZELNICY (v0.209.0). Wzorzec QueenDirector.spawnAt, ale zamiast
- * zegara/fal: maszyna stanow stanowisk S1 -> S2 -> S3 z rangeTuning.ts.
+ * RangeDirector — rezyser STRZELNICY (v0.209.0, S4 super od v0.210.0). Wzorzec
+ * QueenDirector.spawnAt, ale zamiast zegara/fal: maszyna stanow stanowisk S1 -> S4 z rangeTuning.ts.
  *
  * Mierzy PER STANOWISKO: kroki logiki do wyczyszczenia, strzaly/trafienia, obrazenia zadane i
  * otrzymane (roznica licznikow GameSession miedzy startem a koncem stanowiska) oraz DYSTANS
@@ -72,6 +72,8 @@ export interface RangeDirectorOpts {
     playerHpFrac: () => number;
     /** pozycja gracza — standoff napastnikow pod ?bot=1 */
     playerPos: () => { x: number; y: number };
+    /** v0.210.0 S4: ladunki super strzalu na start stanowiska (Player.addSuperCharge) */
+    giveSuper: (n: number) => void;
     /** usun wroga po timeoucie stanowiska (main: applyHazardDamageToEnemy z duzym dmg) */
     cull: (enemy: Enemy) => void;
 }
@@ -163,6 +165,7 @@ export class RangeDirector {
         } else if (st.kind === 'approach') {
             this.spawnWave(st.waves[this.waveIdx++]);
         } else {
+            if (st.superCharges) this.opts.giveSuper(st.superCharges); // S4: ladunek PRZED spawnem bossa
             this.spawnAt(st.point, true, false);
         }
     }

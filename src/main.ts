@@ -1747,6 +1747,10 @@ function triggerShockwave(x: number, y: number, radius: number, dmg: number, sou
  */
 function handleEnemyDrop(enemy: Enemy): void {
     if (!currentSession) return;
+    // STRZELNICA v0.210.0: ZERO dropow (gemy/kostki/serca). Gemy ladowaly super strzal, ktory
+    // odpalal sie przypadkiem w runach czlowieka (bot nie zbiera) — pomiar broni podstawowej
+    // ma byc czysty; super mierzy jawne stanowisko S4 (ladunek na start).
+    if (rangeDirector) return;
 
     const canSpawnCube = currentSession.cubesTotal < MAX_POWERCUBES_PER_MATCH;
 
@@ -2903,6 +2907,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         healPlayer: () => { if (localPlayer) localPlayer.hp = localPlayer.maxHp; },
         playerHpFrac: () => localPlayer ? localPlayer.hp / Math.max(1, localPlayer.maxHp) : 1,
         playerPos: () => ({ x: localPlayer?.x ?? RANGE_TUNING.center.x, y: localPlayer?.y ?? RANGE_TUNING.center.y }),
+        giveSuper: (n) => localPlayer?.addSuperCharge(n), // S4 (v0.210.0)
         cull: (enemy) => { applyHazardDamageToEnemy(enemy, 1e9, SRC_POWER); },
     }) : null;
     spawnSystem.onKill = rangeDirector ? (enemy) => { if (localPlayer) rangeDirector?.onKill(enemy, localPlayer.x, localPlayer.y); } : null;

@@ -1,5 +1,5 @@
 {
- "when": "2026-09-25T15:28:02.312Z",
+ "when": "2026-09-25T18:13:50.088Z",
  "url": "http://localhost:5173/BrawlTanksv2/?cap=0",
  "seeds": 3,
  "rulesets": [
@@ -12,21 +12,21 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1838,
+   "totalSteps": 1953,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 458,
-     "seconds": 7.63,
-     "shotsFired": 19,
+     "steps": 436,
+     "seconds": 7.27,
+     "shotsFired": 18,
      "shotsHit": 18,
-     "accuracy": 94.7,
+     "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 236,
+     "dps": 248,
      "kills": 6,
      "killDistances": [
       200,
@@ -42,8 +42,8 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 622,
-     "seconds": 10.37,
+     "steps": 623,
+     "seconds": 10.38,
      "shotsFired": 25,
      "shotsHit": 24,
      "accuracy": 96,
@@ -52,14 +52,14 @@
      "dps": 231,
      "kills": 8,
      "killDistances": [
-      469,
-      225,
+      455,
+      315,
+      201,
       149,
-      148,
-      424,
-      245,
-      171,
-      238
+      440,
+      353,
+      265,
+      230
      ],
      "rescues": 0,
      "timedOut": false
@@ -67,8 +67,8 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 758,
-     "seconds": 12.63,
+     "steps": 757,
+     "seconds": 12.62,
      "shotsFired": 30,
      "shotsHit": 30,
      "accuracy": 100,
@@ -81,6 +81,24 @@
      ],
      "rescues": 0,
      "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 137,
+     "seconds": 2.28,
+     "shotsFired": 15,
+     "shotsHit": 29,
+     "accuracy": 193.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1316,
+     "kills": 1,
+     "killDistances": [
+      338
+     ],
+     "rescues": 0,
+     "timedOut": false
     }
    ],
    "file": "001-range-arctic-twardy-normal-range-s7100.json"
@@ -90,9 +108,105 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1839,
+   "totalSteps": 1925,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 432,
+     "seconds": 7.2,
+     "shotsFired": 18,
+     "shotsHit": 18,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 250,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 594,
+     "seconds": 9.9,
+     "shotsFired": 24,
+     "shotsHit": 24,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 242,
+     "kills": 8,
+     "killDistances": [
+      469,
+      364,
+      218,
+      149,
+      424,
+      265,
+      222,
+      148
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 761,
+     "seconds": 12.68,
+     "shotsFired": 30,
+     "shotsHit": 30,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 237,
+     "kills": 1,
+     "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 138,
+     "seconds": 2.3,
+     "shotsFired": 15,
+     "shotsHit": 29,
+     "accuracy": 193.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1304,
+     "kills": 1,
+     "killDistances": [
+      343
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-twardy-normal-range-s7101.json"
+  },
+  {
+   "brawler": "twardy",
+   "ruleset": "v1",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1924,
    "stations": [
     {
      "id": "targets",
@@ -120,102 +234,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 643,
-     "seconds": 10.72,
-     "shotsFired": 26,
+     "steps": 594,
+     "seconds": 9.9,
+     "shotsFired": 24,
      "shotsHit": 24,
-     "accuracy": 92.3,
+     "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 224,
+     "dps": 242,
      "kills": 8,
      "killDistances": [
-      475,
-      233,
-      150,
-      153,
-      407,
-      297,
-      197,
-      150
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 763,
-     "seconds": 12.72,
-     "shotsFired": 30,
-     "shotsHit": 30,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 236,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-twardy-normal-range-s7101.json"
-  },
-  {
-   "brawler": "twardy",
-   "ruleset": "v1",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 1838,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 458,
-     "seconds": 7.63,
-     "shotsFired": 18,
-     "shotsHit": 18,
-     "accuracy": 100,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 236,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 622,
-     "seconds": 10.37,
-     "shotsFired": 25,
-     "shotsHit": 24,
-     "accuracy": 96,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 231,
-     "kills": 8,
-     "killDistances": [
-      402,
-      220,
-      150,
+      496,
+      336,
+      176,
       149,
-      439,
-      396,
-      275,
-      198
+      422,
+      240,
+      149,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -223,17 +259,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 758,
-     "seconds": 12.63,
+     "steps": 761,
+     "seconds": 12.68,
      "shotsFired": 30,
      "shotsHit": 30,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 238,
+     "dps": 237,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 136,
+     "seconds": 2.27,
+     "shotsFired": 15,
+     "shotsHit": 27,
+     "accuracy": 180,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1322,
+     "kills": 1,
+     "killDistances": [
+      308
      ],
      "rescues": 0,
      "timedOut": false
@@ -246,21 +300,21 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2047,
+   "totalSteps": 2228,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 498,
-     "seconds": 8.3,
-     "shotsFired": 26,
+     "steps": 499,
+     "seconds": 8.32,
+     "shotsFired": 24,
      "shotsHit": 24,
-     "accuracy": 92.3,
+     "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 217,
+     "dps": 216,
      "kills": 6,
      "killDistances": [
       200,
@@ -276,8 +330,8 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 678,
-     "seconds": 11.3,
+     "steps": 679,
+     "seconds": 11.32,
      "shotsFired": 32,
      "shotsHit": 32,
      "accuracy": 100,
@@ -286,14 +340,14 @@
      "dps": 212,
      "kills": 8,
      "killDistances": [
-      439,
-      239,
-      148,
+      481,
+      326,
+      192,
       149,
-      381,
-      187,
-      148,
-      168
+      398,
+      307,
+      208,
+      166
      ],
      "rescues": 0,
      "timedOut": false
@@ -301,8 +355,8 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 871,
-     "seconds": 14.52,
+     "steps": 870,
+     "seconds": 14.5,
      "shotsFired": 40,
      "shotsHit": 40,
      "accuracy": 100,
@@ -311,7 +365,25 @@
      "dps": 207,
      "kills": 1,
      "killDistances": [
-      149
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 180,
+     "seconds": 3,
+     "shotsFired": 8,
+     "shotsHit": 7,
+     "accuracy": 87.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1000,
+     "kills": 1,
+     "killDistances": [
+      227
      ],
      "rescues": 0,
      "timedOut": false
@@ -324,87 +396,9 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2089,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 495,
-     "seconds": 8.25,
-     "shotsFired": 26,
-     "shotsHit": 24,
-     "accuracy": 92.3,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 218,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 721,
-     "seconds": 12.02,
-     "shotsFired": 34,
-     "shotsHit": 32,
-     "accuracy": 94.1,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 200,
-     "kills": 8,
-     "killDistances": [
-      447,
-      247,
-      150,
-      149,
-      328,
-      215,
-      148,
-      150
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 873,
-     "seconds": 14.55,
-     "shotsFired": 40,
-     "shotsHit": 40,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 206,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-heavy-normal-range-s7101.json"
-  },
-  {
-   "brawler": "heavy",
-   "ruleset": "v1",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 2046,
+   "totalSteps": 2223,
    "stations": [
     {
      "id": "targets",
@@ -442,14 +436,14 @@
      "dps": 212,
      "kills": 8,
      "killDistances": [
-      438,
-      234,
+      440,
+      325,
+      160,
       149,
-      149,
-      400,
-      356,
-      220,
-      150
+      386,
+      211,
+      160,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -467,34 +461,52 @@
      "dps": 207,
      "kills": 1,
      "killDistances": [
-      149
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 177,
+     "seconds": 2.95,
+     "shotsFired": 8,
+     "shotsHit": 7,
+     "accuracy": 87.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1017,
+     "kills": 1,
+     "killDistances": [
+      193
      ],
      "rescues": 0,
      "timedOut": false
     }
    ],
-   "file": "001-range-arctic-heavy-normal-range-s7102.json"
+   "file": "001-range-arctic-heavy-normal-range-s7101.json"
   },
   {
-   "brawler": "scout",
+   "brawler": "heavy",
    "ruleset": "v1",
-   "seed": 7100,
+   "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1559,
+   "totalSteps": 2226,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 415,
-     "seconds": 6.92,
-     "shotsFired": 25,
+     "steps": 496,
+     "seconds": 8.27,
+     "shotsFired": 26,
      "shotsHit": 24,
-     "accuracy": 96,
+     "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 260,
+     "dps": 218,
      "kills": 6,
      "killDistances": [
       200,
@@ -510,24 +522,120 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 532,
-     "seconds": 8.87,
-     "shotsFired": 33,
+     "steps": 677,
+     "seconds": 11.28,
+     "shotsFired": 32,
      "shotsHit": 32,
-     "accuracy": 97,
+     "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 271,
+     "dps": 213,
+     "kills": 8,
+     "killDistances": [
+      470,
+      292,
+      148,
+      149,
+      383,
+      184,
+      149,
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 873,
+     "seconds": 14.55,
+     "shotsFired": 40,
+     "shotsHit": 40,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 206,
+     "kills": 1,
+     "killDistances": [
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 180,
+     "seconds": 3,
+     "shotsFired": 8,
+     "shotsHit": 7,
+     "accuracy": 87.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1000,
+     "kills": 1,
+     "killDistances": [
+      234
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-heavy-normal-range-s7102.json"
+  },
+  {
+   "brawler": "scout",
+   "ruleset": "v1",
+   "seed": 7100,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1679,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 387,
+     "seconds": 6.45,
+     "shotsFired": 24,
+     "shotsHit": 24,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 279,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 547,
+     "seconds": 9.12,
+     "shotsFired": 34,
+     "shotsHit": 32,
+     "accuracy": 94.1,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 263,
      "kills": 8,
      "killDistances": [
       499,
-      293,
-      179,
-      149,
-      471,
-      309,
-      244,
-      309
+      377,
+      273,
+      193,
+      484,
+      377,
+      302,
+      275
      ],
      "rescues": 0,
      "timedOut": false
@@ -545,7 +653,25 @@
      "dps": 294,
      "kills": 1,
      "killDistances": [
-      150
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 133,
+     "seconds": 2.22,
+     "shotsFired": 16,
+     "shotsHit": 15,
+     "accuracy": 93.8,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1351,
+     "kills": 1,
+     "killDistances": [
+      357
      ],
      "rescues": 0,
      "timedOut": false
@@ -558,21 +684,117 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1561,
+   "totalSteps": 1663,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 402,
-     "seconds": 6.7,
-     "shotsFired": 25,
+     "steps": 386,
+     "seconds": 6.43,
+     "shotsFired": 24,
      "shotsHit": 24,
-     "accuracy": 96,
+     "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 269,
+     "dps": 280,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 544,
+     "seconds": 9.07,
+     "shotsFired": 34,
+     "shotsHit": 32,
+     "accuracy": 94.1,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 265,
+     "kills": 8,
+     "killDistances": [
+      460,
+      376,
+      247,
+      167,
+      475,
+      285,
+      258,
+      188
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 615,
+     "seconds": 10.25,
+     "shotsFired": 38,
+     "shotsHit": 38,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 293,
+     "kills": 1,
+     "killDistances": [
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 118,
+     "seconds": 1.97,
+     "shotsFired": 14,
+     "shotsHit": 15,
+     "accuracy": 107.1,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1523,
+     "kills": 1,
+     "killDistances": [
+      292
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-scout-normal-range-s7101.json"
+  },
+  {
+   "brawler": "scout",
+   "ruleset": "v1",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1679,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 386,
+     "seconds": 6.43,
+     "shotsFired": 24,
+     "shotsHit": 24,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 280,
      "kills": 6,
      "killDistances": [
       200,
@@ -598,14 +820,14 @@
      "dps": 266,
      "kills": 8,
      "killDistances": [
-      508,
-      303,
-      222,
-      230,
-      476,
-      268,
-      148,
-      150
+      491,
+      346,
+      203,
+      149,
+      474,
+      261,
+      175,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -623,85 +845,25 @@
      "dps": 292,
      "kills": 1,
      "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-scout-normal-range-s7101.json"
-  },
-  {
-   "brawler": "scout",
-   "ruleset": "v1",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 1578,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 418,
-     "seconds": 6.97,
-     "shotsFired": 25,
-     "shotsHit": 24,
-     "accuracy": 96,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 258,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
+      150
      ],
      "rescues": 0,
      "timedOut": false
     },
     {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 545,
-     "seconds": 9.08,
-     "shotsFired": 34,
-     "shotsHit": 32,
-     "accuracy": 94.1,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 264,
-     "kills": 8,
-     "killDistances": [
-      455,
-      287,
-      195,
-      149,
-      498,
-      352,
-      260,
-      183
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
+     "id": "super",
      "kind": "boss",
-     "steps": 615,
-     "seconds": 10.25,
-     "shotsFired": 38,
-     "shotsHit": 38,
-     "accuracy": 100,
+     "steps": 134,
+     "seconds": 2.23,
+     "shotsFired": 16,
+     "shotsHit": 15,
+     "accuracy": 93.8,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 293,
+     "dps": 1345,
      "kills": 1,
      "killDistances": [
-      149
+      340
      ],
      "rescues": 0,
      "timedOut": false
@@ -714,9 +876,9 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1396,
+   "totalSteps": 1644,
    "stations": [
     {
      "id": "targets",
@@ -744,24 +906,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 491,
-     "seconds": 8.18,
+     "steps": 486,
+     "seconds": 8.1,
      "shotsFired": 8,
      "shotsHit": 8,
      "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 293,
+     "dps": 296,
      "kills": 8,
      "killDistances": [
-      517,
-      366,
-      360,
-      293,
-      511,
-      379,
-      239,
-      294
+      520,
+      380,
+      231,
+      214,
+      494,
+      337,
+      230,
+      168
      ],
      "rescues": 0,
      "timedOut": false
@@ -769,14 +931,32 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 614,
-     "seconds": 10.23,
+     "steps": 619,
+     "seconds": 10.32,
      "shotsFired": 10,
      "shotsHit": 10,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 293,
+     "dps": 291,
+     "kills": 1,
+     "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 248,
+     "seconds": 4.13,
+     "shotsFired": 8,
+     "shotsHit": 7,
+     "accuracy": 87.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 726,
      "kills": 1,
      "killDistances": [
       149
@@ -792,21 +972,21 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1399,
+   "totalSteps": 1645,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 293,
-     "seconds": 4.88,
+     "steps": 291,
+     "seconds": 4.85,
      "shotsFired": 6,
      "shotsHit": 6,
      "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 369,
+     "dps": 371,
      "kills": 6,
      "killDistances": [
       200,
@@ -822,24 +1002,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 492,
-     "seconds": 8.2,
+     "steps": 490,
+     "seconds": 8.17,
      "shotsFired": 8,
      "shotsHit": 8,
      "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 293,
+     "dps": 294,
      "kills": 8,
      "killDistances": [
-      507,
-      443,
-      361,
-      263,
-      506,
-      355,
+      515,
+      380,
+      250,
+      149,
+      481,
       340,
-      302
+      306,
+      236
      ],
      "rescues": 0,
      "timedOut": false
@@ -847,14 +1027,32 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 614,
-     "seconds": 10.23,
+     "steps": 616,
+     "seconds": 10.27,
      "shotsFired": 10,
      "shotsHit": 10,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 293,
+     "dps": 292,
+     "kills": 1,
+     "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 248,
+     "seconds": 4.13,
+     "shotsFired": 8,
+     "shotsHit": 7,
+     "accuracy": 87.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 726,
      "kills": 1,
      "killDistances": [
       149
@@ -870,21 +1068,21 @@
    "ruleset": "v1",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1392,
+   "totalSteps": 1648,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 287,
-     "seconds": 4.78,
+     "steps": 292,
+     "seconds": 4.87,
      "shotsFired": 6,
      "shotsHit": 6,
      "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 377,
+     "dps": 370,
      "kills": 6,
      "killDistances": [
       200,
@@ -900,24 +1098,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 488,
-     "seconds": 8.13,
+     "steps": 489,
+     "seconds": 8.15,
      "shotsFired": 8,
      "shotsHit": 8,
      "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 295,
+     "dps": 294,
      "kills": 8,
      "killDistances": [
-      525,
-      406,
-      265,
-      228,
-      510,
-      374,
-      320,
-      227
+      542,
+      435,
+      366,
+      288,
+      513,
+      393,
+      256,
+      218
      ],
      "rescues": 0,
      "timedOut": false
@@ -939,6 +1137,24 @@
      ],
      "rescues": 0,
      "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 250,
+     "seconds": 4.17,
+     "shotsFired": 8,
+     "shotsHit": 7,
+     "accuracy": 87.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 719,
+     "kills": 1,
+     "killDistances": [
+      202
+     ],
+     "rescues": 0,
+     "timedOut": false
     }
    ],
    "file": "001-range-arctic-sniper-normal-range-s7102.json"
@@ -948,171 +1164,15 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2050,
+   "totalSteps": 2184,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
      "steps": 525,
      "seconds": 8.75,
-     "shotsFired": 18,
-     "shotsHit": 18,
-     "accuracy": 100,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 206,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 739,
-     "seconds": 12.32,
-     "shotsFired": 24,
-     "shotsHit": 24,
-     "accuracy": 100,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 195,
-     "kills": 8,
-     "killDistances": [
-      421,
-      196,
-      148,
-      149,
-      386,
-      150,
-      150,
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 786,
-     "seconds": 13.1,
-     "shotsFired": 25,
-     "shotsHit": 25,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 229,
-     "kills": 1,
-     "killDistances": [
-      148
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-plasma-normal-range-s7100.json"
-  },
-  {
-   "brawler": "plasma",
-   "ruleset": "v1",
-   "seed": 7101,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 2082,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 525,
-     "seconds": 8.75,
-     "shotsFired": 18,
-     "shotsHit": 18,
-     "accuracy": 100,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 206,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 770,
-     "seconds": 12.83,
-     "shotsFired": 25,
-     "shotsHit": 24,
-     "accuracy": 96,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 187,
-     "kills": 8,
-     "killDistances": [
-      432,
-      207,
-      150,
-      150,
-      346,
-      215,
-      148,
-      150
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 787,
-     "seconds": 13.12,
-     "shotsFired": 25,
-     "shotsHit": 25,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 229,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-plasma-normal-range-s7101.json"
-  },
-  {
-   "brawler": "plasma",
-   "ruleset": "v1",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 2048,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 523,
-     "seconds": 8.72,
      "shotsFired": 18,
      "shotsHit": 18,
      "accuracy": 100,
@@ -1144,14 +1204,14 @@
      "dps": 195,
      "kills": 8,
      "killDistances": [
-      423,
-      191,
+      467,
+      292,
       149,
-      150,
+      149,
       389,
-      336,
-      184,
-      150
+      284,
+      173,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -1169,7 +1229,217 @@
      "dps": 229,
      "kills": 1,
      "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 135,
+     "seconds": 2.25,
+     "shotsFired": 12,
+     "shotsHit": 25,
+     "accuracy": 208.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1333,
+     "kills": 1,
+     "killDistances": [
+      295
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-plasma-normal-range-s7100.json"
+  },
+  {
+   "brawler": "plasma",
+   "ruleset": "v1",
+   "seed": 7101,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 2183,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 525,
+     "seconds": 8.75,
+     "shotsFired": 18,
+     "shotsHit": 18,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 206,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 740,
+     "seconds": 12.33,
+     "shotsFired": 24,
+     "shotsHit": 24,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 195,
+     "kills": 8,
+     "killDistances": [
+      425,
+      292,
+      149,
+      149,
+      381,
+      180,
+      148,
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 785,
+     "seconds": 13.08,
+     "shotsFired": 25,
+     "shotsHit": 25,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 229,
+     "kills": 1,
+     "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 133,
+     "seconds": 2.22,
+     "shotsFired": 12,
+     "shotsHit": 24,
+     "accuracy": 200,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1351,
+     "kills": 1,
+     "killDistances": [
+      270
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-plasma-normal-range-s7101.json"
+  },
+  {
+   "brawler": "plasma",
+   "ruleset": "v1",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 2217,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 555,
+     "seconds": 9.25,
+     "shotsFired": 18,
+     "shotsHit": 18,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 195,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 739,
+     "seconds": 12.32,
+     "shotsFired": 24,
+     "shotsHit": 24,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 195,
+     "kills": 8,
+     "killDistances": [
+      458,
+      256,
+      147,
+      149,
+      387,
+      209,
+      150,
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 787,
+     "seconds": 13.12,
+     "shotsFired": 25,
+     "shotsHit": 25,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 229,
+     "kills": 1,
+     "killDistances": [
       150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 136,
+     "seconds": 2.27,
+     "shotsFired": 12,
+     "shotsHit": 25,
+     "accuracy": 208.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1322,
+     "kills": 1,
+     "killDistances": [
+      299
      ],
      "rescues": 0,
      "timedOut": false
@@ -1182,21 +1452,21 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1337,
+   "totalSteps": 1595,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 469,
-     "seconds": 7.82,
-     "shotsFired": 105,
+     "steps": 480,
+     "seconds": 8,
+     "shotsFired": 108,
      "shotsHit": 36,
-     "accuracy": 34.3,
+     "accuracy": 33.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 230,
+     "dps": 225,
      "kills": 6,
      "killDistances": [
       200,
@@ -1212,24 +1482,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 517,
-     "seconds": 8.62,
-     "shotsFired": 117,
+     "steps": 583,
+     "seconds": 9.72,
+     "shotsFired": 135,
      "shotsHit": 48,
-     "accuracy": 41,
+     "accuracy": 35.6,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 278,
+     "dps": 247,
      "kills": 8,
      "killDistances": [
-      399,
-      246,
-      178,
-      190,
-      409,
-      233,
-      240,
-      240
+      443,
+      300,
+      207,
+      160,
+      423,
+      291,
+      227,
+      247
      ],
      "rescues": 0,
      "timedOut": false
@@ -1237,17 +1507,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 352,
-     "seconds": 5.87,
+     "steps": 362,
+     "seconds": 6.03,
      "shotsFired": 81,
      "shotsHit": 60,
      "accuracy": 74.1,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 511,
+     "dps": 498,
      "kills": 1,
      "killDistances": [
-      150
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 170,
+     "seconds": 2.83,
+     "shotsFired": 65,
+     "shotsHit": 19,
+     "accuracy": 29.2,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1060,
+     "kills": 1,
+     "killDistances": [
+      317
      ],
      "rescues": 0,
      "timedOut": false
@@ -1260,99 +1548,21 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1358,
+   "totalSteps": 1525,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 467,
-     "seconds": 7.78,
-     "shotsFired": 105,
-     "shotsHit": 36,
-     "accuracy": 34.3,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 231,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 570,
-     "seconds": 9.5,
-     "shotsFired": 132,
-     "shotsHit": 48,
-     "accuracy": 36.4,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 253,
-     "kills": 8,
-     "killDistances": [
-      442,
-      282,
-      297,
-      223,
-      444,
-      283,
-      240,
-      249
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 321,
-     "seconds": 5.35,
-     "shotsFired": 72,
-     "shotsHit": 60,
-     "accuracy": 83.3,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 561,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-pyro-normal-range-s7101.json"
-  },
-  {
-   "brawler": "pyro",
-   "ruleset": "v1",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 1371,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 492,
-     "seconds": 8.2,
+     "steps": 480,
+     "seconds": 8,
      "shotsFired": 108,
      "shotsHit": 36,
      "accuracy": 33.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 220,
+     "dps": 225,
      "kills": 6,
      "killDistances": [
       200,
@@ -1368,24 +1578,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 530,
-     "seconds": 8.83,
-     "shotsFired": 120,
+     "steps": 553,
+     "seconds": 9.22,
+     "shotsFired": 126,
      "shotsHit": 48,
-     "accuracy": 40,
+     "accuracy": 38.1,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 272,
+     "dps": 260,
      "kills": 8,
      "killDistances": [
-      393,
+      395,
+      251,
+      153,
+      151,
+      387,
+      252,
       233,
-      182,
-      165,
-      403,
-      345,
-      243,
-      222
+      186
      ],
      "rescues": 0,
      "timedOut": false
@@ -1393,8 +1603,8 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 349,
-     "seconds": 5.82,
+     "steps": 350,
+     "seconds": 5.83,
      "shotsFired": 81,
      "shotsHit": 60,
      "accuracy": 74.1,
@@ -1407,6 +1617,120 @@
      ],
      "rescues": 0,
      "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 142,
+     "seconds": 2.37,
+     "shotsFired": 50,
+     "shotsHit": 19,
+     "accuracy": 38,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1266,
+     "kills": 1,
+     "killDistances": [
+      250
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-pyro-normal-range-s7101.json"
+  },
+  {
+   "brawler": "pyro",
+   "ruleset": "v1",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1465,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 480,
+     "seconds": 8,
+     "shotsFired": 105,
+     "shotsHit": 36,
+     "accuracy": 34.3,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 225,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 501,
+     "seconds": 8.35,
+     "shotsFired": 114,
+     "shotsHit": 48,
+     "accuracy": 42.1,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 287,
+     "kills": 8,
+     "killDistances": [
+      447,
+      231,
+      154,
+      162,
+      417,
+      229,
+      205,
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 317,
+     "seconds": 5.28,
+     "shotsFired": 72,
+     "shotsHit": 60,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 568,
+     "kills": 1,
+     "killDistances": [
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 167,
+     "seconds": 2.78,
+     "shotsFired": 65,
+     "shotsHit": 19,
+     "accuracy": 29.2,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1079,
+     "kills": 1,
+     "killDistances": [
+      301
+     ],
+     "rescues": 0,
+     "timedOut": false
     }
    ],
    "file": "001-range-arctic-pyro-normal-range-s7102.json"
@@ -1416,9 +1740,9 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1764,
+   "totalSteps": 1958,
    "stations": [
     {
      "id": "targets",
@@ -1446,24 +1770,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 591,
-     "seconds": 9.85,
+     "steps": 592,
+     "seconds": 9.87,
      "shotsFired": 16,
      "shotsHit": 16,
      "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 244,
+     "dps": 243,
      "kills": 8,
      "killDistances": [
-      469,
-      288,
-      156,
-      149,
-      426,
-      251,
-      178,
-      243
+      508,
+      367,
+      250,
+      157,
+      445,
+      362,
+      273,
+      236
      ],
      "rescues": 0,
      "timedOut": false
@@ -1471,8 +1795,8 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 747,
-     "seconds": 12.45,
+     "steps": 746,
+     "seconds": 12.43,
      "shotsFired": 20,
      "shotsHit": 20,
      "accuracy": 100,
@@ -1481,7 +1805,25 @@
      "dps": 241,
      "kills": 1,
      "killDistances": [
-      150
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 194,
+     "seconds": 3.23,
+     "shotsFired": 15,
+     "shotsHit": 10,
+     "accuracy": 66.7,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 929,
+     "kills": 1,
+     "killDistances": [
+      233
      ],
      "rescues": 0,
      "timedOut": false
@@ -1494,87 +1836,9 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1763,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 425,
-     "seconds": 7.08,
-     "shotsFired": 13,
-     "shotsHit": 12,
-     "accuracy": 92.3,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 254,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 585,
-     "seconds": 9.75,
-     "shotsFired": 16,
-     "shotsHit": 16,
-     "accuracy": 100,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 246,
-     "kills": 8,
-     "killDistances": [
-      478,
-      297,
-      199,
-      197,
-      435,
-      249,
-      148,
-      147
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 753,
-     "seconds": 12.55,
-     "shotsFired": 20,
-     "shotsHit": 20,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 239,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-shadow-normal-range-s7101.json"
-  },
-  {
-   "brawler": "shadow",
-   "ruleset": "v1",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 1763,
+   "totalSteps": 1952,
    "stations": [
     {
      "id": "targets",
@@ -1612,14 +1876,14 @@
      "dps": 244,
      "kills": 8,
      "killDistances": [
-      470,
-      284,
-      172,
-      149,
-      454,
-      283,
-      187,
-      216
+      478,
+      319,
+      173,
+      182,
+      506,
+      401,
+      314,
+      235
      ],
      "rescues": 0,
      "timedOut": false
@@ -1627,8 +1891,104 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 749,
-     "seconds": 12.48,
+     "steps": 748,
+     "seconds": 12.47,
+     "shotsFired": 20,
+     "shotsHit": 20,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 241,
+     "kills": 1,
+     "killDistances": [
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 190,
+     "seconds": 3.17,
+     "shotsFired": 15,
+     "shotsHit": 10,
+     "accuracy": 66.7,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 946,
+     "kills": 1,
+     "killDistances": [
+      182
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-shadow-normal-range-s7101.json"
+  },
+  {
+   "brawler": "shadow",
+   "ruleset": "v1",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1955,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 424,
+     "seconds": 7.07,
+     "shotsFired": 12,
+     "shotsHit": 12,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 255,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 587,
+     "seconds": 9.78,
+     "shotsFired": 16,
+     "shotsHit": 16,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 245,
+     "kills": 8,
+     "killDistances": [
+      498,
+      338,
+      179,
+      149,
+      429,
+      246,
+      150,
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 751,
+     "seconds": 12.52,
      "shotsFired": 20,
      "shotsHit": 20,
      "accuracy": 100,
@@ -1637,7 +1997,25 @@
      "dps": 240,
      "kills": 1,
      "killDistances": [
-      150
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 193,
+     "seconds": 3.22,
+     "shotsFired": 15,
+     "shotsHit": 10,
+     "accuracy": 66.7,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 932,
+     "kills": 1,
+     "killDistances": [
+      227
      ],
      "rescues": 0,
      "timedOut": false
@@ -1650,21 +2028,21 @@
    "ruleset": "v1",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1358,
+   "totalSteps": 1492,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 371,
-     "seconds": 6.18,
+     "steps": 370,
+     "seconds": 6.17,
      "shotsFired": 13,
      "shotsHit": 12,
      "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 291,
+     "dps": 292,
      "kills": 6,
      "killDistances": [
       200,
@@ -1680,24 +2058,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 524,
-     "seconds": 8.73,
+     "steps": 527,
+     "seconds": 8.78,
      "shotsFired": 17,
      "shotsHit": 16,
      "accuracy": 94.1,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 275,
+     "dps": 273,
      "kills": 8,
      "killDistances": [
-      503,
-      279,
-      246,
-      148,
-      458,
-      303,
-      250,
-      275
+      533,
+      356,
+      265,
+      195,
+      465,
+      402,
+      332,
+      304
      ],
      "rescues": 0,
      "timedOut": false
@@ -1705,17 +2083,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 463,
-     "seconds": 7.72,
+     "steps": 459,
+     "seconds": 7.65,
      "shotsFired": 15,
      "shotsHit": 15,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 389,
+     "dps": 392,
      "kills": 1,
      "killDistances": [
-      150
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 136,
+     "seconds": 2.27,
+     "shotsFired": 12,
+     "shotsHit": 10,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1322,
+     "kills": 1,
+     "killDistances": [
+      292
      ],
      "rescues": 0,
      "timedOut": false
@@ -1728,9 +2124,9 @@
    "ruleset": "v1",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1389,
+   "totalSteps": 1460,
    "stations": [
     {
      "id": "targets",
@@ -1758,24 +2154,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 552,
-     "seconds": 9.2,
-     "shotsFired": 18,
+     "steps": 491,
+     "seconds": 8.18,
+     "shotsFired": 16,
      "shotsHit": 16,
-     "accuracy": 88.9,
+     "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 261,
+     "dps": 293,
      "kills": 8,
      "killDistances": [
-      506,
-      286,
-      218,
-      231,
-      429,
-      341,
-      261,
-      225
+      499,
+      419,
+      300,
+      224,
+      463,
+      334,
+      301,
+      234
      ],
      "rescues": 0,
      "timedOut": false
@@ -1783,17 +2179,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 466,
-     "seconds": 7.77,
+     "steps": 464,
+     "seconds": 7.73,
      "shotsFired": 15,
      "shotsHit": 15,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 386,
+     "dps": 388,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 134,
+     "seconds": 2.23,
+     "shotsFired": 12,
+     "shotsHit": 10,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1345,
+     "kills": 1,
+     "killDistances": [
+      264
      ],
      "rescues": 0,
      "timedOut": false
@@ -1806,9 +2220,9 @@
    "ruleset": "v1",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1358,
+   "totalSteps": 1495,
    "stations": [
     {
      "id": "targets",
@@ -1836,24 +2250,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 521,
-     "seconds": 8.68,
+     "steps": 516,
+     "seconds": 8.6,
      "shotsFired": 17,
      "shotsHit": 16,
      "accuracy": 94.1,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 276,
+     "dps": 279,
      "kills": 8,
      "killDistances": [
-      497,
-      276,
-      195,
+      524,
+      328,
+      201,
       149,
-      477,
-      377,
-      294,
-      222
+      450,
+      305,
+      222,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -1861,17 +2275,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 467,
-     "seconds": 7.78,
+     "steps": 471,
+     "seconds": 7.85,
      "shotsFired": 15,
      "shotsHit": 15,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 386,
+     "dps": 382,
      "kills": 1,
      "killDistances": [
       150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 138,
+     "seconds": 2.3,
+     "shotsFired": 12,
+     "shotsHit": 10,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1304,
+     "kills": 1,
+     "killDistances": [
+      336
      ],
      "rescues": 0,
      "timedOut": false
@@ -1884,21 +2316,21 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1178,
+   "totalSteps": 1304,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 308,
-     "seconds": 5.13,
-     "shotsFired": 14,
+     "steps": 306,
+     "seconds": 5.1,
+     "shotsFired": 13,
      "shotsHit": 12,
-     "accuracy": 85.7,
+     "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 351,
+     "dps": 353,
      "kills": 6,
      "killDistances": [
       200,
@@ -1914,24 +2346,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 417,
-     "seconds": 6.95,
+     "steps": 410,
+     "seconds": 6.83,
      "shotsFired": 18,
      "shotsHit": 16,
      "accuracy": 88.9,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 345,
+     "dps": 351,
      "kills": 8,
      "killDistances": [
-      549,
-      385,
-      401,
-      355,
-      544,
-      397,
-      296,
-      354
+      551,
+      399,
+      294,
+      291,
+      526,
+      360,
+      289,
+      252
      ],
      "rescues": 0,
      "timedOut": false
@@ -1939,17 +2371,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 453,
-     "seconds": 7.55,
+     "steps": 460,
+     "seconds": 7.67,
      "shotsFired": 20,
      "shotsHit": 20,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 397,
+     "dps": 391,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 128,
+     "seconds": 2.13,
+     "shotsFired": 15,
+     "shotsHit": 27,
+     "accuracy": 180,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1408,
+     "kills": 1,
+     "killDistances": [
+      304
      ],
      "rescues": 0,
      "timedOut": false
@@ -1962,21 +2412,21 @@
    "ruleset": "v2",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1201,
+   "totalSteps": 1302,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 284,
-     "seconds": 4.73,
-     "shotsFired": 12,
+     "steps": 307,
+     "seconds": 5.12,
+     "shotsFired": 13,
      "shotsHit": 12,
-     "accuracy": 100,
+     "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 381,
+     "dps": 352,
      "kills": 6,
      "killDistances": [
       200,
@@ -1992,24 +2442,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 459,
-     "seconds": 7.65,
-     "shotsFired": 20,
+     "steps": 414,
+     "seconds": 6.9,
+     "shotsFired": 18,
      "shotsHit": 16,
-     "accuracy": 80,
+     "accuracy": 88.9,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 314,
+     "dps": 348,
      "kills": 8,
      "killDistances": [
-      488,
-      459,
-      363,
-      294,
-      532,
-      372,
-      383,
-      288
+      546,
+      399,
+      308,
+      223,
+      511,
+      359,
+      347,
+      302
      ],
      "rescues": 0,
      "timedOut": false
@@ -2017,17 +2467,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 457,
-     "seconds": 7.62,
+     "steps": 456,
+     "seconds": 7.6,
      "shotsFired": 20,
      "shotsHit": 20,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 394,
+     "dps": 395,
      "kills": 1,
      "killDistances": [
-      148
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 125,
+     "seconds": 2.08,
+     "shotsFired": 15,
+     "shotsHit": 27,
+     "accuracy": 180,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1442,
+     "kills": 1,
+     "killDistances": [
+      276
      ],
      "rescues": 0,
      "timedOut": false
@@ -2040,21 +2508,21 @@
    "ruleset": "v2",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1180,
+   "totalSteps": 1307,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 285,
-     "seconds": 4.75,
+     "steps": 284,
+     "seconds": 4.73,
      "shotsFired": 13,
      "shotsHit": 12,
      "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 379,
+     "dps": 381,
      "kills": 6,
      "killDistances": [
       200,
@@ -2080,14 +2548,14 @@
      "dps": 330,
      "kills": 8,
      "killDistances": [
-      498,
-      370,
-      271,
-      260,
-      533,
-      387,
-      358,
-      296
+      519,
+      403,
+      368,
+      316,
+      539,
+      406,
+      306,
+      291
      ],
      "rescues": 0,
      "timedOut": false
@@ -2105,7 +2573,25 @@
      "dps": 392,
      "kills": 1,
      "killDistances": [
-      149
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 128,
+     "seconds": 2.13,
+     "shotsFired": 15,
+     "shotsHit": 32,
+     "accuracy": 213.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1408,
+     "kills": 1,
+     "killDistances": [
+      348
      ],
      "rescues": 0,
      "timedOut": false
@@ -2118,21 +2604,117 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2044,
+   "totalSteps": 2187,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 494,
-     "seconds": 8.23,
+     "steps": 496,
+     "seconds": 8.27,
      "shotsFired": 26,
      "shotsHit": 24,
      "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 219,
+     "dps": 218,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 680,
+     "seconds": 11.33,
+     "shotsFired": 32,
+     "shotsHit": 32,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 212,
+     "kills": 8,
+     "killDistances": [
+      479,
+      322,
+      190,
+      149,
+      399,
+      306,
+      209,
+      167
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 871,
+     "seconds": 14.52,
+     "shotsFired": 40,
+     "shotsHit": 40,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 207,
+     "kills": 1,
+     "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 140,
+     "seconds": 2.33,
+     "shotsFired": 6,
+     "shotsHit": 5,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1288,
+     "kills": 1,
+     "killDistances": [
+      288
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-heavy-normal-range-s7100.json"
+  },
+  {
+   "brawler": "heavy",
+   "ruleset": "v2",
+   "seed": 7101,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 2186,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 497,
+     "seconds": 8.28,
+     "shotsFired": 26,
+     "shotsHit": 24,
+     "accuracy": 92.3,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 217,
      "kills": 6,
      "killDistances": [
       200,
@@ -2158,14 +2740,14 @@
      "dps": 212,
      "kills": 8,
      "killDistances": [
-      439,
-      239,
-      148,
-      149,
-      381,
-      187,
-      148,
-      170
+      442,
+      326,
+      162,
+      150,
+      386,
+      210,
+      159,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -2183,31 +2765,49 @@
      "dps": 206,
      "kills": 1,
      "killDistances": [
-      149
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 139,
+     "seconds": 2.32,
+     "shotsFired": 6,
+     "shotsHit": 5,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1293,
+     "kills": 1,
+     "killDistances": [
+      259
      ],
      "rescues": 0,
      "timedOut": false
     }
    ],
-   "file": "001-range-arctic-heavy-normal-range-s7100.json"
+   "file": "001-range-arctic-heavy-normal-range-s7101.json"
   },
   {
    "brawler": "heavy",
    "ruleset": "v2",
-   "seed": 7101,
+   "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2089,
+   "totalSteps": 2187,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 495,
-     "seconds": 8.25,
-     "shotsFired": 24,
+     "steps": 496,
+     "seconds": 8.27,
+     "shotsFired": 26,
      "shotsHit": 24,
-     "accuracy": 100,
+     "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
      "dps": 218,
@@ -2226,23 +2826,23 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 720,
-     "seconds": 12,
-     "shotsFired": 34,
+     "steps": 677,
+     "seconds": 11.28,
+     "shotsFired": 32,
      "shotsHit": 32,
-     "accuracy": 94.1,
+     "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 200,
+     "dps": 213,
      "kills": 8,
      "killDistances": [
-      449,
-      250,
-      150,
+      468,
+      291,
+      147,
       149,
-      328,
-      215,
-      148,
+      384,
+      185,
+      149,
       150
      ],
      "rescues": 0,
@@ -2261,85 +2861,25 @@
      "dps": 206,
      "kills": 1,
      "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-heavy-normal-range-s7101.json"
-  },
-  {
-   "brawler": "heavy",
-   "ruleset": "v2",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 2045,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 494,
-     "seconds": 8.23,
-     "shotsFired": 26,
-     "shotsHit": 24,
-     "accuracy": 92.3,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 219,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 679,
-     "seconds": 11.32,
-     "shotsFired": 32,
-     "shotsHit": 32,
-     "accuracy": 100,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 212,
-     "kills": 8,
-     "killDistances": [
-      438,
-      234,
-      149,
-      149,
-      398,
-      354,
-      220,
       150
      ],
      "rescues": 0,
      "timedOut": false
     },
     {
-     "id": "boss",
+     "id": "super",
      "kind": "boss",
-     "steps": 872,
-     "seconds": 14.53,
-     "shotsFired": 40,
-     "shotsHit": 40,
-     "accuracy": 100,
+     "steps": 140,
+     "seconds": 2.33,
+     "shotsFired": 6,
+     "shotsHit": 5,
+     "accuracy": 83.3,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 206,
+     "dps": 1288,
      "kills": 1,
      "killDistances": [
-      149
+      294
      ],
      "rescues": 0,
      "timedOut": false
@@ -2352,87 +2892,9 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 932,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 262,
-     "seconds": 4.37,
-     "shotsFired": 20,
-     "shotsHit": 18,
-     "accuracy": 90,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 412,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 369,
-     "seconds": 6.15,
-     "shotsFired": 29,
-     "shotsHit": 24,
-     "accuracy": 82.8,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 390,
-     "kills": 8,
-     "killDistances": [
-      551,
-      432,
-      431,
-      378,
-      554,
-      432,
-      379,
-      411
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 301,
-     "seconds": 5.02,
-     "shotsFired": 25,
-     "shotsHit": 25,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 598,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-scout-normal-range-s7100.json"
-  },
-  {
-   "brawler": "scout",
-   "ruleset": "v2",
-   "seed": 7101,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 921,
+   "totalSteps": 1046,
    "stations": [
     {
      "id": "targets",
@@ -2460,24 +2922,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 381,
-     "seconds": 6.35,
+     "steps": 372,
+     "seconds": 6.2,
      "shotsFired": 30,
      "shotsHit": 24,
      "accuracy": 80,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 378,
+     "dps": 387,
      "kills": 8,
      "killDistances": [
-      546,
-      495,
-      429,
-      353,
-      568,
-      480,
-      427,
-      391
+      551,
+      443,
+      328,
+      337,
+      538,
+      417,
+      331,
+      283
      ],
      "rescues": 0,
      "timedOut": false
@@ -2485,17 +2947,131 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 301,
-     "seconds": 5.02,
+     "steps": 300,
+     "seconds": 5,
      "shotsFired": 25,
      "shotsHit": 25,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 598,
+     "dps": 600,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 135,
+     "seconds": 2.25,
+     "shotsFired": 22,
+     "shotsHit": 32,
+     "accuracy": 145.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1333,
+     "kills": 1,
+     "killDistances": [
+      294
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-scout-normal-range-s7100.json"
+  },
+  {
+   "brawler": "scout",
+   "ruleset": "v2",
+   "seed": 7101,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1049,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 249,
+     "seconds": 4.15,
+     "shotsFired": 20,
+     "shotsHit": 18,
+     "accuracy": 90,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 434,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 364,
+     "seconds": 6.07,
+     "shotsFired": 29,
+     "shotsHit": 24,
+     "accuracy": 82.8,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 395,
+     "kills": 8,
+     "killDistances": [
+      543,
+      476,
+      378,
+      340,
+      567,
+      455,
+      419,
+      361
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 302,
+     "seconds": 5.03,
+     "shotsFired": 25,
+     "shotsHit": 25,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 596,
+     "kills": 1,
+     "killDistances": [
+      183
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 134,
+     "seconds": 2.23,
+     "shotsFired": 22,
+     "shotsHit": 32,
+     "accuracy": 145.5,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1345,
+     "kills": 1,
+     "killDistances": [
+      260
      ],
      "rescues": 0,
      "timedOut": false
@@ -2508,21 +3084,21 @@
    "ruleset": "v2",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 899,
+   "totalSteps": 1070,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 248,
-     "seconds": 4.13,
+     "steps": 240,
+     "seconds": 4,
      "shotsFired": 20,
      "shotsHit": 18,
      "accuracy": 90,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 436,
+     "dps": 450,
      "kills": 6,
      "killDistances": [
       200,
@@ -2538,24 +3114,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 354,
-     "seconds": 5.9,
-     "shotsFired": 28,
+     "steps": 386,
+     "seconds": 6.43,
+     "shotsFired": 31,
      "shotsHit": 24,
-     "accuracy": 85.7,
+     "accuracy": 77.4,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 407,
+     "dps": 373,
      "kills": 8,
      "killDistances": [
-      558,
-      463,
-      357,
-      348,
-      567,
-      456,
-      386,
-      323
+      572,
+      488,
+      435,
+      373,
+      552,
+      459,
+      352,
+      322
      ],
      "rescues": 0,
      "timedOut": false
@@ -2563,17 +3139,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 297,
-     "seconds": 4.95,
+     "steps": 299,
+     "seconds": 4.98,
      "shotsFired": 25,
      "shotsHit": 25,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 606,
+     "dps": 602,
      "kills": 1,
      "killDistances": [
-      149
+      162
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 145,
+     "seconds": 2.42,
+     "shotsFired": 24,
+     "shotsHit": 32,
+     "accuracy": 133.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1240,
+     "kills": 1,
+     "killDistances": [
+      327
      ],
      "rescues": 0,
      "timedOut": false
@@ -2586,21 +3180,21 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 969,
+   "totalSteps": 1108,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 231,
-     "seconds": 3.85,
+     "steps": 225,
+     "seconds": 3.75,
      "shotsFired": 7,
      "shotsHit": 6,
      "accuracy": 85.7,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 468,
+     "dps": 480,
      "kills": 6,
      "killDistances": [
       200,
@@ -2616,24 +3210,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 373,
-     "seconds": 6.22,
+     "steps": 370,
+     "seconds": 6.17,
      "shotsFired": 8,
      "shotsHit": 8,
      "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 386,
+     "dps": 389,
      "kills": 8,
      "killDistances": [
-      555,
-      440,
-      438,
-      388,
-      546,
-      429,
-      379,
-      395
+      557,
+      451,
+      341,
+      327,
+      547,
+      428,
+      346,
+      298
      ],
      "rescues": 0,
      "timedOut": false
@@ -2641,17 +3235,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 365,
-     "seconds": 6.08,
+     "steps": 368,
+     "seconds": 6.13,
      "shotsFired": 8,
      "shotsHit": 8,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 493,
+     "dps": 489,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 145,
+     "seconds": 2.42,
+     "shotsFired": 6,
+     "shotsHit": 5,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1240,
+     "kills": 1,
+     "killDistances": [
+      278
      ],
      "rescues": 0,
      "timedOut": false
@@ -2664,99 +3276,21 @@
    "ruleset": "v2",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 953,
+   "totalSteps": 1102,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 215,
-     "seconds": 3.58,
+     "steps": 221,
+     "seconds": 3.68,
      "shotsFired": 7,
      "shotsHit": 6,
      "accuracy": 85.7,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 503,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 373,
-     "seconds": 6.22,
-     "shotsFired": 8,
-     "shotsHit": 8,
-     "accuracy": 100,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 386,
-     "kills": 8,
-     "killDistances": [
-      550,
-      502,
-      438,
-      366,
-      555,
-      471,
-      425,
-      386
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 365,
-     "seconds": 6.08,
-     "shotsFired": 8,
-     "shotsHit": 8,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 493,
-     "kills": 1,
-     "killDistances": [
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-sniper-normal-range-s7101.json"
-  },
-  {
-   "brawler": "sniper",
-   "ruleset": "v2",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 962,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 224,
-     "seconds": 3.73,
-     "shotsFired": 7,
-     "shotsHit": 6,
-     "accuracy": 85.7,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 483,
+     "dps": 489,
      "kills": 6,
      "killDistances": [
       200,
@@ -2782,14 +3316,14 @@
      "dps": 387,
      "kills": 8,
      "killDistances": [
-      573,
-      467,
-      426,
-      350,
-      541,
-      446,
-      379,
-      351
+      554,
+      453,
+      354,
+      263,
+      535,
+      430,
+      402,
+      350
      ],
      "rescues": 0,
      "timedOut": false
@@ -2807,7 +3341,121 @@
      "dps": 492,
      "kills": 1,
      "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 143,
+     "seconds": 2.38,
+     "shotsFired": 6,
+     "shotsHit": 5,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1261,
+     "kills": 1,
+     "killDistances": [
+      244
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-sniper-normal-range-s7101.json"
+  },
+  {
+   "brawler": "sniper",
+   "ruleset": "v2",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1114,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 230,
+     "seconds": 3.83,
+     "shotsFired": 7,
+     "shotsHit": 6,
+     "accuracy": 85.7,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 470,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 371,
+     "seconds": 6.18,
+     "shotsFired": 8,
+     "shotsHit": 8,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 388,
+     "kills": 8,
+     "killDistances": [
+      575,
+      495,
+      444,
+      386,
+      558,
+      468,
+      364,
+      336
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 367,
+     "seconds": 6.12,
+     "shotsFired": 8,
+     "shotsHit": 8,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 490,
+     "kills": 1,
+     "killDistances": [
       150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 146,
+     "seconds": 2.43,
+     "shotsFired": 6,
+     "shotsHit": 5,
+     "accuracy": 83.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1235,
+     "kills": 1,
+     "killDistances": [
+      326
      ],
      "rescues": 0,
      "timedOut": false
@@ -2820,21 +3468,21 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1659,
+   "totalSteps": 1796,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 458,
-     "seconds": 7.63,
+     "steps": 433,
+     "seconds": 7.22,
      "shotsFired": 18,
      "shotsHit": 18,
      "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 236,
+     "dps": 249,
      "kills": 6,
      "killDistances": [
       200,
@@ -2850,24 +3498,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 597,
-     "seconds": 9.95,
-     "shotsFired": 24,
+     "steps": 623,
+     "seconds": 10.38,
+     "shotsFired": 25,
      "shotsHit": 24,
-     "accuracy": 100,
+     "accuracy": 96,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 241,
+     "dps": 231,
      "kills": 8,
      "killDistances": [
-      469,
-      285,
-      154,
-      148,
-      423,
-      245,
-      168,
-      237
+      508,
+      315,
+      201,
+      149,
+      437,
+      351,
+      264,
+      228
      ],
      "rescues": 0,
      "timedOut": false
@@ -2875,17 +3523,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 604,
-     "seconds": 10.07,
+     "steps": 603,
+     "seconds": 10.05,
      "shotsFired": 24,
      "shotsHit": 24,
      "accuracy": 100,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 298,
+     "dps": 299,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 137,
+     "seconds": 2.28,
+     "shotsFired": 15,
+     "shotsHit": 32,
+     "accuracy": 213.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1316,
+     "kills": 1,
+     "killDistances": [
+      312
      ],
      "rescues": 0,
      "timedOut": false
@@ -2898,99 +3564,21 @@
    "ruleset": "v2",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1673,
+   "totalSteps": 1778,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 445,
-     "seconds": 7.42,
+     "steps": 435,
+     "seconds": 7.25,
      "shotsFired": 18,
      "shotsHit": 18,
      "accuracy": 100,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 243,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 619,
-     "seconds": 10.32,
-     "shotsFired": 25,
-     "shotsHit": 24,
-     "accuracy": 96,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 233,
-     "kills": 8,
-     "killDistances": [
-      475,
-      291,
-      194,
-      191,
-      414,
-      303,
-      203,
-      152
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
-     "kind": "boss",
-     "steps": 609,
-     "seconds": 10.15,
-     "shotsFired": 24,
-     "shotsHit": 24,
-     "accuracy": 100,
-     "dmgDealt": 3000,
-     "dmgTaken": 0,
-     "dps": 296,
-     "kills": 1,
-     "killDistances": [
-      150
-     ],
-     "rescues": 0,
-     "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-plasma-normal-range-s7101.json"
-  },
-  {
-   "brawler": "plasma",
-   "ruleset": "v2",
-   "seed": 7102,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 1633,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 432,
-     "seconds": 7.2,
-     "shotsFired": 18,
-     "shotsHit": 18,
-     "accuracy": 100,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 250,
+     "dps": 248,
      "kills": 6,
      "killDistances": [
       200,
@@ -3016,14 +3604,14 @@
      "dps": 243,
      "kills": 8,
      "killDistances": [
-      470,
-      284,
-      172,
+      472,
+      367,
+      222,
       149,
-      459,
-      331,
-      226,
-      148
+      428,
+      268,
+      224,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -3045,6 +3633,120 @@
      ],
      "rescues": 0,
      "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 142,
+     "seconds": 2.37,
+     "shotsFired": 15,
+     "shotsHit": 34,
+     "accuracy": 226.7,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1266,
+     "kills": 1,
+     "killDistances": [
+      338
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-plasma-normal-range-s7101.json"
+  },
+  {
+   "brawler": "plasma",
+   "ruleset": "v2",
+   "seed": 7102,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 1842,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 478,
+     "seconds": 7.97,
+     "shotsFired": 18,
+     "shotsHit": 18,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 226,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 619,
+     "seconds": 10.32,
+     "shotsFired": 25,
+     "shotsHit": 24,
+     "accuracy": 96,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 233,
+     "kills": 8,
+     "killDistances": [
+      496,
+      282,
+      149,
+      149,
+      426,
+      242,
+      148,
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 609,
+     "seconds": 10.15,
+     "shotsFired": 24,
+     "shotsHit": 24,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 296,
+     "kills": 1,
+     "killDistances": [
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 136,
+     "seconds": 2.27,
+     "shotsFired": 15,
+     "shotsHit": 31,
+     "accuracy": 206.7,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1322,
+     "kills": 1,
+     "killDistances": [
+      308
+     ],
+     "rescues": 0,
+     "timedOut": false
     }
    ],
    "file": "001-range-arctic-plasma-normal-range-s7102.json"
@@ -3054,18 +3756,18 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2101,
+   "totalSteps": 2385,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 885,
-     "seconds": 14.75,
-     "shotsFired": 250,
+     "steps": 888,
+     "seconds": 14.8,
+     "shotsFired": 255,
      "shotsHit": 48,
-     "accuracy": 19.2,
+     "accuracy": 18.8,
      "dmgDealt": 1800,
      "dmgTaken": 0,
      "dps": 122,
@@ -3084,24 +3786,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 779,
-     "seconds": 12.98,
-     "shotsFired": 225,
+     "steps": 806,
+     "seconds": 13.43,
+     "shotsFired": 230,
      "shotsHit": 64,
-     "accuracy": 28.4,
+     "accuracy": 27.8,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 185,
+     "dps": 179,
      "kills": 8,
      "killDistances": [
+      149,
+      149,
+      149,
       148,
-      149,
       150,
-      149,
-      148,
       150,
-      149,
-      148
+      150,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -3109,17 +3811,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 437,
-     "seconds": 7.28,
-     "shotsFired": 135,
+     "steps": 486,
+     "seconds": 8.1,
+     "shotsFired": 150,
      "shotsHit": 75,
-     "accuracy": 55.6,
+     "accuracy": 50,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 412,
+     "dps": 370,
      "kills": 1,
      "killDistances": [
-      149
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 205,
+     "seconds": 3.42,
+     "shotsFired": 32,
+     "shotsHit": 24,
+     "accuracy": 75,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 877,
+     "kills": 1,
+     "killDistances": [
+      151
      ],
      "rescues": 0,
      "timedOut": false
@@ -3132,29 +3852,29 @@
    "ruleset": "v2",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2184,
+   "totalSteps": 2360,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 864,
-     "seconds": 14.4,
-     "shotsFired": 250,
+     "steps": 882,
+     "seconds": 14.7,
+     "shotsFired": 255,
      "shotsHit": 48,
-     "accuracy": 19.2,
+     "accuracy": 18.8,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 125,
+     "dps": 122,
      "kills": 6,
      "killDistances": [
       200,
       200,
       300,
       300,
-      309,
-      287
+      287,
+      306
      ],
      "rescues": 0,
      "timedOut": false
@@ -3162,24 +3882,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 833,
-     "seconds": 13.88,
-     "shotsFired": 225,
+     "steps": 845,
+     "seconds": 14.08,
+     "shotsFired": 235,
      "shotsHit": 64,
-     "accuracy": 28.4,
+     "accuracy": 27.2,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 173,
+     "dps": 170,
      "kills": 8,
      "killDistances": [
       149,
+      157,
       149,
       148,
-      149,
+      156,
       148,
-      214,
-      147,
-      149
+      150,
+      150
      ],
      "rescues": 0,
      "timedOut": false
@@ -3187,17 +3907,35 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 487,
-     "seconds": 8.12,
-     "shotsFired": 145,
+     "steps": 456,
+     "seconds": 7.6,
+     "shotsFired": 140,
      "shotsHit": 75,
-     "accuracy": 51.7,
+     "accuracy": 53.6,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 369,
+     "dps": 395,
      "kills": 1,
      "killDistances": [
       149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 177,
+     "seconds": 2.95,
+     "shotsFired": 32,
+     "shotsHit": 24,
+     "accuracy": 75,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1017,
+     "kills": 1,
+     "killDistances": [
+      150
      ],
      "rescues": 0,
      "timedOut": false
@@ -3210,29 +3948,29 @@
    "ruleset": "v2",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2159,
+   "totalSteps": 2332,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 847,
-     "seconds": 14.12,
+     "steps": 864,
+     "seconds": 14.4,
      "shotsFired": 245,
      "shotsHit": 48,
      "accuracy": 19.6,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 127,
+     "dps": 125,
      "kills": 6,
      "killDistances": [
       200,
       200,
       300,
       300,
-      309,
-      286
+      287,
+      281
      ],
      "rescues": 0,
      "timedOut": false
@@ -3240,24 +3978,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 839,
-     "seconds": 13.98,
-     "shotsFired": 240,
+     "steps": 803,
+     "seconds": 13.38,
+     "shotsFired": 220,
      "shotsHit": 64,
-     "accuracy": 26.7,
+     "accuracy": 29.1,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 172,
+     "dps": 179,
      "kills": 8,
      "killDistances": [
-      147,
-      150,
       149,
+      168,
       150,
-      153,
-      149,
+      148,
+      148,
+      150,
       147,
-      161
+      148
      ],
      "rescues": 0,
      "timedOut": false
@@ -3265,14 +4003,32 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 474,
-     "seconds": 7.9,
+     "steps": 490,
+     "seconds": 8.17,
      "shotsFired": 140,
      "shotsHit": 75,
      "accuracy": 53.6,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 380,
+     "dps": 367,
+     "kills": 1,
+     "killDistances": [
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 175,
+     "seconds": 2.92,
+     "shotsFired": 32,
+     "shotsHit": 24,
+     "accuracy": 75,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1027,
      "kills": 1,
      "killDistances": [
       149
@@ -3288,18 +4044,18 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1856,
+   "totalSteps": 2061,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
      "steps": 446,
      "seconds": 7.43,
-     "shotsFired": 12,
+     "shotsFired": 13,
      "shotsHit": 12,
-     "accuracy": 100,
+     "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
      "dps": 242,
@@ -3328,14 +4084,14 @@
      "dps": 231,
      "kills": 8,
      "killDistances": [
-      462,
-      271,
-      149,
-      148,
-      420,
+      502,
+      351,
       230,
-      152,
-      219
+      149,
+      437,
+      343,
+      251,
+      213
      ],
      "rescues": 0,
      "timedOut": false
@@ -3357,6 +4113,24 @@
      ],
      "rescues": 0,
      "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 205,
+     "seconds": 3.42,
+     "shotsFired": 15,
+     "shotsHit": 8,
+     "accuracy": 53.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 877,
+     "kills": 1,
+     "killDistances": [
+      258
+     ],
+     "rescues": 0,
+     "timedOut": false
     }
    ],
    "file": "001-range-arctic-shadow-normal-range-s7100.json"
@@ -3366,18 +4140,18 @@
    "ruleset": "v2",
    "seed": 7101,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1856,
+   "totalSteps": 2021,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 446,
-     "seconds": 7.43,
-     "shotsFired": 12,
+     "steps": 447,
+     "seconds": 7.45,
+     "shotsFired": 13,
      "shotsHit": 12,
-     "accuracy": 100,
+     "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
      "dps": 242,
@@ -3406,14 +4180,14 @@
      "dps": 233,
      "kills": 8,
      "killDistances": [
-      471,
-      281,
-      173,
-      172,
-      466,
-      337,
-      228,
-      170
+      463,
+      353,
+      198,
+      150,
+      425,
+      252,
+      204,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -3431,7 +4205,25 @@
      "dps": 228,
      "kills": 1,
      "killDistances": [
-      149
+      150
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 164,
+     "seconds": 2.73,
+     "shotsFired": 12,
+     "shotsHit": 8,
+     "accuracy": 66.7,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1099,
+     "kills": 1,
+     "killDistances": [
+      230
      ],
      "rescues": 0,
      "timedOut": false
@@ -3444,9 +4236,9 @@
    "ruleset": "v2",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 1857,
+   "totalSteps": 2060,
    "stations": [
     {
      "id": "targets",
@@ -3474,24 +4266,24 @@
     {
      "id": "assault",
      "kind": "approach",
-     "steps": 621,
-     "seconds": 10.35,
+     "steps": 619,
+     "seconds": 10.32,
      "shotsFired": 16,
      "shotsHit": 16,
      "accuracy": 100,
      "dmgDealt": 2400,
      "dmgTaken": 0,
-     "dps": 232,
+     "dps": 233,
      "kills": 8,
      "killDistances": [
-      462,
-      264,
-      150,
+      493,
+      324,
+      154,
       149,
-      435,
-      388,
-      261,
-      180
+      420,
+      226,
+      148,
+      149
      ],
      "rescues": 0,
      "timedOut": false
@@ -3499,8 +4291,8 @@
     {
      "id": "boss",
      "kind": "boss",
-     "steps": 789,
-     "seconds": 13.15,
+     "steps": 791,
+     "seconds": 13.18,
      "shotsFired": 20,
      "shotsHit": 20,
      "accuracy": 100,
@@ -3509,7 +4301,25 @@
      "dps": 228,
      "kills": 1,
      "killDistances": [
-      150
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 203,
+     "seconds": 3.38,
+     "shotsFired": 15,
+     "shotsHit": 8,
+     "accuracy": 53.3,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 888,
+     "kills": 1,
+     "killDistances": [
+      237
      ],
      "rescues": 0,
      "timedOut": false
@@ -3522,21 +4332,117 @@
    "ruleset": "v2",
    "seed": 7100,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2017,
+   "totalSteps": 2184,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 545,
-     "seconds": 9.08,
+     "steps": 555,
+     "seconds": 9.25,
      "shotsFired": 13,
      "shotsHit": 12,
      "accuracy": 92.3,
      "dmgDealt": 1800,
      "dmgTaken": 0,
-     "dps": 198,
+     "dps": 195,
+     "kills": 6,
+     "killDistances": [
+      200,
+      200,
+      300,
+      300,
+      450,
+      450
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "assault",
+     "kind": "approach",
+     "steps": 775,
+     "seconds": 12.92,
+     "shotsFired": 16,
+     "shotsHit": 16,
+     "accuracy": 100,
+     "dmgDealt": 2400,
+     "dmgTaken": 0,
+     "dps": 186,
+     "kills": 8,
+     "killDistances": [
+      458,
+      277,
+      149,
+      149,
+      373,
+      227,
+      148,
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "boss",
+     "kind": "boss",
+     "steps": 697,
+     "seconds": 11.62,
+     "shotsFired": 14,
+     "shotsHit": 14,
+     "accuracy": 100,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 258,
+     "kills": 1,
+     "killDistances": [
+      149
+     ],
+     "rescues": 0,
+     "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 157,
+     "seconds": 2.62,
+     "shotsFired": 9,
+     "shotsHit": 7,
+     "accuracy": 77.8,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1145,
+     "kills": 1,
+     "killDistances": [
+      262
+     ],
+     "rescues": 0,
+     "timedOut": false
+    }
+   ],
+   "file": "001-range-arctic-king-normal-range-s7100.json"
+  },
+  {
+   "brawler": "king",
+   "ruleset": "v2",
+   "seed": 7101,
+   "outcome": "victory",
+   "layout": "range-v2",
+   "done": true,
+   "totalSteps": 2183,
+   "stations": [
+    {
+     "id": "targets",
+     "kind": "static",
+     "steps": 556,
+     "seconds": 9.27,
+     "shotsFired": 12,
+     "shotsHit": 12,
+     "accuracy": 100,
+     "dmgDealt": 1800,
+     "dmgTaken": 0,
+     "dps": 194,
      "kills": 6,
      "killDistances": [
       200,
@@ -3563,12 +4469,12 @@
      "kills": 8,
      "killDistances": [
       413,
-      179,
+      276,
       149,
-      150,
-      368,
-      150,
-      204,
+      148,
+      445,
+      348,
+      219,
       149
      ],
      "rescues": 0,
@@ -3591,81 +4497,21 @@
      ],
      "rescues": 0,
      "timedOut": false
-    }
-   ],
-   "file": "001-range-arctic-king-normal-range-s7100.json"
-  },
-  {
-   "brawler": "king",
-   "ruleset": "v2",
-   "seed": 7101,
-   "outcome": "victory",
-   "layout": "range-v1",
-   "done": true,
-   "totalSteps": 2073,
-   "stations": [
-    {
-     "id": "targets",
-     "kind": "static",
-     "steps": 600,
-     "seconds": 10,
-     "shotsFired": 12,
-     "shotsHit": 12,
-     "accuracy": 100,
-     "dmgDealt": 1800,
-     "dmgTaken": 0,
-     "dps": 180,
-     "kills": 6,
-     "killDistances": [
-      200,
-      200,
-      300,
-      300,
-      450,
-      450
-     ],
-     "rescues": 0,
-     "timedOut": false
     },
     {
-     "id": "assault",
-     "kind": "approach",
-     "steps": 778,
-     "seconds": 12.97,
-     "shotsFired": 16,
-     "shotsHit": 16,
-     "accuracy": 100,
-     "dmgDealt": 2400,
-     "dmgTaken": 0,
-     "dps": 185,
-     "kills": 8,
-     "killDistances": [
-      483,
-      346,
-      229,
-      207,
-      388,
-      204,
-      148,
-      149
-     ],
-     "rescues": 0,
-     "timedOut": false
-    },
-    {
-     "id": "boss",
+     "id": "super",
      "kind": "boss",
-     "steps": 696,
-     "seconds": 11.6,
-     "shotsFired": 14,
-     "shotsHit": 14,
-     "accuracy": 100,
+     "steps": 155,
+     "seconds": 2.58,
+     "shotsFired": 9,
+     "shotsHit": 7,
+     "accuracy": 77.8,
      "dmgDealt": 3000,
      "dmgTaken": 0,
-     "dps": 259,
+     "dps": 1163,
      "kills": 1,
      "killDistances": [
-      149
+      231
      ],
      "rescues": 0,
      "timedOut": false
@@ -3678,15 +4524,15 @@
    "ruleset": "v2",
    "seed": 7102,
    "outcome": "victory",
-   "layout": "range-v1",
+   "layout": "range-v2",
    "done": true,
-   "totalSteps": 2029,
+   "totalSteps": 2185,
    "stations": [
     {
      "id": "targets",
      "kind": "static",
-     "steps": 557,
-     "seconds": 9.28,
+     "steps": 556,
+     "seconds": 9.27,
      "shotsFired": 13,
      "shotsHit": 12,
      "accuracy": 92.3,
@@ -3718,13 +4564,13 @@
      "dps": 186,
      "kills": 8,
      "killDistances": [
-      411,
-      176,
-      148,
+      448,
+      241,
       149,
-      369,
-      282,
-      159,
+      149,
+      361,
+      183,
+      150,
       149
      ],
      "rescues": 0,
@@ -3747,6 +4593,24 @@
      ],
      "rescues": 0,
      "timedOut": false
+    },
+    {
+     "id": "super",
+     "kind": "boss",
+     "steps": 157,
+     "seconds": 2.62,
+     "shotsFired": 9,
+     "shotsHit": 7,
+     "accuracy": 77.8,
+     "dmgDealt": 3000,
+     "dmgTaken": 0,
+     "dps": 1145,
+     "kills": 1,
+     "killDistances": [
+      268
+     ],
+     "rescues": 0,
+     "timedOut": false
     }
    ],
    "file": "001-range-arctic-king-normal-range-s7102.json"
@@ -3757,19 +4621,22 @@
    "twardy": {
     "runs": 3,
     "ttc": {
-     "targets": 7.63,
-     "assault": 10.37,
-     "boss": 12.63
+     "targets": 7.22,
+     "assault": 9.9,
+     "boss": 12.68,
+     "super": 2.28
     },
     "spread": {
-     "targets": 5.6786703601108055,
-     "assault": 3.3751205400193003,
-     "boss": 0.7125890736342031
+     "targets": 0.9722222222222138,
+     "assault": 4.848484848484853,
+     "boss": 0.4754358161648218,
+     "super": 1.3215859030836918
     },
-    "totalSec": 30.633333333333333,
+    "totalSec": 32.083333333333336,
     "acc": 100,
-    "dpsTargets": 236,
-    "dpsBoss": 238,
+    "dpsTargets": 249,
+    "dpsBoss": 237,
+    "dpsSuper": 1316,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3780,17 +4647,20 @@
     "ttc": {
      "targets": 8.27,
      "assault": 11.32,
-     "boss": 14.52
+     "boss": 14.52,
+     "super": 3
     },
     "spread": {
-     "targets": 0.6060606060606146,
-     "assault": 6.371681415929194,
-     "boss": 0.20661157024794174
+     "targets": 0.6045949214026688,
+     "assault": 0.35460992907802236,
+     "boss": 0.34482758620690146,
+     "super": 1.6949152542372818
     },
-    "totalSec": 34.11666666666667,
+    "totalSec": 37.1,
     "acc": 100,
     "dpsTargets": 218,
     "dpsBoss": 207,
+    "dpsSuper": 1000,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3799,19 +4669,22 @@
    "scout": {
     "runs": 3,
     "ttc": {
-     "targets": 6.92,
-     "assault": 9.03,
-     "boss": 10.25
+     "targets": 6.43,
+     "assault": 9.07,
+     "boss": 10.25,
+     "super": 2.22
     },
     "spread": {
-     "targets": 4.02985074626865,
-     "assault": 2.3675310033821972,
-     "boss": 0.7843137254901967
+     "targets": 0.3110419906687475,
+     "assault": 0.9966777408637859,
+     "boss": 0.7843137254901967,
+     "super": 13.19796954314721
     },
-    "totalSec": 26.016666666666666,
-    "acc": 96,
-    "dpsTargets": 260,
+    "totalSec": 27.983333333333334,
+    "acc": 100,
+    "dpsTargets": 280,
     "dpsBoss": 293,
+    "dpsSuper": 1351,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3821,18 +4694,21 @@
     "runs": 3,
     "ttc": {
      "targets": 4.85,
-     "assault": 8.18,
-     "boss": 10.23
+     "assault": 8.15,
+     "boss": 10.28,
+     "super": 4.13
     },
     "spread": {
-     "targets": 2.0920502092050137,
-     "assault": 0.8610086100860824,
-     "boss": 0.4887585532746719
+     "targets": 0.4123711340206281,
+     "assault": 0.8641975308642011,
+     "boss": 0.48685491723467106,
+     "super": 0.9685230024213084
     },
-    "totalSec": 23.266666666666666,
+    "totalSec": 27.416666666666668,
     "acc": 100,
     "dpsTargets": 371,
-    "dpsBoss": 293,
+    "dpsBoss": 292,
+    "dpsSuper": 726,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3843,17 +4719,20 @@
     "ttc": {
      "targets": 8.75,
      "assault": 12.33,
-     "boss": 13.1
+     "boss": 13.08,
+     "super": 2.25
     },
     "spread": {
-     "targets": 0.3440366972476991,
-     "assault": 4.139610389610388,
-     "boss": 0.3058103975535103
+     "targets": 5.714285714285714,
+     "assault": 0.08116883116882943,
+     "boss": 0.3058103975535103,
+     "super": 2.2522522522522443
     },
-    "totalSec": 34.166666666666664,
+    "totalSec": 36.4,
     "acc": 100,
     "dpsTargets": 206,
     "dpsBoss": 229,
+    "dpsSuper": 1333,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3862,19 +4741,22 @@
    "pyro": {
     "runs": 3,
     "ttc": {
-     "targets": 7.82,
-     "assault": 8.83,
-     "boss": 5.82
+     "targets": 8,
+     "assault": 9.22,
+     "boss": 5.83,
+     "super": 2.78
     },
     "spread": {
-     "targets": 5.398457583547545,
-     "assault": 10.208816705336437,
-     "boss": 9.719626168224309
+     "targets": 0,
+     "assault": 16.407185628742525,
+     "boss": 14.204545454545453,
+     "super": 19.40928270042194
     },
-    "totalSec": 22.633333333333333,
-    "acc": 40,
-    "dpsTargets": 230,
+    "totalSec": 25.416666666666668,
+    "acc": 38,
+    "dpsTargets": 225,
     "dpsBoss": 515,
+    "dpsSuper": 1079,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3883,19 +4765,22 @@
    "shadow": {
     "runs": 3,
     "ttc": {
-     "targets": 7.08,
+     "targets": 7.07,
      "assault": 9.83,
-     "boss": 12.48
+     "boss": 12.47,
+     "super": 3.22
     },
     "spread": {
      "targets": 0.4243281471004153,
-     "assault": 1.025641025641022,
-     "boss": 0.8032128514056338
+     "assault": 0.9202453987730048,
+     "boss": 0.7240547063555902,
+     "super": 1.89274447949527
     },
-    "totalSec": 29.383333333333333,
+    "totalSec": 32.583333333333336,
     "acc": 100,
-    "dpsTargets": 254,
-    "dpsBoss": 240,
+    "dpsTargets": 255,
+    "dpsBoss": 241,
+    "dpsSuper": 932,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3904,19 +4789,22 @@
    "king": {
     "runs": 3,
     "ttc": {
-     "targets": 6.18,
-     "assault": 8.73,
-     "boss": 7.77
+     "targets": 6.17,
+     "assault": 8.6,
+     "boss": 7.73,
+     "super": 2.27
     },
     "spread": {
      "targets": 0.16207455429497222,
-     "assault": 5.990783410138245,
-     "boss": 0.7772020725388666
+     "assault": 7.33496332518337,
+     "boss": 2.614379084967311,
+     "super": 3.1390134529147913
     },
-    "totalSec": 22.633333333333333,
+    "totalSec": 24.866666666666667,
     "acc": 94.1,
-    "dpsTargets": 291,
-    "dpsBoss": 386,
+    "dpsTargets": 292,
+    "dpsBoss": 388,
+    "dpsSuper": 1322,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3927,19 +4815,22 @@
    "twardy": {
     "runs": 3,
     "ttc": {
-     "targets": 4.75,
-     "assault": 7.27,
-     "boss": 7.62
+     "targets": 5.1,
+     "assault": 6.9,
+     "boss": 7.65,
+     "super": 2.13
     },
     "spread": {
-     "targets": 8.456659619450305,
-     "assault": 10.071942446043169,
-     "boss": 1.3245033112582854
+     "targets": 8.24524312896405,
+     "assault": 6.442166910688134,
+     "boss": 0.9210526315789511,
+     "super": 2.4038461538461453
     },
-    "totalSec": 19.666666666666668,
-    "acc": 92.3,
-    "dpsTargets": 379,
-    "dpsBoss": 394,
+    "totalSec": 21.733333333333334,
+    "acc": 100,
+    "dpsTargets": 353,
+    "dpsBoss": 392,
+    "dpsSuper": 1408,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3948,19 +4839,22 @@
    "heavy": {
     "runs": 3,
     "ttc": {
-     "targets": 8.23,
-     "assault": 11.32,
-     "boss": 14.53
+     "targets": 8.27,
+     "assault": 11.3,
+     "boss": 14.53,
+     "super": 2.33
     },
     "spread": {
-     "targets": 0.24301336573511026,
-     "assault": 6.194690265486719,
-     "boss": 0.27529249827942825
+     "targets": 0.12091898428052948,
+     "assault": 0.4432624113475241,
+     "boss": 0.34435261707989473,
+     "super": 0.43103448275863065
     },
-    "totalSec": 34.083333333333336,
+    "totalSec": 36.45,
     "acc": 100,
-    "dpsTargets": 219,
+    "dpsTargets": 218,
     "dpsBoss": 206,
+    "dpsSuper": 1288,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3969,19 +4863,22 @@
    "scout": {
     "runs": 3,
     "ttc": {
-     "targets": 4.13,
-     "assault": 6.15,
-     "boss": 5.02
+     "targets": 4,
+     "assault": 6.2,
+     "boss": 5,
+     "super": 2.25
     },
     "spread": {
-     "targets": 9.798994974874375,
-     "assault": 7.627118644067784,
-     "boss": 1.414141414141402
+     "targets": 4.271356783919607,
+     "assault": 5.930807248764405,
+     "boss": 1.0040160642570244,
+     "super": 8.520179372197308
     },
-    "totalSec": 15.35,
-    "acc": 90,
-    "dpsTargets": 436,
-    "dpsBoss": 598,
+    "totalSec": 17.483333333333334,
+    "acc": 100,
+    "dpsTargets": 450,
+    "dpsBoss": 600,
+    "dpsSuper": 1333,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -3990,19 +4887,22 @@
    "sniper": {
     "runs": 3,
     "ttc": {
-     "targets": 3.73,
-     "assault": 6.22,
-     "boss": 6.08
+     "targets": 3.75,
+     "assault": 6.18,
+     "boss": 6.12,
+     "super": 2.42
     },
     "spread": {
-     "targets": 7.5418994413407825,
-     "assault": 0.32258064516128343,
-     "boss": 0.3289473684210456
+     "targets": 4.076086956521737,
+     "assault": 0.4862236628849311,
+     "boss": 0.4918032786885287,
+     "super": 2.100840336134465
     },
-    "totalSec": 16.033333333333335,
+    "totalSec": 18.466666666666665,
     "acc": 100,
-    "dpsTargets": 483,
-    "dpsBoss": 493,
+    "dpsTargets": 480,
+    "dpsBoss": 490,
+    "dpsSuper": 1240,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -4011,19 +4911,22 @@
    "plasma": {
     "runs": 3,
     "ttc": {
-     "targets": 7.42,
-     "assault": 9.95,
-     "boss": 10.13
+     "targets": 7.25,
+     "assault": 10.32,
+     "boss": 10.13,
+     "super": 2.28
     },
     "spread": {
-     "targets": 5.972222222222219,
-     "assault": 4.453441295546553,
-     "boss": 0.7944389275074485
+     "targets": 10.387811634349031,
+     "assault": 5.060728744939271,
+     "boss": 0.9950248756218869,
+     "super": 4.405286343612339
     },
-    "totalSec": 27.65,
+    "totalSec": 29.933333333333334,
     "acc": 100,
-    "dpsTargets": 243,
+    "dpsTargets": 248,
     "dpsBoss": 296,
+    "dpsSuper": 1316,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -4032,19 +4935,22 @@
    "pyro": {
     "runs": 3,
     "ttc": {
-     "targets": 14.4,
-     "assault": 13.88,
-     "boss": 7.9
+     "targets": 14.7,
+     "assault": 13.43,
+     "boss": 8.1,
+     "super": 2.95
     },
     "spread": {
-     "targets": 4.461756373937683,
-     "assault": 7.704160246533127,
-     "boss": 11.538461538461524
+     "targets": 2.77777777777778,
+     "assault": 5.231689088191325,
+     "boss": 7.5000000000000036,
+     "super": 17.123287671232877
     },
-    "totalSec": 35.983333333333334,
-    "acc": 28.4,
-    "dpsTargets": 125,
-    "dpsBoss": 380,
+    "totalSec": 39.333333333333336,
+    "acc": 50,
+    "dpsTargets": 122,
+    "dpsBoss": 370,
+    "dpsSuper": 1017,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -4053,19 +4959,22 @@
    "shadow": {
     "runs": 3,
     "ttc": {
-     "targets": 7.43,
-     "assault": 10.35,
-     "boss": 13.15
+     "targets": 7.45,
+     "assault": 10.32,
+     "boss": 13.18,
+     "super": 3.38
     },
     "spread": {
      "targets": 0.2691790040376913,
      "assault": 0.4844961240309974,
-     "boss": 0.38080731150037267
+     "boss": 0.38080731150037267,
+     "super": 25.274725274725274
     },
-    "totalSec": 30.933333333333334,
+    "totalSec": 34.333333333333336,
     "acc": 100,
     "dpsTargets": 242,
     "dpsBoss": 228,
+    "dpsSuper": 888,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -4074,19 +4983,22 @@
    "king": {
     "runs": 3,
     "ttc": {
-     "targets": 9.28,
+     "targets": 9.27,
      "assault": 12.92,
-     "boss": 11.62
+     "boss": 11.62,
+     "super": 2.62
     },
     "spread": {
-     "targets": 10.13215859030837,
-     "assault": 0.3869969040247733,
-     "boss": 0.1724137931034446
+     "targets": 0.21621621621621162,
+     "assault": 0,
+     "boss": 0,
+     "super": 1.5503875968992262
     },
-    "totalSec": 33.81666666666667,
+    "totalSec": 36.4,
     "acc": 100,
     "dpsTargets": 194,
     "dpsBoss": 258,
+    "dpsSuper": 1145,
     "dmgTakenAssault": 0,
     "rescues": 0,
     "timeouts": 0,
@@ -4097,26 +5009,26 @@
  "hist": {
   "v1": {
    "n": 192,
-   "median": 249,
-   "mean": 283.5833333333333,
+   "median": 265,
+   "mean": 292.03125,
    "buckets": {
-    "100": 61,
-    "200": 61,
-    "300": 27,
-    "400": 34,
-    "500": 9
+    "100": 57,
+    "200": 50,
+    "300": 41,
+    "400": 36,
+    "500": 8
    }
   },
   "v2": {
    "n": 192,
-   "median": 303,
-   "mean": 309.2395833333333,
+   "median": 306,
+   "mean": 306.4427083333333,
    "buckets": {
-    "100": 65,
+    "100": 63,
     "200": 31,
-    "300": 38,
-    "400": 41,
-    "500": 17
+    "300": 43,
+    "400": 35,
+    "500": 20
    }
   }
  }

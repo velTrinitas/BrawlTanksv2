@@ -158,6 +158,7 @@ body.bt-desktop .bt-hub0-screen {
 .bt-hub0-nav {
     grid-area: nav;
     z-index: 3;
+    position: relative; /* v0.208.0 — kotwica wskaznika .bt-hub0-navind */
     display: flex;
     /* MOBILE dock = poziomo */
     flex-direction: row;
@@ -1781,6 +1782,11 @@ body.bt-desktop .bt-hub0-loadout-title { font-size: 19px; letter-spacing: 0.8px;
     .bt-hub0-diff-pill,
     .bt-hub0-q .qbar i { transition: none; }
     .bt-hub0-dot { animation: none; }
+    /* v0.208.0 — MENU JUICE: calosc wyciszona przy prosbie o brak ruchu */
+    .bt-ripple, .bt-tap-release, .bt-enter, .bt-stamp, .is-tick, .bt-delta, .is-hop,
+    .bt-hub0-node.is-fresh .mark, .bt-hub0-node.is-fresh .sp, .is-spotlight, .is-nope,
+    .bt-hub0-navbtn--play, .bt-hub0-navbtn--play::after, .bt-hub0-play, .bt-hub0-play::after { animation: none; }
+    .bt-hub0-navind { transition: none; }
     .bt-hub0-overlay, .bt-cos-shimmer, .bt-hub0-crate-box.shake, .bt-hub0-reveal,
     .bt-hub0-play--go, .bt-hub0-crate-modal.thud, .bt-hub0-crate-dust span,
     .bt-hub0-crate-flash, .bt-hub0-reveal-rays,
@@ -3499,3 +3505,100 @@ body.bt-desktop .ps-items { grid-template-columns: repeat(6, 1fr); }
     .bt-gr2-skinbtn { min-height: 42px; }
     .bt-gr2-skinbtn-wrap { margin-bottom: 8px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   v0.208.0 — MENU JUICE (Sensoryka przeniesiona na hub). Wszystko transform/opacity.
+   Logika: src/ui/hub/juice.ts. Reduced-motion: blok @media wyzej.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* J1 — squash na tap + spring po puszczeniu (elementy bez wlasnego :active) */
+.bt-hub0-navbtn, .bt-hub0-diff-pill, .bt-gr2-cratechip, .bt-hub0-coin--btn, .bt-hub0-s2,
+.bt-hub0-gear, .bt-hub0-node, .ps-item, .bt-hub0-q-claim, .bt-hub0-profile { transition: transform 0.09s ease; }
+.bt-hub0-navbtn:active, .bt-hub0-diff-pill:active, .bt-gr2-cratechip:active:not([disabled]),
+.bt-hub0-coin--btn:active, .bt-hub0-s2:active, .bt-hub0-gear:active, .bt-hub0-node:active,
+.ps-item:active, .bt-hub0-q-claim:active, .bt-hub0-profile:active { transform: scale(0.94); }
+.bt-tap-release { animation: bt-tap-release 0.18s cubic-bezier(.2,.9,.3,1.4); }
+@keyframes bt-tap-release { 0% { transform: scale(0.96); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+/* J1 — ripple: wrapper tnie do ksztaltu przycisku, kolo rosnie z punktu dotyku */
+.bt-ripple-box { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; z-index: 1; }
+.bt-ripple {
+    position: absolute; border-radius: 50%; background: var(--hub-accent);
+    opacity: 0.35; transform: scale(0); animation: bt-ripple 0.38s ease-out forwards;
+}
+@keyframes bt-ripple { to { transform: scale(2.6); opacity: 0; } }
+
+/* J2 — wskaznik aktywnej sekcji jedzie po docku / railu */
+.bt-hub0-navind {
+    position: absolute; left: 0; top: 0; height: 3px; width: 40px; border-radius: 2px;
+    background: var(--hub-accent); box-shadow: 0 0 8px rgba(241, 196, 15, 0.6);
+    pointer-events: none; opacity: 0; will-change: transform;
+    transition: transform 0.22s cubic-bezier(.2,.9,.3,1.2), width 0.22s ease, height 0.22s ease, opacity 0.15s;
+}
+body:not(.bt-desktop) .bt-hub0-navind { bottom: 7px; top: auto; } /* wewnatrz przycisku (nav ma padding 5px) */
+/* J2 — ikona aktywnej sekcji podskakuje */
+.bt-hub0-navbtn .gi { display: inline-block; }
+.bt-hub0-navbtn .gi.is-hop { animation: bt-hop 0.28s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes bt-hop { 0% { transform: scale(1) rotate(0); } 40% { transform: scale(1.3) rotate(-8deg); } 70% { transform: scale(1.15) rotate(6deg); } 100% { transform: scale(1) rotate(0); } }
+/* J2 — GRAJ oddycha + blysk co 8 s (jedyny element doku, ktory rusza sie sam) */
+.bt-hub0-navbtn--play, .bt-hub0-play { animation: bt-breathe 2s ease-in-out infinite; overflow: hidden; }
+@keyframes bt-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+.bt-hub0-navbtn--play::after, .bt-hub0-play::after {
+    content: ''; position: absolute; top: -20%; bottom: -20%; width: 40%; left: 0; pointer-events: none;
+    background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 100%);
+    transform: translateX(-160%) skewX(-18deg); animation: bt-shine 8s linear infinite;
+}
+@keyframes bt-shine { 0% { transform: translateX(-160%) skewX(-18deg); } 12% { transform: translateX(320%) skewX(-18deg); } 100% { transform: translateX(320%) skewX(-18deg); } }
+.bt-hub0-navbtn--play:active, .bt-hub0-play:active { animation: none; }
+
+/* J3 — wejscie sekcji: kaskada (mobile z dolu, desktop z lewej) + stempel naglowka */
+.bt-enter { animation: bt-enter-up 0.18s cubic-bezier(.2,.8,.3,1) both; animation-delay: calc(var(--i, 0) * 30ms); }
+body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
+@keyframes bt-enter-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bt-enter-left { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+.bt-stamp { animation: bt-stamp 0.22s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes bt-stamp { 0% { transform: scale(1.15); text-shadow: 0 0 14px rgba(241,196,15,0.9); } 100% { transform: scale(1); text-shadow: none; } }
+
+/* J4 — liczby: ikona podskakuje przy tyknieciu, „+N" wylatuje w gore */
+.bt-hub0-coin { position: relative; }
+.bt-hub0-coin .ic.is-tick, .bt-hub0-coin .bt-sigma.is-tick { animation: bt-tick 0.22s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes bt-tick { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.bt-delta {
+    position: absolute; left: 50%; top: -4px; transform: translate(-50%, 0); font-style: normal;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 15px; color: var(--hub-accent);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.6), 0 0 10px rgba(241,196,15,0.6); pointer-events: none; white-space: nowrap;
+    animation: bt-delta 0.9s cubic-bezier(.2,.8,.3,1) forwards; z-index: 5;
+}
+@keyframes bt-delta { 0% { opacity: 0; transform: translate(-50%, 4px) scale(0.7); } 20% { opacity: 1; transform: translate(-50%, -8px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -34px) scale(1); } }
+/* J4 — pasek Szlaku DOJEZDZA (bylo 0.4s — za szybko, zeby oko zlapalo ruch) */
+.bt-hub0-trophybar-track .fill { transition: width 0.7s cubic-bezier(.2,.8,.3,1); }
+/* J4 — swiezo zdobyty wezel: ✓ wbija sie, 6 iskier (keyframe bt-crate-spark reuzyty) */
+.bt-hub0-node.is-fresh .mark { position: relative; animation: bt-dot-pop 0.45s cubic-bezier(.2,1.4,.4,1) both; }
+.bt-hub0-node.is-fresh .sp {
+    position: absolute; left: 50%; top: 50%; width: 14px; height: 3px; margin: -1px 0 0 -7px; border-radius: 2px;
+    background: var(--hub-accent); transform-origin: 0 50%; --dist: 34px;
+    animation: bt-crate-spark 0.55s ease-out 0.1s both; pointer-events: none;
+}
+/* C — wezel podswietlony po „Pokaz na Szlaku" */
+.bt-hub0-node.is-spotlight { animation: bt-spot 1.6s ease-out; }
+@keyframes bt-spot { 0%, 45%, 100% { box-shadow: 0 0 0 0 rgba(241,196,15,0); } 20%, 65% { box-shadow: 0 0 0 4px rgba(241,196,15,0.75), 0 0 24px rgba(241,196,15,0.5); } }
+/* C — zablokowana moc: szarpniecie + dymek z progiem i skokiem na Szlak */
+.bt-hub0-powcard.is-nope { animation: bt-nick-shake 0.3s ease-in-out; }
+.bt-hub0-powcard { flex-wrap: wrap; }
+.bt-hub0-powcard .pc-hint {
+    display: none; width: 100%; margin-top: 8px; gap: 8px; align-items: center;
+    justify-content: space-between; flex-wrap: wrap; font-size: 12px; font-weight: 700; color: var(--hub-ink-dim);
+}
+.bt-hub0-powcard .pc-hint.is-open { display: flex; }
+.bt-hub0-powcard .pc-hint-btn {
+    padding: 6px 12px; min-height: 32px; display: inline-flex; align-items: center; border-radius: var(--radius-pill);
+    background: var(--hub-accent); color: #1a2530; font-weight: 800; font-size: 12px; letter-spacing: 0.3px; cursor: pointer;
+}
+/* A — „w tym sezonie" przy liczniku pucharkow sezonowych */
+.bt-hub0-road-count .rc-sub { font-size: 11px; font-weight: 700; color: var(--hub-ink-dim); margin-left: 4px; letter-spacing: 0.3px; }
+/* A — podpis pod naglowkiem Sciezki Sezonu („kazdy pucharek liczy sie tez tu") */
+.bt-hub0-road-hint { margin: -4px 2px 8px; font-size: 12px; font-weight: 600; color: var(--hub-ink-dim); line-height: 1.3; }
+
+/* J6 — monety lecace do coina (position: fixed w body, poza scrollem sekcji) */
+.bt-coinfly { position: fixed; left: 0; top: 0; width: 20px; height: 20px; z-index: 60; pointer-events: none; will-change: transform; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }

@@ -64,6 +64,7 @@ export class RankUpOverlay {
         parent.appendChild(this.el);
 
         try {
+            AudioSys.getInstance().duckMusic(5000); // v0.208.0 (J8)
             AudioSys.getInstance().playRankFanfare();
         } catch (e) {
             console.warn('[RankUp] fanfare failed:', (e as Error).stack ?? e);
@@ -82,5 +83,6 @@ export class RankUpOverlay {
     close(): void {
         this.el?.remove();
         this.el = null;
+        AudioSys.getInstance().unduckMusic(); // v0.208.0
     }
 }

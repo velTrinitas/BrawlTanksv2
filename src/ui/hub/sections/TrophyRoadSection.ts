@@ -4,8 +4,10 @@ import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { ProgressionService } from '../../../services/ProgressionService';
 import {
-    ACT_I_MILESTONES, ACT_II_MILESTONES, ACT_III_MILESTONES, type TrophyMilestone,
+    ACT_I_MILESTONES, ACT_II_MILESTONES, ACT_III_MILESTONES, TROPHY_MILESTONES, type TrophyMilestone,
 } from '../../../config/progression';
+import { playUiSelect } from '../../uiSounds';
+import { reducedMotion } from '../juice';
 import { getCurrentSeason, type SeasonMilestone } from '../../../config/season';
 
 /**
@@ -31,6 +33,14 @@ export class TrophyRoadSection implements HubSection {
     public readonly icon = '🏆';
     label(): string { return t('hub.nav.trophies'); }
 
+    /**
+     * v0.208.0 (J4) — pucharki sprzed ostatniej zmiany readoutu (ustawia HubShell, gdy
+     * liczba urosla). Render zaczyna pasek od STAREJ wartosci i dojezdza do nowej,
+     * a wezel przekroczony w miedzyczasie dostaje `.is-fresh` (✓ wbija sie + iskry).
+     * Zuzywane raz — po renderze wraca do null.
+     */
+    public prevTrophies: number | null = null;
+
     render(el: HTMLElement): void {
         const pid = ProfileService.getActiveProfile()?.id ?? 'default';
         const snap = ProgressionService.getSnapshot(pid);
@@ -39,19 +49,26 @@ export class TrophyRoadSection implements HubSection {
         const nextTxt = snap.nextMilestone
             ? t('hub.trophyNext', { n: snap.nextMilestone.threshold - trophies })
             : t('hub.trophyMax');
+        const prev = this.prevTrophies;
+        this.prevTrophies = null;
+        const fromPct = prev === null ? pct : progressPctAt(prev, snap.nextMilestone?.threshold ?? null);
 
         // F7b: labelKey (odblokowana moc) renderowany przy nagrodzie — marchewka contentu.
         // v0.206.0: prog z `bolts: 0` (Akt III) NIE pokazuje pustego „0 sigm" — sama moc.
         const node = (m: TrophyMilestone): string => {
             const achieved = trophies >= m.threshold;
             const isNext = !achieved && snap.nextMilestone?.threshold === m.threshold;
-            const cls = achieved ? 'is-done' : isNext ? 'is-next' : 'is-future';
+            const fresh = achieved && prev !== null && m.threshold > prev;
+            const cls = (achieved ? 'is-done' : isNext ? 'is-next' : 'is-future') + (fresh ? ' is-fresh' : '');
+            const sparks = fresh && !reducedMotion()
+                ? Array.from({ length: 6 }, (_, i) => `<i class="sp" style="--rot:${i * 60}deg" aria-hidden="true"></i>`).join('')
+                : '';
             const sigma = m.bolts > 0
                 ? `<span class="p-sigma"><img class="bt-sigma bt-sigma--lg" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${m.bolts}</span>`
                 : '';
             return `
-                <div class="bt-hub0-node ${cls}">
-                    <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}</span>
+                <div class="bt-hub0-node ${cls}" data-threshold="${m.threshold}">
+                    <span class="mark" aria-hidden="true">${achieved ? '✓' : '🏆'}${sparks}</span>
                     <div class="info">
                         <b>${m.threshold} 🏆</b>
                     </div>
@@ -75,7 +92,7 @@ export class TrophyRoadSection implements HubSection {
                     <div class="bt-hub0-road-head">
                         <div class="bt-hub0-road-count">🏆 <b>${trophies}</b></div>
                         <div class="bt-hub0-road-progress">
-                            <div class="bt-hub0-trophybar-track"><div class="fill" style="width:${pct}%;"></div></div>
+                            <div class="bt-hub0-trophybar-track"><div class="fill" data-road-fill style="width:${fromPct}%;"></div></div>
                             <span class="next">${nextTxt}</span>
                         </div>
                     </div>
@@ -95,6 +112,13 @@ export class TrophyRoadSection implements HubSection {
                 </div>
             </div>
         `;
+        // J4: pasek startuje ze starej szerokosci i DOJEZDZA (transition na .fill);
+        // swiezo zdobyty wezel dostaje dzwiek potwierdzenia.
+        if (prev !== null && prev !== trophies) {
+            const fill = el.querySelector<HTMLElement>('[data-road-fill]');
+            if (fill) requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = `${pct}%`; }));
+            if (el.querySelector('.bt-hub0-node.is-fresh')) playUiSelect();
+        }
     }
 
     /** SEASON-1: pasek pucharkow sezonowych + progi nagrod + countdown. */
@@ -107,7 +131,7 @@ export class TrophyRoadSection implements HubSection {
             : `<span class="st-days st-days--ended">${t('hub.season.ended')}</span>`;
         const nextTxt = season.active
             ? (season.nextMilestone
-                ? t('hub.trophyNext', { n: season.nextMilestone.threshold - season.trophies })
+                ? t('hub.season.pointsNext', { n: season.nextMilestone.threshold - season.trophies })
                 : t('hub.trophyMax'))
             : t('hub.season.ended');
 
@@ -143,8 +167,9 @@ export class TrophyRoadSection implements HubSection {
                 </div>
                 ${timeChip}
             </div>
+            <p class="bt-hub0-road-hint">${t('hub.season.pointsHint')}</p>
             <div class="bt-hub0-road-head${season.active ? '' : ' st-ended'}">
-                <div class="bt-hub0-road-count">🏆 <b>${season.trophies}</b></div>
+                <div class="bt-hub0-road-count">🏆 <b>${season.trophies}</b> <small class="rc-sub">${t('hub.season.thisSeason')}</small></div>
                 <div class="bt-hub0-road-progress">
                     <div class="bt-hub0-trophybar-track"><div class="fill" style="width:${pct}%;"></div></div>
                     <span class="next">${nextTxt}</span>
@@ -153,4 +178,16 @@ export class TrophyRoadSection implements HubSection {
             <div class="bt-hub0-road-list">${season.milestones.map(node).join('')}</div>
         `;
     }
+}
+
+/**
+ * v0.208.0 (J4) — procent paska dla DOWOLNEJ liczby pucharkow wzgledem tego samego
+ * nastepnego progu, co biezacy render. Gdy stary stan byl PRZED poprzednim progiem
+ * (wezel wlasnie zdobyty), pasek startuje od zera — wizualnie „nowy odcinek".
+ */
+function progressPctAt(trophies: number, nextThreshold: number | null): number {
+    if (nextThreshold === null) return 100;
+    const lo = TROPHY_MILESTONES.filter(m => m.threshold < nextThreshold).map(m => m.threshold).pop() ?? 0;
+    if (trophies < lo) return 0;
+    return Math.max(0, Math.min(100, Math.round(((trophies - lo) / (nextThreshold - lo)) * 100)));
 }

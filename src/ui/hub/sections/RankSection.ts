@@ -16,7 +16,7 @@ import { LEADERBOARD_BOARDS, type LeaderboardEntry, type MyRank } from '../../..
  */
 export class RankSection implements HubSection {
     public readonly id = 'rank';
-    public readonly icon = '🏅';
+    public readonly icon = '🥇'; // v0.208.0 (Mariusz): „podium" — Unicode nie ma podium, zloty medal 1. miejsca jest najblizej
     label(): string { return t('hub.nav.rank'); }
 
     /** Deep-link do pelnego ekranu rankingu. */

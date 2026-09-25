@@ -112,6 +112,7 @@ export class CrateOverlay {
         // bo przesuwa `animationend` razem ze startem dzwieku. Dlatego dzwiek rusza tu,
         // a czas spadania jest dobrany tak, zeby wizualne uderzenie (keyframe 76%)
         // wypadlo na 650 ms — patrz `bt-crate-drop` w hub-styles.css.
+        AudioSys.getInstance().duckMusic(6000); // v0.208.0 (J8) — celebracja ma miejsce
         AudioSys.getInstance().playCrateDrop();
 
         // v0.109.0 — ladowanie zrzutu: koniec animacji spadania => huk (thud modala)
@@ -307,5 +308,6 @@ export class CrateOverlay {
     close(): void {
         this.el?.remove();
         this.el = null;
+        AudioSys.getInstance().unduckMusic(); // v0.208.0
     }
 }

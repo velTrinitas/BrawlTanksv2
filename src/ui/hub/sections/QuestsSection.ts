@@ -26,7 +26,8 @@ export class QuestsSection implements HubSection {
     label(): string { return t('hub.nav.quests'); }
 
     /** Odebrano nagrode -> HubShell odswieza readout (srubki/skrzynki). */
-    public onRewardClaimed: (() => void) | null = null;
+    /** v0.208.0 (J6) — HubShell dostaje ILE sigm i SKAD (rect przycisku, zanim render go usunie). */
+    public onRewardClaimed: ((info: { bolts: number; from: { left: number; top: number; width: number; height: number } | null }) => void) | null = null;
     /**
      * v0.126.0 — nagroda ZAWIERALA SKRZYNKE. Do v0.125.0 `grantQuestReward` po cichu
      * dopisywalo `cratesEarned`, a jedynym sygnalem byla zmiana napisu na ODEBRANE —
@@ -163,11 +164,13 @@ export class QuestsSection implements HubSection {
      * kopie tych samych czterech linii, wiec dodanie feedbacku o skrzynce trzeba byloby
      * pamietac w trzech miejscach.
      */
-    private applyReward(el: HTMLElement, pid: string, reward: { bolts: number; crates: number } | null): void {
+    private applyReward(el: HTMLElement, pid: string, reward: { bolts: number; crates: number } | null, fromEl?: HTMLElement | null): void {
         if (!reward) return;   // juz odebrane / niedokonczone — cichy no-op, jak dotad
+        const r = fromEl?.getBoundingClientRect(); // PRZED render() — potem element juz nie zyje
+        const from = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
         ProgressionService.grantQuestReward(pid, reward);
         this.render(el);
-        this.onRewardClaimed?.();
+        this.onRewardClaimed?.({ bolts: reward.bolts, from });
         if (reward.crates > 0) this.onCratesGranted?.();
     }
 
@@ -179,15 +182,15 @@ export class QuestsSection implements HubSection {
             const key = btn.dataset.quest;
             if (!key) return;
             btn.addEventListener('click', () => {
-                this.applyReward(el, pid, QuestService.claim(pid, key, trophies));
+                this.applyReward(el, pid, QuestService.claim(pid, key, trophies), btn);
             });
         });
 
-        el.querySelector<HTMLElement>('[data-set]')?.addEventListener('click', () => {
-            this.applyReward(el, pid, QuestService.claimDailySet(pid, trophies));
+        el.querySelector<HTMLElement>('[data-set]')?.addEventListener('click', (ev) => {
+            this.applyReward(el, pid, QuestService.claimDailySet(pid, trophies), ev.currentTarget as HTMLElement);
         });
-        el.querySelector<HTMLElement>('[data-wset]')?.addEventListener('click', () => {
-            this.applyReward(el, pid, QuestService.claimWeeklySet(pid, trophies));
+        el.querySelector<HTMLElement>('[data-wset]')?.addEventListener('click', (ev) => {
+            this.applyReward(el, pid, QuestService.claimWeeklySet(pid, trophies), ev.currentTarget as HTMLElement);
         });
     }
 }

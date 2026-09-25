@@ -15,6 +15,7 @@ import { AudioSys } from '../audio/AudioSys';
 import { i18n, t, type Language } from '../i18n/i18n';
 import { ProfileService } from '../services/ProfileService';
 import { backArrowIcon } from './hub/gameIcons';
+import { hapticsSupported, hapticsEnabled, setHapticsEnabled, haptic, HAPTIC } from '../input/Haptics'; // v0.208.0
 
 /** Inline SVG flagi dla language toggle. */
 const FLAG_SVG_PL = `<svg viewBox="0 0 8 5" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
@@ -114,6 +115,16 @@ export class SettingsScreen implements IScreen {
                         >
                         <span class="bt-settings-value" data-for="bt-sfx-vol">${sfxVolPct}%</span>
                     </div>
+                    ${/* v0.208.0 — WIBRACJE: przelacznik tylko tam, gdzie API istnieje (Android);
+                          na desktopie i iOS nie ma martwego kontrolki. */''}
+                    ${hapticsSupported() ? `
+                    <div class="bt-settings-row">
+                        <label class="bt-settings-label" for="bt-haptics">${t('settings.haptics')}</label>
+                        <button id="bt-haptics" class="bt-settings-toggle${hapticsEnabled() ? ' is-on' : ''}" type="button"
+                                role="switch" aria-checked="${hapticsEnabled() ? 'true' : 'false'}" aria-label="${t('settings.haptics')}">
+                            <span class="knob" aria-hidden="true"></span>
+                        </button>
+                    </div>` : ''}
                 </section>
 
                 <section class="bt-settings-section">
@@ -177,6 +188,17 @@ export class SettingsScreen implements IScreen {
 
         sfxSlider?.addEventListener('change', () => {
             AudioSys.getInstance().playMenuClick();
+        });
+
+        // v0.208.0 — wibracje ON/OFF; przy wlaczeniu krotki impuls jako podglad.
+        const hapticsBtn = this.rootEl.querySelector<HTMLButtonElement>('#bt-haptics');
+        hapticsBtn?.addEventListener('click', () => {
+            const on = !hapticsEnabled();
+            setHapticsEnabled(on);
+            hapticsBtn.classList.toggle('is-on', on);
+            hapticsBtn.setAttribute('aria-checked', on ? 'true' : 'false');
+            AudioSys.getInstance().playMenuClick();
+            if (on) haptic(HAPTIC.confirm, true);
         });
 
         const langButtons = this.rootEl.querySelectorAll<HTMLButtonElement>('.bt-settings-lang-btn');

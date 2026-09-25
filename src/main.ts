@@ -232,6 +232,7 @@ import { syncActiveProfileToCloud } from './services/profileSync';
 
 // === FAZA 8.5: Mobile touch controls ===
 import { TouchInputManager } from './input/TouchInputManager';
+import { haptic, HAPTIC } from './input/Haptics'; // v0.208.0 — wibracje: prezentacja PO obrazeniach, zero wplywu na symulacje
 
 // === TEST-1: data waznosci paczki testowej ===
 import { guardTestWindow } from './config/testWindow';
@@ -1337,6 +1338,9 @@ if (import.meta.env.DEV) {
         AudioSys,
         i18n,
         ProgressionService, // RANKS-1: smoke-testy rang/sezonu (dev-only)
+        // v0.208.0 — getter (nie wartosc): `menu` powstaje pozniej w module, TDZ przy odczycie tutaj.
+        // Testy Playwright wolaja BT_DEV.menu.showHub() = ta sama sciezka co powrot z meczu.
+        get menu() { return menu; },
     };
     console.log('[FAZA 7a/8a/8b] window.BT_DEV attached — use for smoke testing');
 }
@@ -3683,6 +3687,7 @@ async function triggerGameOver(): Promise<void> {
     // FAZA CTF F2 — drop niesionej flagi przy smierci (legacy 1:1: IDLE @gracz + 10 s reset)
     if (ctfSystem && localPlayer) ctfSystem.handlePlayerDeath(localPlayer.x, localPlayer.y);
     gameState = 'GAMEOVER';
+    haptic(HAPTIC.death, true); // v0.208.0 — jedyny dluzszy impuls; force omija throttle po ostatnim hicie
     if (currentSession) sigmaEmit({ t: 'outcome', result: 'gameover', scenario: currentSession.config.scenario, map: currentSession.config.map, score: currentSession.score, seconds: currentSession.getElapsedSeconds() });
     // Z0.9: telemetria meczu — fire-and-forget, nigdy nie blokuje konca meczu.
     if (currentSession && !SIGMA_BOT) { // SigmaTester: zero telemetrii z bota
@@ -4879,6 +4884,7 @@ function runLogicStep(delta: number): void {
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
             const playerDied = localPlayer.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
                 { kind: 'enemy_bullet', attackerRef: eb }); // Z0.5
+            if (!powerSystem.isInvulnerable) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
 
             if (powerSystem.isInvulnerable || ctfSanctuary) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
@@ -4974,6 +4980,7 @@ function runLogicStep(delta: number): void {
                 : enemy.collisionDmg;
             const playerDied = localPlayer.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
                 { kind: 'enemy_ram', attackerRef: enemy }); // Z0.5; tutorial/sanktuarium => niesmiertelny
+            if (!powerSystem.isInvulnerable) haptic(HAPTIC.ram); // v0.208.0 — dwa impulsy: „to bylo cos wiekszego"
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.
@@ -5231,6 +5238,8 @@ function runLogicStep(delta: number): void {
     damageSmoke?.update(delta * (1000 / 60));
 
     // Poswiata w rogach zapala sie dopiero "na hita", nie przy samym niskim HP.
+    // v0.208.0 — wejscie w pancerz krytyczny wibruje RAZ (poprzednia klatka siedzi w hud.criticalArmor).
+    if (localPlayer.oneHitFromDeath && !hud.criticalArmor) haptic(HAPTIC.critical, true);
     hud.criticalArmor = localPlayer.oneHitFromDeath;
     hud.criticalPhase = localPlayer.criticalPhase;
 

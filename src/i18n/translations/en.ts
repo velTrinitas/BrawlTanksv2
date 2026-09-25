@@ -146,6 +146,11 @@ export const en: typeof pl = {
     // PROG-F1 — trophy bar in hub
     'hub.trophyLabel': 'TROPHIES',
     'hub.trophyNext': '{n} 🏆 to next reward',
+    'hub.season.pointsNext': '{n} 🏆 to next reward',
+    'hub.season.pointsHint': 'The same trophies as in matches, counted from zero each season. Seasonals (items) are collected separately — see SEASON.',
+    'hub.season.thisSeason': 'this season',
+    'hub.power.showOnRoad': 'Show on Road',
+    'hub.power.lockedHint': '🏆 {th} — {n} to go',
     'hub.trophyMax': 'All rewards unlocked! 🏆',
     // HUB-0 — Menu Hub navigation (rail/dock)
     'hub.nav.battle': 'BATTLE',
@@ -599,6 +604,9 @@ export const en: typeof pl = {
     'road.unlock.repair': '🔧 Power: Repair!',
     'road.unlock.tower': '🎯 Power: Tower!',
     'road.unlock.ghost': '👻 Power: Phantom!',
+    'road.unlock.strike': '🛸 Power: Airstrike!',
+    'road.unlock.hole': '🕳️ Power: Black Hole!',
+    'road.unlock.laser': '🔦 Power: Laser!',
     'hub.garage.loadout': 'PICK 3 SUPER POWERS',
     'hub.garage.slotsLabel': 'PICK SUPER POWERS',
     // BALANCE_V2 (S5): tank stat labels - hardcoded in UI code until v0.199.0.
@@ -895,6 +903,7 @@ export const en: typeof pl = {
     'settings.audio': 'Audio',
     'settings.music': 'Music',
     'settings.sfx': 'Sound effects',
+    'settings.haptics': 'Vibration',
     'settings.controls': 'Controls',
     'settings.language': 'Language',
     'settings.language.pl': 'Polski',

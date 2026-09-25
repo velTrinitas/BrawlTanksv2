@@ -12,6 +12,10 @@ import { SkinsOverlay } from './overlays/SkinsOverlay';     // GARAZ v2 — przy
 import { sessionService } from '../../services/SessionService';  // GARAZ-2 — seed HubSelection
 import { BRAWLERS } from '../../config/brawlers';                // GARAZ-2 — walidacja seedu
 import { QuestsSection } from './sections/QuestsSection';
+import { attachRipple, countUp, floatDelta, retrigger, stagger, flyCoins } from './juice'; // v0.208.0 — MENU JUICE
+import { playUiClick, playUiSelect } from '../uiSounds';                                    // v0.208.0 — dock mial ZERO dzwieku
+import { haptic, HAPTIC } from '../../input/Haptics';                                       // v0.208.0
+import { AudioSys } from '../../audio/AudioSys';                                            // v0.208.0 — stingery sekcji
 import { QuestService } from '../../services/QuestService'; // v0.207.0 — kropka ROZKAZY
 import { TrophyRoadSection } from './sections/TrophyRoadSection';
 import { RankSection } from './sections/RankSection';
@@ -88,6 +92,10 @@ export class HubShell implements IScreen {
     /** GARAZ v2 — przymierzalnia barw czolgu (duzy czolg + siatka, WYSIWYG). */
     private readonly skins = new SkinsOverlay();
     private readonly quests = new QuestsSection();
+    /** v0.208.0 — trzymany z nazwy, bo HubShell podaje mu `prevTrophies` (pasek dojezdza). */
+    private readonly trophyRoad = new TrophyRoadSection();
+    /** v0.208.0 (J4) — ostatnio POKAZANE wartosci belki; roznica = count-up + „+N". */
+    private lastReadout: { trophies: number; bolts: number } | null = null;
     private readonly rank = new RankSection();
     /** SHOP-1 — sekcja tylko za flaga ?shop=1 (towar to jeszcze placeholdery). */
     private readonly shop = new ShopSection();
@@ -137,6 +145,8 @@ export class HubShell implements IScreen {
         // overlay montuje sie w `.bt-hub0-main`, czyli w tej samej kolumnie tresci co sekcje
         // (te same gutter'y desktopu). Wczesniej szedl w `rootEl` i przykrywal rail + topbar,
         // przez co byl szerszy niz kazdy inny ekran hubu.
+        // v0.208.0 (C) — zablokowana moc w loadoucie prowadzi do SWOJEGO wezla na Szlaku.
+        this.loadout.onShowOnRoad = (threshold) => this.openRoadAt(threshold);
         this.garage.onOpenLoadout = (slot) => {
             const host = this.rootEl?.querySelector<HTMLElement>('.bt-hub0-main') ?? this.rootEl;
             if (host) this.loadout.open(host, this.pid(), slot,
@@ -179,7 +189,21 @@ export class HubShell implements IScreen {
         // SEASON-2 — CTA strony sezonu prowadzi do Season Tracku w TROFEA.
         this.season.onViewTrack = () => this.openSeasonTrack();
         // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
-        this.quests.onRewardClaimed = () => this.refreshReadout();
+        this.quests.onRewardClaimed = ({ bolts, from }) => {
+            // J6 — sigmy leca do coina; count-up rusza przy PIERWSZEJ monecie, nie przy kliknieciu.
+            haptic(HAPTIC.reward);
+            const coin = this.rootEl?.querySelector<HTMLElement>('[data-coin="bolts"]') ?? null;
+            if (bolts > 0 && from && coin) {
+                let started = false;
+                flyCoins(from, coin, Math.ceil(bolts / 40), `${import.meta.env.BASE_URL}assets/sigma.png`, () => {
+                    if (started) { retrigger(coin.querySelector('.bt-sigma'), 'is-tick'); return; }
+                    started = true;
+                    this.refreshReadout();
+                });
+            } else {
+                this.refreshReadout();
+            }
+        };
         // v0.126.0 — skrzynka z rozkazu otwiera sie OD RAZU, tym samym overlayem co
         // w Garazu i sklepie. Wczesniej ladowala po cichu w Garazu i gracz mial pelne
         // prawo myslec, ze klikniecie ODBIERZ nic nie zrobilo.
@@ -215,7 +239,7 @@ export class HubShell implements IScreen {
             // i kosmetyka). Bez flagi w ogole nie wchodzi do nawigacji.
             ...(isShopEnabled() ? [this.shop] : []),
             this.quests,
-            new TrophyRoadSection(),
+            this.trophyRoad,
             this.rank,
             // v0.129.0 — SEZON poza NAV_SECTIONS: wejsciem jest pill na belce, tak jak
             // PROFIL wchodzi chipem gracza. Sekcja renderuje sie normalnie.
@@ -230,7 +254,19 @@ export class HubShell implements IScreen {
     /** F2a — odswiez tylko gorny readout (po equip kosmetyku). */
     private refreshReadout(): void {
         const top = this.rootEl?.querySelector('.bt-hub0-top') as HTMLElement | null;
-        if (top) top.innerHTML = this.renderReadout();
+        if (!top) return;
+        const prev = this.lastReadout;
+        const cur = this.readoutValues();
+        top.innerHTML = this.renderReadout();
+        // v0.208.0 (J4) — liczby NABIJAJA sie od poprzednio pokazanej wartosci, ikona
+        // podskakuje co ~10% drogi, na koncu wylatuje „+N". Do tej wersji liczba po meczu
+        // po prostu byla inna — gracz nie widzial, ze mecz cos dal.
+        if (prev) {
+            this.animateCoin(top, 'trophies', prev.trophies, cur.trophies);
+            this.animateCoin(top, 'bolts', prev.bolts, cur.bolts);
+            if (cur.trophies > prev.trophies) this.trophyRoad.prevTrophies = prev.trophies;
+        }
+        this.lastReadout = cur;
         // v0.207.0 — kropki na doku jada na tej samej sciezce co readout: mount, powrot
         // z meczu, merge z chmury, otwarcie skrzynki, odebranie rozkazu. Zero nowych hookow.
         this.refreshBadges();
@@ -244,6 +280,59 @@ export class HubShell implements IScreen {
      * (ukonczone, nieodebrane). Pucharki/Sezon wyplacaja sie same i wracaja tu jako
      * skrzynki, wiec ich kropka bylaby duplikatem.
      */
+    private readoutValues(): { trophies: number; bolts: number } {
+        const pid = this.pid();
+        return { trophies: ProgressionService.getTrophies(pid), bolts: ProgressionService.getBoltsBalance(pid) };
+    }
+
+    private animateCoin(top: HTMLElement, coin: 'trophies' | 'bolts', from: number, to: number): void {
+        if (from === to) return;
+        const host = top.querySelector<HTMLElement>(`[data-coin="${coin}"]`);
+        const valEl = host?.querySelector<HTMLElement>('.val');
+        if (!host || !valEl) return;
+        const icon = host.querySelector('.ic, .bt-sigma');
+        // 1400 ms (bylo 650): playtest A54 — „wolniej, zeby cieszylo oko".
+        countUp(valEl, from, to, 1400, () => retrigger(icon, 'is-tick'));
+        floatDelta(host, to - from);
+    }
+
+    /**
+     * v0.208.0 (C) — z zablokowanej mocy w loadoucie prosto do JEJ wezla na Szlaku:
+     * overlay zamyka sie, sekcja PUCHARKI, wezel w centrum + dwa pulsy zlotej obwodki.
+     */
+    openRoadAt(threshold: number): void {
+        this.loadout.close();
+        this.setActive('trophies');
+        const main = this.rootEl?.querySelector<HTMLElement>('.bt-hub0-main');
+        requestAnimationFrame(() => {
+            const node = main?.querySelector<HTMLElement>(`[data-threshold="${threshold}"]`);
+            if (!node) { console.warn('[HubShell] openRoadAt: no node for', threshold); return; }
+            // Natychmiast, nie smooth: smooth przegrywal wyscig z animacjami wejscia sekcji
+            // (wezel zostawal poza kadrem). Puls obwodki robi robote „patrz tu".
+            node.scrollIntoView({ block: 'center', behavior: 'auto' });
+            retrigger(node, 'is-spotlight');
+        });
+    }
+
+    /** v0.208.0 (J2) — wskaznik aktywnej sekcji JEDZIE po docku (mobile: pasek pod
+     *  przyciskiem, desktop: kreska przy lewej krawedzi railu) zamiast znikac i pojawiac sie. */
+    private positionNavIndicator(): void {
+        const nav = this.rootEl?.querySelector<HTMLElement>('.bt-hub0-nav');
+        const ind = nav?.querySelector<HTMLElement>('.bt-hub0-navind');
+        const btn = nav?.querySelector<HTMLElement>('.bt-hub0-navbtn.is-active');
+        if (!nav || !ind) return;
+        if (!btn) { ind.style.opacity = '0'; return; }
+        ind.style.opacity = '1';
+        if (document.body.classList.contains('bt-desktop')) {
+            ind.style.transform = `translate(0px, ${btn.offsetTop}px)`;
+            ind.style.width = '3px'; ind.style.height = `${btn.offsetHeight}px`;
+        } else {
+            const pad = 10;
+            ind.style.transform = `translate(${btn.offsetLeft + pad}px, 0px)`;
+            ind.style.width = `${Math.max(0, btn.offsetWidth - pad * 2)}px`; ind.style.height = '3px';
+        }
+    }
+
     private badgeCounts(): Partial<Record<SectionId, number>> {
         const pid = this.pid();
         const out: Partial<Record<SectionId, number>> = {};
@@ -298,7 +387,12 @@ export class HubShell implements IScreen {
         root.appendChild(this.rootEl);
         this.wire();
         this.refreshBadges(); // v0.207.0 — mount maluje chrome bez refreshReadout, wiec kropki osobno
+        attachRipple(this.rootEl);            // v0.208.0 (J1) — ripple + squash + haptyka na kazdy tap
+        this.lastReadout = this.readoutValues(); // J4: pierwszy render bez count-upu
         this.renderMain();
+        this.positionNavIndicator();
+        // Hub zyje przez cala sesje (MainMenu trzyma go schowanego w meczu) — jeden listener.
+        window.addEventListener('resize', () => this.positionNavIndicator(), { passive: true });
         this.maybeCelebrateRank(); // RANKS-1 — awans z ostatniego meczu (powrot do huba)
     }
 
@@ -374,7 +468,7 @@ export class HubShell implements IScreen {
 
         return `
             <div class="bt-hub0-top">${this.renderReadout()}</div>
-            <nav class="bt-hub0-nav">${nav}${play}</nav>
+            <nav class="bt-hub0-nav">${nav}${play}<i class="bt-hub0-navind" aria-hidden="true"></i></nav>
             <div class="bt-hub0-main"></div>
         `;
     }
@@ -412,14 +506,14 @@ export class HubShell implements IScreen {
             <span class="bt-hub0-spacer"></span>
             <span class="bt-hub0-wallet">
                 <button class="bt-hub0-coin bt-hub0-coin--btn" data-action="trophies" type="button"
-                        aria-label="${t('hub.nav.trophies')}"><span class="ic" aria-hidden="true">🏆</span>${trophies}</button>
+                        aria-label="${t('hub.nav.trophies')}" data-coin="trophies"><span class="ic" aria-hidden="true">🏆</span><span class="val">${trophies}</span></button>
                 ${isShopEnabled()
                     // SHOP-1: pigulka sigm prowadzi do sklepu — dokladnie tak, jak
                     // sasiedni przycisk trofeow prowadzi do Szlaku. Zero nowego CSS,
                     // ta sama para klas co tam. Bez sklepu zostaje zwyklym <span>.
                     ? `<button class="bt-hub0-coin bt-hub0-coin--btn" data-action="shop" type="button"
-                               aria-label="${t('hub.shop')}"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</button>`
-                    : `<span class="bt-hub0-coin"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</span>`}
+                               aria-label="${t('hub.shop')}" data-coin="bolts"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""><span class="val">${bolts}</span></button>`
+                    : `<span class="bt-hub0-coin" data-coin="bolts"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt=""><span class="val">${bolts}</span></span>`}
             </span>
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>
@@ -450,6 +544,7 @@ export class HubShell implements IScreen {
         // KAZDEGO przejscia (garaz -> sklep, pucharki -> rozkazy); pill sezonu byl tylko
         // najbardziej widoczny, bo PUCHARKI to najdluzsza strona, a SEZON krotka.
         main.scrollTop = 0;
+        stagger(main); // v0.208.0 (J3) — sekcja WJEZDZA kaskada, naglowek sie stempluje
     }
 
     /** Powrot na gore biezacej sekcji — klik w aktywna sekcje/pill ma cos robic. */
@@ -472,6 +567,7 @@ export class HubShell implements IScreen {
                 // v0.119.0 (decyzja Mariusza): nav RANKING otwiera OD RAZU pelny
                 // LeaderboardScreen — mini-board z przyciskiem "Pelny ranking" byl
                 // zbednym krokiem. Hub zostaje na biezacej sekcji (BACK wraca tu).
+                playUiClick(); // v0.208.0 — dock byl jedynym cichym miejscem huba
                 if (navBtn.dataset.section === 'rank') {
                     this.onOpenLeaderboard?.();
                     return;
@@ -480,13 +576,15 @@ export class HubShell implements IScreen {
                 return;
             }
             const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
+            // Throttle 60 ms w AudioSys zbija duplikat, gdy sekcja gra swoj klik dla tej samej akcji.
+            if (action && action !== 'play-dock') playUiClick();
             if (action === 'settings') this.onOpenSettings?.();
             else if (action === 'profile') this.openProfile(); // PROFILE-1 — strona profilu
             else if (action === 'trophies') this.setActive('trophies'); // PROFILE-1 — pill 🏆
             else if (action === 'shop') this.setActive('shop');         // SHOP-1 — pill sigm
             // v0.126.0 — GRAJ z doku: startuje BIEZACYM wyborem BattleSection, wiec
             // dziala z kazdej sekcji huba bez wchodzenia do BITWY.
-            else if (action === 'play-dock') this.battle.startCurrentMatch();
+            else if (action === 'play-dock') { playUiSelect(); haptic(HAPTIC.confirm); this.battle.startCurrentMatch(); }
             // v0.129.0 — pill sezonu przelacza na STRONE sezonu (byl popup).
             else if (action === 'season') this.setActive('season');
             // 'play' obslugiwane wewnatrz BattleSection (wlasny listener)
@@ -520,8 +618,24 @@ export class HubShell implements IScreen {
         if (id === this.activeSection) { this.scrollMainToTop(); return; }
         this.activeSection = id;
         this.rootEl?.querySelectorAll<HTMLElement>('.bt-hub0-navbtn').forEach(btn => {
-            btn.classList.toggle('is-active', btn.dataset.section === id);
+            const active = btn.dataset.section === id;
+            btn.classList.toggle('is-active', active);
+            if (active) retrigger(btn.querySelector('.gi'), 'is-hop'); // J2 — ikona podskakuje
         });
         this.renderMain();
+        this.positionNavIndicator();
+        const stinger = SECTION_STINGERS[id];
+        if (stinger) AudioSys.getInstance().playSectionStinger(stinger); // J8
     }
 }
+
+/** v0.208.0 (J8) — dwie nuty per sekcja (Hz); syntezowane w AudioSys, zero assetow. */
+const SECTION_STINGERS: Partial<Record<SectionId, readonly [number, number]>> = {
+    battle: [164.8, 196.0],    // E3 -> G3 „beben"
+    garage: [329.6, 392.0],    // E4 -> G4 „klucz"
+    shop: [523.3, 659.3],      // C5 -> E5 „kasa"
+    quests: [392.0, 493.9],    // G4 -> B4 „kartka"
+    trophies: [261.6, 392.0],  // C4 -> G4 fanfara
+    season: [440.0, 523.3],    // A4 -> C5
+    profile: [349.2, 440.0],   // F4 -> A4
+};

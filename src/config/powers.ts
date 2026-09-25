@@ -619,7 +619,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
         color: 0x9fd0ff,
         cooldownMs: 30000,       // sim 16s = demo
         durationFrames: 0,
-        unlockAtTrophies: 2500,  // PROWIZORYCZNE — Tier 2 wchodzi transzami sezonowymi
+        unlockAtTrophies: 2500,  // PROWIZORYCZNE — Tier 2 wchodzi transzami sezonowymi. KEEP IN SYNC: progression.ts ACT_III_MILESTONES
         onActivate: (ctx) => {
             ctx.system.strikeLaunch(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
             ctx.hud.addNotif(t('hud.strikeStart'), '#9fd0ff');
@@ -635,7 +635,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
         color: 0xa78bfa,
         cooldownMs: 30000,       // sim 16s = demo
         durationFrames: 0,
-        unlockAtTrophies: 3000,  // PROWIZORYCZNE
+        unlockAtTrophies: 3000,  // PROWIZORYCZNE. KEEP IN SYNC: progression.ts ACT_III_MILESTONES
         onActivate: (ctx) => {
             ctx.system.holeSpawn(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
             ctx.hud.addNotif(t('hud.holeStart'), '#a78bfa');
@@ -651,7 +651,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
         color: 0xff6bcb,
         cooldownMs: 30000,       // sim 16s = demo
         durationFrames: 0,
-        unlockAtTrophies: 3500,  // PROWIZORYCZNE
+        unlockAtTrophies: 3500,  // PROWIZORYCZNE. KEEP IN SYNC: progression.ts ACT_III_MILESTONES
         onActivate: (ctx) => {
             ctx.system.laserActivate(ctx.player.x, ctx.player.y);
             ctx.hud.addNotif(t('hud.laserStart'), '#ff6bcb');

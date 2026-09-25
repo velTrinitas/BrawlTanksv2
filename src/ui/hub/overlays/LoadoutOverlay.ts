@@ -2,7 +2,9 @@ import { t, type TranslationKey } from '../../../i18n/i18n';
 import { ProgressionService } from '../../../services/ProgressionService';
 import { POWERS, POWER_ORDER, TIER3_POWERS, type PowerId, type PowerDef } from '../../../config/powers';
 import { statTileHtml } from '../statTile';
-import { playUiClick } from '../../uiSounds';
+import { playUiClick, playUiSelect, playUiBack } from '../../uiSounds';
+import { haptic, HAPTIC } from '../../../input/Haptics'; // v0.208.0
+import { retrigger } from '../juice';                     // v0.208.0
 
 /**
  * LoadoutOverlay — GARAZ-3 (v0.158.0). PELNOEKRANOWY wybor Super Mocy.
@@ -77,6 +79,9 @@ export class LoadoutOverlay {
     private armedSlot: 0 | 1 | 2 = 0;
     private onDone: (() => void) | null = null;
 
+    /** v0.208.0 (C) — „Pokaz na Szlaku" z zablokowanej mocy; HubShell przewija do wezla. */
+    public onShowOnRoad: ((threshold: number) => void) | null = null;
+
     open(parent: HTMLElement, pid: string, armedSlot: 0 | 1 | 2, onDone: () => void): void {
         this.close(); // pojedyncza instancja
         this.pid = pid;
@@ -120,6 +125,22 @@ export class LoadoutOverlay {
                     !ProgressionService.getPowerState(this.pid).funModeOn);
                 this.armedSlot = this.clampArmed(this.armedSlot);
                 this.repaint();
+                return;
+            }
+            // v0.208.0 (C) — zablokowana moc: tap = szarpniecie + „nope" + dymek z progiem
+            // i przyciskiem do Szlaku. Do tej wersji karta byla martwa (aria-disabled, cisza).
+            const lockedCard = target.closest<HTMLElement>('.bt-hub0-powcard.is-locked');
+            if (lockedCard) {
+                const road = target.closest<HTMLElement>('[data-action="show-on-road"]');
+                if (road) {
+                    playUiSelect();
+                    this.onShowOnRoad?.(Number(road.dataset.threshold));
+                    return;
+                }
+                playUiBack();
+                haptic(HAPTIC.nope);
+                retrigger(lockedCard, 'is-nope');
+                lockedCard.querySelector('.pc-hint')?.classList.add('is-open');
                 return;
             }
             const powerBtn = target.closest<HTMLElement>('[data-power]');
@@ -220,6 +241,18 @@ export class LoadoutOverlay {
             ${crazySection}`;
     }
 
+    /** v0.208.0 (C) — dymek pod zablokowana karta: prog + ile brakuje + skok na Szlak.
+     *  `<span role="button">`, bo karta sama jest `<button>` (zagniezdzony button = niewazny HTML). */
+    private lockedHint(def: PowerDef): string {
+        const have = ProgressionService.getTrophies(this.pid);
+        const th = def.unlockAtTrophies;
+        return `
+            <span class="pc-hint">
+                <span class="pc-hint-txt">${t('hub.power.lockedHint', { th, n: Math.max(0, th - have) })}</span>
+                <span class="pc-hint-btn" role="button" tabindex="0" data-action="show-on-road" data-threshold="${th}">${t('hub.power.showOnRoad')}</span>
+            </span>`;
+    }
+
     /** Bogata karta mocy (v0.119.0) — przeniesiona 1:1 z GarageSection. */
     private powerCard(def: PowerDef, opts: { owned: boolean; inSlot: number; fun: boolean }): string {
         const color = '#' + def.color.toString(16).padStart(6, '0');
@@ -239,7 +272,8 @@ export class LoadoutOverlay {
                     <span class="pc-chip">${opts.fun ? `🎲 ${t('power.dice')}` : fromChip}</span>
                 </span>
             </span>
-            ${opts.inSlot ? `<span class="eq" aria-hidden="true">${opts.inSlot}</span>` : ''}`;
+            ${opts.inSlot ? `<span class="eq" aria-hidden="true">${opts.inSlot}</span>` : ''}
+            ${!opts.owned && !opts.fun ? this.lockedHint(def) : ''}`;
         if (opts.fun) {
             return `<span class="bt-hub0-powcard bt-hub0-powcard--fun">${inner}</span>`;
         }

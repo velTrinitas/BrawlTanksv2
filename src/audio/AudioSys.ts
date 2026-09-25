@@ -1023,10 +1023,84 @@ export class AudioSys {
      */
     private menuClickTimer: number = 0;
     playMenuClick(): void {
+        this.playMenuClickRate(1);
+    }
+
+    /**
+     * v0.208.0 (J1) — ten sam sampel, rozny `rate`: tap 1.0 (±6% jitter w uiSounds),
+     * potwierdz 1.18, wroc/nope 0.85. Trzy rozne „glosy" UI z jednego pliku, zero assetow.
+     * Wspolny throttle z klikiem zbija duplikaty (sekcja + shell dla tej samej akcji).
+     */
+    playMenuClickRate(rate: number): void {
         const now = Date.now();
         if (now - this.menuClickTimer < 60) return;
         this.menuClickTimer = now;
-        this.safePlay('menu_click');
+        const sound = this.sounds.get('menu_click');
+        if (!sound) return;
+        try {
+            const id = sound.play();
+            sound.rate(rate, id);
+        } catch (e) {
+            console.warn('[AudioSys] menu click failed', (e as Error).stack ?? e);
+        }
+    }
+
+    /**
+     * v0.208.0 (J8) — stinger sekcji: dwie krotkie nuty (WebAudio, jak playCrateBreak),
+     * ~180 ms, glosnosc z sfxVolMult. Throttle 250 ms — szybkie skakanie po docku nie robi
+     * z tego arpeggia. Cicho, gdy AudioContext jeszcze nie ruszyl (autoplay policy).
+     */
+    private stingerTimer = 0;
+    playSectionStinger(notes: readonly [number, number]): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.stingerTimer < 250) return;
+        this.stingerTimer = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.10 * this.sfxVolMult);
+            notes.forEach((freq, i) => {
+                const at = t0 + i * 0.09;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, at);
+                gain.gain.setValueAtTime(0.0001, at);
+                gain.gain.exponentialRampToValueAtTime(vol, at + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(at);
+                osc.stop(at + 0.18);
+            });
+        } catch (e) {
+            console.warn('[AudioSys] stinger failed', (e as Error).stack ?? e);
+        }
+    }
+
+    /**
+     * v0.208.0 (J8) — ducking muzyki huba na czas celebracji (skrzynka, awans): fade do 40%
+     * i powrot po `ms` albo na `unduckMusic()`. Bazowa glosnosc zapamietana przy PIERWSZYM
+     * ducku — drugie wywolanie w trakcie nie „utrwala" sciszonej wartosci.
+     */
+    private duckBase: number | null = null;
+    private duckTimer: number | null = null;
+    duckMusic(ms: number): void {
+        const h = this.hubMusic;
+        if (!h || !h.playing()) return;
+        if (this.duckBase === null) this.duckBase = h.volume() as number;
+        if (this.duckTimer !== null) window.clearTimeout(this.duckTimer);
+        h.fade(h.volume() as number, this.duckBase * 0.4, 250);
+        this.duckTimer = window.setTimeout(() => this.unduckMusic(), ms);
+    }
+    unduckMusic(): void {
+        if (this.duckTimer !== null) { window.clearTimeout(this.duckTimer); this.duckTimer = null; }
+        const h = this.hubMusic;
+        const base = this.duckBase;
+        this.duckBase = null;
+        if (!h || base === null) return;
+        h.fade(h.volume() as number, base, 500);
     }
 
     /**

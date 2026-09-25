@@ -158,6 +158,12 @@ export const ACT_II_MILESTONES: readonly TrophyMilestone[] = [
  * po raz drugi. Tier 2 (2500-3500) i Tier 3 (kostka 🎲) zostaja poza Szlakiem — celowo.
  */
 export const ACT_III_MILESTONES: readonly TrophyMilestone[] = [
+    // v0.208.0 — Tier 2 jako REALNE wezly (decyzja Mariusza 2026-09-25): progi = obecne
+    // `unlockAtTrophies` z powers.ts (PROWIZORYCZNE, KEEP IN SYNC). `bolts: 0`, bez skrzynki
+    // => neutralne ekonomicznie; `claimedMilestones` liczy tylko progi przekroczone TYM runem.
+    { threshold: 2500, bolts: 0, labelKey: 'road.unlock.strike' },
+    { threshold: 3000, bolts: 0, labelKey: 'road.unlock.hole' },
+    { threshold: 3500, bolts: 0, labelKey: 'road.unlock.laser' },
     { threshold: 5000, bolts: 0, labelKey: 'road.unlock.ghost' },
 ];
 

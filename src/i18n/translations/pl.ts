@@ -155,6 +155,15 @@ export const pl = {
     // PROG-F1 — pasek trofeów w hubie
     'hub.trophyLabel': 'PUCHARKI',
     'hub.trophyNext': 'jeszcze {n} 🏆 do nagrody',
+    // v0.208.0 — Sciezka Sezonu liczy PUNKTY SEZONU (te same pucharki z meczu, od zera co sezon),
+    // nie „drugie pucharki" — test dzieciaka: „mam 2600, a tu 0 — to inne pucharki?"
+    // v0.208.0 iteracja 2 (A54): „punkty sezonu" + plecak czytano jako SEZONIAKI. Mowimy wprost:
+    // to pucharki, liczone od zera w tym sezonie; sezoniaki sa osobno na stronie SEZON.
+    'hub.season.pointsNext': 'jeszcze {n} 🏆 do nagrody',
+    'hub.season.pointsHint': 'Te same pucharki co z meczu, liczone od zera w każdym sezonie. Sezoniaki (przedmioty) zbierasz osobno — patrz SEZON.',
+    'hub.season.thisSeason': 'w tym sezonie',
+    'hub.power.showOnRoad': 'Pokaż na Szlaku',
+    'hub.power.lockedHint': '🏆 {th} — jeszcze {n}',
     'hub.trophyMax': 'Wszystkie nagrody zdobyte! 🏆',
     // HUB-0 — nawigacja Menu Hub (rail/dock)
     'hub.nav.battle': 'BITWA',
@@ -616,6 +625,11 @@ export const pl = {
     'road.unlock.repair': '🔧 Moc: Naprawa!',
     'road.unlock.tower': '🎯 Moc: Wieża!',
     'road.unlock.ghost': '👻 Moc: Widmo!',
+    // v0.208.0 — Tier 2 na Szlaku (Akt III): moce odblokowywaly sie po pucharkach juz wczesniej,
+    // ale bez wezla dziecko nie mialo skad wiedziec „jak zdobyc Laser".
+    'road.unlock.strike': '🛸 Moc: Nalot!',
+    'road.unlock.hole': '🕳️ Moc: Dziura!',
+    'road.unlock.laser': '🔦 Moc: Laser!',
     'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
     'hub.garage.slotsLabel': 'WYBIERZ SUPER MOCE',
     // BALANCE_V2 (S5): etykiety statow czolgu — do v0.199.0 byly HARDKODOWANE w kodzie UI.
@@ -917,6 +931,7 @@ export const pl = {
     'settings.audio': 'Dźwięk',
     'settings.music': 'Muzyka',
     'settings.sfx': 'Efekty dźwiękowe',
+    'settings.haptics': 'Wibracje',
     'settings.controls': 'Sterowanie',
     'settings.language': 'Język',
     'settings.language.pl': 'Polski',

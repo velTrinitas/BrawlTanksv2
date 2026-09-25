@@ -28,6 +28,10 @@ export interface Brawler {
     volley?: { count: number; spread: number };
     /** Tech: przebicie do N wrogow (S3). */
     pierce?: number;
+    /** v0.211.0 Snajper: dmg dla kolejnych celow po pierwszym trafieniu (pierce z redukcja). */
+    pierceDmgAfter?: number;
+    /** v0.211.0 Zwiad/Shadow: mnoznik bonusu czerwonej kostki. */
+    cubeDmgMult?: number;
     /** Shadow: dash bez klatek nietykalnosci (S3). */
     dash?: boolean;
 }

@@ -792,10 +792,10 @@ export class GameSession {
      * Dla 'hp': bumping wlasnego counter; aktualna heal + maxHp grow happens w main.ts
      *           bo wymaga reference do Player instance (GameSession nie zna Player).
      */
-    registerCubePickup(type: 'dmg' | 'hp'): void {
+    registerCubePickup(type: 'dmg' | 'hp', dmgMult = 1): void {
         this.cubesTotal++;
         if (type === 'dmg') {
-            this.dmgBonus += POWERCUBE_DMG_BONUS_PER_PICKUP;
+            this.dmgBonus += POWERCUBE_DMG_BONUS_PER_PICKUP * dmgMult; // v0.211.0: mnoznik per czolg (Zwiad/Shadow 0.5)
             this.dmgCubesPicked++;
         } else {
             this.hpCubesPicked++;

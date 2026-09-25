@@ -42,6 +42,7 @@ import { BALANCE_V2_STATS } from './balanceRules';
                 maxDist: s.maxDist, bulletRadius: s.bulletRadius,
                 volley: s.volley ? { count: s.volley.count, spread: s.volley.spread } : undefined,
                 pierce: s.pierce, dash: s.dash,
+                pierceDmgAfter: s.pierceDmgAfter, cubeDmgMult: s.cubeDmgMult, // v0.211.0
             };
         });
     }

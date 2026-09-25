@@ -404,6 +404,7 @@ function v2SuperLayout(p: Record<string, SuperProfile>): Record<string, SuperPro
     const out = { ...p };
     if (out.pyro) out.pyro = { ...out.pyro, offsets: [-0.315, -0.105, 0.105, 0.315] };
     if (out.twardy) out.twardy = { ...out.twardy, breakupDist: 264 };
+    if (out.king) out.king = { ...out.king, offsets: [0, -0.10, 0.10] }; // v0.211.0 (Mariusz): szerszy wachlarz supera (bylo +-0.06)
     return out;
 }
 const SUPER_PROFILES_ACTIVE: Record<string, SuperProfile> =
@@ -4794,7 +4795,7 @@ function runLogicStep(delta: number): void {
         const touchR = 22 + pc.radius;
         if (dx * dx + dy * dy < touchR * touchR) {
             const type = pc.type;
-            currentSession.registerCubePickup(type);
+            currentSession.registerCubePickup(type, localPlayer.brawler.cubeDmgMult ?? 1); // v0.211.0: Zwiad/Shadow polowa
             QuestService.track('cube'); // PROG-F3
 
             const isDmg = type === 'dmg';
@@ -5151,6 +5152,8 @@ function runLogicStep(delta: number): void {
                     const dmgColor = wasSuperShot ? 0xc850ff : 0xffffff;
                     effects.spawnFloatingText(hitX, hitY - 15, `${Math.round(b.dmg)}`, dmgColor);
                 }
+                // v0.211.0 Snajper: po pierwszym celu pocisk leci dalej z ZREDUKOWANYM dmg (pierceDmgAfter).
+                if (isPiercing && b.pierceDmgAfter !== null && b.active) b.dmg = b.pierceDmgAfter;
 
                 if (killed) {
                     audio.playExplosion();

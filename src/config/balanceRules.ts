@@ -33,6 +33,10 @@ export interface BalanceStats {
     readonly volley?: { readonly count: number; readonly spread: number };
     /** Tech (S3): pocisk przebija do N wrogow z pelnym dmg. */
     readonly pierce?: number;
+    /** v0.211.0 Snajper: po PIERWSZYM trafieniu kolejne cele na linii dostaja tyle dmg (pierce z redukcja). */
+    readonly pierceDmgAfter?: number;
+    /** v0.211.0 Zwiad/Shadow: mnoznik bonusu czerwonej kostki (+% dmg) — przy 5 strz./s pelny bonus „wyrywal". */
+    readonly cubeDmgMult?: number;
     /** Shadow (S3): dash — BEZ klatek nietykalnosci (decyzja Mariusza: i-frames lamia Czytelnosc). */
     readonly dash?: boolean;
 }
@@ -84,19 +88,35 @@ export const DASH_TOTAL_PX = DASH_CONFIG.steps * DASH_CONFIG.stepPx;
  */
 export const BALANCE_V2_STATS: Readonly<Record<string, BalanceStats>> = Object.freeze({
     // dmg 100->150 = prog 2 strzalow zamiast 3; tempo +5%
-    twardy: { hp: 400, dmg: 150, reload: 380, speed: 5.0, maxDist: 800,  bulletRadius: 8 },
+    // ITERACJA 3 (KTB Mariusza: „bardzo dobry"): nerf TEMPEM 380 -> 420, nie dmg — 140 dmg = 3 strzaly = czas V1.
+    twardy: { hp: 400, dmg: 150, reload: 420, speed: 5.0, maxDist: 800,  bulletRadius: 8 },
     // +40/pocisk (salwa 230): zysk przeciw poscigowym (500 HP), zero inflacji przeciw zwyklym
-    heavy:  { hp: 700, dmg: 115, reload: 700, speed: 4.0, maxDist: 800,  bulletRadius: 8 },
+    // ITERACJA 2 (2026-09-25, Strzelnica): V1 = V2 co do setnej (34.1 s) — prog 2 salw na 300 HP
+    // zjada kazdy dmg ponizej 150/pocisk. Jedyna dzwignia, ktora dziala, to tempo: 700 -> 560 (+25%).
+    heavy:  { hp: 700, dmg: 115, reload: 560, speed: 4.0, maxDist: 800,  bulletRadius: 8 },
     // najwiekszy pakiet: jako JEDYNY systematycznie wypadal ponizej modelu (-13 zabic).
     // 425 HP to swiadomy naddatek Mariusza ponad wyliczone 350.
-    scout:  { hp: 425, dmg: 120, reload: 190, speed: 7.5, maxDist: 800,  bulletRadius: 8 },
+    // ITERACJA 3 (KTB: „bardzo dobry, za szybko strzela"): tempo 190 -> 215 (100 dmg = te same 3 strzaly, nic nie zmienia);
+    // czerwona kostka daje mu POLOWE bonusu (Mariusz: „power dodaje tylko 1 punkt").
+    scout:  { hp: 425, dmg: 120, reload: 215, speed: 7.5, maxDist: 800,  bulletRadius: 8, cubeDmgMult: 0.5 },
     // 400 dmg = JEDEN strzal na zwyklego wroga; tempo 1000->750 (dalej wolny, ale kara za pudlo mniejsza)
-    sniper: { hp: 350, dmg: 400, reload: 750, speed: 4.5, maxDist: 1300, bulletRadius: 8 },
+    // ITERACJA 3 (zyczenie Mariusza): PRZEBICIE — pocisk zabija pierwszego (400) i leci dalej, kolejny na linii dostaje 100.
+    sniper: { hp: 350, dmg: 400, reload: 750, speed: 4.5, maxDist: 1300, bulletRadius: 8, pierce: 2, pierceDmgAfter: 100 },
     // tempo +25% (zyczenie Mariusza) + pierce; pierce byl wart +12 zabic w pomiarze
     plasma: { hp: 400, dmg: 130, reload: 400, speed: 5.0, maxDist: 1000, bulletRadius: 8, pierce: 3 },
-    // zasieg 350 NIE zadzialal jako kara (zmierzone: mial 350 i byl pierwszy) — placi obrazeniami
-    pyro:   { hp: 450, dmg: 40,  reload: 260, speed: 4.8, maxDist: 350,  bulletRadius: 8, volley: { count: 5, spread: 0.34 } },
-    shadow: { hp: 300, dmg: 150, reload: 640, speed: 6.5, maxDist: 900,  bulletRadius: 8, dash: true },
+    // ITERACJA 2 (2026-09-25, Strzelnica): wachlarz 5 x 0.34 rad (78 st.) byl 3.4x szerszy niz V1 (23 st.)
+    // — poza ~100 px trafial tylko srodkowy pocisk (celnosc 34% -> 18%, suma 22.6 -> 36.0 s, Mariusz:
+    // "za szeroki spread, ciezko z bossem"). Wracamy do salwy V1 (3 x 50 co 0.2 rad, 210 ms);
+    // zasieg 350 -> 500, zeby nie musial stac w zasiegu pociskow bossa (200 dmg = 44% HP).
+    // ITERACJA 3 (KTB: „znowu dobry"): nerf tempem 210 -> 235. dmg 50 ZOSTAJE: 3 x 50 = 150 = 2 salwy na 300 HP;
+    // kazda wartosc < 50 = 3 salwy = powrot do 36 s (zmierzone).
+    pyro:   { hp: 450, dmg: 50,  reload: 235, speed: 4.8, maxDist: 500,  bulletRadius: 8, volley: { count: 3, spread: 0.2 } },
+    // ITERACJA 3 (KTB: „zbyt wolno strzela"; Strzelnica: najwolniejszy, 34 s): tempo 640 -> 560; kostka polowa jak Zwiad.
+    shadow: { hp: 300, dmg: 150, reload: 560, speed: 6.5, maxDist: 900,  bulletRadius: 8, dash: true, cubeDmgMult: 0.5 },
     // spowolniony, nie oslabiony (patrz ustalenie 2)
-    king:   { hp: 500, dmg: 220, reload: 800, speed: 5.5, maxDist: 800,  bulletRadius: 8 },
+    // ITERACJA 2 (2026-09-25, Strzelnica): reload 800 = -37% tempa vs V1 i suma 22.6 -> 33.8 s, a 220 dmg
+    // nic nie daje (prog 2 strzalow na 300 HP). Strzelnica V1 stawia Kinga w SRODKU stawki (bot 61 zabic
+    // w KTB to byl artefakt stylu bota). 800 -> 620 = -20% tempa; dmg 220 zostaje (lekki plus na bossie).
+    // ITERACJA 3 (KTB: „OK"): zasieg 800 -> 700 (zyczenie); super szerszy w main.v2SuperLayout.
+    king:   { hp: 500, dmg: 220, reload: 620, speed: 5.5, maxDist: 700,  bulletRadius: 8 },
 });

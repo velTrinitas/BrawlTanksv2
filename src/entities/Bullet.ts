@@ -86,6 +86,8 @@ export class Bullet {
     public hitEnemies: Set<object> = new Set(); // boomerang pierce dedup (per faza)
     /** BALANCE_V2 (S3): ile wrogow pocisk jeszcze przebije (Tech). 0 = ginie na pierwszym trafieniu. */
     public pierceLeft = 0;
+    /** v0.211.0 Snajper: dmg po pierwszym trafieniu (null = pelne, jak Tech). */
+    public pierceDmgAfter: number | null = null;
     private breakupDist = 0; private fragCount = 0; private fragSpread = 0; private fragDmgMult = 0;
     private maxOutDist = 0; private returnSpeed = 0;
     private phase: 'out' | 'back' = 'out';
@@ -171,6 +173,7 @@ export class Bullet {
         // ginie na pierwszym trafieniu. Zerowane TUTAJ, zeby pooled pocisk Wiezy/Ping-Ponga nigdy
         // nie odziedziczyl przebicia po poprzednim strzale gracza.
         this.pierceLeft = isSuper ? 0 : (b.pierce ?? 0);
+        this.pierceDmgAfter = isSuper ? null : (b.pierceDmgAfter ?? null); // v0.211.0
         this.behavior = 'straight';
         // BALANCE_V2 (S2): ZASIEG per czolg. Ustawiany TUTAJ, nigdy mnoznikiem w update() —
         // Wieza (main.ts, 460) i Ping-Pong (900) nadpisuja `maxDist` PO resecie i dziela te sama

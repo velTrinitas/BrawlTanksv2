@@ -70,6 +70,31 @@ export interface Profile {
     readonly createdAt: number;
     readonly lastPlayedAt: number;
     readonly totalGamesPlayed: number;
+    /**
+     * TANK ART v2: numer czolgu (1..99) malowany na wiezy i kadlubie. OPCJONALNY — stare profile
+     * w localStorage nie wymagaja migracji; brak = numer wyliczany z id (resolveTankNumber).
+     * Edycja w Profilu i kolumna Supabase = osobny krok (nie w tej fazie).
+     */
+    readonly tankNumber?: number;
+}
+
+export const TANK_NUMBER_MIN = 1;
+export const TANK_NUMBER_MAX = 99;
+
+export function isValidTankNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isInteger(value)
+        && value >= TANK_NUMBER_MIN && value <= TANK_NUMBER_MAX;
+}
+
+/**
+ * Numer czolgu profilu: jawnie ustawiony albo DETERMINISTYCZNIE wyliczony z id profilu
+ * (kazdy gracz ma numer od razu; ten sam profil = ten sam numer na kazdym urzadzeniu).
+ */
+export function resolveTankNumber(profile: Pick<Profile, 'id' | 'tankNumber'>): number {
+    if (isValidTankNumber(profile.tankNumber)) return profile.tankNumber;
+    let h = 2166136261;
+    for (let i = 0; i < profile.id.length; i++) { h ^= profile.id.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return TANK_NUMBER_MIN + ((h >>> 0) % (TANK_NUMBER_MAX - TANK_NUMBER_MIN + 1));
 }
 
 /**

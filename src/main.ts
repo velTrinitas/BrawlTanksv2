@@ -6,6 +6,10 @@ import { isBalanceV2Enabled } from './config/balanceFlag'; // BALANCE_V2 (v0.200
 import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
 import { DEFAULT_CROSSHAIR, type CrosshairId } from './rendering/crosshairs'; // SHOP-2
 import { TankSpriteBaker } from './rendering/TankSpriteBaker';
+import type { TankLook } from './rendering/tankLook';           // TANK ART v2
+import { isTankArtV2 } from './config/tankArtFlag';             // TANK ART v2
+import { shotFxFor } from './config/shotFx';                    // TANK ART v2
+import { resolveTankNumber } from './types/Profile';            // TANK ART v2
 import { BulletSpriteBaker } from './rendering/BulletSpriteBaker'; // FAZA P2
 import { EnemySpriteBaker } from './rendering/EnemySpriteBaker'; // FAZA P4
 import { EnemyBulletSpriteBaker } from './rendering/EnemyBulletSpriteBaker'; // FAZA P4
@@ -640,6 +644,8 @@ let sandKickFrameCounter: number = 0;
 
 // v0.45.0 FAZA 8.7: hit-stop frame counter. Gdy > 0, ticker robi early return.
 let hitStopFramesRemaining: number = 0;
+/** TANK ART v2: liczone RAZ (flaga = stala + parametr URL) — jak SKINS/BALANCE. Wymaga bake (BAKER_ENABLED). */
+const TANK_ART_V2_ACTIVE: boolean = isTankArtV2() && BAKER_ENABLED;
 
 let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
@@ -2856,8 +2862,13 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         const skinDef = skinId ? getCosmetic(skinId) : undefined;
         const skinHex = skinDef?.hex ?? null;
         const skinPattern = skinDef?.pattern ?? null; // SKIN-2: wzor wpieczony w bake
-        await TankSpriteBaker.bakeBrawler(app, brawler.id, activeProfile?.flagId ?? null,
-            skinHex, skinPattern);
+        // TANK ART v2: jeden kontrakt customizacji (flaga + numer + skin) zamiast parametrow pozycyjnych.
+        const look: TankLook = {
+            flagId: activeProfile?.flagId ?? null,
+            number: activeProfile ? resolveTankNumber(activeProfile) : null,
+            skinHex, skinPattern,
+        };
+        await TankSpriteBaker.bakeBrawler(app, brawler.id, look);
         await BulletSpriteBaker.bakeBrawler(app, brawler.id); // FAZA P2 — pociski 2.5D (normal+super)
         await EnemySpriteBaker.bakeAll(app);        // FAZA P4 — wrogowie 2.5D (grunt/boss/mega)
         await EnemyBulletSpriteBaker.bakeAll(app);  // FAZA P4 — pociski wrogow 2.5D
@@ -4836,7 +4847,18 @@ function runLogicStep(delta: number): void {
             : { x: localPlayer.x + Math.cos(angle) * 45, y: localPlayer.y + Math.sin(angle) * 45 };
         const sX = muzzle.x;
         const sY = muzzle.y;
-        effects.spawnMuzzleFlash(sX, sY, angle);
+        if (TANK_ART_V2_ACTIVE) {
+            // TANK ART v2: stozek w kolorze czolgu + dym + iskry; Pancerny = 2 lufy = 2 rozblyski.
+            const fx = shotFxFor(localPlayer.brawler.id);
+            const muzzles = localPlayer.brawler.id === 'heavy'
+                ? [BulletSpriteBaker.getMuzzlePos(localPlayer.brawler.id, localPlayer.x, localPlayer.y, angle, -8),
+                   BulletSpriteBaker.getMuzzlePos(localPlayer.brawler.id, localPlayer.x, localPlayer.y, angle, 8)]
+                : [muzzle];
+            for (const m of muzzles) effects.spawnMuzzleFlashV2(m.x, m.y, angle, fx);
+            localPlayer.triggerBarrelFlash();
+        } else {
+            effects.spawnMuzzleFlash(sX, sY, angle);
+        }
 
         const wasActive = localPlayer.isSuperShotActive;
         const isSuperShot = localPlayer.tryActivateOrContinueSuperShot();
@@ -5138,6 +5160,15 @@ function runLogicStep(delta: number): void {
                 // Z0.5: pocisk gracza vs pocisk Wiezy (moc) — Bullet.source rozstrzyga
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects,
                     b.source === 'player' ? SRC_PLAYER_BULLET : SRC_POWER);
+                // TANK ART v2: trafienie = pierscien + iskry w kolorze + blysk; mikro hit-stop / drzenie
+                // tylko dla ciezkich strzalow (shotFx.ts). Hit-stop = istniejacy triggerHitStop (override
+                // wieksza wartoscia), bezpieczny pod ?smooth=1 (early-return PRZED akumulatorem czasu).
+                if (TANK_ART_V2_ACTIVE && b.source === 'player') {
+                    const fx = shotFxFor(localPlayer.brawler.id);
+                    effects.spawnImpactV2(hitX, hitY, Math.atan2(b.vy, b.vx), fx);
+                    if (fx.hitStopFrames > 0) triggerHitStop(fx.hitStopFrames);
+                    if (fx.nudgePx > 0) effects.shake(fx.nudgePx, 3);
+                }
                 const damageApplied = enemy.hp < hpBefore || killed;
 
                 // v0.46.0 HP/DMG x100: floating damage numbers przy trafieniu (premium feel).

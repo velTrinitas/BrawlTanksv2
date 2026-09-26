@@ -3,6 +3,7 @@ import { sigmaEmit } from '../testing/sigmaFlag';
 import type { Brawler } from '../types/Brawler';
 import { getBrawlerTextures, PROGRAMMATIC_BRAWLER_CONFIG, TANK_CANVAS_SCALE, BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { TankSpriteBaker } from '../rendering/TankSpriteBaker';
+import { isTankArtV2 } from '../config/tankArtFlag'; // TANK ART v2
 import { hpColorHex } from '../rendering/hpColor'; // v0.187.0 — ten sam kolor co pigulka HP w HUD
 import { heartbeat } from '../rendering/heartbeat'; // v0.187.0 — rytm tetna wspolny z HUD
 import type { DamageSmoke } from '../rendering/DamageSmoke'; // v0.188.0 — dym uszkodzenia (poza pula czasteczek)
@@ -31,6 +32,12 @@ const SKIN_PULSE_REDUCED = ((): boolean => {
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
     catch { return false; }
 })();
+
+// TANK ART v2 — faza gasienic: przelaczana co TREAD_PHASE_FRAMES klatek TYLKO w ruchu (8 Hz @60fps;
+// szybciej = migot, niezaleznie od predkosci), w spoczynku trzyma faze. Licznik klatek, nie zegar.
+const TREAD_PHASE_FRAMES = 7;
+// TANK ART v2 — blysk lufy: sprite ADD z TA SAMA tekstura co wieza (0 VRAM), alpha gasnie w BARREL_FLASH_FRAMES.
+const BARREL_FLASH_FRAMES = 4;
 
 // FAZA P1 Sprite Baker — display scale gracza w trybie bake (2.5D). 1.25 = +25% vs wrogowie.
 // Flaga wpieczona w teksture hull skaluje sie razem z bryla. Hitbox (main.ts radius) BEZ zmian.
@@ -145,6 +152,12 @@ export class Player {
      */
     private skinPulseOverlay: PIXI.Sprite | null = null;
     private skinPulseT = 0;
+    // TANK ART v2 — stan wizualny (lokalny, poza symulacja)
+    private readonly artV2: boolean = false;
+    private treadPhase = 0;
+    private treadPhaseT = 0;
+    private barrelFlash: PIXI.Sprite | null = null;
+    private barrelFlashT = 0;
     /** v0.187.0 — pasek zycia nad czolgiem (zawsze widoczny, jak u wrogow). */
     private hpBar: PIXI.Graphics;
     /** Ostatnie narysowane HP — pasek przerysowujemy TYLKO przy zmianie, nie co klatke. */
@@ -237,6 +250,7 @@ export class Player {
         // FAZA P1 Sprite Baker — jesli flaga ON i tekstury upieczone (bake w main.ts startGame),
         // podmien flat -> 2.5D. Rotacja wpieczona => sprite.rotation=0, podmiana .texture per kat.
         this.bakerActive = BAKER_ENABLED && TankSpriteBaker.isBaked(this.brawler.id);
+        this.artV2 = this.bakerActive && isTankArtV2() && TankSpriteBaker.getTreadPhases(this.brawler.id) > 1;
         if (this.bakerActive) {
             this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, 0);
             this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, 0);
@@ -285,7 +299,17 @@ export class Player {
             }
         }
 
-        // Order: super-ring -> hull -> [skin pulse] -> tracks -> exhaust -> flag -> turret
+        // TANK ART v2: blysk lufy = overlay ADD tekstury wiezy (poza lustrem tintu — celowo).
+        if (this.artV2) {
+            this.barrelFlash = new PIXI.Sprite(this.turret.texture);
+            this.barrelFlash.anchor.set(0.5);
+            this.barrelFlash.blendMode = PIXI.BLEND_MODES.ADD;
+            this.barrelFlash.visible = false;
+            // v2: gasienice kreca sie w teksturze — plaskie kreski tracksGfx zbedne (-1 Graphics/klatke).
+            this.tracksGfx.visible = false;
+        }
+
+        // Order: super-ring -> hull -> [skin pulse] -> tracks -> exhaust -> flag -> turret -> [barrel flash]
         this.container.addChild(this.superRingGfx);
         this.container.addChild(this.hull);
         if (this.skinPulseOverlay) this.container.addChild(this.skinPulseOverlay);
@@ -293,6 +317,7 @@ export class Player {
         this.container.addChild(this.exhaustGfx);
         this.container.addChild(this.flagGfx);
         this.container.addChild(this.turret);
+        if (this.barrelFlash) this.container.addChild(this.barrelFlash);
         this.container.addChild(this.hpBar); // nad wszystkim — pasek nigdy nie chowa sie pod wieza
         this.drawHp();
         worldContainer.addChild(this.container);
@@ -622,6 +647,13 @@ export class Player {
      * 1:1 z lab.ts fire block. No-op w trybie flat (juice tylko w bake). Ustawia tylko stan;
      * wizualnie stosowane w update() -> updateJuice().
      */
+    /** TANK ART v2 — blysk lufy przy strzale (no-op poza v2). */
+    triggerBarrelFlash(): void {
+        if (!this.barrelFlash) return;
+        this.barrelFlashT = BARREL_FLASH_FRAMES;
+        this.barrelFlash.visible = true;
+    }
+
     triggerRecoil(): void {
         if (!this.bakerActive) return;
         this.recoil = 1;
@@ -890,9 +922,19 @@ export class Player {
             // pitch tilt: lekka deformacja Y (±1.5% przy clamp, wiecej podczas taunt bounce).
             this.container.scale.y = BAKE_DISPLAY_SCALE * (1 + this.pitch * JUICE_PITCH_TILT_K);
 
+            // TANK ART v2: faza gasienic (licznik klatek, tylko w ruchu).
+            if (this.artV2 && this.isMoving) {
+                this.treadPhaseT += delta;
+                if (this.treadPhaseT >= TREAD_PHASE_FRAMES) { this.treadPhaseT = 0; this.treadPhase++; }
+            }
             // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
-            this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle);
+            this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle, this.treadPhase);
             this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
+            if (this.barrelFlash && this.barrelFlash.visible) {
+                this.barrelFlashT -= delta;
+                if (this.barrelFlashT <= 0) { this.barrelFlash.visible = false; }
+                else { this.barrelFlash.texture = this.turret.texture; this.barrelFlash.alpha = 0.7 * (this.barrelFlashT / BARREL_FLASH_FRAMES); }
+            }
 
             // SKIN-2: puls skina — ta sama referencja tekstury co hull + sin-alpha.
             if (this.skinPulseOverlay) {
@@ -907,6 +949,7 @@ export class Player {
             // turret). Rozbieznosc vs lab (lab cofa tylko barrel) — czyta sie jako kopniecie.
             this.turret.x = -Math.cos(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS;
             this.turret.y = -Math.sin(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS * JUICE_CAMERA_TILT_Y;
+            if (this.barrelFlash) { this.barrelFlash.x = this.turret.x; this.barrelFlash.y = this.turret.y; }
         } else {
             // FLAT PATH — bit-for-bit jak dotad (zero juice).
             this.container.x = this.x;

@@ -2163,4 +2163,5 @@ export {
   BRAWLERS, GRUNT, REGULAR_BOSS, MEGA_BOSS, BUILDER,
   derive, T, applyTransform, drawMuzzleCylinder, getMuzzlePos,
   CAMERA_TILT_Y, Z_TO_SCREEN, FLAGS, drawFlag,
+  drawSkinPattern, // TANK ART v2: wzory skinow na v2 (ten sam dispatcher, zero duplikacji painterow)
 };

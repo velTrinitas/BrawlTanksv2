@@ -30,6 +30,7 @@
  *   const { mode, rate } = BulletSpriteBaker.getSpin('twardy'); // 'dir' | 'spin' | 'none'
  */
 import * as PIXI from 'pixi.js';
+import { isTankArtV2 } from '../config/tankArtFlag'; // TANK ART v2: pociski v2 (scout/heavy/sniper/king)
 
 // ── Bake config (single source of truth; tune here) ────────────────────────────
 // type/size 1:1 z render2d BRAWLERS bullet + fire.ts SUPER profiles & SUPER_TINTS.
@@ -69,6 +70,8 @@ interface BakedBullet {
 }
 
 class BulletSpriteBakerImpl {
+    /** TANK ART v2: painter pocisku aktywny podczas biezacego bake (null = lab drawBulletWithFx). */
+    private v2Draw: ((ctx: CanvasRenderingContext2D, b: unknown) => void) | null = null;
     private cache = new Map<string, BakedBullet>();
     private baking = new Map<string, Promise<BakedBullet>>();
 
@@ -100,7 +103,13 @@ class BulletSpriteBakerImpl {
     }
 
     private async doBake(app: PIXI.Application, brawlerId: string): Promise<BakedBullet> {
-        const cfg = CFG[brawlerId];
+        let cfg = CFG[brawlerId];
+        // TANK ART v2: masywniejszy krysztal Pancernego i korona Kinga potrzebuja wiekszego pudelka.
+        if (cfg && isTankArtV2()) {
+            if (brawlerId === 'heavy') cfg = { ...cfg, tex: 72, superTex: 128 };
+            if (brawlerId === 'king') cfg = { ...cfg, tex: 64, superTex: 120 };
+            if (brawlerId === 'scout') cfg = { ...cfg, tex: 64, superTex: 100 };
+        }
         if (!cfg) {
             throw new Error(`[BulletSpriteBaker] unknown brawler id: ${brawlerId}`);
         }
@@ -108,6 +117,16 @@ class BulletSpriteBakerImpl {
         // DYNAMIC import — FIX#1 prototype patch installs HERE only (rollback-safe). fire.ts pulls
         // render2d's drawBullet and exposes drawBulletWithFx (aura + bullet, exactly the lab pipeline).
         const fire = await import('../experimental/tank25d/fire');
+        // TANK ART v2: paintery pociskow v2 — tylko dla id z BULLET_V2_IDS, reszta = drawBulletWithFx.
+        let drawFn: ((ctx: CanvasRenderingContext2D, b: unknown) => void) | null = null;
+        if (isTankArtV2()) {
+            const r2dV2 = await import('../experimental/tank25d/render2dV2');
+            if ((r2dV2.BULLET_V2_IDS as string[]).includes(brawlerId)) {
+                const fallback = fire.drawBulletWithFx as (ctx: CanvasRenderingContext2D, b: unknown) => void;
+                drawFn = (ctx, b) => (r2dV2.drawBulletV2 as (c: CanvasRenderingContext2D, id: string, b: unknown, f: unknown) => void)(ctx, brawlerId, b, fallback);
+            }
+        }
+        this.v2Draw = drawFn;
 
         const resolution = app.renderer.resolution || 1;
 
@@ -161,7 +180,8 @@ class BulletSpriteBakerImpl {
 
         // drawBulletWithFx: if b.superTint -> drawAura (additive 'lighter') then drawBullet; else
         // drawBullet only. Exactly the lab render order. 'behavior' is undefined so the wave branch is skipped.
-        fire.drawBulletWithFx(ctx as unknown as CanvasRenderingContext2D, b);
+        if (this.v2Draw) this.v2Draw(ctx as unknown as CanvasRenderingContext2D, b);
+        else fire.drawBulletWithFx(ctx as unknown as CanvasRenderingContext2D, b);
 
         // resolution carried so the sprite measures texSize in CSS px (sprite scaled by BAKE_DISPLAY_SCALE in Bullet.ts).
         return PIXI.Texture.from(canvas, { resolution } as PIXI.IBaseTextureOptions);
@@ -190,11 +210,14 @@ class BulletSpriteBakerImpl {
      * Muzzle tip in WORLD space for the 2.5D player (per-brawler muzzleDist + camera tilt + Z lift,
      * scaled by BAKE_DISPLAY_SCALE). Mirrors render2d getMuzzlePos at recoil=0, single barrel (pe=0).
      */
-    getMuzzlePos(brawlerId: string, px: number, py: number, angle: number): { x: number; y: number } {
+    getMuzzlePos(brawlerId: string, px: number, py: number, angle: number, sideOffset: number = 0): { x: number; y: number } {
         const cfg = CFG[brawlerId];
         const md = cfg ? cfg.muzzleDist : 50;
-        const offX = md * Math.cos(angle);
-        const offY = md * Math.sin(angle) * CAMERA_TILT_Y - Z_LIFT * Z_TO_SCREEN;
+        // TANK ART v2: sideOffset = przesuniecie prostopadle do lufy (render2d units) — 2 lufy Pancernego
+        // (+-8, jak render2d getMuzzlePos 'twin'). 0 = dzisiejsza geometria, bit-for-bit.
+        const pa = angle + Math.PI / 2;
+        const offX = md * Math.cos(angle) + sideOffset * Math.cos(pa);
+        const offY = (md * Math.sin(angle) + sideOffset * Math.sin(pa)) * CAMERA_TILT_Y - Z_LIFT * Z_TO_SCREEN;
         return { x: px + offX * BAKE_DISPLAY_SCALE, y: py + offY * BAKE_DISPLAY_SCALE };
     }
 

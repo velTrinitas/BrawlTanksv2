@@ -2,6 +2,9 @@ import * as PIXI from 'pixi.js';
 import type { Brawler } from '../types/Brawler';
 import type { CyberBuilding } from '../maps/CityMap';
 import type { EffectsManager } from '../rendering/Effects';
+import { getTrailTexture, getGlowTexture, getArcTextures, getZigzagTrailTexture } from '../rendering/Effects';
+import { isTankArtV2 } from '../config/tankArtFlag';
+import { shotFxFor } from '../config/shotFx';
 import type { ICollidable } from '../types/MapType';
 import { AudioSys } from '../audio/AudioSys';
 import { BAKER_ENABLED } from '../rendering/SpriteFactory';
@@ -102,6 +105,18 @@ export class Bullet {
     private trailHead: number = 0;
     private trailCount: number = 0;
     private trailGfx: PIXI.Graphics | null = null;
+    /**
+     * TANK ART v2: smuga jako JEDEN sprite ADD (tekstura 64x8, anchor 1,0.5, tint) na
+     * effects.fxAddLayer — zamiast trailGfx (do 16 kolek retesselowanych CO KLATKE per pocisk).
+     * Dlugosc rosnie z przebyta droga (nie wystaje za lufe), rotacja = wektor lotu.
+     */
+    private trailSprite: PIXI.Sprite | null = null;
+    /** TANK ART v2: dodatkowe sprite'y ADD per pocisk (glow / luki / orbitery) — max 3, leniwie. */
+    private fxA: PIXI.Sprite | null = null;
+    private fxB: PIXI.Sprite | null = null;
+    private fxC: PIXI.Sprite | null = null;
+    private fxT = 0;
+    private readonly artV2: boolean = isTankArtV2() && BAKER_ENABLED;
     private brawlerColor: number = 0;
     private sparkleTimer: number = 0;
 
@@ -241,6 +256,15 @@ export class Bullet {
             this.gfx.visible = true;
         }
 
+        // TANK ART v2: smuga-sprite (tworzona leniwie w update, gdy znamy effects.fxAddLayer).
+        if (this.artV2) {
+            this.fxT = 0;
+            if (this.fxA) this.fxA.visible = false;
+            if (this.fxB) this.fxB.visible = false;
+            if (this.fxC) this.fxC.visible = false;
+            if (this.trailSprite) { this.trailSprite.visible = false; this.trailSprite.width = 0; }
+            if (this.trailGfx) { this.trailGfx.clear(); this.trailGfx.visible = false; }
+        } else
         // Trail (oba tryby — decision B: game trail TRAIL_LEN_MAP zachowany).
         // Obecnosc trailGfx zalezy od baseTrail>0 (stala per-brawler), wiec tworzymy
         // raz i reuzywamy (clear + show). Sniper (baseTrail 0) nigdy nie ma trailGfx.
@@ -295,6 +319,11 @@ export class Bullet {
                         destructible.takeDamage(this.dmg, this.x, this.y, this.isSuper);
                     } else {
                         effects.spawnWallImpact(this.x, this.y);
+                        if (this.artV2 && this.source === 'player') {
+                            const fx = shotFxFor(this.brawlerInfo.id);
+                            effects.spawnImpactV2(this.x, this.y, Math.atan2(this.vy, this.vx), { color: fx.color, ringRadius: fx.ringRadius * 0.7, hitSparks: Math.max(2, fx.hitSparks - 2) });
+                            effects.spawnBulletMark(this.x, this.y);
+                        }
                         AudioSys.getInstance().playHit('wall');
                     }
                     this.deactivate();
@@ -330,6 +359,28 @@ export class Bullet {
             this.gfx.zIndex = this.y + 10;
         }
 
+        // TANK ART v2: smuga = 1 sprite (ADD, warstwa fxAddLayer), dlugosc z drogi, rotacja z wektora.
+        if (this.artV2 && this.source === 'player') {
+            const fx = shotFxFor(this.brawlerInfo.id);
+            if (fx.trailLen > 0) {
+                if (!this.trailSprite) {
+                    this.trailSprite = new PIXI.Sprite(this.brawlerInfo.id === 'plasma' ? getZigzagTrailTexture() : getTrailTexture());
+                    this.trailSprite.anchor.set(1, 0.5);
+                    this.trailSprite.blendMode = PIXI.BLEND_MODES.ADD;
+                    effects.fxAddLayer.addChild(this.trailSprite);
+                }
+                const s = this.trailSprite;
+                const mult = this.isSuper ? 1.5 : 1;
+                s.visible = true;
+                s.tint = this.isSuper ? this.superTrailColor : fx.color;
+                s.alpha = this.isSuper ? 0.95 : 0.8;
+                s.x = this.x; s.y = this.y;
+                s.rotation = Math.atan2(this.vy, this.vx);
+                s.width = Math.min(fx.trailLen * mult, this.distance * 0.6 + 4);
+                s.height = fx.trailWidth * mult;
+            }
+            this.updateV2Fx(delta, effects);
+        } else
         // Render trail (oba tryby).
         if (this.trailGfx && this.trailCount > 0) {
             this.trailGfx.clear();
@@ -480,11 +531,84 @@ export class Bullet {
         if (this.sprite) this.sprite.visible = false;
         if (this.gfx) this.gfx.visible = false;
         if (this.trailGfx) this.trailGfx.visible = false;
+        if (this.trailSprite) this.trailSprite.visible = false;
+        if (this.fxA) this.fxA.visible = false;
+        if (this.fxB) this.fxB.visible = false;
+        if (this.fxC) this.fxC.visible = false;
+    }
+
+    /**
+     * TANK ART v2 — efekty runtime pocisku per czolg (Mariusz, 2026-09-26). Wszystko lokalne/wizualne.
+     *  plasma: 2 luki elektryczne (losowy wariant co 3 klatki) + glow; twardy super: glow;
+     *  pyro: zywy ogien = jezyk ognia z puli co 3 (super 2) klatki + glow; shadow: jasnoszary glow + jasny dymek co 4 klatki;
+     *  king super: 2 orbitujace iskry wokol korony. Koszt: <= 3 sprite'y ADD/pocisk + czastki z puli (cap 200).
+     */
+    private ensureFx(effects: EffectsManager, which: 'A' | 'B' | 'C', tex: PIXI.Texture): PIXI.Sprite {
+        const key = which === 'A' ? 'fxA' : which === 'B' ? 'fxB' : 'fxC';
+        let s = this[key];
+        if (!s) {
+            s = new PIXI.Sprite(tex); s.anchor.set(0.5); s.blendMode = PIXI.BLEND_MODES.ADD;
+            effects.fxAddLayer.addChild(s); this[key] = s;
+        }
+        s.visible = true;
+        return s;
+    }
+
+    private updateV2Fx(delta: number, effects: EffectsManager): void {
+        const id = this.brawlerInfo.id; const sup = this.isSuper;
+        this.fxT += delta;
+        const dirA = Math.atan2(this.vy, this.vx);
+        if (id === 'plasma') {
+            // Tech: zawsze odcienie niebiesko-blekitne (super = glebszy blekit, nie roz)
+            const arcs = getArcTextures(); const tint = sup ? 0x8ad4ff : 0x9af0ff;
+            const g = this.ensureFx(effects, 'C', getGlowTexture()); g.x = this.x; g.y = this.y; g.tint = sup ? 0x3aa0ff : 0x00d4ff; g.alpha = 0.5; g.scale.set(this.radius * 0.22);
+            for (const which of ['A', 'B'] as const) {
+                const s = this.ensureFx(effects, which, arcs[0]);
+                if (this.fxT >= 3 || (s as unknown as { _ox?: number })._ox === undefined) {
+                    s.texture = arcs[(Math.random() * arcs.length) | 0]; s.rotation = Math.random() * Math.PI * 2;
+                    s.scale.set(0.9 + Math.random() * 0.6 + (sup ? 0.4 : 0)); s.tint = tint;
+                    const r = this.radius * (0.6 + Math.random() * 0.8); const a = Math.random() * Math.PI * 2;
+                    (s as unknown as { _ox: number })._ox = Math.cos(a) * r; (s as unknown as { _oy: number })._oy = Math.sin(a) * r;
+                }
+                s.x = this.x + ((s as unknown as { _ox?: number })._ox ?? 0); s.y = this.y + ((s as unknown as { _oy?: number })._oy ?? 0);
+                s.alpha = 0.55 + Math.random() * 0.45;
+            }
+            if (this.fxT >= 3) this.fxT = 0;
+        } else if (id === 'scout') {
+            // Zwiad: wiekszy zoltawy dymek za beczka (co 4 klatki, z puli)
+            if (this.fxT >= 4) { this.fxT = 0; effects.spawnSoftPuff(this.x - this.vx * 0.6, this.y - this.vy * 0.6, 0xf2d778, sup ? 3.2 : 2.6); }
+        } else if (id === 'twardy' && sup) {
+            const g = this.ensureFx(effects, 'A', getGlowTexture()); g.x = this.x; g.y = this.y; g.tint = this.superTrailColor; g.alpha = 0.65; g.scale.set(this.radius * 0.28);
+        } else if (id === 'pyro') {
+            const g = this.ensureFx(effects, 'A', getGlowTexture()); g.x = this.x; g.y = this.y; g.tint = 0xff7a2a; g.alpha = 0.55; g.scale.set(this.radius * (sup ? 0.3 : 0.22));
+            const every = sup ? 2 : 3;
+            if (this.fxT >= every) { this.fxT = 0; effects.spawnFlameBit(this.x, this.y, dirA, sup); if (sup) effects.spawnFlameBit(this.x, this.y, dirA, true); }
+        } else if (id === 'shadow') {
+            // Shadow: szary przyciemniony (jasny czytal sie jak bialy), takze w super
+            const g = this.ensureFx(effects, 'A', getGlowTexture()); g.x = this.x; g.y = this.y; g.tint = 0x8f97a8; g.alpha = sup ? 0.5 : 0.38; g.scale.set(this.radius * 0.3);
+            if (this.fxT >= 4) { this.fxT = 0; effects.spawnSoftPuff(this.x, this.y, 0xa9b0bf, sup ? 2.6 : 2); }
+        } else if (id === 'king') {
+            const g = this.ensureFx(effects, 'A', getGlowTexture()); g.x = this.x; g.y = this.y; g.tint = sup ? 0xff8a2a : 0xffd23a; g.alpha = sup ? 0.6 : 0.5; g.scale.set(this.radius * (sup ? 0.32 : 0.24));
+            if (sup) {
+                const t = performance.now() * 0.012 + this.x * 0.01; const rr = this.radius * 1.7;
+                const o1 = this.ensureFx(effects, 'B', getGlowTexture()); o1.tint = 0xfff0a0; o1.alpha = 0.95; o1.scale.set(0.42); o1.x = this.x + Math.cos(t) * rr; o1.y = this.y + Math.sin(t) * rr * 0.6;
+                const o2 = this.ensureFx(effects, 'C', getGlowTexture()); o2.tint = 0xffb340; o2.alpha = 0.95; o2.scale.set(0.42); o2.x = this.x + Math.cos(t + Math.PI) * rr; o2.y = this.y + Math.sin(t + Math.PI) * rr * 0.6;
+            }
+        }
     }
 
     /** Pelne zniszczenie (nieuzywane w hot-path po poolingu; zostaje dla teardownu). */
     destroy(): void {
         this.active = false;
+        if (this.trailSprite) {
+            if (this.trailSprite.parent) this.trailSprite.parent.removeChild(this.trailSprite);
+            this.trailSprite.destroy(); // tekstura wspolna (getTrailTexture) -> NIE niszczymy tekstury
+            this.trailSprite = null;
+        }
+        for (const key of ['fxA', 'fxB', 'fxC'] as const) {
+            const s = this[key];
+            if (s) { if (s.parent) s.parent.removeChild(s); s.destroy(); this[key] = null; }
+        }
         if (this.sprite) {
             if (this.sprite.parent) this.sprite.parent.removeChild(this.sprite);
             this.sprite.destroy();   // texture cached/shared w bakerze -> NIE niszczymy tekstury

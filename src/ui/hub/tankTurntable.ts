@@ -25,6 +25,9 @@
  */
 
 import { playUiClick } from '../uiSounds';
+import { isTankArtV2 } from '../../config/tankArtFlag'; // TANK ART v2
+import { ProfileService } from '../../services/ProfileService';
+import { resolveTankNumber } from '../../types/Profile';
 
 /** Cap DPR 1:1 z rendererem gry (v0.133.0) i crosshairPreview. */
 const DPR_CAP = 2;
@@ -107,6 +110,13 @@ export function mountTankTurntable(
 
     let destroyed = false;
     let r2d: typeof import('../../experimental/tank25d/render2d') | null = null;
+    // TANK ART v2: osobny modul painterow; `liveCanvas` = bez shadowBlur (Garaz rysuje na zywo).
+    let r2dV2: typeof import('../../experimental/tank25d/render2dV2') | null = null;
+    const artV2 = isTankArtV2();
+    const tankNumber = ((): number | null => {
+        try { const p = ProfileService.getActiveProfile(); return p ? resolveTankNumber(p) : null; }
+        catch (e) { console.warn('[TankTurntable] tankNumber read failed:', (e as Error).stack ?? e); return null; }
+    })();
     // SKIN-1: paleta skina cache'owana przy setSkin (derive RAZ na zmiane, nie per klatke).
     let skinHex: string | null = initialSkinHex;
     let skinColors: unknown | null = null;
@@ -431,7 +441,20 @@ export function mountTankTurntable(
             isIdle: !dragging,
         };
         try {
-            (r2d.drawTank as (c: CanvasRenderingContext2D, t: unknown) => void)(ctx, tank);
+            if (artV2 && r2dV2) {
+                // v2: brawler z render2dV2 (te same wymiary), skin przez withSkin, wzor przez drawSkinPattern render2d.
+                let bv = r2dV2.brawlerV2(currentId) as Record<string, unknown>;
+                if (skinHex) bv = r2dV2.withSkin(bv, skinHex) as Record<string, unknown>;
+                const phase = reducedMotion ? 0.25 : (skinElapsed * SKIN_ANIM_HZ) % 1;
+                const bv2 = { ...bv, _skinPhase: phase, ...(skinPatternId ? { skinPattern: skinPatternId } : {}) };
+                r2dV2.drawTankV2(ctx, { ...tank, brawler: bv2 }, {
+                    liveCanvas: true, phase, number: tankNumber, flagId: flagId ?? null,
+                    spin: treadShift * 0.15, charge: 1,
+                    drawSkin: skinPatternId ? (r2d.drawSkinPattern as unknown) : undefined,
+                });
+            } else {
+                (r2d.drawTank as (c: CanvasRenderingContext2D, t: unknown) => void)(ctx, tank);
+            }
         } catch (e) {
             console.error('[TankTurntable] drawTank failed:', (e as Error).stack ?? e,
                 { brawlerId: currentId });
@@ -555,7 +578,10 @@ export function mountTankTurntable(
     activeHandle = handle;
 
     // Dynamic import DOPIERO tutaj (guardrail patcha prototypu — patrz naglowek).
-    import('../../experimental/tank25d/render2d')
+    (artV2
+        ? Promise.all([import('../../experimental/tank25d/render2d'), import('../../experimental/tank25d/render2dV2')])
+            .then(([m1, m2]) => { r2dV2 = m2; return m1; })
+        : import('../../experimental/tank25d/render2d'))
         .then(mod => {
             if (destroyed) return;
             r2d = mod;

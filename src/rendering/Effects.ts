@@ -66,6 +66,104 @@ interface FloatingTextItem {
 }
 
 let _particleTexture: PIXI.Texture | null = null;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TANK ART v2 — pieczone tekstury FX strzalu (jedna kazda; ADD blend na osobnej warstwie)
+// ═════════════════════════════════════════════════════════════════════════════
+let _coneTexture: PIXI.Texture | null = null;
+let _ringTexture: PIXI.Texture | null = null;
+let _trailTexture: PIXI.Texture | null = null;
+
+/** Stozek rozblysku 48x32: bialy rdzen -> przezroczysty brzeg (tint = kolor czolgu). */
+function getConeTexture(): PIXI.Texture {
+    if (_coneTexture) return _coneTexture;
+    const c = document.createElement('canvas'); c.width = 48; c.height = 32;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createRadialGradient(6, 16, 0, 6, 16, 42);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,0.75)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(0, 16); ctx.lineTo(40, 1); ctx.lineTo(48, 16); ctx.lineTo(40, 31); ctx.closePath(); ctx.fill();
+    _coneTexture = PIXI.Texture.from(c);
+    return _coneTexture;
+}
+/** Pierscien 64x64 (cienki, miekki brzeg) — skalowany w gore + fade = fala trafienia. */
+function getRingTexture(): PIXI.Texture {
+    if (_ringTexture) return _ringTexture;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const ctx = c.getContext('2d')!;
+    ctx.strokeStyle = 'rgba(255,255,255,1)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(32, 32, 27, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.arc(32, 32, 26, 0, Math.PI * 2); ctx.stroke();
+    _ringTexture = PIXI.Texture.from(c);
+    return _ringTexture;
+}
+/** Smuga 64x8: przezroczysty ogon -> pelny lep (anchor 1,0.5 = czubek w pocisku). */
+export function getTrailTexture(): PIXI.Texture {
+    if (_trailTexture) return _trailTexture;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 8;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 64, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.7, 'rgba(255,255,255,0.7)'); g.addColorStop(1, 'rgba(255,255,255,1)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(0, 0, 64, 8, 4); ctx.fill();
+    _trailTexture = PIXI.Texture.from(c);
+    return _trailTexture;
+}
+
+interface FxSprite { sprite: PIXI.Sprite; life: number; max: number; grow: number; active: boolean; }
+
+let _glowTexture: PIXI.Texture | null = null;
+let _arcTextures: PIXI.Texture[] | null = null;
+let _zigzagTexture: PIXI.Texture | null = null;
+/** Miekki glow 32x32 (radialny), tint = kolor. */
+export function getGlowTexture(): PIXI.Texture {
+    if (_glowTexture) return _glowTexture;
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.45, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 32, 32);
+    _glowTexture = PIXI.Texture.from(c);
+    return _glowTexture;
+}
+/** 3 warianty luku elektrycznego 32x32 (nieregularne zygzaki od srodka na zewnatrz). */
+export function getArcTextures(): PIXI.Texture[] {
+    if (_arcTextures) return _arcTextures;
+    const out: PIXI.Texture[] = [];
+    const seeds = [[0.3, 0.8, 0.2, 0.9, 0.5], [0.7, 0.1, 0.6, 0.3, 0.9], [0.5, 0.4, 0.95, 0.15, 0.6]];
+    for (const sd of seeds) {
+        const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+        const ctx = c.getContext('2d')!;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const pass of [[4, 0.35], [1.6, 1]] as Array<[number, number]>) {
+            ctx.lineWidth = pass[0]; ctx.strokeStyle = `rgba(255,255,255,${pass[1]})`;
+            for (let k = 0; k < 2; k++) {
+                ctx.beginPath(); ctx.moveTo(16, 16);
+                let x = 16, y = 16; const ang = k * 2.6 + sd[0] * 3;
+                for (let i = 0; i < 4; i++) {
+                    const a = ang + (sd[(i + k) % 5] - 0.5) * 1.6; const len = 3 + sd[(i * 2 + k) % 5] * 4;
+                    x += Math.cos(a) * len; y += Math.sin(a) * len; ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+        out.push(PIXI.Texture.from(c));
+    }
+    _arcTextures = out;
+    return out;
+}
+/** Smuga elektryczna 64x8: zygzak + poswiata (Tech). */
+export function getZigzagTrailTexture(): PIXI.Texture {
+    if (_zigzagTexture) return _zigzagTexture;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 8;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 64, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0.55)');
+    ctx.fillStyle = g; ctx.fillRect(0, 2, 64, 4);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 1.3; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 4); for (let x = 6; x <= 64; x += 6) ctx.lineTo(x, (x / 6) % 2 ? 1 : 7); ctx.stroke();
+    _zigzagTexture = PIXI.Texture.from(c);
+    return _zigzagTexture;
+}
 function getParticleTexture(): PIXI.Texture {
     if (_particleTexture) return _particleTexture;
     const cv = document.createElement('canvas');
@@ -177,8 +275,24 @@ export class EffectsManager {
     public shakeOffsetX: number = 0;
     public shakeOffsetY: number = 0;
 
+    /**
+     * TANK ART v2 — warstwa ADD dla smug pociskow / rozblyskow / pierscieni. JEDEN kontener =
+     * wszystkie sprite'y ADD sasiaduja w kolejnosci rysowania => 1 batch (zmiana blendu w srodku
+     * Y-sortowanego swiata lamalaby batch przy kazdym pocisku). zIndex wysoki: smuga ma byc NAD
+     * czolgami (Czytelnosc #1: „skad leci strzal" nie chowa sie za wrogiem), pod tekstami (20000).
+     */
+    public fxAddLayer: PIXI.Container;
+    private fxFlashes: FxSprite[] = [];
+    private fxRings: FxSprite[] = [];
+    private fxMarks: FxSprite[] = [];
+    private static readonly MAX_BULLET_MARKS = 8;
+
     constructor(worldContainer: PIXI.Container) {
         this.worldContainer = worldContainer;
+
+        this.fxAddLayer = new PIXI.Container();
+        this.fxAddLayer.zIndex = 9000;
+        this.fxAddLayer.sortableChildren = false;
 
         this.particleContainer = new PIXI.ParticleContainer(1000, {
             scale: true,
@@ -207,6 +321,108 @@ export class EffectsManager {
         worldContainer.addChild(this.wreckContainer);
         worldContainer.addChild(this.particleContainer);
         worldContainer.addChild(this.floatingTextContainer);
+        worldContainer.addChild(this.fxAddLayer);
+    }
+
+    // ==========================================
+    // TANK ART v2 — juice strzalu (dane: config/shotFx.ts)
+    // ==========================================
+    private acquireFx(pool: FxSprite[], tex: PIXI.Texture, parent: PIXI.Container, add: boolean, max: number): FxSprite {
+        for (const f of pool) if (!f.active) { f.active = true; f.sprite.visible = true; return f; }
+        if (pool.length >= max) {
+            const f = pool.reduce((a, b) => (a.life < b.life ? a : b));
+            f.active = true; f.sprite.visible = true; return f;
+        }
+        const sprite = new PIXI.Sprite(tex);
+        sprite.anchor.set(0.5);
+        if (add) sprite.blendMode = PIXI.BLEND_MODES.ADD;
+        parent.addChild(sprite);
+        const f: FxSprite = { sprite, life: 1, max: 1, grow: 0, active: true };
+        pool.push(f);
+        return f;
+    }
+
+    /**
+     * Rozblysk v2: stozek ADD w kolorze czolgu (4-6 klatek, kurczy sie) + dymki (rosna, szare)
+     * + iskry (kierunkowe). Cena: 1 sprite + smoke + sparks czastek z ISTNIEJACEJ puli.
+     */
+    spawnMuzzleFlashV2(x: number, y: number, angle: number, fx: { color: number; flashScale: number; smoke: number; sparks: number }): void {
+        const f = this.acquireFx(this.fxFlashes, getConeTexture(), this.fxAddLayer, true, 12);
+        f.sprite.anchor.set(0.08, 0.5);
+        f.sprite.x = x; f.sprite.y = y; f.sprite.rotation = angle;
+        f.sprite.tint = fx.color; f.sprite.alpha = 1;
+        f.sprite.scale.set(0.9 * fx.flashScale, 0.9 * fx.flashScale);
+        f.life = 1; f.max = 6; f.grow = -0.12;
+        // bialy rdzen (czastka, duza, szybko gasnie)
+        const core = this.getParticle();
+        core.sprite.x = x; core.sprite.y = y; core.sprite.tint = 0xffffff; core.sprite.scale.set(3.2 * fx.flashScale);
+        core.sprite.alpha = 1; core.vx = Math.cos(angle) * 1.5; core.vy = Math.sin(angle) * 1.5; core.life = 1; core.decay = 0.22; core.scaleDecay = 0.25;
+        // dym: szary, wolny, ROSNIE (scaleDecay ujemny nieobslugiwany -> duzy start, wolny fade)
+        for (let i = 0; i < fx.smoke; i++) {
+            const p = this.getParticle();
+            const a = angle + (Math.random() - 0.5) * 0.6;
+            p.sprite.x = x + Math.cos(angle) * 6; p.sprite.y = y + Math.sin(angle) * 6;
+            p.sprite.tint = 0x8a8580; p.sprite.scale.set(2.2 + Math.random() * 1.5); p.sprite.alpha = 0.5;
+            p.vx = Math.cos(a) * (1.2 + Math.random()); p.vy = Math.sin(a) * (1.2 + Math.random()) - 0.4;
+            p.life = 0.55; p.decay = 0.018; p.scaleDecay = 0;
+        }
+        this.spawnParticles(x, y, 0xffe08a, fx.sparks, { speed: 7, size: 1.6, decay: 0.14, spread: 0.14, baseAngle: angle });
+    }
+
+    /**
+     * Trafienie v2: bialy blysk + pierscien ADD (rosnie, gasnie) + iskry w kolorze + 2 biale.
+     * Zero alokacji per hit (pule); mniej czastek niz dzisiejsze spawnEnemyHitSparks (11).
+     */
+    spawnImpactV2(x: number, y: number, angle: number, fx: { color: number; ringRadius: number; hitSparks: number }): void {
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
+        r.sprite.anchor.set(0.5);
+        r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0; r.sprite.tint = fx.color; r.sprite.alpha = 1;
+        r.sprite.scale.set(0.15);
+        r.life = 1; r.max = 14; r.grow = (fx.ringRadius / 32) / 14;
+        const core = this.getParticle();
+        core.sprite.x = x; core.sprite.y = y; core.sprite.tint = 0xffffff; core.sprite.scale.set(3.5);
+        core.sprite.alpha = 1; core.vx = 0; core.vy = 0; core.life = 1; core.decay = 0.25; core.scaleDecay = 0.3;
+        // iskry: odbite od celu (przeciwnie do lotu), z lekkim opadaniem
+        this.spawnParticles(x, y, fx.color, fx.hitSparks, { speed: 5.5, size: 1.8, decay: 0.09, spread: 0.45, baseAngle: angle + Math.PI });
+        this.spawnParticles(x, y, 0xffffff, 2, { speed: 7, size: 1.4, decay: 0.16, spread: 0.3, baseAngle: angle + Math.PI });
+    }
+
+    /** Ogniarz v2: jezyk ognia za pociskiem (1 czastka z puli; wolajacy dba o czestotliwosc). */
+    spawnFlameBit(x: number, y: number, dirAngle: number, big: boolean): void {
+        const p = this.getParticle();
+        const a = dirAngle + Math.PI + (Math.random() - 0.5) * 0.9;
+        const sp = 0.8 + Math.random() * 1.4;
+        p.sprite.x = x + (Math.random() - 0.5) * 4; p.sprite.y = y + (Math.random() - 0.5) * 4;
+        p.sprite.tint = [0xff5a1a, 0xff8a2a, 0xffc23a, 0xfff0a0][(Math.random() * 4) | 0];
+        p.sprite.scale.set((big ? 3.4 : 2.4) * (0.8 + Math.random() * 0.5)); p.sprite.alpha = 0.9;
+        p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - 0.6;
+        p.life = 1; p.decay = 0.11 + Math.random() * 0.05; p.scaleDecay = 0.16;
+    }
+
+    /** Shadow v2: jasny dymek za pociskiem (miekki, wolny). */
+    spawnSoftPuff(x: number, y: number, tint: number, size: number): void {
+        const p = this.getParticle();
+        p.sprite.x = x; p.sprite.y = y; p.sprite.tint = tint; p.sprite.scale.set(size); p.sprite.alpha = 0.5;
+        p.vx = (Math.random() - 0.5) * 0.6; p.vy = (Math.random() - 0.5) * 0.6 - 0.3;
+        p.life = 0.6; p.decay = 0.035; p.scaleDecay = 0;
+    }
+
+    /** Slad po pocisku na scianie: mala ciemna plamka (pula 8, fade 90 klatek), warstwa sladow. */
+    spawnBulletMark(x: number, y: number): void {
+        const m = this.acquireFx(this.fxMarks, getParticleTexture(), this.trackContainer, false, EffectsManager.MAX_BULLET_MARKS);
+        m.sprite.anchor.set(0.5);
+        m.sprite.x = x; m.sprite.y = y; m.sprite.rotation = 0; m.sprite.tint = 0x1a120c; m.sprite.alpha = 0.6;
+        m.sprite.scale.set(1.6, 1.2);
+        m.life = 1; m.max = 90; m.grow = 0;
+    }
+
+    private updateFxPool(pool: FxSprite[], delta: number, fade: (f: FxSprite, t: number) => void): void {
+        for (const f of pool) {
+            if (!f.active) continue;
+            f.life -= delta / f.max;
+            if (f.life <= 0) { f.active = false; f.sprite.visible = false; continue; }
+            fade(f, 1 - f.life);
+        }
     }
 
     private getParticle(): Particle {
@@ -852,6 +1068,11 @@ export class EffectsManager {
     // ==========================================
 
     update(delta: number): void {
+        // === TANK ART v2: rozblyski / pierscienie / slady (pule sprite'ow) ===
+        this.updateFxPool(this.fxFlashes, delta, (f, t) => { f.sprite.alpha = 1 - t * t; const s = Math.max(0.2, f.sprite.scale.x + f.grow * delta); f.sprite.scale.set(s, s * (1 - t * 0.35)); });
+        this.updateFxPool(this.fxRings, delta, (f, t) => { f.sprite.alpha = 1 - t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
+        this.updateFxPool(this.fxMarks, delta, (f, t) => { f.sprite.alpha = 0.6 * (1 - t); });
+
         // === Tick-anims (v0.155.3 D2): pierscienie mega bomby/shockwave/portalu + overlay freeze ===
         for (let i = this.tickAnims.length - 1; i >= 0; i--) {
             const a = this.tickAnims[i];

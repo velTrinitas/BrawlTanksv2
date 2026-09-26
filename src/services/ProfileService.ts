@@ -16,7 +16,7 @@
      */
 
     import type { AvatarId, FlagId, LanguageId, Profile } from '../types/Profile';
-    import { DEFAULT_LANGUAGE, isValidNickname } from '../types/Profile';
+    import { DEFAULT_LANGUAGE, isValidNickname, isValidTankNumber } from '../types/Profile';
     import { isCleanNickname } from '../config/nickFilter';
     import { DEFAULT_AVATAR_ID, isValidAvatarId } from '../config/avatars';
     import { DEFAULT_FLAG_ID, isValidFlagId } from '../config/flags';
@@ -107,6 +107,10 @@
             if (idx < 0) return null;
 
             // FAZA 7b: if nickname being updated, validate it
+            // TANK ART v2: numer czolgu 1..99 (edytor w Profilu = pozniejszy krok).
+            if (updates.tankNumber !== undefined && !isValidTankNumber(updates.tankNumber)) {
+                throw new Error(`[ProfileService] Invalid tankNumber in update: ${updates.tankNumber}`);
+            }
             if (updates.nickname !== undefined && !isValidNickname(updates.nickname)) {
                 throw new Error(
                     `[ProfileService] Invalid nickname in update: "${updates.nickname}"`
@@ -291,6 +295,11 @@
             if (typeof e.createdAt !== 'number') return false;
             if (typeof e.lastPlayedAt !== 'number') return false;
             if (typeof e.totalGamesPlayed !== 'number') return false;
+            // TANK ART v2: tankNumber opcjonalny; niepoprawna wartosc jest USUWANA, nie wywala profilu.
+            if (e.tankNumber !== undefined && !isValidTankNumber(e.tankNumber)) {
+                console.warn('[ProfileService] Dropping invalid tankNumber:', e.tankNumber);
+                delete e.tankNumber;
+            }
 
             return true;
         }

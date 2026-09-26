@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>PODGLAD — Tank Art v2 (dev)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Titan+One&display=swap" rel="stylesheet">
+    <style>
+        html, body { margin: 0; background: #1a2230; color: #e8eef4; font-family: 'Titan One', sans-serif; }
+        #bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
+               padding: 10px 14px; background: rgba(12,18,26,0.95); border-bottom: 2px solid #33415a; font-size: 13px; }
+        #bar label { display: flex; align-items: center; gap: 5px; }
+        #bar input[type=number] { width: 52px; font-family: inherit; }
+        #bar button, #bar select { font-family: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid #55688a; background: #2a3a55; color: #fff; cursor: pointer; }
+        #bar button.fire { background: #c0392b; border-color: #ff8a70; font-size: 15px; }
+        .sw { width: 22px; height: 22px; border-radius: 5px; border: 2px solid #fff3; cursor: pointer; display: inline-block; }
+        #head { display: grid; grid-template-columns: 96px 220px 220px 150px 300px; gap: 10px; padding: 8px 14px 0; font-size: 12px; color: #9fb3c8; }
+        .row { display: grid; grid-template-columns: 96px 220px 220px 150px 300px; gap: 10px; align-items: center; padding: 6px 14px; }
+        .row:nth-child(even) { background: rgba(255,255,255,0.03); }
+        .label { font-size: 15px; }
+        .cell canvas { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); display: block; }
+        #pbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 14px 6px; font-size: 13px; }
+        #pbar button { font-family: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; border: 1px solid #55688a; background: #2a3a55; color: #fff; cursor: pointer; }
+        #pbar button.on { background: #4a6a99; box-shadow: 0 0 0 2px #fff4; }
+        #pbar button.fire { background: #8e44ad; border-color: #d59cff; font-size: 14px; }
+        #pbar select { font-family: inherit; font-size: 12px; }
+        #pbar .hint { color: #8ea0b5; font-family: sans-serif; font-size: 11px; }
+        #note { padding: 6px 14px 14px; font-size: 11px; color: #8ea0b5; font-family: sans-serif; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div id="bar">
+        <strong>TANK ART v2 — podglad</strong>
+        <label><input type="checkbox" id="rotate" checked> obrot</label>
+        <label><input type="checkbox" id="treads" checked> gasienice</label>
+        <label><input type="checkbox" id="super"> super strzal</label>
+        <label>kat <input type="range" id="angle" min="-180" max="180" value="-45" style="width:120px"></label>
+        <label>numer <input type="number" id="number" min="1" max="99" value="7"></label>
+        <label>flaga
+            <select id="flag">
+                <option value="pl">PL</option><option value="ua">UA</option><option value="de">DE</option><option value="us">US</option>
+                <option value="gb">GB</option><option value="fr">FR</option><option value="it">IT</option><option value="jp">JP</option>
+                <option value="br">BR</option><option value="es">ES</option><option value="kr">KR</option><option value="se">SE</option>
+            </select>
+        </label>
+        <label>skin
+            <select id="skin">
+                <option value="">domyslny</option><option value="#e74c3c">czerwony</option><option value="#f1c40f">zolty</option>
+                <option value="#1abc9c">turkus</option><option value="#ecf0f1">bialy</option><option value="#2c3e50">granat</option>
+            </select>
+        </label>
+        <label>tlo
+            <span class="sw" data-bg="#c9a86a" style="background:#c9a86a"></span>
+            <span class="sw" data-bg="#e8f1f6" style="background:#e8f1f6"></span>
+            <span class="sw" data-bg="#3a4a2a" style="background:#3a4a2a"></span>
+            <span class="sw" data-bg="#20242e" style="background:#20242e"></span>
+            <span class="sw" data-bg="#8a4a3a" style="background:#8a4a3a"></span>
+        </label>
+        <button class="fire" id="fire">STRZAL (juice v2)</button>
+    </div>
+    <div id="pbar">
+        <strong>POLIGON (pelna skala meczu):</strong>
+        <span class="tanks">
+            <button data-ptank="twardy" class="on">Twardy</button><button data-ptank="heavy">Pancerny</button><button data-ptank="scout">Zwiad</button><button data-ptank="sniper">Snajper</button>
+            <button data-ptank="plasma">Tech</button><button data-ptank="pyro">Ogniarz</button><button data-ptank="shadow">Shadow</button><button data-ptank="king">King</button>
+        </span>
+        <label>art <select id="p-art"><option value="v2">v2 (nowy)</option><option value="v1">DZIS (produkcja)</option></select></label>
+        <label>skala <select id="p-scale"><option value="desktop">desktop</option><option value="mobile">mobile 0.6</option></select></label>
+        <button class="fire" id="p-super">SUPER (spacja)</button>
+        <span class="hint">WASD = jazda · mysz = cel · trzymaj LPM = ogien · sciana po prawej = cel</span>
+    </div>
+    <canvas id="poligon" style="display:block;margin:0 14px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.45)"></canvas>
+    <div id="head"><div></div><div>DZIS (produkcja, skala meczu)</div><div>v2 (skala meczu, desktop)</div><div>v2 MOBILE (zoom 0.6)</div><div>v2 GARAZ (powiekszenie)</div></div>
+    <div id="grid"></div>
+    <div id="note">
+        Kolumna DZIS = prawdziwy <code>render2d.drawTank</code> z repo (stan v0.210.0). Kolumny v2 = nowy modul <code>render2dV2.ts</code>
+        (ta sama kamera, te same wymiary kadlubow/wiez/luf, <code>muzzleDist</code> bez zmian). Nic w grze nie jest podpiete.
+        STRZAL = symulacja Canvas2D juice'u v2 (rozblysk stozkowy + dym + iskry z lufy, smuga ADD, flash celu + pierscien + iskry + slad).
+        Wersja meczu bedzie z pieczonych tekstur (bake), wiec halo (shadowBlur) w meczu jest darmowe; tu tryb "liveCanvas" = halo z elips.
+    </div>
+    <script type="module" src="/src/experimental/tank25d/previewPoligon.ts"></script>
+</body>
+</html>

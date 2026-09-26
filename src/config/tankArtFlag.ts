@@ -6,7 +6,7 @@
  * bake czolgu (TankSpriteBaker -> render2dV2), obrotnica Garazu, FX strzalu. Wrogowie i
  * render2d.ts sa nietkniete niezaleznie od flagi.
  */
-export const TANK_ART_V2 = false;
+export const TANK_ART_V2 = true; // v0.214.0 (2026-09-26): DEFAULT ON decyzja Mariusza; rollback bez rebuildu ?tankart=0
 
 export function isTankArtV2(): boolean {
     try {

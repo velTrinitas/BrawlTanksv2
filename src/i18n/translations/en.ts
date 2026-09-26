@@ -609,6 +609,7 @@ export const en: typeof pl = {
     'road.unlock.laser': '🔦 Power: Laser!',
     'hub.garage.loadout': 'PICK 3 SUPER POWERS',
     'hub.garage.slotsLabel': 'PICK SUPER POWERS',
+    'hub.garage.slotsHint': 'Tap a slot to change a power',
     // BALANCE_V2 (S5): tank stat labels - hardcoded in UI code until v0.199.0.
     'stat.hp': 'HP',
     'stat.dmg': 'DMG',

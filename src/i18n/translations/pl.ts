@@ -632,6 +632,7 @@ export const pl = {
     'road.unlock.laser': '🔦 Moc: Laser!',
     'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
     'hub.garage.slotsLabel': 'WYBIERZ SUPER MOCE',
+    'hub.garage.slotsHint': 'Dotknij slot, aby zmienić moc',
     // BALANCE_V2 (S5): etykiety statow czolgu — do v0.199.0 byly HARDKODOWANE w kodzie UI.
     'stat.hp': 'HP',
     'stat.dmg': 'DMG',

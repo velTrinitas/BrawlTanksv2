@@ -3602,3 +3602,84 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
 
 /* J6 — monety lecace do coina (position: fixed w body, poza scrollem sekcji) */
 .bt-coinfly { position: fixed; left: 0; top: 0; width: 20px; height: 20px; z-index: 60; pointer-events: none; will-change: transform; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   GARAZ v3 — WINIETA JAKO PLAKAT (v0.215.0, Mariusz 25.09: „turn table ma idealnie wpisac sie
+   w jasna przestrzen"). Tlo `intro/winieta_tlo.jpg` (1024x572) ma jasny placek podlogi zmierzony
+   pikselowo: srodek (42%, 57%) obrazu, szerokosc ~37%. Na DESKTOPIE sekcja jest ramka o proporcji
+   obrazu (cover == contain), a elementy siedza na PROCENTACH plakatu — obrotnica dokladnie na placku,
+   nazwa+staty nad panelem sterowania po prawej, sloty mocy na dole. Rozmiary w `cqw` (container
+   query units) = skaluja sie z plakatem, nie z viewportem. Plakat jest WYDLUZONY w dol (1024x700):
+   obraz siedzi u gory (100% szerokosci, wysokosc 572/1024), a pod nim ciemny pas na panel mocy —
+   Mariusz 26.09: „box mocy nachodzil na turntable". Procenty pionowe liczone od 700.
+   Na MOBILE (landscape <= 560 px) plakat
+   nie miesci sie w 265 px, wiec zostaje uklad w strumieniu, a tlo idzie jako `cover`.
+   KOSZT: jeden statyczny JPG (124 KB, ladowany raz) zamiast dwoch gradientow — zero fill-rate.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.bt-gr2-wrap {
+    container-type: inline-size;
+    aspect-ratio: 1024 / 700;
+    width: min(100%, calc((100vh - 150px) * 1.463));
+    margin: 4px auto 0; padding: 0;
+    background: #0d1319 url('/intro/winieta_tlo.jpg') 50% 0 / 100% auto no-repeat; /* public/intro — Vite dokleja base przy buildzie; obraz konczy sie na 81.7% wysokosci */
+    border-radius: var(--radius-md); overflow: hidden;
+}
+.bt-gr2-wrap::before {
+    /* gora: czytelnosc tytulu; dol: czytelnosc slotow. Bez winiety bocznej — obraz ma wlasna. */
+    /* dol: przejscie obrazu w ciemny pas (szew na 81.7%) */
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.38) 0%, rgba(0, 0, 0, 0) 16%, rgba(0, 0, 0, 0) 66%, rgba(13, 19, 25, 0.75) 80%, rgba(13, 19, 25, 0.75) 100%);
+    border-radius: 0;
+}
+.bt-gr2-wrap > .bt-gr2-titlerow { position: absolute; left: 3%; right: 3%; top: 3.3%; z-index: 2; }
+.bt-gr2-wrap > .bt-gr2-hero { position: absolute; inset: 0; margin: 0; display: block; }
+.bt-gr2-hero .bt-gr2-stage2 { position: static; margin: 0; display: block; }
+/* obrotnica: srodek placka */
+.bt-gr2-stage2 .bt-gr2-stagerow { position: absolute; left: 42%; top: 45.8%; transform: translate(-50%, -50%); z-index: 3; } /* nad panelem statow — prawa strzalka ginela */
+.bt-gr2-stage2 .bt-gr2-canvas { width: 30cqw; height: 30cqw; } /* Mariusz: 30 */
+.bt-gr2-arrow { min-width: 5cqw; min-height: 7cqw; font-size: 5.6cqw; }
+/* nazwa + staty: nad panelem sterowania (prawa czesc obrazu) */
+.bt-gr2-stage2 .bt-gr2-side {
+    position: absolute; left: 63%; top: 16.3%; width: 32cqw;
+    /* Czytelnosc: staty leza na zegarach i przewodach panelu — miekkie podloze, bez ramki. */
+    padding: 1.2cqw 1.4cqw; border-radius: var(--radius-md);
+    background: radial-gradient(120% 100% at 50% 50%, rgba(10, 16, 22, 0.78), rgba(10, 16, 22, 0.45) 70%, rgba(10, 16, 22, 0.08) 100%); /* Mariusz: mocniej */
+}
+.bt-gr2-stage2 .bt-gr2-name { font-size: 3.6cqw; }
+/* sloty mocy: dol plakatu, pelna szerokosc */
+/* PANEL super mocy (v0.215.0, Michal: „nie wiedzialem, gdzie je wybrac"): jedna ramka ze zlotem,
+   naglowek + podpowiedz + rzad 3 rownych kafli. Jeden element pozycjonowany = zero rozjazdu. */
+.bt-gr2-wrap > .bt-gr2-slotsbox {
+    position: absolute; left: 3%; right: 3%; bottom: 2.6%; z-index: 2; /* wlasny pas pod obrazem */
+    padding: 0.9cqw 1.1cqw 1.1cqw; border-radius: var(--radius-md);
+    background: rgba(10, 16, 22, 0.74); border: 1px solid rgba(241, 196, 15, 0.42);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.bt-gr2-slotsbox .bt-gr2-slotslabel {
+    display: flex; align-items: baseline; gap: 10px; margin: 0 0 0.7cqw 2px;
+    font-size: clamp(12px, 1.25cqw, 16px); letter-spacing: 1.4px; color: var(--hub-accent); opacity: 1;
+}
+.bt-gr2-slotsbox .bt-gr2-slotslabel .sl-ico { font-size: 1.1em; }
+.bt-gr2-slotsbox .bt-gr2-slotslabel small {
+    font-size: clamp(11px, 1cqw, 13px); font-weight: 700; letter-spacing: 0.3px; text-transform: none;
+    color: var(--hub-ink-dim); margin-left: auto;
+}
+.bt-gr2-slotsbox .bt-gr2-slots { margin: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+.bt-gr2-slotsbox .bt-ld-slotbtn { height: 100%; }
+.bt-gr2-slotsbox .bt-ld-slotbtn .bt-hub0-stat { height: 100%; min-height: 64px; box-sizing: border-box; }
+.bt-gr2-wrap > .bt-gr2-skins { position: absolute; left: 3%; right: 3%; bottom: 21%; margin: 0; z-index: 2; }
+
+/* MOBILE landscape: plakat nie miesci sie w wysokosci — uklad w strumieniu jak dotad, tlo cover. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-gr2-wrap { aspect-ratio: auto; width: 100%; padding: 10px 12px 12px; background-size: cover; background-position: 42% 62%; }
+    .bt-gr2-wrap > .bt-gr2-titlerow, .bt-gr2-wrap > .bt-gr2-hero, .bt-gr2-wrap > .bt-gr2-slotsbox,
+    .bt-gr2-wrap > .bt-gr2-skins { position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; }
+    .bt-gr2-wrap > .bt-gr2-slotsbox { padding: 8px 10px 10px; }
+    .bt-gr2-wrap > .bt-gr2-hero { display: flex; margin-bottom: 8px; }
+    .bt-gr2-hero .bt-gr2-stage2 { position: relative; display: flex; }
+    .bt-gr2-stage2 .bt-gr2-stagerow { position: relative; left: auto; top: auto; transform: none; }
+    .bt-gr2-stage2 .bt-gr2-canvas { width: clamp(150px, 46vh, 220px); height: clamp(150px, 46vh, 220px); }
+    .bt-gr2-arrow { min-width: 44px; min-height: 60px; font-size: 44px; }
+    .bt-gr2-stage2 .bt-gr2-side { position: relative; left: auto; top: auto; width: clamp(180px, 34vw, 300px); }
+    .bt-gr2-stage2 .bt-gr2-name { font-size: 28px; }
+    .bt-gr2-slotsbox .bt-gr2-slotslabel { margin: 0 0 6px 2px; }
+}

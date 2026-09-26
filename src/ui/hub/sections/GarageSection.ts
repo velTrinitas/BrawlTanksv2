@@ -180,8 +180,13 @@ export class GarageSection implements HubSection {
                 ${isSkinsModeEnabled() ? '' : this.skinsAreaHtml(pid)}
                 ${/* v0.199.1 (Mariusz): etykieta nad rzedem mocy — mala, biala. Rzad kafli sam
                       nie mowil, czym jest; jedno slowo taniej niz samouczek. */''}
-                <div class="bt-gr2-slotslabel">${t('hub.garage.slotsLabel')}</div>
-                <div class="bt-gr2-slots" data-gr2-slots>${this.slotsRowHtml(pid)}</div>
+                ${/* v0.215.0 (Michal nie wiedzial, gdzie wybrac moce): etykieta + sloty w JEDNYM panelu ze zlota
+                      ramka i podpowiedzia — wyrozniony cel do klikniecia; dwa osobne elementy pozycjonowane
+                      absolutnie rozjezdzaly sie przy innej wysokosci ekranu. */''}
+                <div class="bt-gr2-slotsbox">
+                    <div class="bt-gr2-slotslabel"><span class="sl-ico" aria-hidden="true">⚡</span>${t('hub.garage.slotsLabel')}<small>${t('hub.garage.slotsHint')}</small></div>
+                    <div class="bt-gr2-slots" data-gr2-slots>${this.slotsRowHtml(pid)}</div>
+                </div>
             </div>`;
         this.wireChoose(el);
         this.mountTurntable(el);

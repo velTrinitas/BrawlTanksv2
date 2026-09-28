@@ -49,5 +49,7 @@ export function isMultiplayerSandbox(): boolean {
  *      propsow map licza z simNowMs() (rosnie tylko w krokach logiki) zamiast Date.now().
  *  5 — COOP S5 (v0.222.0): petle players[] (strefy, stealth per gracz, pickupy, pady, pociski wrogow,
  *      taran, klatwa/Ra/Yeti), netId encji, Bullet.ownerIndex + playerIndex w DamageSource.
+ *  6 — COOP S6 (v0.223.0): krok logiki czyta sterowanie WYLACZNIE z PlayerInput (kwantyzowany:
+ *      ruch 1/127, aim w swiecie int px); dash i moce z kolejki w kroku, nie w handlerze zdarzen.
  */
-export const SIM_VERSION = 5;
+export const SIM_VERSION = 6;

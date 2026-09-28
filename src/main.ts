@@ -219,6 +219,7 @@ import { RANGE_TUNING } from './systems/range/rangeTuning';             // STRZE
 import { worldRng, seedMatchRng } from './systems/Rng';
 import { simNowMs, advanceSimClock } from './systems/SimClock';
 import { resetNetIds } from './systems/NetId'; // COOP S5b
+import { createPlayerInput, quantizeInput, type PlayerInput } from './input/PlayerInput'; // COOP S6
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB, srcPlayerBullet, srcPower } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
@@ -665,6 +666,7 @@ interface PlayerSimState {
     stealthActive: boolean;
     stealthBrokenByShot: boolean;
     lowHpVoiceFired: boolean;
+    lastShotTime: number; // COOP S6: przeladowanie per gracz (sim clock)
 }
 const playerSim = new Map<Player, PlayerSimState>();
 function simOf(p: Player): PlayerSimState {
@@ -672,7 +674,7 @@ function simOf(p: Player): PlayerSimState {
     if (!st) {
         st = { stealthEndTime: 0, wasInOasis: false, wasInFarm: false, wasInNeon: false,
             wasInRuinsBush: false, wasInHydro: false, wasInWheat: false,
-            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false };
+            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false, lastShotTime: 0 };
         playerSim.set(p, st);
     }
     return st;
@@ -761,8 +763,15 @@ function applySmoothInterp(a: number): void {
 }
 
 const keys = { w: false, a: false, s: false, d: false };
+// COOP S6: zdarzenia jednorazowe (dash / moc) NIE wykonuja sie w handlerze — trafiaja do kolejki
+// i zostaja pobrane do PlayerInput gracza lokalnego w najblizszym kroku logiki (<= 16 ms).
+let pendingDash = false;
+let pendingSuperSlot = -1;
+/** COOP S6: wejscie kazdego gracza na biezacy krok (dzis tylko lokalny; LAN-2: + gosc z sieci). */
+const playerInputs = new Map<Player, PlayerInput>();
+let localInputSeq = 0;
+let logicTick = 0;
 const mouse = { screenX: window.innerWidth / 2, screenY: window.innerHeight / 2 };
-let lastShotTime = 0;
 let isMouseDown = false;
 
 const audio = AudioSys.getInstance();
@@ -982,7 +991,7 @@ touchManager.init();
 // PROG-F7a: dwa przyciski = dwa sloty; JEDNA sciezka aktywacji (callback). Long-press
 // cycle usuniety — nie ma ukrytego stanu "wybranej" mocy.
 touchManager.onSuperRequested = (slot) => {
-    tryActivateSuper(slot);
+    queueSuper(slot); // COOP S6: aktywacja w kroku logiki
 };
 
 /**
@@ -992,18 +1001,52 @@ touchManager.onSuperRequested = (slot) => {
  */
 function requestDash(): void {
     if (!localPlayer || gameState !== 'PLAYING') return;
-    const mv = touchManager.moveVector;
-    let dx = mv?.x ?? 0, dy = mv?.y ?? 0;
-    if (dx === 0 && dy === 0) {
-        if (keys.w) dy -= 1;
-        if (keys.s) dy += 1;
-        if (keys.a) dx -= 1;
-        if (keys.d) dx += 1;
+    pendingDash = true; // COOP S6: wykonanie w kroku logiki (applyPlayerActions)
+}
+/** COOP S6: prosba o moc z handlera (klawiatura / PPM / dotyk / bot) — wykonanie w kroku logiki. */
+function queueSuper(slot: number): void {
+    if (gameState !== 'PLAYING') return;
+    pendingSuperSlot = slot;
+}
+
+/**
+ * COOP S6: wejscie gracza lokalnego na ten krok. Czyta surowy stan urzadzenia (klawiatura,
+ * mysz/udawany kursor dotyku, kolejka zdarzen) i zwraca SKWANTYZOWANA strukture — dokladnie
+ * to, co w koopie gosc wyslalby przez siec.
+ */
+function collectLocalInput(aimWorldX: number, aimWorldY: number): PlayerInput {
+    let inp = playerInputs.get(localPlayer!);
+    if (!inp) { inp = createPlayerInput(); playerInputs.set(localPlayer!, inp); }
+    const mv = touchManager.isActive ? touchManager.moveVector : null;
+    if (mv && (mv.x !== 0 || mv.y !== 0)) {
+        inp.moveX = mv.x; inp.moveY = mv.y; inp.analog = true;
+    } else {
+        inp.moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        inp.moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+        inp.analog = false;
     }
-    if (localPlayer.tryDash(dx, dy, effects)) {
-        audio.playRocketLaunch();
-        effects.shake(3, 6);
+    inp.aimX = aimWorldX;
+    inp.aimY = aimWorldY;
+    inp.fire = isMouseDown;
+    inp.dash = pendingDash;
+    inp.superSlot = pendingSuperSlot;
+    pendingDash = false;
+    pendingSuperSlot = -1;
+    inp.seq = ++localInputSeq;
+    inp.tick = logicTick;
+    return quantizeInput(inp);
+}
+
+/** COOP S6: akcje jednorazowe gracza z jego wejscia (dash, moc) — wolane WYLACZNIE w kroku logiki. */
+function applyPlayerActions(p: Player, input: PlayerInput): void {
+    if (input.dash && p.tryDash(input.moveX, input.moveY, effects)) {
+        if (p === localPlayer) {
+            audio.playRocketLaunch();
+            effects.shake(3, 6);
+        }
     }
+    // Moce: wspolny PowerSystem gracza lokalnego (osobna instancja na gracza = S7).
+    if (input.superSlot >= 0 && p === localPlayer) tryActivateSuper(input.superSlot as 0 | 1 | 2);
 }
 touchManager.onDashRequested = requestDash;
 
@@ -1615,10 +1658,10 @@ window.addEventListener('keydown', e => {
     // SPACJA = odpal slot WYBRANY scrollem (strzalka w HUD), Q = alias slotu 2.
     if (e.code === 'Space') {
         e.preventDefault();
-        tryActivateSuper(powerSystem?.selectedSlot ?? 0);
+        queueSuper(powerSystem?.selectedSlot ?? 0); // COOP S6
     }
     if (k === '1') {
-        tryActivateSuper(0);
+        queueSuper(0);
     }
     // BALANCE_V2 S3: Shift = dash (desktop). `e.repeat` odcina auto-powtarzanie klawisza —
     // bez tego trzymanie Shifta probowaloby dashowac co klatke.
@@ -1630,11 +1673,11 @@ window.addEventListener('keydown', e => {
         castleSystem.startNextWaveNow();
     }
     if (k === '2' || k === 'q') {
-        tryActivateSuper(1);
+        queueSuper(1);
     }
     if (k === '3') {
         // v0.114.0: kostka 🎲 (slot 2) — activate() sam guarduje gdy kostka wylaczona.
-        tryActivateSuper(2);
+        queueSuper(2);
     }
     if (k === 'm') {
         const nowMuted = audio.toggleMute();
@@ -1679,7 +1722,7 @@ window.addEventListener('keyup', e => {
 // w pasku HUD (strzalka), wiec to nie jest ukryty stan na desktopie.
 (app.view as HTMLCanvasElement).addEventListener('contextmenu', (e: any) => {
     e.preventDefault();
-    tryActivateSuper(powerSystem?.selectedSlot ?? 0);
+    queueSuper(powerSystem?.selectedSlot ?? 0); // COOP S6
 });
 
 (app.view as HTMLCanvasElement).addEventListener('wheel', (e: any) => {
@@ -3302,6 +3345,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // startowa. Napis idzie razem z dzwiekiem: VO bez napisu to informacja, ktora
     // znika u kogos z wyciszonym telefonem.
     playerSim.clear(); // COOP S5: latch lowHp per gracz
+    playerInputs.clear(); pendingDash = false; pendingSuperSlot = -1; logicTick = 0; // COOP S6: wejscia nowego meczu (klucz = obiekt gracza)
     // Klakson i druga kwestia sciagamy z wyprzedzeniem — rejestr kupowanych dzwiekow
     // jest LENIWY z zalozenia (zeby nie obciazac gracza towarem, ktorego nie kupil),
     // wiec bez tego pierwsze H w meczu czekaloby na siec.
@@ -4199,6 +4243,86 @@ app.ticker.add((rawDelta) => {
 });
 
 /**
+ * COOP S6: strzal gracza `p` z jego wejscia (wydzielone 1:1 z runLogicStep). Stan per gracz
+ * (lastShotTime, stealth) w PlayerSimState; dzwiek/questy tylko u gracza tego urzadzenia.
+ */
+function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
+    if (!effects || !currentSession) return;
+    const isLocal = p === localPlayer;
+    const pst = simOf(p);
+    if (input.fire && now - pst.lastShotTime > p.brawler.reload) {
+        // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
+        // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
+        // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
+        // Naprawia exploit: gracz wpadal w corn/sugarcane/oasis, czekal 10s na "reset",
+        // wyjezdzal, strzelal — przeciwnicy nie widzieli go bo flagger stealth byl aktywny.
+        const shooterSt = pst;
+        if (now < shooterSt.stealthEndTime) {
+            shooterSt.stealthEndTime = 0;
+            shooterSt.stealthBrokenByShot = true;
+        }
+
+        const angle = p.turretAngle;
+        // FAZA P2 — muzzle z czubka lufy 2.5D (per-brawler muzzleDist + camera tilt + Z lift),
+        // gated ?baker=1. Flat path: stare planarne +45 (bit-for-bit nietkniete).
+        const muzzle = BAKER_ENABLED && BulletSpriteBaker.isBaked(p.brawler.id)
+            ? BulletSpriteBaker.getMuzzlePos(p.brawler.id, p.x, p.y, angle)
+            : { x: p.x + Math.cos(angle) * 45, y: p.y + Math.sin(angle) * 45 };
+        const sX = muzzle.x;
+        const sY = muzzle.y;
+        if (TANK_ART_V2_ACTIVE) {
+            // TANK ART v2: stozek w kolorze czolgu + dym + iskry; Pancerny = 2 lufy = 2 rozblyski.
+            const fx = shotFxFor(p.brawler.id);
+            const muzzles = p.brawler.id === 'heavy'
+                ? [BulletSpriteBaker.getMuzzlePos(p.brawler.id, p.x, p.y, angle, -8),
+                   BulletSpriteBaker.getMuzzlePos(p.brawler.id, p.x, p.y, angle, 8)]
+                : [muzzle];
+            for (const m of muzzles) effects.spawnMuzzleFlashV2(m.x, m.y, angle, fx);
+            p.triggerBarrelFlash();
+        } else {
+            effects.spawnMuzzleFlash(sX, sY, angle);
+        }
+
+        const wasActive = p.isSuperShotActive;
+        const isSuperShot = p.tryActivateOrContinueSuperShot();
+        const justActivated = !wasActive && isSuperShot;
+
+        if (justActivated) {
+            if (isLocal) audio.playSuperShotActivate();
+            currentSession.superShotsFired++;
+            if (isLocal) QuestService.track('super_shot'); // PROG-F3
+        }
+
+        if (isLocal) audio.playShoot(p.brawler.id);
+
+        const dmgMultiplier = 1 + currentSession.dmgBonus;
+
+        // FAZA P2 — Warstwa 2 super uklady (bake+super); flat/normal = stara logika (3 / 1+2).
+        // dmg per-pocisk * dmgMultiplier (round) jak dotad.
+        // FAZA P5 — super v2 (rozdzielone od renderu): SUPER_V2 + super => SUPER_PROFILES (uklad + dmg
+        // per-pocisk absolutny). Inaczej stara sciezka getVolleyOffsets (bit-for-bit).
+        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES_ACTIVE[p.brawler.id] : null;
+        const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[p.brawler.id] : null;
+        const shotProfile = superProfile || normalProfile;
+        const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(p.brawler, isSuperShot);
+        for (const off of volleyOffsets) {
+            const b = acquireBullet(sX, sY, angle + off, isSuperShot, shotProfile?.dmg, p); // POOLING, COOP S6: wlasciciel
+            b.dmg = Math.round(b.dmg * dmgMultiplier);
+            if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
+            bullets.push(b);
+        }
+        // v0.100.0 — staty meczu: liczymy POCISKI, nie pociagniecia spustu. Dzieki temu
+        // celnosc (shots_hit / shots_fired) jest sensowna dla brawlerow salwowych i nigdy
+        // nie przekracza 100% — inaczej L2b nie mialby na czym postawic reguly.
+        currentSession.shotsFired += volleyOffsets.length;
+        
+        p.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
+        pst.lastShotTime = now;
+        neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
+    }
+}
+
+/**
  * JEDEN krok logiki gry — dawne cialo tickera od obliczenia delty w dol (Z0.6-bis:
  * wydzielone, zeby petla catch-up mogla wolac je wielokrotnie na klatke).
  * delta=1 w SMOOTH (staly krok 60Hz), smoothedDelta bez SMOOTH (dokladnie raz na klatke
@@ -4259,7 +4383,6 @@ function runLogicStep(delta: number): void {
     }
     itemHints.updateWorld(worldContainer.x, worldContainer.y, ZOOM);
 
-    let touchMoveVector: { x: number; y: number } | null = null;
     if (touchManager.isActive) {
         // PROG-F7a: charged glow per slot. Aktywacja idzie WYLACZNIE callbackiem
         // onSuperRequested (legacy polling consumeSuperRequest usuniety — dubla sciezka
@@ -4290,8 +4413,6 @@ function runLogicStep(delta: number): void {
             );
         }
 
-        touchMoveVector = touchManager.moveVector;
-
         const aimVec = touchManager.aimVector;
         if (aimVec) {
             const AIM_DISTANCE = 200;
@@ -4306,6 +4427,11 @@ function runLogicStep(delta: number): void {
 
     const mouseWorldX = mouse.screenX / ZOOM + camera.x;
     const mouseWorldY = mouse.screenY / ZOOM + camera.y;
+    // COOP S6: od tego miejsca krok czyta sterowanie WYLACZNIE z PlayerInput gracza.
+    logicTick++;
+    const localInput = collectLocalInput(mouseWorldX, mouseWorldY);
+    for (const [ip, inp] of playerInputs) applyPlayerActions(ip, inp);
+    if (gameState !== 'PLAYING') return; // moc (np. mega bomba) mogla zakonczyc mecz
 
     // COOP S5: update stref = WIDOK (culling kamery, slady gasienic gracza lokalnego) — raz na krok;
     // decyzja o spowolnieniu liczona PER GRACZ nizej (isPointInside).
@@ -4695,10 +4821,10 @@ function runLogicStep(delta: number): void {
     const castleAirborne = castleJump
         ? castleJump.update(delta, localPlayer, buildings, effects, !castlePlayerDead && gameState === 'PLAYING', (tx, c) => hud.addNotif(tx, c))
         : false;
-    if (castlePlayerDead) { isMouseDown = false; localPlayer.firing = false; }
+    if (castlePlayerDead) { isMouseDown = false; localInput.fire = false; localPlayer.firing = false; }
     else if (castleAirborne) { localPlayer.firing = false; } // isMouseDown zostaje: po ladowaniu trzymany strzal dziala dalej
     else {
-        localPlayer.firing = isMouseDown; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
+        localPlayer.firing = localInput.fire; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
 
         // v0.188.0 FAZA 2 — czy gracz jest "NA HITA" (nastepny pocisk go zabije). To ten stan, a nie
         // procent HP, wlacza puls kadluba i poswiate w rogach — decyzja Mariusza po playtescie.
@@ -4718,7 +4844,7 @@ function runLogicStep(delta: number): void {
         const lethalAt = Math.min(worstShot, localPlayer.maxHp * 0.5);
         localPlayer.oneHitFromDeath = localPlayer.hp > 0 && localPlayer.hp <= lethalAt;
 
-        localPlayer.update(delta, keys, mouseWorldX, mouseWorldY, buildings, effects, touchMoveVector, damageSmoke);
+        localPlayer.update(delta, localInput, buildings, effects, damageSmoke); // COOP S6
     }
 
     if (currentSession.config.map === 'desert' && localPlayer.isMoving) {
@@ -4971,76 +5097,11 @@ function runLogicStep(delta: number): void {
         }
     }
 
+    // COOP S6: strzelanie kazdego gracza z jego wejscia (dzis: lokalny).
     const now = simNowMs();
-    if (isMouseDown && !(castleJump?.isAirborne() ?? false) && now - lastShotTime > localPlayer.brawler.reload) { // GRUPA E: w locie bez strzalu
-        // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
-        // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
-        // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
-        // Naprawia exploit: gracz wpadal w corn/sugarcane/oasis, czekal 10s na "reset",
-        // wyjezdzal, strzelal — przeciwnicy nie widzieli go bo flagger stealth byl aktywny.
-        const shooterSt = simOf(localPlayer); // COOP S5 (wejscie per gracz = S6)
-        if (now < shooterSt.stealthEndTime) {
-            shooterSt.stealthEndTime = 0;
-            shooterSt.stealthBrokenByShot = true;
-        }
-
-        const angle = localPlayer.turretAngle;
-        // FAZA P2 — muzzle z czubka lufy 2.5D (per-brawler muzzleDist + camera tilt + Z lift),
-        // gated ?baker=1. Flat path: stare planarne +45 (bit-for-bit nietkniete).
-        const muzzle = BAKER_ENABLED && BulletSpriteBaker.isBaked(localPlayer.brawler.id)
-            ? BulletSpriteBaker.getMuzzlePos(localPlayer.brawler.id, localPlayer.x, localPlayer.y, angle)
-            : { x: localPlayer.x + Math.cos(angle) * 45, y: localPlayer.y + Math.sin(angle) * 45 };
-        const sX = muzzle.x;
-        const sY = muzzle.y;
-        if (TANK_ART_V2_ACTIVE) {
-            // TANK ART v2: stozek w kolorze czolgu + dym + iskry; Pancerny = 2 lufy = 2 rozblyski.
-            const fx = shotFxFor(localPlayer.brawler.id);
-            const muzzles = localPlayer.brawler.id === 'heavy'
-                ? [BulletSpriteBaker.getMuzzlePos(localPlayer.brawler.id, localPlayer.x, localPlayer.y, angle, -8),
-                   BulletSpriteBaker.getMuzzlePos(localPlayer.brawler.id, localPlayer.x, localPlayer.y, angle, 8)]
-                : [muzzle];
-            for (const m of muzzles) effects.spawnMuzzleFlashV2(m.x, m.y, angle, fx);
-            localPlayer.triggerBarrelFlash();
-        } else {
-            effects.spawnMuzzleFlash(sX, sY, angle);
-        }
-
-        const wasActive = localPlayer.isSuperShotActive;
-        const isSuperShot = localPlayer.tryActivateOrContinueSuperShot();
-        const justActivated = !wasActive && isSuperShot;
-
-        if (justActivated) {
-            audio.playSuperShotActivate();
-            currentSession.superShotsFired++;
-            QuestService.track('super_shot'); // PROG-F3
-        }
-
-        audio.playShoot(localPlayer.brawler.id);
-
-        const dmgMultiplier = 1 + currentSession.dmgBonus;
-
-        // FAZA P2 — Warstwa 2 super uklady (bake+super); flat/normal = stara logika (3 / 1+2).
-        // dmg per-pocisk * dmgMultiplier (round) jak dotad.
-        // FAZA P5 — super v2 (rozdzielone od renderu): SUPER_V2 + super => SUPER_PROFILES (uklad + dmg
-        // per-pocisk absolutny). Inaczej stara sciezka getVolleyOffsets (bit-for-bit).
-        const superProfile = (SUPER_V2_ENABLED && isSuperShot) ? SUPER_PROFILES_ACTIVE[localPlayer.brawler.id] : null;
-        const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[localPlayer.brawler.id] : null;
-        const shotProfile = superProfile || normalProfile;
-        const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(localPlayer.brawler, isSuperShot);
-        for (const off of volleyOffsets) {
-            const b = acquireBullet(sX, sY, angle + off, isSuperShot, shotProfile?.dmg); // POOLING
-            b.dmg = Math.round(b.dmg * dmgMultiplier);
-            if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
-            bullets.push(b);
-        }
-        // v0.100.0 — staty meczu: liczymy POCISKI, nie pociagniecia spustu. Dzieki temu
-        // celnosc (shots_hit / shots_fired) jest sensowna dla brawlerow salwowych i nigdy
-        // nie przekracza 100% — inaczej L2b nie mialby na czym postawic reguly.
-        currentSession.shotsFired += volleyOffsets.length;
-        
-        localPlayer.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
-        lastShotTime = now;
-        neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
+    for (const [sp, sin] of playerInputs) {
+        if (sp === localPlayer && (castleJump?.isAirborne() ?? false)) continue; // GRUPA E: w locie bez strzalu
+        stepPlayerShooting(sp, sin, now);
     }
 
     // FAZA P5 Batch 2 — ctx dla behaviorow (breakup -> fragi do bullets[], boomerang -> namierza gracza).

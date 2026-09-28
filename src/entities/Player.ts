@@ -17,8 +17,8 @@ import type { DamageSource } from '../types/DamageSource'; // Z0.5
 import { FLAGS, type FlagConfig } from '../config/flags';
 import type { FlagId } from '../types/Profile';
 import { simNowMs } from '../systems/SimClock'; // COOP S1
+import type { PlayerInput } from '../input/PlayerInput'; // COOP S6
 
-interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 
 /**
  * Okno super strzalu. EKSPORTOWANE od v0.200.0 (BALANCE_V2 S4): `main.ts` liczy z niego sprawiedliwy
@@ -845,12 +845,9 @@ export class Player {
      */
     update(
         delta: number,
-        keys: KeysState,
-        mouseWorldX: number,
-        mouseWorldY: number,
+        input: PlayerInput, // COOP S6: JEDYNE zrodlo sterowania (klawiatura/dotyk/bot/siec wypelniaja strukture)
         buildings: ICollidable[],
         effects: EffectsManager,
-        moveVector?: { x: number; y: number } | null,
         damageSmoke?: DamageSmoke | null, // v0.188.0 — dym uszkodzenia (wlasna warstwa nad czolgami)
     ): void {
         this.refreshHpBar(); // v0.187.0: lapie takze leczenie (dzieje sie poza ta klasa)
@@ -859,20 +856,10 @@ export class Player {
         // monotoniczny (gracz nie widzi „zamrozonej" sekundy przez 9 krokow lotu).
         if (this.dashCdLeft > 0) this.dashCdLeft--;
 
-        let dx = 0, dy = 0;
-
-        // FAZA 8.5: touch joystick override gdy provided, else fallback do keys.wasd
-        const isTouchInput = !!(moveVector && (moveVector.x !== 0 || moveVector.y !== 0));
-
-        if (isTouchInput) {
-            dx = moveVector!.x;
-            dy = moveVector!.y;
-        } else {
-            if (keys.w) dy -= 1;
-            if (keys.s) dy += 1;
-            if (keys.a) dx -= 1;
-            if (keys.d) dx += 1;
-        }
+        // FAZA 8.5 / COOP S6: joystick (analog) albo klawiatura (-1/0/1 na os, przekatna
+        // normalizowana nizej) — rozstrzyga collectLocalInput, tu tylko czytamy strukture.
+        const dx = input.moveX, dy = input.moveY;
+        const isTouchInput = input.analog && (dx !== 0 || dy !== 0);
 
         this.isMoving = false;
 
@@ -911,7 +898,7 @@ export class Player {
             if (!this.bakerActive) this.hull.rotation = this.lastMoveAngle;
         }
 
-        this._turretAngle = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+        this._turretAngle = Math.atan2(input.aimY - this.y, input.aimX - this.x);
 
         if (this.bakerActive) {
             // FAZA P3 — juice: ewolucja stanu + transformy na container/turret (tylko bake).

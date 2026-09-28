@@ -12,6 +12,7 @@ import { renderScenarioPreview, type ScenarioPreviewId } from '../../ScenarioPre
 import { playUiClick } from '../../uiSounds'; // Sensoryka: wybor "klika"
 import { AudioSys } from '../../../audio/AudioSys'; // v0.135.0 — prefetch muzyki mapy
 import { isChooseMode } from '../../../config/hubChoose'; // GARAZ-2 — wybor czolgu w Garazu
+import { isMultiplayerEnabled } from '../../../config/multiplayer'; // COOP LAN-1
 
 /**
  * BattleSection (BITWA) — home hubu.
@@ -97,6 +98,8 @@ export class BattleSection implements HubSection {
      * v0.127.0 — otwarcie popupu wyboru mapy. Overlaye w hubie montuje HubShell
      * w swoim `rootEl`, wiec sekcja tylko PROSI o popup i przyjmuje wynik.
      */
+    /** COOP LAN-1: sekcja prosi o ekran "Zagraj z kolega" — shell montuje go w swoim roocie. */
+    public onOpenCoop: (() => void) | null = null;
     public onOpenMapPicker: ((selected: MapId, pick: (id: MapId) => void, cards?: MenuMapCard[]) => void) | null = null;
 
     private selectedScenario: ScenarioId = 'ktb';
@@ -337,6 +340,7 @@ export class BattleSection implements HubSection {
             </div>
             <div class="bt-battle-bar">
                 <span class="bb-summary">${summary}</span>
+                ${isMultiplayerEnabled() ? `<button class="bt-coop-entry" data-action="coop" type="button">🤝 ${t('coop.entry')}</button>` : ''}
                 <button class="bt-hub0-play bt-hub0-play--go${bump}" data-action="play" type="button">
                     ▶ ${t('hub.play')}
                 </button>
@@ -401,5 +405,6 @@ export class BattleSection implements HubSection {
             });
         });
         el.querySelector('[data-action="play"]')?.addEventListener('click', () => this.startCurrentMatch());
+        el.querySelector('[data-action="coop"]')?.addEventListener('click', () => { playUiClick(); this.onOpenCoop?.(); }); // COOP LAN-1
     }
 }

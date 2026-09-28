@@ -30,6 +30,9 @@ import { seasonShortKey } from '../../config/season'; // SEASON-1/2 — pill sez
 import { SeasonSection } from './sections/SeasonSection'; // v0.129.0 — strona sezonu
 import { MapPickerOverlay } from './overlays/MapPickerOverlay'; // v0.127.0 — wybor mapy 3x2
 import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebracja awansu
+import { CoopOverlay } from './overlays/CoopOverlay'; // COOP LAN-1
+import { isMultiplayerEnabled } from '../../config/multiplayer'; // COOP LAN-1
+import { readJoinCodeFromUrl } from '../../net/RoomCode'; // COOP LAN-1
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
@@ -107,6 +110,9 @@ export class HubShell implements IScreen {
     private readonly season = new SeasonSection();
     /** v0.127.0 — wybor mapy KTB w popupie (siatka 3x2) zamiast listy inline. */
     private readonly mapPicker = new MapPickerOverlay();
+    /** COOP LAN-1 — ekran "Zagraj z kolega" (tylko przy isMultiplayerEnabled()). */
+    private readonly coop = new CoopOverlay();
+    private coopJoinHandled = false;
 
     /** RANKS-1 — spektakularna celebracja awansu rangi. */
     private readonly rankUp = new RankUpOverlay();
@@ -127,6 +133,9 @@ export class HubShell implements IScreen {
             this.onPlay?.(scenario, map, brawlerId, difficulty);
         // v0.127.0 — sekcja prosi o popup mapy, shell montuje go w swoim roocie
         // (ta sama sciezka co CrateOverlay / SeasonOverlay).
+        this.battle.onOpenCoop = () => {
+            if (this.rootEl && isMultiplayerEnabled()) this.coop.open(this.rootEl);
+        };
         this.battle.onOpenMapPicker = (selected, pick, cards) => {
             if (this.rootEl) this.mapPicker.open(this.rootEl, selected, pick, cards);
         };
@@ -394,6 +403,12 @@ export class HubShell implements IScreen {
         // Hub zyje przez cala sesje (MainMenu trzyma go schowanego w meczu) — jeden listener.
         window.addEventListener('resize', () => this.positionNavIndicator(), { passive: true });
         this.maybeCelebrateRank(); // RANKS-1 — awans z ostatniego meczu (powrot do huba)
+        // COOP LAN-1: link zaproszenia (?mp=1&join=KOD) otwiera od razu ekran goscia — raz na strone.
+        if (!this.coopJoinHandled && isMultiplayerEnabled()) {
+            this.coopJoinHandled = true;
+            const code = readJoinCodeFromUrl();
+            if (code && this.rootEl) this.coop.open(this.rootEl, code);
+        }
     }
 
     /**

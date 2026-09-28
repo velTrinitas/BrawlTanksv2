@@ -3690,3 +3690,53 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
    Teraz: ikona stala kolumna, tresc zawsze obok, dymek blokady nadal na dole na 100%. */
 .bt-hub0-powcard .pc-body { flex: 1 1 0; min-width: 0; }
 .bt-hub0-powcard .pc-nm, .bt-hub0-powcard .pc-desc { overflow-wrap: anywhere; }
+
+/* ============================================================================
+   COOP LAN-1 — "Zagraj z kolega" (za ?mp=1). Modal = wspolny .bt-hub0-modal
+   (max 460px, pelna szerokosc @375px). Tap targety >= 44px. Kod pokoju DUZY:
+   dziecko przepisuje go z ekranu kolegi.
+   ============================================================================ */
+.bt-coop-entry {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 14px; letter-spacing: 0.3px;
+    color: var(--hub-accent); background: transparent;
+    border: 2px solid var(--hub-accent); border-radius: var(--radius-md);
+    padding: 8px 14px; cursor: pointer; white-space: nowrap;
+}
+.bt-coop-entry:active { transform: translateY(2px); }
+.bt-coop-modal { text-align: center; }
+.bt-coop-lead { font-size: 14px; font-weight: 600; margin: 6px 0 14px; color: var(--hub-ink, #fff); }
+.bt-coop-note { font-size: 12px; margin: 12px 0 0; color: var(--hub-ink-faint); }
+.bt-coop-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+.bt-coop-btn {
+    min-height: 48px; min-width: 140px; padding: 10px 18px; cursor: pointer;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 16px;
+    color: var(--hub-ink, #fff); background: rgba(255, 255, 255, 0.08);
+    border: 2px solid var(--hub-line); border-radius: var(--radius-md);
+}
+.bt-coop-btn.is-primary { color: #1a2530; background: var(--hub-accent); border-color: var(--hub-accent); }
+.bt-coop-btn:disabled { opacity: 0.45; cursor: default; }
+.bt-coop-btn small { font-size: 11px; opacity: 0.8; margin-left: 4px; }
+.bt-coop-code {
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 44px; letter-spacing: 8px;
+    color: var(--hub-accent); background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-md);
+    padding: 10px 6px; margin: 4px auto; user-select: all;
+}
+.bt-coop-code.is-small { font-size: 22px; letter-spacing: 4px; padding: 6px; }
+.bt-coop-input {
+    width: 100%; max-width: 280px; box-sizing: border-box; text-align: center; text-transform: uppercase;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 32px; letter-spacing: 6px;
+    padding: 8px; min-height: 56px; border-radius: var(--radius-md);
+    border: 2px solid var(--hub-accent); background: rgba(0, 0, 0, 0.35); color: #fff;
+}
+.bt-coop-status { font-size: 16px; font-weight: 800; margin: 12px 0 0; }
+.bt-coop-status.is-wait { color: var(--hub-ink-faint); }
+.bt-coop-status.is-ok { color: #39d98a; font-size: 22px; }
+.bt-coop-status.is-err { color: #ff8855; line-height: 1.35; }
+.bt-coop-ping { font-size: 13px; margin: 6px 0 0; color: var(--hub-ink-faint); }
+.bt-coop-route { font-size: 10px; opacity: 0.6; display: block; margin-top: 2px; }
+@media (max-width: 460px), (orientation: landscape) and (max-height: 560px) {
+    .bt-coop-code { font-size: 34px; letter-spacing: 6px; }
+    .bt-coop-btn { min-width: 120px; font-size: 15px; }
+    .bt-coop-entry { font-size: 12px; padding: 6px 10px; }
+}

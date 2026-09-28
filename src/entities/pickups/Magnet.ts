@@ -51,6 +51,7 @@ export class Magnet {
     public radius: number = 22;
     private bornAt: number;
     private static readonly LIFETIME_MS = 20000;
+    private tornDown = false; // COOP S4: widok zdjety (teardown) — osobno od active (stan symulacji)
 
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
         sigmaEmit({ t: 'spawn', kind: 'magnet', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
@@ -75,7 +76,16 @@ export class Magnet {
         worldContainer.addChild(this.sprite);
     }
 
+    /**
+     * COOP S4: krok SYMULACJI — tylko decyzja o wygasnieciu (active=false). Zero PIXI.
+     * Sprzatanie sprite = destroy() wolane przez wlasciciela tablicy (main.ts).
+     */
+    stepSim(): void {
+        if (this.active && simNowMs() - this.bornAt > Magnet.LIFETIME_MS) this.active = false;
+    }
+
     update(_delta: number): void {
+        this.stepSim();
         if (!this.active) return;
 
         // Pulsing scale + lekki obrót (skala bazowa wpieczona — asset 120px)
@@ -91,22 +101,21 @@ export class Magnet {
             this.sprite.alpha = blink;
             this.glowSprite.alpha = blink;
         }
-
-        if (age > Magnet.LIFETIME_MS) {
-            this.destroy();
-        }
     }
 
     pickup(effects: EffectsManager): boolean {
         if (!this.active) return false;
         // Błękitne iskry (matching glow)
+        this.active = false; // COOP S4: zebranie = stan symulacji; sprite sprzata wlasciciel (destroy)
         effects.spawnEnemyHitSparks(this.x, this.y, 0x66ccff);
-        this.destroy();
         return true;
     }
 
+    /** Teardown WIDOKU (idempotentny). */
     destroy(): void {
         this.active = false;
+        if (this.tornDown) return;
+        this.tornDown = true;
         if (this.glowSprite.parent) {
             this.glowSprite.parent.removeChild(this.glowSprite);
         }

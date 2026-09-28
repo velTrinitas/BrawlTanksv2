@@ -79,6 +79,7 @@ export class Heart {
     public radius: number = 22; // hotfix: większy
     public healAmount: number = 100;
     private bornAt: number;
+    private tornDown = false; // COOP S4: widok zdjety (teardown) — osobno od active (stan symulacji)
     private static readonly LIFETIME_MS = 15000;
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
@@ -95,7 +96,16 @@ export class Heart {
         worldContainer.addChild(this.sprite);
     }
     
+    /**
+     * COOP S4: krok SYMULACJI — tylko decyzja o wygasnieciu (active=false). Zero PIXI.
+     * Sprzatanie sprite = destroy() wolane przez wlasciciela tablicy (main.ts).
+     */
+    stepSim(): void {
+        if (this.active && simNowMs() - this.bornAt > Heart.LIFETIME_MS) this.active = false;
+    }
+
     update(_delta: number): void {
+        this.stepSim();
         if (!this.active) return;
         
         // Puls (scale 0.92-1.12)
@@ -108,21 +118,20 @@ export class Heart {
             const blink = Math.sin(simNowMs() / 80) > 0 ? 1 : 0.3;
             this.sprite.alpha = blink;
         }
-        
-        if (age > Heart.LIFETIME_MS) {
-            this.destroy();
-        }
     }
     
     pickup(effects: EffectsManager): boolean {
         if (!this.active) return false;
+        this.active = false; // COOP S4: zebranie = stan symulacji; sprite sprzata wlasciciel (destroy)
         effects.spawnEnemyHitSparks(this.x, this.y, 0xff3366);
-        this.destroy();
         return true;
     }
     
+    /** Teardown WIDOKU (idempotentny). */
     destroy(): void {
         this.active = false;
+        if (this.tornDown) return;
+        this.tornDown = true;
         if (this.sprite.parent) {
             this.sprite.parent.removeChild(this.sprite);
         }

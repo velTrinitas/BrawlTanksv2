@@ -701,7 +701,8 @@ let smoothNeedsInit = true;
 const LOGIC_STEP_MS = 1000 / 60;
 const SMOOTH_MAX_CATCHUP = 3;
 let icCamPX = 0, icCamPY = 0, icCamCX = 0, icCamCY = 0; // interp kamera: prev/curr (world coords)
-let icPlPX = 0, icPlPY = 0, icPlCX = 0, icPlCY = 0;     // interp gracz: prev/curr (container coords)
+let icPlPX = 0, icPlPY = 0, icPlCX = 0, icPlCY = 0;     // interp gracz: prev/curr (SIM x/y — COOP S2c)
+let icOfPX = 0, icOfPY = 0, icOfCX = 0, icOfCY = 0;     // interp gracz: prev/curr offset widoku (juice: kick/pitch) = container - x/y
 
 /** Naloz interpolowany render (world-scroll + gracz) dla ulamka klatki a=0..1. */
 function applySmoothInterp(a: number): void {
@@ -711,8 +712,10 @@ function applySmoothInterp(a: number): void {
     const cy = icCamPY + (icCamCY - icCamPY) * a;
     worldContainer.x = -cx * Z + effects.shakeOffsetX;
     worldContainer.y = -cy * Z + effects.shakeOffsetY;
-    localPlayer.container.x = icPlPX + (icPlCX - icPlPX) * a;
-    localPlayer.container.y = icPlPY + (icPlCY - icPlPY) * a;
+    // COOP S2c: interpolujemy stan symulacji (x/y) i osobno offset widoku — ten sam wynik co
+    // dawny lerp po container, ale bufor trzyma pozycje z symulacji (u goscia koopa: z migawek hosta).
+    localPlayer.container.x = icPlPX + (icPlCX - icPlPX) * a + icOfPX + (icOfCX - icOfPX) * a;
+    localPlayer.container.y = icPlPY + (icPlCY - icPlPY) * a + icOfPY + (icOfCY - icOfPY) * a;
 }
 
 const keys = { w: false, a: false, s: false, d: false };
@@ -4152,6 +4155,7 @@ app.ticker.add((rawDelta) => {
             // snapshot prev PRZED krokiem (curr stanie sie nowym stanem po kroku)
             icCamPX = icCamCX; icCamPY = icCamCY;
             icPlPX = icPlCX; icPlPY = icPlCY;
+            icOfPX = icOfCX; icOfPY = icOfCY;
             runLogicStep(1); // staly krok: delta=1 (determinizm — plynnosc daje interp)
             steps++;
         }
@@ -4752,7 +4756,7 @@ function runLogicStep(delta: number): void {
     for (let i = hearts.length - 1; i >= 0; i--) {
         const h = hearts[i];
         h.update(delta);
-        if (!h.active) { hearts.splice(i, 1); continue; }
+        if (!h.active) { h.destroy(); hearts.splice(i, 1); continue; } // COOP S4: wygasniecie (sim) -> teardown widoku tutaj
         const dx = localPlayer.x - h.x, dy = localPlayer.y - h.y;
         if (dx * dx + dy * dy < (h.radius + 22) * (h.radius + 22)) {
             if (h.pickup(effects)) {
@@ -4761,6 +4765,7 @@ function runLogicStep(delta: number): void {
                 QuestService.track('heart'); // PROG-F3
                 hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
                 audio.playHeartPickup();
+                h.destroy();
                 hearts.splice(i, 1);
             }
         }
@@ -4900,7 +4905,7 @@ function runLogicStep(delta: number): void {
     for (let i = magnets.length - 1; i >= 0; i--) {
         const m = magnets[i];
         m.update(delta);
-        if (!m.active) { magnets.splice(i, 1); continue; }
+        if (!m.active) { m.destroy(); magnets.splice(i, 1); continue; } // COOP S4
         const dx = localPlayer.x - m.x, dy = localPlayer.y - m.y;
         if (dx * dx + dy * dy < (m.radius + 22) * (m.radius + 22)) {
             if (m.pickup(effects)) {
@@ -4908,6 +4913,7 @@ function runLogicStep(delta: number): void {
                 hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
                 audio.playMagnetPickup();
                 QuestService.track('magnet'); // PROG-F3
+                m.destroy();
                 magnets.splice(i, 1);
             }
         }
@@ -5489,11 +5495,13 @@ function runLogicStep(delta: number): void {
         if (smoothNeedsInit) {
             // pierwszy krok nowego meczu: prev=curr => zero skoku na spawnie
             icCamPX = icCamCX = camera.x; icCamPY = icCamCY = camera.y;
-            icPlPX = icPlCX = localPlayer.container.x; icPlPY = icPlCY = localPlayer.container.y;
+            icPlPX = icPlCX = localPlayer.x; icPlPY = icPlCY = localPlayer.y;
+            icOfPX = icOfCX = localPlayer.container.x - localPlayer.x; icOfPY = icOfCY = localPlayer.container.y - localPlayer.y;
             smoothNeedsInit = false;
         } else {
             icCamCX = camera.x; icCamCY = camera.y;
-            icPlCX = localPlayer.container.x; icPlCY = localPlayer.container.y;
+            icPlCX = localPlayer.x; icPlCY = localPlayer.y;
+            icOfCX = localPlayer.container.x - localPlayer.x; icOfCY = localPlayer.container.y - localPlayer.y;
         }
     }
 }

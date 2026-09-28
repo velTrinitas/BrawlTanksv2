@@ -27,6 +27,8 @@ export type DamageSourceKind =
     | 'geyser'         // erupcja gejzeru (SAVE THE QUEEN Q4) — gracz I wrogowie
     | 'dynamite'       // wybuch dynamitu w murze (SAVE THE QUEEN Q4) — gracz I wrogowie
     | 'tower'          // kula Zlowrogiej Wiezy (SAVE THE QUEEN Q4.5) -> gracz
+    | 'ra_fire'        // ognista kula Zemsty Ra (DESERT ART v2 / E7), z telegrafem na ziemi
+    | 'curse_fog'      // zielona mgla klatwy piramidy (DESERT ART v2 / E4): wyziew przy przebudzeniu i chmurka po smierci mumii
     // -> wrogowie
     | 'player_bullet'  // pocisk gracza (takze super shot)
     | 'power'          // super moc (mega bomba, miny, rakiety, Dziura, Laser, wieza...)
@@ -51,6 +53,8 @@ export const SRC_LAVA: DamageSource = Object.freeze({ kind: 'lava' as const }); 
 export const SRC_GEYSER: DamageSource = Object.freeze({ kind: 'geyser' as const }); // SAVE THE QUEEN Q4
 export const SRC_DYNAMITE: DamageSource = Object.freeze({ kind: 'dynamite' as const }); // SAVE THE QUEEN Q4
 export const SRC_TOWER: DamageSource = Object.freeze({ kind: 'tower' as const }); // SAVE THE QUEEN Q4.5
+export const SRC_CURSE_FOG: DamageSource = Object.freeze({ kind: 'curse_fog' as const }); // DESERT ART v2 / E4
+export const SRC_RA_FIRE: DamageSource = Object.freeze({ kind: 'ra_fire' as const }); // DESERT ART v2 / E7
 export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bullet' as const, playerIndex: 0 });
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });

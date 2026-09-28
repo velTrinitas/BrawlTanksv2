@@ -53,6 +53,128 @@ export function buildDesertTexture(): PIXI.Texture {
     return PIXI.Texture.from(cv);
 }
 
+
+/**
+ * DESERT ART v2 (E1) — grunt fake-3D. Ten sam rozmiar co legacy (3000x3000, VRAM bez zmian),
+ * pieczony RAZ i trzymany w groundTextureCache pod kluczem 'desert_v2'.
+ * Slonce z lewej-gory (wspolne dla wszystkich propsow v2): stok NW wydmy jasny, SE w cieniu.
+ * Losowosc wylacznie wizualna, ale ze stalym ziarnem (ten sam wyglad w kazdym meczu).
+ */
+export function buildDesertTextureV2(): PIXI.Texture {
+    const cv = document.createElement('canvas');
+    cv.width = WORLD_W;
+    cv.height = WORLD_H;
+    const c = cv.getContext('2d')!;
+    let st = 0x5eed1234;
+    const rnd = (): number => {
+        st = (st + 0x6d2b79f5) | 0;
+        let t = Math.imul(st ^ (st >>> 15), 1 | st);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+
+    // 1) Baza: szeroki gradient (cieplejszy srodek, chlodniejsze rogi)
+    const base = c.createRadialGradient(WORLD_W * 0.45, WORLD_H * 0.45, 200, WORLD_W / 2, WORLD_H / 2, WORLD_W * 0.8);
+    base.addColorStop(0, '#f0dcaa');
+    base.addColorStop(0.6, '#e6cf98');
+    base.addColorStop(1, '#d9bd84');
+    c.fillStyle = base;
+    c.fillRect(0, 0, WORLD_W, WORLD_H);
+
+    // 2) Wydmy: dlugie grzbiety z jasnym stokiem NW i cieniem SE
+    for (let i = 0; i < 46; i++) {
+        const cx = rnd() * WORLD_W;
+        const cy = rnd() * WORLD_H;
+        const len = 380 + rnd() * 520;
+        const amp = 30 + rnd() * 60;
+        const ang = -0.35 + rnd() * 0.7;          // wiatr ~ ze wschodu, grzbiety lekko skosne
+        const depth = 60 + rnd() * 70;
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(ang);
+        const ridge = (x: number): number => Math.sin((x / len) * Math.PI * 2 + i) * amp * 0.35 - Math.cos((x / len) * Math.PI) * amp;
+        // cien (SE stok)
+        const gS = c.createLinearGradient(0, 0, 0, depth);
+        gS.addColorStop(0, 'rgba(150,105,55,0.30)');
+        gS.addColorStop(1, 'rgba(150,105,55,0)');
+        c.fillStyle = gS;
+        c.beginPath();
+        for (let x = -len / 2; x <= len / 2; x += 20) c.lineTo(x, ridge(x));
+        for (let x = len / 2; x >= -len / 2; x -= 20) c.lineTo(x, ridge(x) + depth * (1 - Math.abs(x / (len / 2)) ** 2));
+        c.closePath();
+        c.fill();
+        // swiatlo (NW stok)
+        const gL = c.createLinearGradient(0, -depth * 0.8, 0, 0);
+        gL.addColorStop(0, 'rgba(255,244,210,0)');
+        gL.addColorStop(1, 'rgba(255,244,210,0.38)');
+        c.fillStyle = gL;
+        c.beginPath();
+        for (let x = -len / 2; x <= len / 2; x += 20) c.lineTo(x, ridge(x));
+        for (let x = len / 2; x >= -len / 2; x -= 20) c.lineTo(x, ridge(x) - depth * 0.8 * (1 - Math.abs(x / (len / 2)) ** 2));
+        c.closePath();
+        c.fill();
+        // ostra krawedz grzbietu
+        c.strokeStyle = 'rgba(255,248,225,0.45)';
+        c.lineWidth = 2;
+        c.beginPath();
+        for (let x = -len / 2 + 30; x <= len / 2 - 30; x += 20) c.lineTo(x, ridge(x));
+        c.stroke();
+        c.restore();
+    }
+
+    // 3) Zmarszczki wiatru (ripple marks): krotkie fale, para jasna+ciemna
+    c.lineWidth = 1.4;
+    for (let i = 0; i < 900; i++) {
+        const x = rnd() * WORLD_W;
+        const y = rnd() * WORLD_H;
+        const w = 40 + rnd() * 70;
+        const a = 0.10 + rnd() * 0.12;
+        c.strokeStyle = 'rgba(170,125,70,' + a + ')';
+        c.beginPath();
+        c.moveTo(x, y);
+        c.quadraticCurveTo(x + w / 2, y - 5, x + w, y + 1);
+        c.stroke();
+        c.strokeStyle = 'rgba(255,245,215,' + (a * 1.2) + ')';
+        c.beginPath();
+        c.moveTo(x, y - 2.5);
+        c.quadraticCurveTo(x + w / 2, y - 7.5, x + w, y - 1.5);
+        c.stroke();
+    }
+
+    // 4) Ziarno piasku (tanszy odpowiednik legacy: fillRect zamiast ellipse+save/restore)
+    const grain = ['#f8e8c0', '#eecf90', '#c8a870', '#a87848', '#fff4d8'];
+    for (let i = 0; i < 9000; i++) {
+        c.globalAlpha = 0.10 + rnd() * 0.22;
+        c.fillStyle = grain[(rnd() * grain.length) | 0];
+        const sz = 1 + rnd() * 2.5;
+        c.fillRect(rnd() * WORLD_W, rnd() * WORLD_H, sz, sz);
+    }
+    // 5) Kamyczki z cieniem (fake-3D): cien SE + jasny czubek NW
+    for (let i = 0; i < 260; i++) {
+        const x = rnd() * WORLD_W;
+        const y = rnd() * WORLD_H;
+        const r = 1.8 + rnd() * 3.2;
+        c.globalAlpha = 0.35;
+        c.fillStyle = '#7a5530';
+        c.beginPath(); c.ellipse(x + r * 0.6, y + r * 0.6, r, r * 0.7, 0, 0, Math.PI * 2); c.fill();
+        c.globalAlpha = 0.9;
+        c.fillStyle = '#b8966a';
+        c.beginPath(); c.ellipse(x, y, r, r * 0.75, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#e8d2a8';
+        c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.3, r * 0.45, r * 0.3, 0, 0, Math.PI * 2); c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // 6) Winieta brzegow — mapa "zamyka sie" w cieplym cieniu (czytelnosc granicy)
+    const vig = c.createRadialGradient(WORLD_W / 2, WORLD_H / 2, WORLD_W * 0.42, WORLD_W / 2, WORLD_H / 2, WORLD_W * 0.72);
+    vig.addColorStop(0, 'rgba(120,80,40,0)');
+    vig.addColorStop(1, 'rgba(120,80,40,0.22)');
+    c.fillStyle = vig;
+    c.fillRect(0, 0, WORLD_W, WORLD_H);
+
+    return PIXI.Texture.from(cv);
+}
+
 // =================================================================
 // FAZA 2a — PIRAMIDY
 // =================================================================
@@ -158,6 +280,30 @@ export const DESERT_RIVER_CATARACT_ROCKS = [
     { x: WORLD_W * 0.07, y: WORLD_H * 0.90, size: 45, seed: 105 },
 ];
 
+/**
+ * DESERT ART v2 (E1) — kolizje i katarakty bez deadzonow.
+ * Pomiar flood-fill (siatka 10 px, promien czolgu 20/30/45): legacy ma kieszen NE
+ * x 2190-2380 y 90-230 dostepna tylko "na styk" (klinowanie). V2 usuwa 6 malych skal
+ * zamykajacych kieszenie i dokleja 1 wypelniacz (0.893, 0.053) — przy R=45 mapa = 1 obszar.
+ * Pozostale komorki R=20 za skalami przy dolnej krawedzi sa NIEOSIAGALNE (zamkniete).
+ */
+export const DESERT_V2_PYRAMID_HITBOX_PAD = 30;
+export const DESERT_V2_SPHINX_HITBOX_PAD = 30;
+export const DESERT_RIVER_CATARACT_ROCKS_V2 = [
+    { x: WORLD_W * 0.93, y: WORLD_H * 0.05, size: 80, seed: 51 },
+    { x: WORLD_W * 0.88, y: WORLD_H * 0.02, size: 75, seed: 53 },
+    { x: WORLD_W * 0.82, y: WORLD_H * 0.02, size: 70, seed: 57 },
+    { x: WORLD_W * 0.96, y: WORLD_H * 0.12, size: 65, seed: 61 },
+    { x: WORLD_W * 0.87, y: WORLD_H * 0.09, size: 90, seed: 63 },
+    { x: WORLD_W * 0.893, y: WORLD_H * 0.053, size: 45, seed: 65 },   // wypelniacz szczeliny NE
+
+    { x: WORLD_W * 0.07, y: WORLD_H * 0.95, size: 80, seed: 71 },
+    { x: WORLD_W * 0.15, y: WORLD_H * 0.98, size: 75, seed: 73 },
+    { x: WORLD_W * 0.04, y: WORLD_H * 0.98, size: 70, seed: 77 },
+    { x: WORLD_W * 0.20, y: WORLD_H * 0.96, size: 65, seed: 81 },
+    { x: WORLD_W * 0.13, y: WORLD_H * 0.91, size: 90, seed: 83 },
+];
+
 // =================================================================
 // FAZA 4b — QUICKSAND ZONES
 // =================================================================
@@ -169,6 +315,11 @@ export const DESERT_QUICKSAND_LAYOUT = [
     { x: WORLD_W * 0.78, y: WORLD_H * 0.04, rX: 150, rY: 50, seed: 41 },
     { x: WORLD_W * 0.08, y: WORLD_H * 0.84, rX: 150, rY: 50, seed: 45 },
 ];
+
+/** DESERT ART v2: piaski przy koncach Nilu zwezone (150 -> 110), reszta bez zmian. */
+export const DESERT_QUICKSAND_LAYOUT_V2 = DESERT_QUICKSAND_LAYOUT.map(q =>
+    q.rX === 150 ? { ...q, rX: 110 } : q,
+);
 
 // =================================================================
 // v0.18.3 FAZA 4c — OASIS STEALTH ZONES (4 oazy)
@@ -226,3 +377,98 @@ export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.72, y: WORLD_H * 0.62 },
     { x: WORLD_W * 0.25, y: WORLD_H * 0.18 },
 ];
+
+// =================================================================
+// DESERT ART v2 / E3 — PIASKOWIEC + PETLA KARAWANY
+// =================================================================
+
+/**
+ * Zestrzeliwalny piaskowiec: 7 oslon po 2 bloki (scianka 120x60, bez szczeliny).
+ * Srodki wybrane skryptem (farthest-point na wolnych polach wnetrza mapy 380-2620):
+ * kazdy srodek ma >= 185 px od KAZDEGO collidera v2, strefy piasku/oazy i padu,
+ * czyli >= 120 px wolnego przejazdu wokol scianki, i >= 100 px od petli karawany.
+ * Orientacja naprzemienna.
+ */
+export const DESERT_SANDSTONE_SPOTS_V2 = [
+    { x: 2220, y: 2540, vertical: false },
+    { x: 540, y: 380, vertical: true },
+    { x: 540, y: 2500, vertical: false },
+    { x: 1800, y: 650, vertical: true },    // (2140,400) kolidowalo z petla karawany
+    { x: 1200, y: 1440, vertical: false },
+    { x: 2620, y: 1580, vertical: true },
+    { x: 380, y: 1700, vertical: false },
+];
+
+/**
+ * Karawana v2: jedna ZAMKNIETA petla przez NW, most NE (2288,496), wschodni brzeg,
+ * most S (1431,2229) i zachodnia czesc mapy — zamiast ping-ponga w rogu.
+ * Zweryfikowana skryptem: >= 18 px od kazdego collidera (wielblady nie maja kolizji,
+ * ale drop musi byc osiagalny), ~7.2k px = ~4.4 min okrazenia.
+ */
+export const DESERT_CARAVAN_LOOP_V2 = [
+    { x: 250, y: 160 },
+    { x: 600, y: 140 },
+    { x: 950, y: 200 },
+    { x: 1500, y: 330 },
+    { x: 2000, y: 380 },
+    { x: 2200, y: 440 },
+    { x: 2288, y: 496 },
+    { x: 2380, y: 560 },
+    { x: 2330, y: 730 },
+    { x: 2300, y: 1050 },
+    { x: 2270, y: 1500 },
+    { x: 2225, y: 1720 },
+    { x: 2225, y: 2020 },
+    { x: 2150, y: 2200 },
+    { x: 1640, y: 2200 },
+    { x: 1530, y: 2285 },
+    { x: 1431, y: 2229 },
+    { x: 1330, y: 2140 },
+    { x: 1080, y: 1930 },
+    { x: 780, y: 1780 },
+    { x: 700, y: 1400 },
+    { x: 720, y: 1000 },
+    { x: 700, y: 900 },
+    { x: 500, y: 500 },
+];
+
+// =================================================================
+// DESERT ART v2 / E6 — ZABYTKI (pomysly historyczne, math-verified skryptem)
+// =================================================================
+
+/**
+ * Pomiar (scratchpad sesji, desert_e3.cjs + footprinty):
+ *  - pylon (2 wieze 90x60, przejazd 120 px) na (980,2100): >= 135 px od przeszkod, 75 px od petli
+ *    karawany, 1270 px od STARTU GRACZA (800,800 — sprawdzac przy kazdej nowej przeszkodzie!),
+ *  - obeliski 28x28: >= 147 px od wszystkiego,
+ *  - Kolosy 70x80 nad Nilem: 89 / 124 px od pasa rzeki (czolg przejezdza za nimi — brak kieszeni),
+ *    >= 213 px od mostow, 26 px od ruchomych piaskow (bez nakladania).
+ */
+/**
+ * E7 — obozowisko archeologow przy piramidzie za rzeka (2550,1260). Pomiar skryptem:
+ * namiot 90x70: 95 px od krawedzi mapy (przy starej 40), 375 px od stref;
+ * jeep 70x40: 105 px od piramidy; namiot-jeep 105 px przejazdu; wykop przejezdny,
+ * poza korytarzem wyjscia archeologow (2490-2610 x 1030-1130). Start gracza daleko.
+ */
+export const DESERT_CAMP_V2 = {
+    tent: { x: 2820, y: 1175 },
+    jeep: { x: 2810, y: 1335 },
+    dig: { x: 2715, y: 1060 },
+};
+
+export const DESERT_MONUMENTS_V2 = {
+    // v2 fix: bylo (940,820) — lewa wieza stala na domyslnym starcie gracza (800,800, Player.ts).
+    pylon: { x: 980, y: 2100, gap: 120 },
+    obelisks: [
+        { x: 910, y: 2210 },    // para przed brama pylonu (jak w Luksorze)
+        { x: 1050, y: 2210 },
+        { x: 1480, y: 520 },    // samotny obelisk — cien jak zegar sloneczny
+    ],
+    colossi: [
+        { x: 1536, y: 1833 },
+        { x: 1400, y: 1935 },
+    ],
+    /** Szaduf na wschodnim brzegu stawu oazy centralnej (0.35, 0.40). */
+    shaduf: { x: 1098, y: 1192 },
+    feluccaCount: 3,
+};

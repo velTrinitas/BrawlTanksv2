@@ -7,7 +7,8 @@ import { getBrawlerTextures, BAKER_ENABLED } from './rendering/SpriteFactory';
 import { DEFAULT_CROSSHAIR, type CrosshairId } from './rendering/crosshairs'; // SHOP-2
 import { TankSpriteBaker } from './rendering/TankSpriteBaker';
 import type { TankLook } from './rendering/tankLook';           // TANK ART v2
-import { isTankArtV2 } from './config/tankArtFlag';             // TANK ART v2
+import { isTankArtV2 } from './config/tankArtFlag';
+import { isDesertArtV2 } from './config/desertArtFlag';         // DESERT ART v2             // TANK ART v2
 import { shotFxFor } from './config/shotFx';                    // TANK ART v2
 import { resolveTankNumber } from './types/Profile';            // TANK ART v2
 import { BulletSpriteBaker } from './rendering/BulletSpriteBaker'; // FAZA P2
@@ -22,6 +23,7 @@ import {
 import { NeonBillboard } from './maps/city/NeonBillboard'; // v0.52.0
 import {
     buildDesertTexture,
+    buildDesertTextureV2,
     DESERT_PYRAMID_LAYOUT,
     DESERT_MEDI_PAD_POSITIONS, DESERT_POWER_PAD_POSITIONS,
     DESERT_SPHINX_POSITION,
@@ -31,7 +33,12 @@ import {
     DESERT_SMALL_ROCK_MIN_SIZE, DESERT_SMALL_ROCK_MAX_SIZE,
     DESERT_QUICKSAND_LAYOUT,
     DESERT_RIVER_CATARACT_ROCKS,
+    DESERT_RIVER_CATARACT_ROCKS_V2,
+    DESERT_V2_PYRAMID_HITBOX_PAD,
+    DESERT_V2_SPHINX_HITBOX_PAD,
+    DESERT_QUICKSAND_LAYOUT_V2,
     DESERT_OASIS_LAYOUT,
+    DESERT_SANDSTONE_SPOTS_V2, DESERT_CARAVAN_LOOP_V2, DESERT_MONUMENTS_V2, DESERT_CAMP_V2,
 } from './maps/DesertMap';
 import {
     buildTropicsTexture,
@@ -107,6 +114,12 @@ import { HydroGarden } from './maps/mars/HydroGarden'; // FAZA MARS M4 (stealth)
 import { MarsMediPad } from './maps/mars/MarsMediPad'; // FAZA MARS M4
 import { MarsPowerPad } from './maps/mars/MarsPowerPad'; // FAZA MARS M4
 import { IceCube } from './entities/IceCube'; // ARC-R1 (niszczalne kostki lodu)
+import { SandstoneBlock, SANDSTONE_SIZE } from './maps/desert/SandstoneBlock'; // DESERT ART v2 / E3
+import { PyramidCurse } from './maps/desert/PyramidCurse'; // DESERT ART v2 / E4
+import { CURSE_BY_DIFFICULTY } from './config/desertCurse';
+import { DesertJuice } from './maps/desert/DesertJuice'; // DESERT ART v2 / E5
+import { Obelisk, PylonTower, Colossus, Shaduf, FeluccaFleet } from './maps/desert/Monuments'; // DESERT ART v2 / E6
+import { createTent, createJeep, createDigSite } from './maps/desert/ArchaeologyCamp'; // DESERT ART v2 / E7
 import { Igloo } from './maps/arctic/Igloo'; // ARC-R1 (male igloo 2.5D)
 import { IceHole } from './maps/arctic/IceHole'; // ARC-R2 (przereble: woda + ryba + foki)
 import { PenguinColony } from './maps/arctic/PenguinColony'; // ARC-R2 (pingwiny gubia gemy)
@@ -168,6 +181,7 @@ import { Sphinx } from './maps/desert/Sphinx';
 import { RiverNile } from './maps/desert/RiverNile';
 import { Bridge } from './maps/desert/Bridge';
 import { WaterLife } from './maps/desert/WaterLife';
+import { NileFlora } from './maps/desert/NileFlora';     // DESERT ART v2
 import { Rock, ROCK_HITBOX_PADDING_DESERT } from './maps/desert/Rock';
 import { setPropBakeRenderer, disposePropCache } from './maps/propBaker'; // v0.133.0 — pieczenie statycznych propow; v0.187.0 — zwalnianie cache miedzy meczami
 import { SandstormBorder } from './maps/desert/SandstormBorder';
@@ -537,6 +551,12 @@ let ufo: UfoAbductor | null = null; // FAZA MARS M5 (porywa wrogow i cargo, NIE 
 let fuelStation: FuelStation | null = null; // FAZA MARS M5c
 let hydroGardens: HydroGarden[] = []; // FAZA MARS M4 (stealth)
 let iceCubes: IceCube[] = []; // ARC-R1 (niszczalne kostki lodu)
+let sandstones: SandstoneBlock[] = []; // DESERT ART v2 / E3 (zestrzeliwalny piaskowiec)
+let desertPyramidsV2: Pyramid[] = []; // DESERT ART v2 / E4 (piramidy dla klatwy)
+let pyramidCurse: PyramidCurse | null = null; // DESERT ART v2 / E4
+let nileFlora: NileFlora | null = null; // DESERT ART v2 / E2b+E5 (ibisy)
+let desertJuice: DesertJuice | null = null; // DESERT ART v2 / E5 (tylko wizual)
+let desertAmbient: { update(): void }[] = []; // DESERT ART v2 / E6 (obeliski-zegary, szaduf, feluki)
 let iceHoles: IceHole[] = []; // ARC-R2 (przereble — spawnBlocked + kolizja ruchu)
 let penguinColonies: PenguinColony[] = []; // ARC-R2 (2 ekipy — ambient + dropy gemow)
 let arcticIgloo: Igloo | null = null; // ARC-R2b (ref do wpiecia Yeti po utworzeniu effects)
@@ -1899,6 +1919,11 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     fuelStation = null; // FAZA MARS M5c
     hydroGardens = []; // FAZA MARS M4
     iceCubes = []; // ARC-R1
+    sandstones = []; // DESERT ART v2 / E3
+    desertPyramidsV2 = []; // E4
+    pyramidCurse = null; // E4
+    desertJuice?.destroy(); desertJuice = null; nileFlora = null; // E5
+    desertAmbient = []; // E6
     iceHoles = []; // ARC-R2
     penguinColonies = []; // ARC-R2
     arcticIgloo = null; // ARC-R2b
@@ -2096,15 +2121,21 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         ];
 
     } else if (config.map === 'desert') {
-        const desertTex = getGroundTexture('desert', buildDesertTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
+        const desertTex = isDesertArtV2()
+            ? getGroundTexture('desert_v2', buildDesertTextureV2) // DESERT ART v2 — ten sam rozmiar/VRAM
+            : getGroundTexture('desert', buildDesertTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const desertSprite = new PIXI.Sprite(desertTex);
         desertSprite.zIndex = -100;
         worldContainer.addChild(desertSprite);
 
+        const desertV2 = isDesertArtV2(); // DESERT ART v2 (?desertart=1 / rollback ?desertart=0)
         DESERT_PYRAMID_LAYOUT.forEach(p => {
-            const pyramid = new Pyramid(p.x, p.y, p.size, p.seed, worldContainer);
+            const pyramid = desertV2
+                ? new Pyramid(p.x, p.y, p.size, p.seed, worldContainer, DESERT_V2_PYRAMID_HITBOX_PAD, true)
+                : new Pyramid(p.x, p.y, p.size, p.seed, worldContainer);
             buildings.push(pyramid);
             solidBuildings.push(pyramid);
+            if (desertV2) desertPyramidsV2.push(pyramid); // E4: klatwa podpinana po utworzeniu effects
         });
 
         const sphinx = new Sphinx(
@@ -2114,6 +2145,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             DESERT_SPHINX_POSITION.sizeY,
             DESERT_SPHINX_POSITION.seed,
             worldContainer,
+            desertV2 ? DESERT_V2_SPHINX_HITBOX_PAD : undefined,
+            desertV2,
         );
         buildings.push(sphinx);
         solidBuildings.push(sphinx);
@@ -2125,11 +2158,37 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             DESERT_BRIDGE_DECK_LENGTH,
             DESERT_BRIDGE_DECK_WIDTH,
             worldContainer,
+            desertV2,
         );
         buildings.push(...river.getCollisionSegments());
+        if (desertV2) nileFlora = new NileFlora(river, DESERT_RIVER_WIDTH, worldContainer); // DESERT ART v2 (+E5 ibisy)
+        if (desertV2) {
+            // DESERT ART v2 / E6: zabytki. Przeszkody = podstawa bryly (buildings + solidBuildings).
+            const M = DESERT_MONUMENTS_V2;
+            const half = M.pylon.gap / 2 + PylonTower.W / 2;
+            const solids: (Obelisk | PylonTower | Colossus)[] = [
+                new PylonTower(M.pylon.x - half, M.pylon.y, false, worldContainer),
+                new PylonTower(M.pylon.x + half, M.pylon.y, true, worldContainer),
+                ...M.colossi.map((c, i) => new Colossus(c.x, c.y, i, worldContainer)),
+            ];
+            for (const o of M.obelisks) {
+                const ob = new Obelisk(o.x, o.y, worldContainer);
+                solids.push(ob);
+                // (bez desertAmbient: update() wola juz buildings.forEach — podwojny tick zegara/respawnu)
+            }
+            for (const s of solids) { buildings.push(s); solidBuildings.push(s); }
+            desertAmbient.push(new Shaduf(M.shaduf.x, M.shaduf.y, worldContainer));
+            desertAmbient.push(new FeluccaFleet(river, M.feluccaCount, worldContainer));
+            // E7: obozowisko archeologow (namiot + jeep = przeszkody, wykop przejezdny)
+            // namiot PRZEJEZDNY (uwaga Mariusza) — tylko rysunek; jeep = przeszkoda
+            createTent(DESERT_CAMP_V2.tent.x, DESERT_CAMP_V2.tent.y, worldContainer);
+            const jeep = createJeep(DESERT_CAMP_V2.jeep.x, DESERT_CAMP_V2.jeep.y, worldContainer);
+            buildings.push(jeep); solidBuildings.push(jeep);
+            desertAmbient.push(createDigSite(DESERT_CAMP_V2.dig.x, DESERT_CAMP_V2.dig.y, worldContainer));
+        }
 
         bridges = river.getBridgeLayout().map(b =>
-            new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer),
+            new Bridge(b.x, b.y, b.deckLength, b.deckWidth, b.rotation, worldContainer, desertV2),
         );
 
         waterLife = new WaterLife(
@@ -2141,13 +2200,13 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
         DESERT_LARGE_ROCKS_LAYOUT.forEach(r => {
             // v0.202.0: hitbox = bryla skaly (padding 8 zamiast 60). Patrz Rock.ts.
-            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer, undefined, ROCK_HITBOX_PADDING_DESERT);
+            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer, undefined, ROCK_HITBOX_PADDING_DESERT, desertV2);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
 
-        DESERT_RIVER_CATARACT_ROCKS.forEach(r => {
-            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer, undefined, ROCK_HITBOX_PADDING_DESERT);
+        (desertV2 ? DESERT_RIVER_CATARACT_ROCKS_V2 : DESERT_RIVER_CATARACT_ROCKS).forEach(r => {
+            const rock = new Rock(r.x, r.y, r.size, 'large', r.seed, worldContainer, undefined, ROCK_HITBOX_PADDING_DESERT, desertV2);
             buildings.push(rock);
             solidBuildings.push(rock);
         });
@@ -2173,6 +2232,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 }
             }
             if (blocked) continue;
+            // DESERT ART v2 / E3: nie kladz ozdobnych kamykow na sciankach piaskowca
+            if (desertV2 && DESERT_SANDSTONE_SPOTS_V2.some(s => (rx - s.x) ** 2 + (ry - s.y) ** 2 < 110 * 110)) continue;
 
             for (const sr of smallRocks) {
                 const dx = rx - sr.visualX;
@@ -2187,22 +2248,22 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             // Z0.1: seeded — size wchodzi do HITBOXA skaly, seed do pieczonego artu
             const size = worldRng.range(DESERT_SMALL_ROCK_MIN_SIZE, DESERT_SMALL_ROCK_MAX_SIZE);
             const seed = worldRng.int(1000);
-            smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer));
+            smallRocks.push(new Rock(rx, ry, size, 'small', seed, worldContainer, undefined, undefined, desertV2));
         }
 
-        sandstormBorder = new SandstormBorder(WORLD_W, WORLD_H, worldContainer);
+        sandstormBorder = new SandstormBorder(WORLD_W, WORLD_H, worldContainer, desertV2);
         buildings.push(...sandstormBorder.getCollisionRects());
         solidBuildings.push(...sandstormBorder.getCollisionRects());
 
-        quicksands = DESERT_QUICKSAND_LAYOUT.map(q =>
-            new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer),
+        quicksands = (desertV2 ? DESERT_QUICKSAND_LAYOUT_V2 : DESERT_QUICKSAND_LAYOUT).map(q =>
+            new Quicksand(q.x, q.y, q.rX, q.rY, q.seed, worldContainer, desertV2),
         );
 
         oases = DESERT_OASIS_LAYOUT.map(o =>
-            new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer),
+            new Oasis(o.x, o.y, o.rX, o.rY, o.seed, worldContainer, desertV2),
         );
 
-        caravan = new Caravan(worldContainer);
+        caravan = new Caravan(worldContainer, desertV2 ? DESERT_CARAVAN_LOOP_V2 : undefined); // E3: petla v2
 
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
@@ -2801,6 +2862,60 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 buildings.push(extra);
             }
         }
+    }
+
+    // DESERT ART v2 / E3: zestrzeliwalny piaskowiec — 7 scianek po 2 bloki (wzorzec kostek lodu,
+    // konstrukcja PO effects/audio). Bez dropu. Pozycje math-verified w DesertMap.ts.
+    if (config.map === 'desert' && isDesertArtV2()) {
+        let idx = 0;
+        for (const s of DESERT_SANDSTONE_SPOTS_V2) {
+            const half = SANDSTONE_SIZE / 2;
+            const offs = s.vertical ? [[0, -half], [0, half]] : [[-half, 0], [half, 0]];
+            for (const [ox, oy] of offs) {
+                const block = new SandstoneBlock(s.x + ox - half, s.y + oy - half, idx++, worldContainer, effects, audio);
+                sandstones.push(block);
+                solidBuildings.push(block);
+                for (const extra of block.getExtraCollidables()) buildings.push(extra);
+            }
+        }
+    }
+
+    // DESERT ART v2 / E4: klatwa piramidy (wzorzec IglooYeti — obrazenia rozstrzyga TEN closure,
+    // spojnie z pociskami wrogow: nietykalnosc / tutorial / perfect-run). Tylko strzelnica bez.
+    if (desertPyramidsV2.length && config.scenario !== 'range') {
+        pyramidCurse = new PyramidCurse(desertPyramidsV2, worldContainer, effects, audio, {
+            getPlayer: () => (localPlayer ? { x: localPlayer.x, y: localPlayer.y, isDashing: localPlayer.isDashing } : null),
+            isLive: () => gameState === 'PLAYING' && !!localPlayer && !!currentSession,
+            getObstacles: () => buildings, // mumia i stado nie wchodza na piramidy/skaly/rzeke
+            playerName: () => ProfileService.getActiveProfile()?.nickname ?? '', // E5 kartusz
+            damagePlayer: (amount, src) => {
+                if (!localPlayer || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = powerSystem!.isInvulnerable || tutorialActive;
+                const died = localPlayer.takeDamage(amount, protectedNow, src); // Z0.5: DamageSource 'curse_fog'
+                if (!protectedNow) {
+                    effects!.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0x7dff6a);
+                    effects!.spawnFloatingText(localPlayer.x, localPlayer.y - 30, `-${Math.round(amount)}`, 0xff6b6b);
+                    audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died) { void triggerGameOver(); }
+            },
+            notify: (key) => {
+                if (key === 'warn') hud.addNotif(t('hud.curseWarn'), '#e0c890');
+                else if (key === 'awake') hud.addNotif(t('hud.curseAwake'), '#7dff6a');
+                else if (key === 'lifted') hud.addNotif(t('hud.curseLifted'), '#ffd84a');
+                else if (key === 'ra') hud.addNotif(t('hud.raWrath'), '#ff8a2a');          // E7
+                else if (key === 'archeo') hud.addNotif(t('hud.archeoAngry'), '#e0c890');  // E7
+                else hud.addNotif(t('hud.curseFaded'), '#a8c878');
+            },
+        }, CURSE_BY_DIFFICULTY[config.difficulty]); // skala obrazen Ra/mgly per poziom trudnosci
+    }
+
+    // DESERT ART v2 / E5: juice Pustyni (odpryski, gruz, rozbryzgi, most, wiry, ibisy, zasypywanie
+    // wrakow). WYLACZNIE lokalny wizual — brak wplywu na symulacje.
+    if (config.map === 'desert' && isDesertArtV2()) {
+        desertJuice = new DesertJuice(worldContainer, effects, audio, bridges, oases, quicksands, nileFlora);
+        effects.onExplosion = (x, y) => desertJuice?.onExplosion(x, y);
     }
 
     // ARC-R1: niszczalne kostki lodu (wzorzec crates — konstrukcja PO effects/audio).
@@ -4373,6 +4488,8 @@ function runLogicStep(delta: number): void {
     if (dungeonBats) dungeonBats.update(delta, camera.x, camera.y, viewW, viewH);
 
     if (river) river.update(camera.x, camera.y, viewW, viewH);
+    for (const a of desertAmbient) a.update(); // E6 — tylko wizual
+    if (desertJuice) desertJuice.update(localPlayer ? { x: localPlayer.x, y: localPlayer.y, isMoving: localPlayer.isMoving } : null, camera.x, camera.y, viewW, viewH); // E5
     if (waterLife) waterLife.update(camera.x, camera.y, viewW, viewH);
     if (sandstormBorder) sandstormBorder.update(camera.x, camera.y, viewW, viewH);
     if (tropicalBorder) tropicalBorder.update();
@@ -4539,6 +4656,7 @@ function runLogicStep(delta: number): void {
     // ARC-R2: przereble (fale + ryba/foka + lwy morskie) + pingwiny + Yeti
     for (const ih of iceHoles) ih.update();
     if (iglooYeti && localPlayer) iglooYeti.update(delta, localPlayer.x, localPlayer.y);
+    if (pyramidCurse) pyramidCurse.update(); // DESERT ART v2 / E4 — staly krok logiki
     for (const colony of penguinColonies) {
         const drop = colony.update(delta);
         if (drop) {
@@ -4903,6 +5021,8 @@ function runLogicStep(delta: number): void {
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.update(delta, solidBuildings, effects, bulletCtx);
+        // DESERT ART v2 / E4: pociski gracza vs mumia i skarabeusze klatwy
+        if (b.active && pyramidCurse && pyramidCurse.hitTestBullet(b.x, b.y, b.radius, b.dmg)) b.deactivate();
         if (!b.active) { bullets.splice(i, 1); bulletPool.push(b); } // POOLING: zwrot do puli
     }
 
@@ -5015,6 +5135,7 @@ function runLogicStep(delta: number): void {
     for (const cube of iceCubes) {
         cube.update(0, 0, 0, 0);
     }
+    for (const block of sandstones) block.update(0, 0, 0, 0); // DESERT ART v2 / E3 — tick respawnu
 
     for (const crate of crates) {
         crate.update(0, 0, 0, 0);

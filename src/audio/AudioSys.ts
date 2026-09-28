@@ -1045,6 +1045,398 @@ export class AudioSys {
         }
     }
 
+    // =================================================================
+    // DESERT ART v2 / E4 — klatwa piramidy (generowane WebAudio, zero assetow)
+    // =================================================================
+
+    /** Bufor szumu z wykladniczym zanikiem (wspolny dla chrzestu skarabeuszy i huku). */
+    private noiseBurst(ctx: AudioContext, seconds: number, decay: number): AudioBufferSourceNode {
+        const n = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+        const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (n * decay));
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        return src;
+    }
+
+    /**
+     * Tupot skarabeuszy: 3-4 szybkie klikniecia szumu przez bandpass. `proximity` 0..1
+     * (1 = przy czolgu) skaluje glosnosc. Throttle 120 ms — 6 zukow nie robi z tego szumu.
+     */
+    private scarabTimer = 0;
+    playScarabSkitter(proximity: number): void {
+        if (this.muted || proximity <= 0.02) return;
+        const now = Date.now();
+        if (now - this.scarabTimer < 120) return;
+        this.scarabTimer = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.16 * this.sfxVolMult * Math.min(1, proximity));
+            const clicks = 3 + Math.floor(Math.random() * 2);
+            for (let i = 0; i < clicks; i++) {
+                const at = t0 + i * 0.022 + Math.random() * 0.008;
+                const src = this.noiseBurst(ctx, 0.018, 0.25);
+                const bp = ctx.createBiquadFilter();
+                bp.type = 'bandpass';
+                bp.frequency.value = 3200 + Math.random() * 1800;
+                bp.Q.value = 6;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(vol, at);
+                g.gain.exponentialRampToValueAtTime(0.0001, at + 0.018);
+                src.connect(bp).connect(g).connect(ctx.destination);
+                src.start(at);
+            }
+        } catch (e) {
+            console.error('[AudioSys] playScarabSkitter failed', (e as Error).stack);
+        }
+    }
+
+    /** Jek mumii: niski pilowy ton z vibrato opadajacy w dol (~1.1 s). */
+    playMummyGroan(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.22 * this.sfxVolMult);
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(130, t0);
+            osc.frequency.exponentialRampToValueAtTime(70, t0 + 1.1);
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+            lfo.frequency.value = 6;
+            lfoGain.gain.value = 7;
+            lfo.connect(lfoGain).connect(osc.frequency);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.value = 700;
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol, t0 + 0.15);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
+            osc.connect(lp).connect(g).connect(ctx.destination);
+            osc.start(t0); lfo.start(t0);
+            osc.stop(t0 + 1.15); lfo.stop(t0 + 1.15);
+        } catch (e) {
+            console.error('[AudioSys] playMummyGroan failed', (e as Error).stack);
+        }
+    }
+
+    /**
+     * Przebudzenie klatwy = WYRZUT POWIETRZA z grobowca (poprawka 2026-09-28): krotkie
+     * tapniecie + syczacy wydech szumu, ktorego filtr zjezdza z gory w dol (whoosh),
+     * i krotki podmuch nisko. Bez dlugiego dudnienia.
+     */
+    playCurseBlast(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.32 * this.sfxVolMult);
+            // tapniecie
+            const osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(120, t0);
+            osc.frequency.exponentialRampToValueAtTime(45, t0 + 0.18);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(vol, t0);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+            osc.connect(g).connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + 0.22);
+            // wydech (whoosh): bandpass zjezdza 3 kHz -> 300 Hz
+            const src = this.noiseBurst(ctx, 0.9, 0.5);
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.Q.value = 0.9;
+            bp.frequency.setValueAtTime(3000, t0);
+            bp.frequency.exponentialRampToValueAtTime(300, t0 + 0.85);
+            const ng = ctx.createGain();
+            ng.gain.setValueAtTime(0.0001, t0);
+            ng.gain.exponentialRampToValueAtTime(vol * 1.1, t0 + 0.05);
+            ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
+            src.connect(bp).connect(ng).connect(ctx.destination);
+            src.start(t0);
+        } catch (e) {
+            console.error('[AudioSys] playCurseBlast failed', (e as Error).stack);
+        }
+    }
+
+    /**
+     * Ryk mumii — DELIKATNY, charczacy (celowo inny niz asset Yeti): szum przez
+     * waski bandpass ~420 Hz z tremolo 17 Hz (charkot) + cichy pilowy ton 85 Hz.
+     */
+    playMummyRoar(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.2 * this.sfxVolMult);
+            const dur = 0.95;
+            const src = this.noiseBurst(ctx, dur, 1.2);
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.Q.value = 4;
+            bp.frequency.setValueAtTime(520, t0);
+            bp.frequency.exponentialRampToValueAtTime(330, t0 + dur);
+            const trem = ctx.createGain();
+            trem.gain.value = 0.5;
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+            lfo.frequency.value = 17;
+            lfoGain.gain.value = 0.5;
+            lfo.connect(lfoGain).connect(trem.gain);
+            const env = ctx.createGain();
+            env.gain.setValueAtTime(0.0001, t0);
+            env.gain.exponentialRampToValueAtTime(vol, t0 + 0.12);
+            env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            src.connect(bp).connect(trem).connect(env).connect(ctx.destination);
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(95, t0);
+            osc.frequency.exponentialRampToValueAtTime(70, t0 + dur);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.value = 500;
+            const og = ctx.createGain();
+            og.gain.setValueAtTime(0.0001, t0);
+            og.gain.exponentialRampToValueAtTime(vol * 0.35, t0 + 0.12);
+            og.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            osc.connect(lp).connect(og).connect(ctx.destination);
+            src.start(t0); lfo.start(t0); osc.start(t0);
+            lfo.stop(t0 + dur + 0.05); osc.stop(t0 + dur + 0.05);
+        } catch (e) {
+            console.error('[AudioSys] playMummyRoar failed', (e as Error).stack);
+        }
+    }
+
+    /** E5 — skrzypienie desek mostu pod czolgiem: pilowy ton slizgajacy sie przez waski bandpass. */
+    private creakTimer = 0;
+    playWoodCreak(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.creakTimer < 900) return;
+        this.creakTimer = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.08 * this.sfxVolMult);
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            const f0 = 180 + Math.random() * 60;
+            osc.frequency.setValueAtTime(f0, t0);
+            osc.frequency.linearRampToValueAtTime(f0 * 1.35, t0 + 0.12);
+            osc.frequency.linearRampToValueAtTime(f0 * 0.9, t0 + 0.28);
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.value = 900;
+            bp.Q.value = 8;
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol, t0 + 0.04);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+            osc.connect(bp).connect(g).connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + 0.32);
+        } catch (e) {
+            console.error('[AudioSys] playWoodCreak failed', (e as Error).stack);
+        }
+    }
+
+    /** E5 — plusk przy wjezdzie do stawu oazy: szum przez opadajacy lowpass. */
+    private splashTimer = 0;
+    playSplash(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.splashTimer < 400) return;
+        this.splashTimer = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.22 * this.sfxVolMult);
+            const src = this.noiseBurst(ctx, 0.45, 0.3);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(4000, t0);
+            lp.frequency.exponentialRampToValueAtTime(500, t0 + 0.4);
+            const g = ctx.createGain();
+            g.gain.value = vol;
+            src.connect(lp).connect(g).connect(ctx.destination);
+            src.start(t0);
+        } catch (e) {
+            console.error('[AudioSys] playSplash failed', (e as Error).stack);
+        }
+    }
+
+    // ── DESERT ART v2 / E7 — Zemsta Ra + archeolodzy (generowane, zero assetow) ──
+
+    /** Objawienie Ra: narastajacy „chor" (3 rozstrojone trojkaty w durze) + gleboki podklad. */
+    playRaAppear(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.09 * this.sfxVolMult);
+            for (const f of [220, 277.2, 329.6, 440, 55]) {
+                for (const det of [-4, 4]) {
+                    const osc = ctx.createOscillator();
+                    osc.type = f < 100 ? 'sine' : 'triangle';
+                    osc.frequency.value = f;
+                    osc.detune.value = det;
+                    const g = ctx.createGain();
+                    g.gain.setValueAtTime(0.0001, t0);
+                    g.gain.exponentialRampToValueAtTime(f < 100 ? vol * 2 : vol, t0 + 0.8);
+                    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.4);
+                    osc.connect(g).connect(ctx.destination);
+                    osc.start(t0); osc.stop(t0 + 2.5);
+                }
+            }
+        } catch (e) {
+            console.error('[AudioSys] playRaAppear failed', (e as Error).stack);
+        }
+    }
+
+    /** Swist lecacej kuli ognia: szum z bandpassem zjezdzajacym w dol. Throttle 150 ms. */
+    private fireWhooshTimer = 0;
+    playFireballWhoosh(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.fireWhooshTimer < 150) return;
+        this.fireWhooshTimer = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.1 * this.sfxVolMult);
+            const src = this.noiseBurst(ctx, 0.7, 0.8);
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.Q.value = 2;
+            bp.frequency.setValueAtTime(2400, t0);
+            bp.frequency.exponentialRampToValueAtTime(500, t0 + 0.7);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol, t0 + 0.3);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7);
+            src.connect(bp).connect(g).connect(ctx.destination);
+            src.start(t0);
+        } catch (e) {
+            console.error('[AudioSys] playFireballWhoosh failed', (e as Error).stack);
+        }
+    }
+
+    /** Uderzenie kuli ognia: tapniecie + trzask plomieni. Throttle 60 ms. */
+    private fireImpactTimer = 0;
+    playFireImpact(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.fireImpactTimer < 60) return;
+        this.fireImpactTimer = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.26 * this.sfxVolMult);
+            const osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(110, t0);
+            osc.frequency.exponentialRampToValueAtTime(38, t0 + 0.25);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(vol, t0);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+            osc.connect(g).connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + 0.3);
+            const src = this.noiseBurst(ctx, 0.35, 0.25);
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.value = 900;
+            const ng = ctx.createGain();
+            ng.gain.value = vol * 0.7;
+            src.connect(hp).connect(ng).connect(ctx.destination);
+            src.start(t0);
+        } catch (e) {
+            console.error('[AudioSys] playFireImpact failed', (e as Error).stack);
+        }
+    }
+
+    /**
+     * Wsciekly krzyk archeologa („ocenzurowany"): pilowy ton z formantem samogloski
+     * (bandpass skaczacy 700<->1100 Hz) i szybkim vibrato — brzmi jak gniewne mamrotanie,
+     * bez prawdziwych slow. Na koncu krotki „piiip" cenzury (1 kHz sinus).
+     */
+    playArchaeologistShout(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.1 * this.sfxVolMult);
+            const f0 = 150 + Math.random() * 70;
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(f0, t0);
+            osc.frequency.linearRampToValueAtTime(f0 * 1.4, t0 + 0.15);
+            osc.frequency.linearRampToValueAtTime(f0 * 0.9, t0 + 0.4);
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.Q.value = 5;
+            bp.frequency.setValueAtTime(700, t0);
+            bp.frequency.setValueAtTime(1100, t0 + 0.12);
+            bp.frequency.setValueAtTime(800, t0 + 0.24);
+            bp.frequency.setValueAtTime(1200, t0 + 0.33);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol, t0 + 0.03);
+            g.gain.setValueAtTime(vol, t0 + 0.38);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+            osc.connect(bp).connect(g).connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + 0.46);
+            const beep = ctx.createOscillator();
+            beep.type = 'sine';
+            beep.frequency.value = 1000;
+            const bg = ctx.createGain();
+            bg.gain.setValueAtTime(0.0001, t0 + 0.46);
+            bg.gain.exponentialRampToValueAtTime(vol * 0.6, t0 + 0.48);
+            bg.gain.setValueAtTime(vol * 0.6, t0 + 0.68);
+            bg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7);
+            beep.connect(bg).connect(ctx.destination);
+            beep.start(t0 + 0.46); beep.stop(t0 + 0.72);
+        } catch (e) {
+            console.error('[AudioSys] playArchaeologistShout failed', (e as Error).stack);
+        }
+    }
+
+    /** Zdjecie klatwy: krotkie jasne arpeggio w gore (flex). */
+    playCurseLifted(): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const vol = Math.max(0.0002, 0.14 * this.sfxVolMult);
+            [523, 659, 784, 1047].forEach((f, i) => {
+                const at = t0 + i * 0.08;
+                const osc = ctx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.value = f;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(vol, at);
+                g.gain.exponentialRampToValueAtTime(0.0001, at + 0.3);
+                osc.connect(g).connect(ctx.destination);
+                osc.start(at); osc.stop(at + 0.32);
+            });
+        } catch (e) {
+            console.error('[AudioSys] playCurseLifted failed', (e as Error).stack);
+        }
+    }
+
     /**
      * v0.208.0 (J8) — stinger sekcji: dwie krotkie nuty (WebAudio, jak playCrateBreak),
      * ~180 ms, glosnosc z sfxVolMult. Throttle 250 ms — szybkie skakanie po docku nie robi

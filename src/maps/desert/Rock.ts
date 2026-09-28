@@ -68,6 +68,7 @@ export class Rock implements ICollidable {
     private seed: number;
     private tier: RockTier;
     private palette: RockPalette;
+    private artV2: boolean;
 
     private container: PIXI.Container;
 
@@ -80,7 +81,9 @@ export class Rock implements ICollidable {
         worldContainer: PIXI.Container,
         palette: RockPalette = PALETTE,   // FAZA MARS M3 (default = pustynia)
         hitboxPadding: number = ROCK_HITBOX_PADDING_LEGACY,
+        artV2: boolean = false,          // DESERT ART v2 — fasetowany glaz, ten sam obrys
     ) {
+        this.artV2 = artV2;
         this.visualX = x;
         this.visualY = y;
         this.size = size;
@@ -125,6 +128,10 @@ export class Rock implements ICollidable {
      */
     private draw(): void {
         const g = new PIXI.Graphics();
+        if (this.artV2) {
+            this.drawV2(g);
+            return;
+        }
 
         const s = this.size;
         const hS = s / 2;
@@ -237,6 +244,102 @@ export class Rock implements ICollidable {
         }
     }
     
+    /** Deterministyczny szum 0..1 (seed + indeks). */
+    private hash(i: number): number {
+        const v = Math.sin(i * 12.9898 + this.seed * 78.233) * 43758.5453;
+        return v - Math.floor(v);
+    }
+
+    /**
+     * DESERT ART v2 — fasetowany glaz piaskowca. OBRYS BRYLY IDENTYCZNY z legacy
+     * (osmiokat o promieniu hS * (0.85 +- 0.15)), wiec hitbox ROCK_HITBOX_PADDING_DESERT
+     * dalej pasuje 1:1. Nowe: gorna faseta w sloncu (NW), ciemna sciana boczna SE,
+     * warstwy osadowe, pekniecia, zaspa piasku po zawietrznej. Bez mchu (klimat pustyni).
+     */
+    private drawV2(g: PIXI.Graphics): void {
+        const hS = this.size / 2;
+        const rot = (this.seed * 0.37) % (Math.PI * 2);
+        const pts: number[] = [];
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 + rot;
+            const rad = hS * (0.85 + Math.sin(i * 1.7 + this.seed) * 0.15);
+            pts.push(Math.cos(a) * rad, Math.sin(a) * rad);
+        }
+        const scaled = (k: number, dx: number, dy: number) => pts.map((v, i) => v * k + (i % 2 === 0 ? dx : dy));
+
+        // Cien rzucany SE (slonce NW) + AO
+        g.beginFill(0x000000, 0.16);
+        g.drawPolygon(scaled(1.0, hS * 0.45, hS * 0.4));
+        g.endFill();
+        g.beginFill(0x000000, 0.2);
+        g.drawPolygon(scaled(1.04, hS * 0.12, hS * 0.12));
+        g.endFill();
+
+        // Zaspa piasku po zawietrznej (SE)
+        g.beginFill(0xe6c690, 0.8);
+        g.drawEllipse(hS * 0.45, hS * 0.55, hS * 0.55, hS * 0.28);
+        g.endFill();
+
+        // Bok bryly (ciemny) = pelny obrys
+        g.beginFill(this.palette.rockShadow);
+        g.drawPolygon(pts);
+        g.endFill();
+        // Srodek bryly
+        g.beginFill(this.palette.rockBase);
+        g.drawPolygon(scaled(0.86, -hS * 0.06, -hS * 0.08));
+        g.endFill();
+        // Gorna faseta w sloncu
+        g.beginFill(this.palette.rockLight);
+        g.drawPolygon(scaled(0.6, -hS * 0.16, -hS * 0.2));
+        g.endFill();
+        g.beginFill(0xffffff, 0.14);
+        g.drawPolygon(scaled(0.36, -hS * 0.24, -hS * 0.28));
+        g.endFill();
+
+        if (this.tier === 'large') {
+            // Warstwy osadowe (piaskowiec)
+            g.lineStyle(1.2, this.palette.rockDeep, 0.35);
+            for (let i = 0; i < 3; i++) {
+                const y = -hS * 0.3 + i * hS * 0.28;
+                g.moveTo(-hS * 0.6, y + this.hash(i) * 4);
+                g.quadraticCurveTo(0, y + hS * 0.08, hS * 0.6, y + this.hash(i + 5) * 4);
+            }
+            // Pekniecia
+            g.lineStyle(1.8, this.palette.crackDark, 0.7);
+            const cx = (this.hash(10) - 0.5) * hS * 0.4;
+            g.moveTo(cx - hS * 0.3, -hS * 0.35);
+            g.lineTo(cx - hS * 0.05, -hS * 0.02);
+            g.lineTo(cx + hS * 0.1, hS * 0.12);
+            g.lineTo(cx + hS * 0.35, hS * 0.42);
+            g.moveTo(cx - hS * 0.05, -hS * 0.02);
+            g.lineTo(cx - hS * 0.25, hS * 0.25);
+            g.lineStyle(1, 0xffffff, 0.25);
+            g.moveTo(cx - hS * 0.29, -hS * 0.37);
+            g.lineTo(cx - hS * 0.04, -hS * 0.04);
+            g.lineStyle(0);
+            // Dziobki erozji
+            g.beginFill(this.palette.rockDeep, 0.45);
+            for (let i = 0; i < 7; i++) {
+                const a = this.hash(i + 20) * Math.PI * 2;
+                const r = hS * (0.2 + this.hash(i + 30) * 0.45);
+                g.drawCircle(Math.cos(a) * r, Math.sin(a) * r, 0.9 + this.hash(i + 40) * 1.4);
+            }
+            g.endFill();
+        } else {
+            g.beginFill(this.palette.rockDeep, 0.4);
+            g.drawCircle(hS * 0.15, hS * 0.1, hS * 0.16);
+            g.endFill();
+        }
+
+        const baked = bakeToSprite(g, `rock_v2:${this.tier}:${Math.round(this.size)}:${this.seed}:${this.palette.rockDeep}`);
+        if (baked) {
+            this.container.addChild(baked);
+            g.destroy();
+        } else {
+            this.container.addChild(g);
+        }
+    }
+
     update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
         // Static — no per-frame updates.
     }

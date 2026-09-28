@@ -127,8 +127,15 @@ export class EnemyBullet {
         // wrogowie tez rozbijaja niszczalne przeszkody, np. kostki lodu, by dopasc gracza)
         for (const b of buildings) {
             if (this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h) {
-                const destructible = b as ICollidable & { takeDamage?(dmg: number, hitX: number, hitY: number): void };
-                if (typeof destructible.takeDamage === 'function') {
+                const destructible = b as ICollidable & {
+                    takeDamage?(dmg: number, hitX: number, hitY: number): void;
+                    takeEnemyDamage?(dmg: number, hitX: number, hitY: number): void;
+                };
+                // DESERT ART v2 / E4: obiekt moze rozrozniac pociski wroga (piramida — wrog NIE
+                // budzi klatwy, decyzja Mariusza 2026-09-28). Bez tej metody: stare zachowanie.
+                if (typeof destructible.takeEnemyDamage === 'function') {
+                    destructible.takeEnemyDamage(this.dmg, this.x, this.y);
+                } else if (typeof destructible.takeDamage === 'function') {
                     destructible.takeDamage(this.dmg, this.x, this.y);
                 } else {
                     effects.spawnWallImpact(this.x, this.y);

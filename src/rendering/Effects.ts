@@ -647,6 +647,37 @@ export class EffectsManager {
         });
     }
 
+    /**
+     * DESERT ART v2 / E3: rozpad bloku piaskowca — okruchy kamienia (3 tony) + chmura
+     * pylu (duze, miekkie, wolno gasnace drobiny). Pooled, bez glow.
+     */
+    spawnSandstoneCrumble(x: number, y: number): void {
+        this.spawnParticles(x, y, 0xecca8c, 8, { speed: 6, size: 2.6, decay: 0.05, scaleDecay: 0.015, spread: 1.0 });
+        this.spawnParticles(x, y, 0xb08048, 7, { speed: 7, size: 2.2, decay: 0.06, scaleDecay: 0.02, spread: 1.0 });
+        this.spawnParticles(x, y, 0x6a4a24, 4, { speed: 8, size: 1.6, decay: 0.07, scaleDecay: 0.025, spread: 1.0 });
+        this.spawnParticles(x, y, 0xe0c890, 5, { speed: 1.0, size: 5, decay: 0.02, scaleDecay: 0.003 });
+        this.spawnParticles(x, y - 10, 0xf0dcb0, 3, { speed: 0.6, size: 6, decay: 0.016, scaleDecay: 0.002 });
+    }
+
+    /** DESERT ART v2 / E4: zmiazdzony skarabeusz — chrupniecie: czarne okruchy + zielony rozprysk. */
+    spawnScarabSquash(x: number, y: number): void {
+        this.spawnParticles(x, y, 0x2a2a30, 5, { speed: 4, size: 1.8, decay: 0.07, scaleDecay: 0.02, spread: 1.0 });
+        this.spawnParticles(x, y, 0x7dff6a, 6, { speed: 3, size: 2, decay: 0.06, scaleDecay: 0.02, spread: 1.0 });
+    }
+
+    /** DESERT ART v2 / E4: eksplozja bandazy przy smierci mumii. */
+    spawnBandageBurst(x: number, y: number): void {
+        this.spawnParticles(x, y, 0xe6dcc0, 12, { speed: 7, size: 3, decay: 0.035, scaleDecay: 0.008, spread: 1.0 });
+        this.spawnParticles(x, y, 0x9a8c68, 6, { speed: 5, size: 2.4, decay: 0.045, scaleDecay: 0.012, spread: 1.0 });
+        this.spawnParticles(x, y, 0x7dff6a, 8, { speed: 2, size: 4.5, decay: 0.025, scaleDecay: 0.004 });
+    }
+
+    /** DESERT ART v2 / E4: klatwa zdjeta — zlote drobiny (skarabeusze-czastki) z piramidy. */
+    spawnCurseLifted(x: number, y: number): void {
+        this.spawnParticles(x, y, 0xffd84a, 16, { speed: 6, size: 2.8, decay: 0.03, scaleDecay: 0.006, spread: 1.0 });
+        this.spawnParticles(x, y, 0xfff4b0, 8, { speed: 4, size: 2, decay: 0.04, scaleDecay: 0.01, spread: 1.0 });
+    }
+
     spawnWoodSplinters(x: number, y: number, count: number = 14): void {
         this.spawnParticles(x, y, 0xd4a878, Math.max(1, Math.floor(count * 0.4)), {
             speed: 5, size: 2, decay: 0.05, scaleDecay: 0.015, spread: 1.0,
@@ -687,7 +718,16 @@ export class EffectsManager {
 
         this.spawnWreck(x, y);
         this.shake(8, 12);
+        // DESERT ART v2 / E5: sluchacz wybuchow (zasypywanie wraku, ibisy) — tylko wizual.
+        // Effects powstaje od nowa co mecz, wiec sluchacz nie przezywa zmiany mapy.
+        if (this.onExplosion) {
+            try { this.onExplosion(x, y); }
+            catch (e) { console.error('[Effects] onExplosion failed', (e as Error).stack, { x, y }); }
+        }
     }
+
+    /** DESERT ART v2 / E5 — hook wywolywany po kazdym `spawnExplosionAndWreck`. */
+    public onExplosion: ((x: number, y: number) => void) | null = null;
 
     private spawnWreck(x: number, y: number): void {
         const sprite = new PIXI.Sprite(getWreckTexture());

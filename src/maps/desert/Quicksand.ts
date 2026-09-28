@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { isPointInView } from '../cullGate';
+import { bakeToSprite } from '../propBaker';
 
 /**
  * Quicksand — Ruchomy piasek (slowdown zone) na desert mapie (v0.18.1 FAZA 4b).
@@ -64,7 +65,33 @@ export class Quicksand {
     private swirlParticles: SwirlParticle[];
     private activeBubbles: Bubble[];
     private bubbleSpawnTimer: number;
-    
+    /** DESERT ART v2 — obrys strefy [x0,y0,x1,y1,...] w ukladzie lokalnym; null = legacy elipsa. */
+    private poly: number[] | null = null;
+    /** DESERT ART v2 — pieczony wir obracany co klatke (1 sprite zamiast 12 czastek). */
+    private vortex: PIXI.Sprite | null = null;
+
+    /**
+     * 12 wierzcholkow, promien 0.8-1.0 elipsy z deterministycznego hasha (bez RNG).
+     * Wielokat miesci sie W legacy elipsie, wiec strefa nigdy nie rosnie — nic, co bylo
+     * poza nia (pady, gemy, sciezki), nie wpada nagle w spowolnienie.
+     */
+    private static buildPoly(rX: number, rY: number, seed: number): number[] {
+        const pts: number[] = [];
+        const N = 12;
+        for (let i = 0; i < N; i++) {
+            const a = (i / N) * Math.PI * 2;
+            const v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+            const k = 0.8 + (v - Math.floor(v)) * 0.2;
+            pts.push(Math.cos(a) * rX * k, Math.sin(a) * rY * k);
+        }
+        return pts;
+    }
+
+    /** Obrys przeskalowany wzgledem srodka (warstwy glebokosci, ramka). */
+    private scaledPoly(k: number, dx = 0, dy = 0): number[] {
+        return this.poly!.map((v, i) => v * k + (i % 2 === 0 ? dx : dy));
+    }
+
     constructor(
         x: number,
         y: number,
@@ -72,7 +99,9 @@ export class Quicksand {
         radiusY: number,
         seed: number,
         worldContainer: PIXI.Container,
+        artV2: boolean = false,   // DESERT ART v2 — nieregularny wielokat, hit-test = obrys
     ) {
+        if (artV2) this.poly = Quicksand.buildPoly(radiusX, radiusY, seed);
         this.x = x;
         this.y = y;
         this.radiusX = radiusX;
@@ -111,7 +140,62 @@ export class Quicksand {
         this.activeBubbles = [];
         this.bubbleSpawnTimer = Date.now();
         
-        this.drawStaticBackground();
+        if (this.poly) this.drawStaticV2();
+        else this.drawStaticBackground();
+    }
+
+    /**
+     * DESERT ART v2 — statyka pieczona raz: jasna warga piasku, ciemne wnetrze,
+     * lejek glebokosci (skalowane obrysy), zmarszczki; wir = osobny sprite obracany w update.
+     * Obrys rysowany PROSTYMI krawedziami wielokata — dokladnie to, co liczy hit-test.
+     */
+    private drawStaticV2(): void {
+        const g = new PIXI.Graphics();
+        g.beginFill(PALETTE.sandLight, 0.55);
+        g.drawPolygon(this.scaledPoly(1.1));
+        g.endFill();
+        g.beginFill(0x000000, 0.12);
+        g.drawPolygon(this.scaledPoly(1.02, 3, 3));
+        g.endFill();
+        g.beginFill(PALETTE.sandMid);
+        g.drawPolygon(this.poly!);
+        g.endFill();
+        for (let i = 0; i < 6; i++) {
+            const k = 0.88 - i * 0.13;
+            g.beginFill(PALETTE.sandDeep, 0.16 + i * 0.05);
+            g.drawPolygon(this.scaledPoly(k, i * 1.2, i * 1.2));
+            g.endFill();
+        }
+        g.lineStyle(1.2, PALETTE.sandLight, 0.35);
+        for (const k of [0.78, 0.6, 0.42]) g.drawPolygon(this.scaledPoly(k));
+        g.lineStyle(0);
+        const baked = bakeToSprite(g, `quicksand_v2:${this.radiusX}x${this.radiusY}:${this.seed}`);
+        if (baked) { this.gfxStatic.addChild(baked); g.destroy(); }
+        else this.gfxStatic.addChild(g);
+
+        // Wir: spiralne smugi, pieczone, obracane co klatke (koszt = 1 quad)
+        const w = new PIXI.Graphics();
+        const r = Math.min(this.radiusX, this.radiusY) * 0.7;
+        for (let arm = 0; arm < 4; arm++) {
+            const a0 = (arm / 4) * Math.PI * 2;
+            for (let s = 0; s < 14; s++) {
+                const t = s / 14;
+                const a = a0 + t * Math.PI * 1.4;
+                const rr = r * (1 - t * 0.85);
+                w.beginFill(s % 2 ? PALETTE.particleDark : PALETTE.particleMid, 0.55 * (1 - t * 0.5));
+                w.drawCircle(Math.cos(a) * rr, Math.sin(a) * rr, 2.6 - t * 1.4);
+                w.endFill();
+            }
+        }
+        const vtx = bakeToSprite(w, `quicksand_v2_vortex:${Math.round(r)}`);
+        if (vtx) {
+            w.destroy();
+            this.vortex = vtx;
+            this.vortex.scale.y = this.radiusY / this.radiusX; // splaszczenie jak strefa
+            this.gfxSwirl.addChild(this.vortex);
+        } else {
+            this.gfxSwirl.addChild(w);
+        }
     }
     
     /**
@@ -120,6 +204,16 @@ export class Quicksand {
     public isPointInside(px: number, py: number): boolean {
         const dx = px - this.x;
         const dy = py - this.y;
+        if (this.poly) {
+            // DESERT ART v2: point-in-polygon (ray casting) — strefa = to, co widac
+            const p = this.poly;
+            let inside = false;
+            for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+                const xi = p[i], yi = p[i + 1], xj = p[j], yj = p[j + 1];
+                if ((yi > dy) !== (yj > dy) && dx < ((xj - xi) * (dy - yi)) / (yj - yi) + xi) inside = !inside;
+            }
+            return inside;
+        }
         // Ellipse equation: (dx/rx)² + (dy/ry)² <= 1
         const normalized = (dx * dx) / (this.radiusX * this.radiusX) + (dy * dy) / (this.radiusY * this.radiusY);
         return normalized <= 1.0;
@@ -189,7 +283,11 @@ export class Quicksand {
         const time = Date.now();
 
         this.drawWarningRim(time);
-        this.drawSwirlParticles(time);
+        if (this.poly) {
+            if (this.vortex) this.vortex.rotation = time / 900 + this.seed;
+        } else {
+            this.drawSwirlParticles(time);
+        }
         this.updateBubbles(time);
     }
     
@@ -201,7 +299,17 @@ export class Quicksand {
         g.clear();
         
         const pulse = 0.45 + Math.sin(time / 600 + this.seed) * 0.25;
-        
+
+        if (this.poly) {
+            // DESERT ART v2: ramka ostrzegawcza po OBRYSIE wielokata (granica strefy)
+            g.lineStyle(2.5, PALETTE.warningRim, pulse);
+            g.drawPolygon(this.poly);
+            g.lineStyle(1, PALETTE.warningRim, pulse * 0.6);
+            g.drawPolygon(this.scaledPoly(0.9));
+            g.lineStyle(0);
+            return;
+        }
+
         // Outer warning ring
         g.lineStyle(2, PALETTE.warningRim, pulse);
         g.drawEllipse(0, 0, this.radiusX * 1.02, this.radiusY * 1.02);

@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
 import { isBoxInView } from '../cullGate';
+import { bakeToSprite } from '../propBaker';
 
 /**
  * Sphinx — Wielki Sfinks z Gizy (top-down view, sphinx pose, głowa na N).
@@ -115,8 +116,13 @@ export class Sphinx implements ICollidable {
     private static readonly BODY_PARALLAX = 0.03;
     private static readonly HEAD_PARALLAX = 0.08;
     private static readonly BEETLE_COUNT = 3;
+    /** DESERT ART v2 — slabsza paralaksa (plan: glowa 3-5% offsetu kamery). */
+    private static readonly BODY_PARALLAX_V2 = 0.02;
+    private static readonly HEAD_PARALLAX_V2 = 0.05;
+    private artV2: boolean;
     
-    constructor(x: number, y: number, sizeX: number, sizeY: number, seed: number, worldContainer: PIXI.Container) {
+    constructor(x: number, y: number, sizeX: number, sizeY: number, seed: number, worldContainer: PIXI.Container, hitboxPad: number = 100, artV2: boolean = false) {
+        this.artV2 = artV2;
         this.visualX = x;
         this.visualY = y;
         this.sizeX = sizeX;
@@ -124,8 +130,9 @@ export class Sphinx implements ICollidable {
         this.seed = seed;
         
         // Hitbox: visual size + 100 padding each side (lekcja v0.14.4)
-        const hitboxW = sizeX + 100;
-        const hitboxH = sizeY + 100;
+        // DESERT ART v2: hitboxPad 30 (hitbox ~ bryla), legacy 100
+        const hitboxW = sizeX + hitboxPad;
+        const hitboxH = sizeY + hitboxPad;
         this.x = x - hitboxW / 2;
         this.y = y - hitboxH / 2;
         this.w = hitboxW;
@@ -142,7 +149,9 @@ export class Sphinx implements ICollidable {
         
         // Skarabeusze rendered na piasku (PRZED body w order)
         this.beetles = [];
-        for (let i = 0; i < Sphinx.BEETLE_COUNT; i++) {
+        // DESERT ART v2: bez dekoracyjnych zukow — w E4 skarabeusze sa ZAGROZENIEM,
+        // wiec niegrozne zuki obok sfinksa klamalyby graczowi (czytelnosc #1).
+        for (let i = 0; i < (artV2 ? 0 : Sphinx.BEETLE_COUNT); i++) {
             const angle = (i / Sphinx.BEETLE_COUNT) * Math.PI * 2 + this.seed;
             const dist = 80 + Math.random() * 50;
             const bx = Math.cos(angle) * dist;
@@ -164,9 +173,17 @@ export class Sphinx implements ICollidable {
         this.gfxHead.addChild(this.gfxFaceAnim);
         
         // Draw static layers (raz w konstruktorze)
-        this.drawShadow();
-        this.drawBody(bodyDraw);
-        this.drawHead(headDraw);
+        if (this.artV2) {
+            this.drawShadowV2();
+            this.drawBodyV2(bodyDraw);
+            this.drawHeadV2(headDraw);
+            this.bakeLayer(this.gfxBody, bodyDraw, 'body');
+            this.bakeLayer(this.gfxHead, headDraw, 'head');
+        } else {
+            this.drawShadow();
+            this.drawBody(bodyDraw);
+            this.drawHead(headDraw);
+        }
     }
     
     /**
@@ -395,6 +412,256 @@ export class Sphinx implements ICollidable {
         g.lineStyle(0);
     }
     
+    // =================================================================
+    // DESERT ART v2
+    // =================================================================
+
+    private hash(i: number): number {
+        const v = Math.sin(i * 12.9898 + this.seed * 78.233) * 43758.5453;
+        return v - Math.floor(v);
+    }
+
+    /** Piecze statyczna warstwe (korpus / glowa) do jednego sprite'a. Oczy zostaja zywe. */
+    private bakeLayer(layer: PIXI.Container, g: PIXI.Graphics, part: string): void {
+        const baked = bakeToSprite(g, `sphinx_v2_${part}:${this.sizeX}x${this.sizeY}:${this.seed}`);
+        if (!baked) return;
+        const idx = layer.getChildIndex(g);
+        layer.removeChild(g);
+        g.destroy();
+        layer.addChildAt(baked, idx);
+    }
+
+    /** Cien SE (slonce NW), AO i zaspy piasku wokol cokolu. Pieczone. */
+    private drawShadowV2(): void {
+        const g = new PIXI.Graphics();
+        const hsX = this.sizeX / 2;
+        const hsY = this.sizeY / 2;
+        g.beginFill(PALETTE.shadowCast, 0.14);
+        g.drawRoundedRect(-hsX * 0.55, -hsY * 0.85, hsX * 1.9, hsY * 2.0, 50);
+        g.endFill();
+        g.beginFill(PALETTE.shadowCast, 0.14);
+        g.drawRoundedRect(-hsX * 0.7, -hsY * 0.95, hsX * 1.75, hsY * 1.95, 45);
+        g.endFill();
+        g.beginFill(PALETTE.shadowCast, 0.2);
+        g.drawRoundedRect(-hsX * 0.88, -hsY * 1.04, hsX * 1.76, hsY * 1.98, 40);
+        g.endFill();
+        for (let i = 0; i < 9; i++) {
+            const left = i % 2 === 0;
+            const y = -hsY * 0.8 + this.hash(i) * hsY * 1.7;
+            g.beginFill(left ? 0xf0d49c : 0xc9a060, 0.75);
+            g.drawEllipse((left ? -1 : 1) * hsX * (0.9 + this.hash(i + 9) * 0.1), y, 9 + this.hash(i + 3) * 8, 18 + this.hash(i + 5) * 14);
+            g.endFill();
+        }
+        const baked = bakeToSprite(g, `sphinx_v2_shadow:${this.sizeX}x${this.sizeY}:${this.seed}`);
+        if (baked) { this.gfxStatic.addChild(baked); g.destroy(); }
+        else this.gfxStatic.addChild(g);
+    }
+
+    /**
+     * Korpus lwa z gory, glowa na N: tulow z warstwami wapienia (jak prawdziwy sfinks),
+     * grzbiet w sloncu, zady, wyciagniete lapy z palcami, Stela Snu miedzy lapami, ogon.
+     */
+    private drawBodyV2(g: PIXI.Graphics): void {
+        const hsX = this.sizeX / 2;
+        const hsY = this.sizeY / 2;
+        const bx = hsX * 0.8, top = -hsY * 0.3, bot = hsY * 0.85;
+
+        // Lapy (pod tulowiem w kolejnosci rysowania)
+        for (const sx of [-1, 1]) {
+            const x0 = sx < 0 ? -hsX * 0.8 : hsX * 0.38;
+            const pw = hsX * 0.42;
+            const y0 = -hsY * 1.02, ph = hsY * 0.85;
+            g.beginFill(PALETTE.stoneDark);
+            g.drawRoundedRect(x0 + 3, y0 + 3, pw, ph, 14);
+            g.endFill();
+            g.beginFill(PALETTE.stoneBase);
+            g.drawRoundedRect(x0, y0, pw, ph, 14);
+            g.endFill();
+            g.beginFill(PALETTE.stoneLight, 0.55);
+            g.drawRoundedRect(x0 + 3, y0 + 3, pw * 0.4, ph - 10, 10);
+            g.endFill();
+            g.beginFill(PALETTE.stoneDark, 0.5);
+            g.drawRoundedRect(x0 + pw * 0.7, y0 + 6, pw * 0.26, ph - 12, 8);
+            g.endFill();
+            // Palce
+            for (let c = 0; c < 4; c++) {
+                const cx = x0 + pw * (0.14 + c * 0.24);
+                g.beginFill(PALETTE.stoneDark);
+                g.drawEllipse(cx + 1, y0 + 6, pw * 0.1, 6);
+                g.endFill();
+                g.beginFill(PALETTE.stoneLight);
+                g.drawEllipse(cx, y0 + 5, pw * 0.09, 5);
+                g.endFill();
+            }
+            // Poziome warstwy na lapie
+            g.lineStyle(1, PALETTE.stoneDeep, 0.35);
+            for (let k = 1; k < 5; k++) {
+                g.moveTo(x0 + 4, y0 + ph * k / 5);
+                g.lineTo(x0 + pw - 4, y0 + ph * k / 5);
+            }
+            g.lineStyle(0);
+        }
+
+        // Cien miedzy lapami + Stela Snu Totmesa IV
+        g.beginFill(PALETTE.stoneDeep, 0.45);
+        g.drawRect(-hsX * 0.38, -hsY * 0.98, hsX * 0.76, hsY * 0.7);
+        g.endFill();
+        const stW = hsX * 0.34, stH = hsY * 0.12, stY = -hsY * 0.96;
+        g.beginFill(0x000000, 0.3);
+        g.drawRoundedRect(-stW / 2 + 3, stY + 3, stW, stH, 8);
+        g.endFill();
+        g.beginFill(0xa88478);
+        g.drawRoundedRect(-stW / 2, stY, stW, stH, 8);
+        g.endFill();
+        g.beginFill(0x5a3a30, 0.8);
+        for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+            g.drawRect(-stW / 2 + 6 + c * (stW - 12) / 4, stY + 7 + r * 6, 3, 3);
+        }
+        g.endFill();
+
+        // Tulow: bok ciemny, grzbiet jasny
+        g.beginFill(PALETTE.stoneDark);
+        g.drawRoundedRect(-bx + 4, top + 4, bx * 2, bot - top, 44);
+        g.endFill();
+        g.beginFill(PALETTE.stoneBase);
+        g.drawRoundedRect(-bx, top, bx * 2, bot - top, 44);
+        g.endFill();
+        g.beginFill(PALETTE.stoneDark, 0.45);
+        g.drawRoundedRect(bx * 0.35, top + 10, bx * 0.62, bot - top - 20, 30);
+        g.endFill();
+        g.beginFill(PALETTE.stoneLight, 0.6);
+        g.drawRoundedRect(-bx * 0.92, top + 8, bx * 0.8, bot - top - 16, 34);
+        g.endFill();
+        // Zady
+        for (const sx of [-1, 1]) {
+            g.beginFill(sx < 0 ? PALETTE.stoneLight : PALETTE.stoneDark, 0.55);
+            g.drawEllipse(sx * bx * 0.62, bot - hsY * 0.28, bx * 0.38, hsY * 0.24);
+            g.endFill();
+        }
+        // Warstwy wapienia (faliste pasy jasny/ciemny)
+        for (let i = 0; i < 9; i++) {
+            const y = top + 22 + i * (bot - top - 30) / 9;
+            const w = 3 + this.hash(i) * 3;
+            g.lineStyle(w, i % 2 === 0 ? PALETTE.stoneDeep : 0xffffff, i % 2 === 0 ? 0.22 : 0.12);
+            g.moveTo(-bx + 10, y);
+            g.bezierCurveTo(-bx * 0.3, y + 5 * this.hash(i + 3), bx * 0.3, y - 5 * this.hash(i + 4), bx - 10, y + 2);
+        }
+        // Grzbiet
+        g.lineStyle(4, 0xfff0cc, 0.45);
+        g.moveTo(-3, top + 30);
+        g.lineTo(-3, bot - 30);
+        g.lineStyle(2, PALETTE.stoneDeep, 0.3);
+        g.moveTo(2, top + 30);
+        g.lineTo(2, bot - 30);
+        // Ogon wzdluz prawego boku
+        g.lineStyle(8, PALETTE.stoneDark);
+        g.moveTo(bx * 0.55, bot - 12);
+        g.bezierCurveTo(bx * 1.05, bot - 20, bx * 1.02, bot - hsY * 0.45, bx * 0.9, bot - hsY * 0.7);
+        g.lineStyle(4, PALETTE.stoneLight, 0.6);
+        g.moveTo(bx * 0.55, bot - 14);
+        g.bezierCurveTo(bx * 1.0, bot - 22, bx * 0.98, bot - hsY * 0.45, bx * 0.87, bot - hsY * 0.7);
+        g.lineStyle(0);
+        g.beginFill(PALETTE.stoneDeep);
+        g.drawCircle(bx * 0.9, bot - hsY * 0.7, 6);
+        g.endFill();
+        // Ubytki erozji
+        g.beginFill(PALETTE.stoneDeep, 0.35);
+        for (let i = 0; i < 10; i++) {
+            g.drawEllipse(-bx * 0.8 + this.hash(i + 50) * bx * 1.6, top + 20 + this.hash(i + 60) * (bot - top - 40), 2 + this.hash(i + 70) * 4, 1.5 + this.hash(i + 80) * 2);
+        }
+        g.endFill();
+    }
+
+    /**
+     * Glowa: nemes w zlote/niebieskie pasy z opadajacymi klapami, twarz z odlupanym
+     * nosem (historycznie), ureusz na czole. Geometria twarzy = legacy, wiec oczy
+     * z `drawFaceAnim` trafiaja w to samo miejsce.
+     */
+    private drawHeadV2(g: PIXI.Graphics): void {
+        const hsY = this.sizeY / 2;
+        const headY = -hsY * 0.55;
+        const headW = this.sizeX * 0.85;
+        const headH = this.sizeX * 0.7;
+        const nTopY = headY - headH * 0.72;
+        const nTopW = headW * 1.15;
+        const lapY = headY + headH * 0.95;
+        const lapW = headW * 1.05;
+
+        // Cien glowy na korpusie
+        g.beginFill(0x000000, 0.28);
+        g.drawPolygon([-nTopW / 2 + 8, nTopY + 8, nTopW / 2 + 8, nTopY + 8, lapW / 2 + 8, lapY + 8, -lapW / 2 + 8, lapY + 8]);
+        g.endFill();
+        // Nemes: podstawa zlota
+        const nemes = [-nTopW / 2, nTopY, nTopW / 2, nTopY, lapW / 2, lapY, -lapW / 2, lapY];
+        g.beginFill(PALETTE.nemesGold);
+        g.drawPolygon(nemes);
+        g.endFill();
+        // Pasy pionowe (jak na nemes Tutanchamona)
+        const stripes = 9;
+        for (let i = 0; i < stripes; i++) {
+            if (i % 2 === 0) continue;
+            const u0 = i / stripes, u1 = (i + 1) / stripes;
+            const X = (w: number, u: number) => -w / 2 + w * u;
+            g.beginFill(PALETTE.nemesBlue);
+            g.drawPolygon([X(nTopW, u0), nTopY, X(nTopW, u1), nTopY, X(lapW, u1), lapY, X(lapW, u0), lapY]);
+            g.endFill();
+        }
+        // Wytarcie farby (erozja) + cieniowanie SE / swiatlo NW
+        g.beginFill(PALETTE.stoneBase, 0.5);
+        for (let i = 0; i < 6; i++) {
+            g.drawEllipse(-nTopW * 0.4 + this.hash(i + 90) * nTopW * 0.8, nTopY + this.hash(i + 95) * (lapY - nTopY), 5 + this.hash(i) * 7, 3 + this.hash(i + 1) * 4);
+        }
+        g.endFill();
+        g.beginFill(0x000000, 0.22);
+        g.drawPolygon([nTopW * 0.15, nTopY, nTopW / 2, nTopY, lapW / 2, lapY, lapW * 0.15, lapY]);
+        g.endFill();
+        g.beginFill(0xffffff, 0.16);
+        g.drawPolygon([-nTopW / 2, nTopY, -nTopW * 0.2, nTopY, -lapW * 0.2, lapY, -lapW / 2, lapY]);
+        g.endFill();
+        g.lineStyle(2, PALETTE.stoneDeep, 0.5);
+        g.drawPolygon(nemes);
+        g.lineStyle(0);
+
+        // Twarz
+        g.beginFill(PALETTE.stoneDark);
+        g.drawEllipse(3, headY + 3, headW / 2 * 0.72, headH / 2);
+        g.endFill();
+        g.beginFill(PALETTE.stoneBase);
+        g.drawEllipse(0, headY, headW / 2 * 0.72, headH / 2);
+        g.endFill();
+        g.beginFill(PALETTE.stoneLight, 0.55);
+        g.drawEllipse(-headW * 0.1, headY - headH * 0.12, headW * 0.2, headH * 0.26);
+        g.endFill();
+        // Brwi
+        g.lineStyle(2, PALETTE.stoneDeep, 0.6);
+        g.moveTo(-headW * 0.26, headY - headH * 0.2); g.lineTo(-headW * 0.1, headY - headH * 0.22);
+        g.moveTo(headW * 0.1, headY - headH * 0.22); g.lineTo(headW * 0.26, headY - headH * 0.2);
+        g.lineStyle(0);
+        // Odlupany nos — ciemna wyrwa
+        g.beginFill(PALETTE.stoneDeep, 0.75);
+        g.drawPolygon([-5, headY + 1, 6, headY - 1, 4, headY + headH * 0.2, -3, headY + headH * 0.18]);
+        g.endFill();
+        g.beginFill(PALETTE.stoneLight, 0.6);
+        g.drawPolygon([-5, headY + 1, -2, headY, -3, headY + headH * 0.16]);
+        g.endFill();
+        // Usta
+        g.lineStyle(1.6, PALETTE.stoneDeep, 0.7);
+        g.moveTo(-headW * 0.12, headY + headH * 0.29);
+        g.quadraticCurveTo(0, headY + headH * 0.33, headW * 0.12, headY + headH * 0.29);
+        g.lineStyle(0);
+        // Ureusz (kobra) na czole
+        const uy = headY - headH * 0.44;
+        g.beginFill(0x8a6010);
+        g.drawEllipse(1, uy + 1, 6, 9);
+        g.endFill();
+        g.beginFill(PALETTE.nemesGold);
+        g.drawEllipse(0, uy, 5.5, 8.5);
+        g.endFill();
+        g.beginFill(0xfff0a0, 0.8);
+        g.drawEllipse(-1.5, uy - 3, 2, 3);
+        g.endFill();
+    }
+
     /**
      * Per-frame redraw: parallax positions + eye glow/blink animation.
      */
@@ -418,11 +685,11 @@ export class Sphinx implements ICollidable {
         const dx = this.visualX - cameraCenterX;
         const dy = this.visualY - cameraCenterY;
         
-        this.gfxBody.x = -dx * Sphinx.BODY_PARALLAX;
-        this.gfxBody.y = -dy * Sphinx.BODY_PARALLAX;
+        this.gfxBody.x = -dx * (this.artV2 ? Sphinx.BODY_PARALLAX_V2 : Sphinx.BODY_PARALLAX);
+        this.gfxBody.y = -dy * (this.artV2 ? Sphinx.BODY_PARALLAX_V2 : Sphinx.BODY_PARALLAX);
         
-        this.gfxHead.x = -dx * Sphinx.HEAD_PARALLAX;
-        this.gfxHead.y = -dy * Sphinx.HEAD_PARALLAX;
+        this.gfxHead.x = -dx * (this.artV2 ? Sphinx.HEAD_PARALLAX_V2 : Sphinx.HEAD_PARALLAX);
+        this.gfxHead.y = -dy * (this.artV2 ? Sphinx.HEAD_PARALLAX_V2 : Sphinx.HEAD_PARALLAX);
         
         // Animacja oczu (blink + glow)
         this.drawFaceAnim(time);

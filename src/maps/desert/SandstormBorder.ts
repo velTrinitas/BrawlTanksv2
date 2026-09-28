@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { isPointInView, CULL_MARGIN } from '../cullGate';
 import type { ICollidable } from '../../types/MapType';
+import { bakeToSprite } from '../propBaker';
 
 /**
  * SandstormBorder — delikatne beżowo-brązowe zadymki piaskowe na krawędziach mapy.
@@ -51,17 +52,24 @@ export class SandstormBorder {
     private collisionRects: ICollidable[];
     
     private static _particleTexture: PIXI.Texture | null = null;
-    
+    private artV2: boolean;
+    private static readonly EDGE_V2 = 28;
+    /** DESERT ART v2 — kopulki wydm per krawedz (animowane tylko krawedzie w kadrze). */
+    private dunes: { spr: PIXI.Sprite; base: number; ph: number }[][] = [[], [], [], []];
+    private duneStep = 0;
+
     constructor(
         worldW: number,
         worldH: number,
         worldContainer: PIXI.Container,
+        artV2: boolean = false,   // DESERT ART v2 — wal wydm na linii kolizji
     ) {
+        this.artV2 = artV2;
         this.worldW = worldW;
         this.worldH = worldH;
         // v0.18.0-fix2: 70% mniej (z 90/180 → 30/55) — delikatne zadymki, nie ściana
         this.outerWidth = 30;
-        this.innerWidth = 55;
+        this.innerWidth = artV2 ? 34 : 55; // DESERT ART v2: wezsze obrzeze (uwaga Mariusza)
         
         this.container = new PIXI.Container();
         this.container.zIndex = 250;
@@ -97,7 +105,8 @@ export class SandstormBorder {
         const H = this.worldH;
         const OUTER = this.outerWidth;
         // v0.18.0-fix2: zachowane player visual edge ~10 px od brzegu (math: 40 + 20 radius - 50 tank half = 10)
-        const COLLISION_INNER_EDGE = 40;
+        // DESERT ART v2: 28 zamiast 40 (obrzeze zabieralo za duzo mapy); wal wydm konczy sie tu.
+        const COLLISION_INNER_EDGE = this.artV2 ? SandstormBorder.EDGE_V2 : 40;
         
         return [
             { x: 0, y: -OUTER, w: W, h: OUTER + COLLISION_INNER_EDGE, update: () => {} },           // TOP
@@ -235,8 +244,90 @@ export class SandstormBorder {
         drawGradientBand(0, H - I, W, I, 4, 0.0, 0.25, PALETTE.hazeLight);    // BOTTOM
         drawGradientBand(0, 0, I, H, 4, 0.25, 0.0, PALETTE.hazeLight);        // LEFT
         drawGradientBand(W - I, 0, I, H, 4, 0.0, 0.25, PALETTE.hazeLight);    // RIGHT
+
+        if (this.artV2) this.drawDuneWallV2();
     }
-    
+
+    /**
+     * DESERT ART v2 — CZYTELNOSC: wal wydm konczy sie DOKLADNIE na wewnetrznej krawedzi
+     * kolizji (EDGE_V2 = 28), wiec gracz widzi sciane tam, gdzie sie zatrzyma.
+     * Kopulki = pieczone sprite'y fake-3D (3 warianty: cien u podnoza, bryla z warstwami,
+     * grzbiet w sloncu NW, zmarszczki wiatru). Animacja (oddech skali) TYLKO dla krawedzi
+     * w kadrze — ~40 transformow na klatke, zero rysowania.
+     */
+    private drawDuneWallV2(): void {
+        const W = this.worldW;
+        const H = this.worldH;
+        const EDGE = SandstormBorder.EDGE_V2;
+        const R = 19;
+        const STEP = 26;
+        const h = (i: number) => { const v = Math.sin(i * 12.9898) * 43758.5453; return v - Math.floor(v); };
+        const tex = [0, 1, 2].map(v => SandstormBorder.duneTexture(v));
+        const edges: { len: number; at: (s: number) => [number, number]; nx: number; ny: number }[] = [
+            { len: W, at: s => [s, 0], nx: 0, ny: 1 },
+            { len: W, at: s => [s, H], nx: 0, ny: -1 },
+            { len: H, at: s => [0, s], nx: 1, ny: 0 },
+            { len: H, at: s => [W, s], nx: -1, ny: 0 },
+        ];
+        let k = 0;
+        edges.forEach((e, ei) => {
+            for (let s = 0; s <= e.len; s += STEP) {
+                const t = tex[k % 3];
+                const r = R * (0.85 + h(k) * 0.3);
+                k++;
+                if (!t) continue;
+                const [bx, by] = e.at(s);
+                const spr = new PIXI.Sprite(t);
+                spr.anchor.set(0.5);
+                // srodek tak, zeby kopulka siegala dokladnie EDGE w glab mapy
+                spr.x = bx + e.nx * (EDGE - r);
+                spr.y = by + e.ny * (EDGE - r);
+                const base = r / 20;                     // tekstura pieczona dla r = 20
+                spr.scale.set(base);
+                this.gfxStaticOverlay.addChild(spr);
+                this.dunes[ei].push({ spr, base, ph: h(k + 99) * Math.PI * 2 });
+            }
+        });
+    }
+
+    private static _duneTex: (PIXI.Texture | null)[] = [null, null, null];
+    /** Kopulka wydmy r = 20: cien u podnoza, warstwy piasku, grzbiet w sloncu, zmarszczki. */
+    private static duneTexture(v: number): PIXI.Texture | null {
+        const hit = SandstormBorder._duneTex[v];
+        if (hit && !hit.destroyed) return hit;
+        const g = new PIXI.Graphics();
+        const r = 20;
+        g.beginFill(0x6a4a24, 0.35); g.drawEllipse(3, 5, r + 1, r * 0.9); g.endFill();          // cien
+        g.beginFill(0xb08448); g.drawCircle(0, 0, r); g.endFill();                                // bok w cieniu
+        g.beginFill(0xc89c5e); g.drawCircle(-1.5, -1.5, r * 0.88); g.endFill();                   // bryla
+        g.beginFill(0xdcb474); g.drawCircle(-3.5, -3.5, r * 0.68); g.endFill();                   // warstwa
+        g.beginFill(0xf0d49a); g.drawCircle(-5.5, -6, r * 0.42); g.endFill();                     // grzbiet NW
+        g.beginFill(0xfff0c8, 0.8); g.drawEllipse(-7, -8.5, r * 0.2, r * 0.12); g.endFill();      // blik
+        g.lineStyle(1, 0x9a7240, 0.45);                                                            // zmarszczki wiatru
+        for (let i = 0; i < 3; i++) {
+            const y = -2 + i * 5 + v;
+            g.moveTo(-r * 0.6, y); g.quadraticCurveTo(0, y + 2 + (v % 2), r * 0.6, y - 1);
+        }
+        g.lineStyle(0);
+        const spr = bakeToSprite(g, 'dune_v2:' + v);
+        g.destroy();
+        SandstormBorder._duneTex[v] = spr ? spr.texture : null;
+        return SandstormBorder._duneTex[v];
+    }
+
+    /** Lekka animacja kopulek (oddech): tylko krawedzie widoczne w kadrze. */
+    private animateDunes(see: boolean[]): void {
+        this.duneStep++;
+        const t = this.duneStep * 0.03;
+        for (let e = 0; e < 4; e++) {
+            if (!see[e]) continue;
+            for (const d of this.dunes[e]) {
+                const b = Math.sin(t + d.ph);
+                d.spr.scale.set(d.base * (1 + b * 0.03), d.base * (1 + b * 0.06));
+            }
+        }
+    }
+
     public update(camX?: number, camY?: number, viewW?: number, viewH?: number): void {
         const time = Date.now();
         const cull = camX !== undefined && camY !== undefined && viewW !== undefined && viewH !== undefined;
@@ -293,6 +384,7 @@ export class SandstormBorder {
             ga.lineTo(x, y + 15);
         }
         ga.lineStyle(0);
+        if (this.artV2) this.animateDunes([seeTop, seeBottom, seeLeft, seeRight]);
         
         // Update particles (swirl + drift + opacity pulse)
         for (const p of this.particles) {

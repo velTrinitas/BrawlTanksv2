@@ -59,11 +59,18 @@ export class Caravan {
     }[] = [];
     private totalPathLength: number = 0;
     
-    constructor(worldContainer: PIXI.Container) {
+    /** DESERT ART v2 / E3 — zamknieta petla zamiast ping-ponga (null = legacy). */
+    private loop: boolean;
+    private path: { x: number; y: number }[];
+
+    constructor(worldContainer: PIXI.Container, loopRoute?: { x: number; y: number }[]) {
+        this.loop = !!loopRoute && loopRoute.length > 2;
+        // Petla: ostatni punkt domyka sie do pierwszego (odcinek powrotny dopisany tutaj).
+        this.path = this.loop ? [...loopRoute!, loopRoute![0]] : DESERT_CARAVAN_PATH;
         let cumulative = 0;
-        for (let i = 0; i < DESERT_CARAVAN_PATH.length - 1; i++) {
-            const start = DESERT_CARAVAN_PATH[i];
-            const end = DESERT_CARAVAN_PATH[i + 1];
+        for (let i = 0; i < this.path.length - 1; i++) {
+            const start = this.path[i];
+            const end = this.path[i + 1];
             const length = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2);
             this.pathSegments.push({
                 startX: start.x, startY: start.y,
@@ -402,10 +409,10 @@ export class Caravan {
     private getPathPosition(progress: number): { x: number, y: number, angle: number } {
         if (this.totalPathLength === 0) return { x: 0, y: 0, angle: 0 };
         
-        const period = 2 * this.totalPathLength;
+        const period = this.loop ? this.totalPathLength : 2 * this.totalPathLength;
         let p = ((progress % period) + period) % period;
-        
-        const isReturning = p > this.totalPathLength;
+
+        const isReturning = !this.loop && p > this.totalPathLength;
         if (isReturning) p = period - p;
         
         for (const seg of this.pathSegments) {
@@ -422,7 +429,7 @@ export class Caravan {
                 return { x, y, angle };
             }
         }
-        const last = DESERT_CARAVAN_PATH[DESERT_CARAVAN_PATH.length - 1];
+        const last = this.path[this.path.length - 1];
         return { x: last.x, y: last.y, angle: 0 };
     }
     

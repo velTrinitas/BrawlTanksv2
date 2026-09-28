@@ -1,5 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { isPointInView } from '../cullGate';
+import { bakeToSprite } from '../propBaker';
+import { makePalmSprite } from './PalmBaker';
 
 /**
  * v0.18.3 FAZA 4c — OASIS STEALTH ZONE
@@ -27,13 +29,16 @@ export class Oasis {
     private pondRX: number;
     private pondRY: number;
     private rippleTime: number = 0;
-    
+    private artV2: boolean;
+
     constructor(
         x: number, y: number,
         rX: number, rY: number,
         seed: number,
         worldContainer: PIXI.Container,
+        artV2: boolean = false,   // DESERT ART v2 — nowy staw i grunt, ta sama strefa stealth
     ) {
+        this.artV2 = artV2;
         this.visualX = x;
         this.visualY = y;
         this.rX = rX;
@@ -54,13 +59,17 @@ export class Oasis {
         
         const rng = makeRng(seed);
         
-        // Layer 1: zielony grunt (3 nested ellipses dla soft edge)
-        this.drawGroundPatch();
-        
-        // Layer 2: pond
+        // Layer 2: pond (v2: pusty — grunt + staw pieczone razem w drawBaseV2)
         this.pondGfx = new PIXI.Graphics();
         this.pondGfx.zIndex = 2;
-        this.drawPond();
+
+        if (this.artV2) {
+            this.drawBaseV2(seed);
+        } else {
+            // Layer 1: zielony grunt (3 nested ellipses dla soft edge)
+            this.drawGroundPatch();
+            this.drawPond();
+        }
         this.baseContainer.addChild(this.pondGfx);
         
         // Layer 3: ripples (animowane, expanding concentric circles)
@@ -79,6 +88,102 @@ export class Oasis {
         this.drawPalmTrees(rng, worldContainer);
     }
     
+    /**
+     * DESERT ART v2 — grunt + staw w JEDNYM pieczonym sprite'cie.
+     * CZYTELNOSC: granica strefy stealth (elipsa rX/rY) ma wyrazny obrys z kep trawy —
+     * gracz widzi, gdzie zaczyna sie ukrycie. Staw: blotnisty brzeg, kamienie, gradient
+     * glebokosci, pas odbicia nieba, blik slonca od NW, sitowie przy brzegu.
+     */
+    private drawBaseV2(seed: number): void {
+        const g = new PIXI.Graphics();
+        const rng = makeRng(seed * 7 + 3);
+        const { rX, rY, pondRX: pX, pondRY: pY } = this;
+
+        // Grunt: miekkie pierscienie zieleni
+        const rings = [
+            { m: 1.0, c: 0xb4c67a, a: 0.45 },
+            { m: 0.9, c: 0x9cba5e, a: 0.5 },
+            { m: 0.76, c: 0x82aa46, a: 0.6 },
+            { m: 0.6, c: 0x6a9a36, a: 0.7 },
+        ];
+        for (const r of rings) {
+            g.beginFill(r.c, r.a);
+            g.drawEllipse(0, 0, rX * r.m, rY * r.m);
+            g.endFill();
+        }
+        // Obrys strefy: kepki trawy na samej granicy elipsy
+        for (let i = 0; i < 34; i++) {
+            const a = (i / 34) * Math.PI * 2 + rng() * 0.1;
+            const tx = Math.cos(a) * rX * 0.97, ty = Math.sin(a) * rY * 0.97;
+            g.lineStyle(2, i % 2 ? 0x5a8a2e : 0x7aaa3e, 0.95);
+            for (let b = -1; b <= 1; b++) {
+                g.moveTo(tx, ty);
+                g.lineTo(tx + b * 3, ty - 6 - rng() * 4);
+            }
+        }
+        g.lineStyle(0);
+        // Cien palm/brzegu (SE) na trawie
+        g.beginFill(0x000000, 0.1);
+        g.drawEllipse(pX * 0.35, pY * 0.4, pX * 1.3, pY * 1.25);
+        g.endFill();
+
+        // Bloto brzegu
+        g.beginFill(0x5a4a26, 0.85);
+        g.drawEllipse(0, 0, pX * 1.22, pY * 1.22);
+        g.endFill();
+        g.beginFill(0x7a6634, 0.9);
+        g.drawEllipse(-2, -2, pX * 1.12, pY * 1.12);
+        g.endFill();
+        // Woda — gradient glebokosci
+        const water = [0x5cc4c8, 0x3aa6c0, 0x2488b0, 0x186a98, 0x125482];
+        water.forEach((c, i) => {
+            const m = 1 - i * 0.18;
+            g.beginFill(c);
+            g.drawEllipse(i * 1.5, i * 1.5, pX * m, pY * m);
+            g.endFill();
+        });
+        // Pas odbicia nieba przy brzegu NW
+        g.lineStyle(3, 0xc8f0ff, 0.45);
+        g.arc(0, 0, Math.min(pX, pY) * 0.86, Math.PI * 1.05, Math.PI * 1.55);
+        g.lineStyle(0);
+        // Blik slonca
+        g.beginFill(0xffffff, 0.5);
+        g.drawEllipse(-pX * 0.35, -pY * 0.4, pX * 0.2, pY * 0.1);
+        g.endFill();
+        // Kamienie na brzegu
+        for (let i = 0; i < 9; i++) {
+            const a = rng() * Math.PI * 2;
+            const sx = Math.cos(a) * pX * 1.14, sy = Math.sin(a) * pY * 1.14;
+            const s = 3 + rng() * 4;
+            g.beginFill(0x000000, 0.25);
+            g.drawEllipse(sx + 1.5, sy + 1.5, s, s * 0.7);
+            g.endFill();
+            g.beginFill(0xb8a47c);
+            g.drawEllipse(sx, sy, s, s * 0.7);
+            g.endFill();
+            g.beginFill(0xe0d0a8, 0.8);
+            g.drawEllipse(sx - s * 0.3, sy - s * 0.3, s * 0.4, s * 0.25);
+            g.endFill();
+        }
+        // Sitowie przy brzegu (luki)
+        for (let i = 0; i < 6; i++) {
+            const a = rng() * Math.PI * 2;
+            const bx = Math.cos(a) * pX * 1.05, by = Math.sin(a) * pY * 1.05;
+            for (let b = 0; b < 5; b++) {
+                g.lineStyle(1.8, b % 2 ? 0x3e6a24 : 0x6c9a36, 1);
+                g.moveTo(bx + (b - 2) * 2, by);
+                g.quadraticCurveTo(bx + (b - 2) * 3, by - 8, bx + (b - 2) * 4.5, by - 13 - rng() * 4);
+            }
+        }
+        g.lineStyle(0);
+
+        const baked = bakeToSprite(g, `oasis_v2:${rX}x${rY}:${seed}`);
+        const node: PIXI.DisplayObject = baked ?? g;
+        node.zIndex = 1;
+        this.baseContainer.addChild(node);
+        if (baked) g.destroy();
+    }
+
     private drawGroundPatch(): void {
         const ground = new PIXI.Graphics();
         ground.zIndex = 1;
@@ -208,8 +313,9 @@ export class Oasis {
     }
     
     private drawPalmTrees(rng: () => number, worldContainer: PIXI.Container): void {
-        const palmCount = 4 + Math.floor(rng() * 2); // 4-5 palm
-        
+        // DESERT ART v2: +2 palmy (uwaga Mariusza) => 6-7; legacy 4-5
+        const palmCount = 4 + Math.floor(rng() * 2) + (this.artV2 ? 2 : 0);
+
         for (let i = 0; i < palmCount; i++) {
             // Equally spaced angles with jitter, omijają górę (powyżej -PI/2 wokół -PI/2 luka)
             const baseAngle = (i / palmCount) * Math.PI * 2;
@@ -220,7 +326,7 @@ export class Oasis {
             const palmLocalX = Math.cos(angle) * this.rX * distMul;
             const palmLocalY = Math.sin(angle) * this.rY * distMul;
             
-            const palmContainer = this.buildPalmTree(rng);
+            const palmContainer = this.artV2 ? this.buildPalmTreeV2(rng, i) : this.buildPalmTree(rng);
             palmContainer.x = this.visualX + palmLocalX;
             palmContainer.y = this.visualY + palmLocalY;
             // Y-sort z tankami: palm base Y = zIndex
@@ -229,6 +335,19 @@ export class Oasis {
         }
     }
     
+    /**
+     * DESERT ART v2 — palma daktylowa pieczona w Canvas 2D (PalmBaker: gradienty walca,
+     * pierzaste liscie, daktyle, cien korony na SE). 4 warianty wspoldzielone przez
+     * wszystkie oazy + lustrzane odbicie i skala = brak dwoch identycznych obok siebie.
+     */
+    private buildPalmTreeV2(rng: () => number, i: number): PIXI.Container {
+        const palm = new PIXI.Container();
+        const variant = (i + Math.floor(rng() * 4)) % 4;
+        const scale = (0.85 + rng() * 0.3) * 0.87;   // uwaga Mariusza: palmy nizsze o ~13%
+        palm.addChild(makePalmSprite(variant, scale, rng() < 0.5));
+        return palm;
+    }
+
     private buildPalmTree(rng: () => number): PIXI.Container {
         const palm = new PIXI.Container();
         
@@ -394,6 +513,12 @@ export class Oasis {
         }
     }
     
+    /** E5 — czy punkt jest w wodzie stawu (rozbryzg przy wjezdzie; tylko wizual). */
+    public isPointInPond(px: number, py: number): boolean {
+        const dx = px - this.visualX, dy = py - this.visualY;
+        return (dx * dx) / (this.pondRX * this.pondRX) + (dy * dy) / (this.pondRY * this.pondRY) <= 1;
+    }
+
     /**
      * Test elliptical containment: (dx/rX)² + (dy/rY)² ≤ 1.
      */

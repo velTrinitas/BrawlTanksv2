@@ -94,7 +94,8 @@ export class RiverNile {
     private activeRipples: Ripple[];
     
     private static _mistTexture: PIXI.Texture | null = null;
-    
+    private artV2: boolean;
+
     constructor(
         path: RiverPathPoint[],
         width: number,
@@ -102,7 +103,9 @@ export class RiverNile {
         bridgeDeckLength: number,
         bridgeDeckWidth: number,
         worldContainer: PIXI.Container,
+        artV2: boolean = false,   // DESERT ART v2 — nowa woda, ta sama kolizja
     ) {
+        this.artV2 = artV2;
         this.path = path;
         this.width = width;
         this.pathLength = this.computePathLength();
@@ -155,7 +158,81 @@ export class RiverNile {
         this.collisionSegments = this.buildCollisionSegments(bridgeSkipAreas);
         
         // Draw static water (25-layer smooth gradient + foam)
-        this.drawWaterBase();
+        if (this.artV2) this.drawWaterBaseV2();
+        else this.drawWaterBase();
+    }
+
+    /** DESERT ART v2 / E6 — punkt i kierunek nurtu w t (0..1) dla feluk. */
+    public sampleFlow(t: number): { x: number; y: number; dx: number; dy: number } {
+        const p = this.getPointAt(t);
+        const tg = this.getTangentAt(t);
+        return { x: p.x, y: p.y, dx: tg.x, dy: tg.y };
+    }
+
+    public getLength(): number {
+        return this.pathLength;
+    }
+
+    /**
+     * DESERT ART v2 — punkty na brzegach (co `step` px, po obu stronach), z pominieciem
+     * mostow. Dla NileFlora. `nx/ny` = normalna skierowana OD rzeki.
+     */
+    public getBankSamples(step: number): { x: number; y: number; nx: number; ny: number; i: number }[] {
+        const out: { x: number; y: number; nx: number; ny: number; i: number }[] = [];
+        const n = Math.floor(this.pathLength / step);
+        let idx = 0;
+        for (let k = 1; k < n; k++) {
+            const t = k / n;
+            const p = this.getPointAt(t);
+            const nearBridge = this.bridgeLayout.some(b => {
+                const r = b.deckLength / 2 + 40;
+                return (b.x - p.x) ** 2 + (b.y - p.y) ** 2 < r * r;
+            });
+            if (nearBridge) continue;
+            const tg = this.getTangentAt(t);
+            for (const side of [-1, 1]) {
+                out.push({ x: p.x, y: p.y, nx: -tg.y * side, ny: tg.x * side, i: idx++ });
+            }
+        }
+        return out;
+    }
+
+    /**
+     * DESERT ART v2 — woda z czytelnym brzegiem: pas mokrego piasku, ciemna linia brzegu,
+     * cienka piana (linia, NIE iskry — kropki na krawedzi czytaly sie jak znajdzki),
+     * gradient glebokosci plytko-turkus -> gleboki srodek. Zewnetrzna szerokosc wody
+     * = legacy (width + 60), wiec kolizja pokrywa sie z tym, co widac.
+     */
+    private drawWaterBaseV2(): void {
+        const g = this.gfxStatic;
+        const outer = this.width + 60;
+        this.drawPolylinePath(g, outer + 30, 0xc9a870, 0.35);   // wilgotny piasek (miekki)
+        this.drawPolylinePath(g, outer + 16, 0xb08e5c, 0.6);    // mokry piasek
+        this.drawPolylinePath(g, outer + 5, 0x6e5230, 0.85);    // linia brzegu
+        this.drawPolylinePath(g, outer, 0xe8f6f0, 0.8);         // piana
+
+        const stops = [
+            { t: 0.0, c: 0x7fd0c4 },
+            { t: 0.3, c: 0x46b0bc },
+            { t: 0.6, c: 0x2386a2 },
+            { t: 1.0, c: 0x135a78 },
+        ];
+        const lerpC = (t: number): number => {
+            let i = 0;
+            while (i < stops.length - 2 && t > stops[i + 1].t) i++;
+            const a = stops[i], b = stops[i + 1];
+            const k = (t - a.t) / (b.t - a.t);
+            const ch = (s: number) => Math.round(((a.c >> s) & 0xff) + ((((b.c >> s) & 0xff) - ((a.c >> s) & 0xff)) * k));
+            return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+        };
+        const layers = 16;
+        const inner = 18;
+        for (let i = 0; i < layers; i++) {
+            const t = i / (layers - 1);
+            const w = (outer - 5) + (inner - (outer - 5)) * t;
+            this.drawPolylinePath(g, w, lerpC(t), 1);
+        }
+        g.lineStyle(0);
     }
     
     public getCollisionSegments(): ICollidable[] {

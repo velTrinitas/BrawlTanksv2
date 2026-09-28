@@ -541,6 +541,7 @@ export class Bullet {
      * TANK ART v2 — efekty runtime pocisku per czolg (Mariusz, 2026-09-26). Wszystko lokalne/wizualne.
      *  plasma: 2 luki elektryczne (losowy wariant co 3 klatki) + glow; twardy super: glow;
      *  pyro: zywy ogien = jezyk ognia z puli co 3 (super 2) klatki + glow; shadow: jasnoszary glow + jasny dymek co 4 klatki;
+     *  heavy: dymek za beczka co 4 klatki; scout: NIC (bumerang v1, Mariusz 26.09);
      *  king super: 2 orbitujace iskry wokol korony. Koszt: <= 3 sprite'y ADD/pocisk + czastki z puli (cap 200).
      */
     private ensureFx(effects: EffectsManager, which: 'A' | 'B' | 'C', tex: PIXI.Texture): PIXI.Sprite {
@@ -574,9 +575,9 @@ export class Bullet {
                 s.alpha = 0.55 + Math.random() * 0.45;
             }
             if (this.fxT >= 3) this.fxT = 0;
-        } else if (id === 'scout') {
-            // Zwiad: wiekszy zoltawy dymek za beczka (co 4 klatki, z puli)
-            if (this.fxT >= 4) { this.fxT = 0; effects.spawnSoftPuff(this.x - this.vx * 0.6, this.y - this.vy * 0.6, 0xf2d778, sup ? 3.2 : 2.6); }
+        } else if (id === 'heavy') {
+            // Pancerny: fioletowawy dymek za beczka (co 4 klatki, z puli). Zwiad = bumerang v1, zero FX per pocisk.
+            if (this.fxT >= 4) { this.fxT = 0; effects.spawnSoftPuff(this.x - this.vx * 0.6, this.y - this.vy * 0.6, 0xc9a0f0, sup ? 3.2 : 2.6); }
         } else if (id === 'twardy' && sup) {
             const g = this.ensureFx(effects, 'A', getGlowTexture()); g.x = this.x; g.y = this.y; g.tint = this.superTrailColor; g.alpha = 0.65; g.scale.set(this.radius * 0.28);
         } else if (id === 'pyro') {

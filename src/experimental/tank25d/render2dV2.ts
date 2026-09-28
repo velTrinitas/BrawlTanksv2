@@ -901,41 +901,31 @@ export function getMuzzlePosV2(t, ang) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POCISKI v2 (bake: BulletSpriteBaker). Tylko czolgi, ktorym Mariusz zmienil LOOK pocisku:
-//   scout  = mala beczka z gradientem (fake 3D), heavy = masywniejszy krysztal, sniper = +2 px szerzej,
+//   heavy  = BECZKA (walec z obreczami, gradient fake 3D; Mariusz 26.09: beczka miala byc Pancernego,
+//   nie Zwiada — Zwiad wrocil do bumerangu v1 = lab drawBulletWithFx), sniper = +2 px szerzej,
 //   king   = korona z 3 zebami, zolta, glow, fake 3D. Reszta = dotychczasowy drawBulletWithFx.
 // Rysowane w prawo (vx=1); rotacja/spin w Bullet.ts. Efekty runtime (luki, ogien, orbitery) — Bullet.ts.
 // ─────────────────────────────────────────────────────────────────────────────
-export const BULLET_V2_IDS = ['scout', 'heavy', 'sniper', 'king'];
+export const BULLET_V2_IDS = ['heavy', 'sniper', 'king'];
 
 export function drawBulletV2(ctx, id, b, fallback) {
   const x = b.x, y = b.y, s = b.size, sup = !!b.isSuper;
-  if (id === 'scout') {
-    // BECZKA: walec z 2 obreczami, gradient gora->dol, blik; super = zlota obrecz + poswiata
-    const L = s * 1.7, R = s * 0.85;
-    if (sup) { const g = ctx.createRadialGradient(x, y, 0, x, y, R * 2.6); g.addColorStop(0, 'rgba(255,233,77,0.55)'); g.addColorStop(1, 'rgba(255,233,77,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R * 2.6, 0, Math.PI * 2); ctx.fill(); }
-    ctx.save(); ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRectPath(ctx, -L / 2 + 0.8, -R + 1.2, L, R * 2, R * 0.5); ctx.fill();
-    ctx.fillStyle = vgrad(ctx, 0, R * 2, sup ? '#c9a020' : '#a06a12'); roundRectPath(ctx, -L / 2, -R, L, R * 2, R * 0.5); ctx.fill();
-    ctx.strokeStyle = '#3a2408'; ctx.lineWidth = 1.1; ctx.stroke();
-    ctx.fillStyle = vgrad(ctx, 0, R * 2.2, sup ? '#ffe94d' : '#f1c40f');
-    [-L * 0.28, L * 0.28].forEach(bx => { roundRectPath(ctx, bx - 1.3, -R - 0.4, 2.6, R * 2 + 0.8, 0.8); ctx.fill(); ctx.strokeStyle = '#3a2408'; ctx.lineWidth = 0.7; ctx.stroke(); });
-    ctx.fillStyle = 'rgba(255,255,255,0.45)'; roundRectPath(ctx, -L / 2 + 2, -R * 0.75, L - 4, R * 0.35, R * 0.15); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(L / 2, 0, R * 0.32, R * 0.9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = sup ? '#ffe94d' : '#e8a91a'; ctx.beginPath(); ctx.ellipse(L / 2 + 0.3, 0, R * 0.2, R * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-    return;
-  }
   if (id === 'heavy') {
-    // MASYWNY KRYSZTAL: ten sam ksztalt co dzis, x1.35 + ciezki gradient + krawedz + glow
-    const S = s * 1.35 * 1.3; const col = sup ? ['#a020bf', '#7c0eaa', '#ffccff'] : ['#9b30d0', '#5e1a7a', '#d89bf0']; // +35% +30% (tylko look)
-    ctx.fillStyle = 'rgba(155,48,208,0.3)'; ctx.beginPath(); ctx.arc(x, y, S * 1.9, 0, Math.PI * 2); ctx.fill();
+    // BECZKA PANCERNEGO (Mariusz 26.09): ciezki stalowo-fioletowy walec z 2 obreczami, gradient gora->dol,
+    // blik, glow; super = jasniejszy fiolet + mocniejsza poswiata. heavy s=6 => ~20x10 px (jak dawna beczka Zwiada).
+    const L = s * 3.4, R = s * 1.6;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, R * 2.4);
+    glow.addColorStop(0, sup ? 'rgba(230,150,255,0.6)' : 'rgba(155,48,208,0.42)'); glow.addColorStop(1, 'rgba(155,48,208,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, R * 2.4, 0, Math.PI * 2); ctx.fill();
     ctx.save(); ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.moveTo(S * 1.7 + 0.8, 1.2); ctx.lineTo(0.8, S * 0.95 + 1.2); ctx.lineTo(-S * 1.2 + 0.8, 1.2); ctx.lineTo(0.8, -S * 0.95 + 1.2); ctx.closePath(); ctx.fill();
-    const g = ctx.createLinearGradient(0, -S, 0, S); g.addColorStop(0, lighten(col[0], 0.35)); g.addColorStop(0.5, col[0]); g.addColorStop(1, col[1]);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(S * 1.7, 0); ctx.lineTo(0, S * 0.95); ctx.lineTo(-S * 1.2, 0); ctx.lineTo(0, -S * 0.95); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = darken(col[1], 0.6); ctx.lineWidth = 1.2; ctx.stroke();
-    ctx.fillStyle = col[2]; ctx.beginPath(); ctx.moveTo(S * 1.2, 0); ctx.lineTo(0, -S * 0.55); ctx.lineTo(-S * 0.7, 0); ctx.lineTo(0, S * 0.25); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(S * 0.35, -S * 0.25, S * 0.35, S * 0.18, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; roundRectPath(ctx, -L / 2 + 0.8, -R + 1.4, L, R * 2, R * 0.5); ctx.fill();
+    ctx.fillStyle = vgrad(ctx, 0, R * 2, sup ? '#8a4dc8' : '#4a3a5e'); roundRectPath(ctx, -L / 2, -R, L, R * 2, R * 0.5); ctx.fill();
+    ctx.strokeStyle = '#1c1226'; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = vgrad(ctx, 0, R * 2.2, sup ? '#f0b0ff' : '#b56cf0');
+    [-L * 0.28, L * 0.28].forEach(bx => { roundRectPath(ctx, bx - 1.6, -R - 0.5, 3.2, R * 2 + 1, 0.9); ctx.fill(); ctx.strokeStyle = '#1c1226'; ctx.lineWidth = 0.8; ctx.stroke(); });
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'; roundRectPath(ctx, -L / 2 + 2.5, -R * 0.75, L - 5, R * 0.32, R * 0.15); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(L / 2, 0, R * 0.32, R * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = sup ? '#f0b0ff' : '#9b30d0'; ctx.beginPath(); ctx.ellipse(L / 2 + 0.3, 0, R * 0.2, R * 0.6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     return;
   }

@@ -30,7 +30,7 @@
  *   const { mode, rate } = BulletSpriteBaker.getSpin('twardy'); // 'dir' | 'spin' | 'none'
  */
 import * as PIXI from 'pixi.js';
-import { isTankArtV2 } from '../config/tankArtFlag'; // TANK ART v2: pociski v2 (scout/heavy/sniper/king)
+import { isTankArtV2 } from '../config/tankArtFlag'; // TANK ART v2: pociski v2 (heavy/sniper/king)
 
 // ── Bake config (single source of truth; tune here) ────────────────────────────
 // type/size 1:1 z render2d BRAWLERS bullet + fire.ts SUPER profiles & SUPER_TINTS.
@@ -104,11 +104,11 @@ class BulletSpriteBakerImpl {
 
     private async doBake(app: PIXI.Application, brawlerId: string): Promise<BakedBullet> {
         let cfg = CFG[brawlerId];
-        // TANK ART v2: masywniejszy krysztal Pancernego i korona Kinga potrzebuja wiekszego pudelka.
+        // TANK ART v2: beczka Pancernego i korona Kinga potrzebuja wiekszego pudelka.
+        // Zwiad: bumerang v1 (Mariusz 26.09: beczka miala byc Pancernego) — bez override, bit-for-bit z v1.
         if (cfg && isTankArtV2()) {
             if (brawlerId === 'heavy') cfg = { ...cfg, tex: 72, superTex: 128 };
             if (brawlerId === 'king') cfg = { ...cfg, tex: 64, superTex: 120 };
-            if (brawlerId === 'scout') cfg = { ...cfg, tex: 64, superTex: 100 };
         }
         if (!cfg) {
             throw new Error(`[BulletSpriteBaker] unknown brawler id: ${brawlerId}`);

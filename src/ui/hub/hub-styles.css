@@ -3683,3 +3683,10 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
     .bt-gr2-stage2 .bt-gr2-name { font-size: 28px; }
     .bt-gr2-slotsbox .bt-gr2-slotslabel { margin: 0 0 6px 2px; }
 }
+
+/* v0.216.0 — PORZADEK KART MOCY (Mariusz 26.09, zrzut 20260926_supermoce): karta ma `flex-wrap: wrap`
+   (pod dymek blokady na calej szerokosci), a `.pc-body` nie mial `flex: 1` + `min-width: 0`, wiec
+   dluzszy opis spychal cala tresc POD ikone; sasiednie karty w rzedzie dostawaly pusta przestrzen.
+   Teraz: ikona stala kolumna, tresc zawsze obok, dymek blokady nadal na dole na 100%. */
+.bt-hub0-powcard .pc-body { flex: 1 1 0; min-width: 0; }
+.bt-hub0-powcard .pc-nm, .bt-hub0-powcard .pc-desc { overflow-wrap: anywhere; }

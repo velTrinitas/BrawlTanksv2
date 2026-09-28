@@ -842,8 +842,10 @@ const _fpsParam = new URLSearchParams(window.location.search).get('fps');
 const _maxFps = _fpsParam !== null && !isNaN(parseInt(_fpsParam, 10)) ? parseInt(_fpsParam, 10) : (_prefersTouch ? 0 : 60);
 // F5 (ship-blocker gladkosc): ?smooth=1 = fixed 60Hz logika + interpolacja renderu. Domyslnie
 // odblokowuje render (maxFPS 0 = natywne odswiezanie panelu) — interpolacja potrzebuje klatek
-// render POMIEDZY krokami logiki. Domyslnie OFF = zero zmiany dla produkcji (A/B na A54).
-const SMOOTH_MODE = new URLSearchParams(window.location.search).get('smooth') === '1';
+// render POMIEDZY krokami logiki.
+// COOP S0 (v0.219.0): DOMYSLNIE ON — decyzja z raportu testow 01-23.09 (p50 desktop 59, A54 57 >= 55);
+// staly krok 60 Hz to fundament koopa LAN. Rollback bez deployu: ?smooth=0.
+const SMOOTH_MODE = new URLSearchParams(window.location.search).get('smooth') !== '0';
 app.ticker.maxFPS = SMOOTH_MODE && _fpsParam === null ? 0 : _maxFps;
 
 // === F5 harness diagnostyczny (kill-switche izolacji ship-blockera gladkosci) ===
@@ -4138,7 +4140,7 @@ app.ticker.add((rawDelta) => {
     // Petla splaca do SMOOTH_MAX_CATCHUP krokow dlugu czasu na klatke (fix "mega zrywa"
     // z playtestu 2026-09-04); dlug powyzej limitu jest ciety (tab-switch / spiral of death).
     // Klatka bez kroku = render-only: sama interpolacja world-scrolla + gracza.
-    // Domyslnie OFF (?smooth=1) — produkcja idzie sciezka runLogicStep(smoothedDelta) nizej.
+    // Domyslnie ON od v0.219.0 (rollback ?smooth=0 = stara sciezka runLogicStep(smoothedDelta) nizej).
     if (SMOOTH_MODE) {
         logicAccMs += app.ticker.elapsedMS;
         const maxDebt = LOGIC_STEP_MS * SMOOTH_MAX_CATCHUP;

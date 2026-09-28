@@ -37,8 +37,13 @@ export function isMultiplayerSandbox(): boolean {
  * Historia:
  *  1 — stan symulacji na koniec ETAPU 0 (v0.154.0): fixed-step OFF, seeded RNG
  *      (mulberry32, worldRng/ambientRng), DamageSource, resolveEnemyTarget.
+ *  (uzupelnione wstecz, COOP S0: miedzy 1 a 2 symulacje zmienily tez OBRON ZAMEK v0.162+,
+ *   SAVE THE QUEEN v0.174+, Strzelnica v0.209 i BALANCE_V2 v0.212 — bez bumpu w tamtym czasie;
+ *   wersja 2 obejmuje ich stan).
  *  2 — DESERT ART v2 na produkcji (v0.218.0): nowe kolizje Pustyni (piramidy/sfinks pad 30,
  *      katarakty, obrzeze 28, piaskowiec, zabytki zniszczalne, jeep), petla karawany,
  *      klatwa piramidy / Zemsta Ra (DamageSource curse_fog / ra_fire, CURSE_RULESET_ID).
+ *  3 — COOP S0 (v0.219.0): SMOOTH domyslnie ON — logika w stalych krokach 60 Hz
+ *      (runLogicStep(1) + catch-up do 3 krokow) zamiast zmiennej delty; rollback ?smooth=0.
  */
-export const SIM_VERSION = 2;
+export const SIM_VERSION = 3;

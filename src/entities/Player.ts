@@ -209,6 +209,8 @@ export class Player {
     private bakerActive: boolean = false;
     private _turretAngle: number = 0;
     get turretAngle(): number { return this._turretAngle; }
+    /** COOP LAN-3a: kierunek kadluba (migawka hosta). */
+    get moveAngle(): number { return this.lastMoveAngle; }
     get hullAngle(): number { return this.lastMoveAngle; }
 
     // FAZA P3 — juice state (bake mode only). Stale 1:1 z lab.ts.
@@ -831,6 +833,97 @@ export class Player {
     }
 
     /**
+     * COOP LAN-3a: czesc WIDOKOWA dawnego update() (1:1): juice, tekstury bake / rotacja flat,
+     * zIndex, flaga, tint, pancerz krytyczny. Solo wola ja z update(); gosc koopa z setPose().
+     */
+    private renderPose(delta: number, damageSmoke: DamageSmoke | null): void {
+        if (this.bakerActive) {
+            // FAZA P3 — juice: ewolucja stanu + transformy na container/turret (tylko bake).
+            this.updateJuice();
+
+            // kick (caly czolg) + pitch Z offset (nose up gdy pitch>0). render2d units *1.25.
+            this.container.x = this.x + this.kickX * BAKE_DISPLAY_SCALE;
+            this.container.y = this.y + (this.kickY - this.pitch * JUICE_PITCH_Z_UNITS) * BAKE_DISPLAY_SCALE;
+            // pitch tilt: lekka deformacja Y (±1.5% przy clamp, wiecej podczas taunt bounce).
+            this.container.scale.y = BAKE_DISPLAY_SCALE * (1 + this.pitch * JUICE_PITCH_TILT_K);
+
+            // TANK ART v2: faza gasienic (licznik klatek, tylko w ruchu).
+            if (this.artV2 && this.isMoving) {
+                this.treadPhaseT += delta;
+                if (this.treadPhaseT >= TREAD_PHASE_FRAMES) { this.treadPhaseT = 0; this.treadPhase++; }
+            }
+            // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
+            this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle, this.treadPhase);
+            this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
+            if (this.barrelFlash && this.barrelFlash.visible) {
+                this.barrelFlashT -= delta;
+                if (this.barrelFlashT <= 0) { this.barrelFlash.visible = false; }
+                else { this.barrelFlash.texture = this.turret.texture; this.barrelFlash.alpha = 0.7 * (this.barrelFlashT / BARREL_FLASH_FRAMES); }
+            }
+
+            // SKIN-2: puls skina — ta sama referencja tekstury co hull + sin-alpha.
+            if (this.skinPulseOverlay) {
+                this.skinPulseOverlay.texture = this.hull.texture;
+                this.skinPulseT += 1 / 60;
+                this.skinPulseOverlay.alpha = SKIN_PULSE_REDUCED
+                    ? 0.06
+                    : 0.05 + 0.09 * (0.5 + 0.5 * Math.sin(this.skinPulseT * 2.2));
+            }
+
+            // recoil: caly turret sprite cofa sie wzdluz -turretAngle (barrel wpieczony w teksture
+            // turret). Rozbieznosc vs lab (lab cofa tylko barrel) — czyta sie jako kopniecie.
+            this.turret.x = -Math.cos(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS;
+            this.turret.y = -Math.sin(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS * JUICE_CAMERA_TILT_Y;
+            if (this.barrelFlash) { this.barrelFlash.x = this.turret.x; this.barrelFlash.y = this.turret.y; }
+        } else {
+            // FLAT PATH — bit-for-bit jak dotad (zero juice).
+            this.container.x = this.x;
+            this.container.y = this.y;
+            this.turret.rotation = this._turretAngle;
+        }
+        // v0.186.0 CZYTELNOSC: +40 (bylo +19) => przy nachodzeniu gracz jest NAD wrogami (grunt +19,
+        // pursuit +24, boss +28, mega +35). Wczesniej mega boss 392 px potrafil calkiem zakryc czolg gracza.
+        this.container.zIndex = this.y + 40;
+
+        // Flag overlay — TYLKO w trybie flat (OFF). W trybie bake flaga jest wpieczona w teksture
+        // hull (drawHullTop), wiec overlay jest zgaszony (visible=false) i pomijamy obliczenia.
+        if (!this.bakerActive) {
+            this.flagGfx.x = -Math.cos(this.lastMoveAngle) * FLAG_POLE_DIST;
+            this.flagGfx.y = -Math.sin(this.lastMoveAngle) * FLAG_POLE_DIST;
+            this.flagGfx.rotation = this.lastMoveAngle;
+        }
+
+        if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
+        else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;
+        else this.hull.tint = 0xffffff;
+
+        // v0.187.0: MUSI byc PO powyzszym przypisaniu tintu. Pierwsza wersja liczyla to na poczatku
+        // `update()` i ta linijka kasowala czerwien co klatke — czolg zostawal zielony mimo 25% HP.
+        // Czerwien nakladamy TYLKO na szczycie uderzenia serca, wiec miedzy uderzeniami nadal widac
+        // tint super mocy / turbo (informacja o mocy nie ginie).
+        this.updateCriticalArmor(delta, damageSmoke);
+    }
+
+    /**
+     * COOP LAN-3a: poza czolgu z migawki hosta (u goscia) — zero ruchu, kolizji i wejscia.
+     * Flagi super/turbo przychodza z hosta (lokalne zegary mocy goscia nic o nich nie wiedza).
+     */
+    public setPose(x: number, y: number, moveAngle: number, turretAngle: number, hp: number, maxHp: number,
+                   moving: boolean, superShot: boolean, turbo: boolean): void {
+        this.x = x; this.y = y;
+        this.lastMoveAngle = moveAngle;
+        this._turretAngle = turretAngle;
+        this.isMoving = moving;
+        if (!this.bakerActive) this.hull.rotation = moveAngle;
+        this.maxHp = maxHp;
+        this.hp = hp;
+        this.refreshHpBar();
+        this.renderPose(1, null);
+        if (superShot) this.hull.tint = SUPER_TINT;
+        else if (turbo) this.hull.tint = 0xffcc66;
+    }
+
+    /**
      * Update player state from input.
      *
      * FAZA 8.5 + v0.23.1: signature dorzuca 6-th optional arg moveVector — gdy provided,
@@ -900,71 +993,7 @@ export class Player {
 
         this._turretAngle = Math.atan2(input.aimY - this.y, input.aimX - this.x);
 
-        if (this.bakerActive) {
-            // FAZA P3 — juice: ewolucja stanu + transformy na container/turret (tylko bake).
-            this.updateJuice();
-
-            // kick (caly czolg) + pitch Z offset (nose up gdy pitch>0). render2d units *1.25.
-            this.container.x = this.x + this.kickX * BAKE_DISPLAY_SCALE;
-            this.container.y = this.y + (this.kickY - this.pitch * JUICE_PITCH_Z_UNITS) * BAKE_DISPLAY_SCALE;
-            // pitch tilt: lekka deformacja Y (±1.5% przy clamp, wiecej podczas taunt bounce).
-            this.container.scale.y = BAKE_DISPLAY_SCALE * (1 + this.pitch * JUICE_PITCH_TILT_K);
-
-            // TANK ART v2: faza gasienic (licznik klatek, tylko w ruchu).
-            if (this.artV2 && this.isMoving) {
-                this.treadPhaseT += delta;
-                if (this.treadPhaseT >= TREAD_PHASE_FRAMES) { this.treadPhaseT = 0; this.treadPhase++; }
-            }
-            // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
-            this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle, this.treadPhase);
-            this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
-            if (this.barrelFlash && this.barrelFlash.visible) {
-                this.barrelFlashT -= delta;
-                if (this.barrelFlashT <= 0) { this.barrelFlash.visible = false; }
-                else { this.barrelFlash.texture = this.turret.texture; this.barrelFlash.alpha = 0.7 * (this.barrelFlashT / BARREL_FLASH_FRAMES); }
-            }
-
-            // SKIN-2: puls skina — ta sama referencja tekstury co hull + sin-alpha.
-            if (this.skinPulseOverlay) {
-                this.skinPulseOverlay.texture = this.hull.texture;
-                this.skinPulseT += 1 / 60;
-                this.skinPulseOverlay.alpha = SKIN_PULSE_REDUCED
-                    ? 0.06
-                    : 0.05 + 0.09 * (0.5 + 0.5 * Math.sin(this.skinPulseT * 2.2));
-            }
-
-            // recoil: caly turret sprite cofa sie wzdluz -turretAngle (barrel wpieczony w teksture
-            // turret). Rozbieznosc vs lab (lab cofa tylko barrel) — czyta sie jako kopniecie.
-            this.turret.x = -Math.cos(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS;
-            this.turret.y = -Math.sin(this._turretAngle) * this.recoil * JUICE_RECOIL_BARREL_UNITS * JUICE_CAMERA_TILT_Y;
-            if (this.barrelFlash) { this.barrelFlash.x = this.turret.x; this.barrelFlash.y = this.turret.y; }
-        } else {
-            // FLAT PATH — bit-for-bit jak dotad (zero juice).
-            this.container.x = this.x;
-            this.container.y = this.y;
-            this.turret.rotation = this._turretAngle;
-        }
-        // v0.186.0 CZYTELNOSC: +40 (bylo +19) => przy nachodzeniu gracz jest NAD wrogami (grunt +19,
-        // pursuit +24, boss +28, mega +35). Wczesniej mega boss 392 px potrafil calkiem zakryc czolg gracza.
-        this.container.zIndex = this.y + 40;
-
-        // Flag overlay — TYLKO w trybie flat (OFF). W trybie bake flaga jest wpieczona w teksture
-        // hull (drawHullTop), wiec overlay jest zgaszony (visible=false) i pomijamy obliczenia.
-        if (!this.bakerActive) {
-            this.flagGfx.x = -Math.cos(this.lastMoveAngle) * FLAG_POLE_DIST;
-            this.flagGfx.y = -Math.sin(this.lastMoveAngle) * FLAG_POLE_DIST;
-            this.flagGfx.rotation = this.lastMoveAngle;
-        }
-
-        if (this.isSuperShotActive) this.hull.tint = SUPER_TINT;
-        else if (this.hasSpeedBoost) this.hull.tint = 0xffcc66;
-        else this.hull.tint = 0xffffff;
-
-        // v0.187.0: MUSI byc PO powyzszym przypisaniu tintu. Pierwsza wersja liczyla to na poczatku
-        // `update()` i ta linijka kasowala czerwien co klatke — czolg zostawal zielony mimo 25% HP.
-        // Czerwien nakladamy TYLKO na szczycie uderzenia serca, wiec miedzy uderzeniami nadal widac
-        // tint super mocy / turbo (informacja o mocy nie ginie).
-        this.updateCriticalArmor(delta, damageSmoke ?? null);
+        this.renderPose(delta, damageSmoke ?? null); // COOP LAN-3a: widok wydzielony (gosc wola go z migawki)
 
         if (this.superActive && simNowMs() >= this.superEndTime) this.superActive = false;
 

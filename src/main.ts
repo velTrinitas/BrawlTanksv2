@@ -220,8 +220,13 @@ import { worldRng, seedMatchRng } from './systems/Rng';
 import { simNowMs, advanceSimClock } from './systems/SimClock';
 import { resetNetIds } from './systems/NetId'; // COOP S5b
 import { createPlayerInput, quantizeInput, type PlayerInput } from './input/PlayerInput'; // COOP S6
+import { requestHostStart, netRole, setNetRole, consumeHostStartRequest, isCoopStartMsg, sendRel, sendFast, type CoopStartMsg } from './net/CoopMatch'; // COOP LAN-3a
+import { coopSession } from './net/CoopSession';
+import { GuestWorld } from './net/GuestWorld';
+import { isMultiplayerEnabled } from './config/multiplayer';
+import { encodeSnapshot, decodeSnapshot, EnemyKind, type Snapshot } from './net/Snapshot';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
-import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB, srcPlayerBullet, srcPower, srcMegaBomb } from './types/DamageSource'; // Z0.5
+import { SRC_SNOWBALL, SRC_POWER, SRC_SHOCKWAVE, srcPlayerBullet, srcPower, srcMegaBomb } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
@@ -1297,6 +1302,18 @@ function resetPlayerStateForMatch(matchConfig: GameConfig): void {
 }
 
 menu.onGameRequested = (config: GameConfig) => {
+    // COOP LAN-3a: host kliknal "Graj razem" — ten start jest meczem koopowym (tylko tryb klasyczny, §9.6).
+    if (consumeHostStartRequest()) {
+        if (config.scenario !== 'ktb') { showToast(t('coop.onlyClassic'), 3000); return; }
+        const coopCfg: GameConfig = { ...config, mode: 'coop' };
+        const msg: CoopStartMsg = { t: 'start', scenario: config.scenario, map: config.map, difficulty: config.difficulty, hostBrawlerId: config.brawlerId, rngSeed: config.rngSeed };
+        sendRel(msg as unknown as Record<string, unknown>);
+        setNetRole('host');
+        window.dispatchEvent(new Event('bt-coop-match-start'));
+        menu.hide();
+        void startGame(coopCfg);
+        return;
+    }
     // FAZA CTF F1: ctf odblokowane (mapa fortified_ruins zintegrowana modularnie)
     // OBRON ZAMEK F1: castle odblokowany TYLKO za ?castle=1 (castleFlag.ts).
     if (config.scenario === 'castle' && !isCastleMode()) {
@@ -1333,6 +1350,139 @@ menu.onGameRequested = (config: GameConfig) => {
         void startGame(config);
     }
 };
+
+// ── COOP LAN-3a: mecz koopowy po stronie GOSCIA + host wysyla migawki ──────────────
+let guestWorld: GuestWorld | null = null;
+let hostSnapCounter = 0;
+let coopBadgeEl: HTMLElement | null = null;
+
+coopSession.onMatchMessage((ch, data, msg) => {
+    if (ch === 'fast') {
+        if (netRole() === 'guest' && guestWorld && data instanceof ArrayBuffer) {
+            const snap = decodeSnapshot(data);
+            if (snap) guestWorld.push(snap);
+        }
+        return;
+    }
+    if (isCoopStartMsg(msg) && netRole() === 'solo') {
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const built = new GameConfigBuilder()
+            .setScenario(msg.scenario).setMap(msg.map).setDifficulty(msg.difficulty)
+            .setBrawlerId(msg.hostBrawlerId).setProfileId(pid).setMode('coop').build();
+        const cfg: GameConfig = { ...built, rngSeed: msg.rngSeed }; // TEN SAM seed => ten sam statyczny swiat
+        setNetRole('guest');
+        window.dispatchEvent(new Event('bt-coop-match-start'));
+        if (gameState === 'PLAYING') returnToMenuFromEnd();
+        menu.hide();
+        void startGame(cfg);
+    } else if (msg && msg.t === 'end' && netRole() === 'guest') {
+        endGuestMatch(msg.result === 'victory' ? 'coop.endWin' : 'coop.endLose');
+    }
+});
+coopSession.subscribe((st) => {
+    if (st.k !== 'failed' && st.k !== 'idle') return;
+    if (netRole() === 'guest') { if (gameState === 'PLAYING') endGuestMatch('coop.errClosed'); else setNetRole('solo'); }
+    else if (netRole() === 'host') {
+        setNetRole('solo'); // host gra dalej solo (pauza 10 s = LAN-4)
+        if (gameState === 'PLAYING') hud.addNotif(t('coop.partnerLeft'), '#ff8855');
+    }
+});
+
+// Dev/testy (tylko ?mp=1): start meczu koopowego hosta z konsoli / Playwright — ta sama sciezka co "Graj razem".
+if (isMultiplayerEnabled()) {
+    (window as unknown as { __coopStats: () => unknown }).__coopStats = () => netRole() === 'guest'
+        ? { role: 'guest', ...(guestWorld?.counts ?? {}) }
+        : { role: netRole(), enemies: enemies.filter(e => e.active).length, ebullets: enemyBullets.filter(b => b.active).length, pbullets: bullets.filter(b => b.active).length };
+    (window as unknown as { __coopHostStart: (map?: string) => void }).__coopHostStart = (map = 'desert') => {
+        requestHostStart();
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        menu.onGameRequested?.(new GameConfigBuilder().setScenario('ktb').setMap(map as GameConfig['map'])
+            .setBrawlerId(BRAWLERS[0].id).setDifficulty('normal').setProfileId(pid).build());
+    };
+}
+
+function setCoopBadge(visible: boolean): void {
+    if (visible && !coopBadgeEl) {
+        coopBadgeEl = document.createElement('div');
+        coopBadgeEl.className = 'bt-coop-badge';
+        document.body.appendChild(coopBadgeEl);
+    }
+    if (coopBadgeEl) coopBadgeEl.style.display = visible ? '' : 'none';
+    const hc = document.getElementById('hudCanvas');
+    if (hc) hc.style.visibility = visible ? 'hidden' : ''; // gosc: pelny HUD dopiero z wlasnym czolgiem (LAN-2)
+}
+
+function endGuestMatch(msgKey: 'coop.endWin' | 'coop.endLose' | 'coop.errClosed'): void {
+    guestWorld?.clear();
+    guestWorld = null;
+    setCoopBadge(false);
+    setNetRole('solo');
+    showToast(t(msgKey), 3500);
+    if (gameState === 'PLAYING') returnToMenuFromEnd();
+}
+
+/** COOP LAN-3a: krok GOSCIA — zero symulacji; migawki hosta + kamera + efekty. */
+function runGuestStep(delta: number): void {
+    if (!guestWorld || !effects) return;
+    guestWorld.update(delta);
+    const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
+    const viewW = hud.screenW / ZOOM;
+    const viewH = hud.screenH / ZOOM;
+    if (guestWorld.hasFocus) {
+        camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(guestWorld.focusX - viewW / 2)));
+        camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(guestWorld.focusY - viewH / 2)));
+    }
+    worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
+    worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
+    buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH)); // culling propsow (jak u hosta)
+    // Strefy (oaza, pola, neon, zarosla, hydroponika, piaski, szlam, regolit) ustawiaja warstwy i culling
+    // koron/dachow w update() — bez tego u goscia czolgi jezdzily PO palmach oazy (playtest 2026-09-29).
+    // Tylko wyglad: decyzje o spowolnieniu/ukryciu liczy host (isPointInside nie jest tu wolane).
+    for (const qs of quicksands) qs.update(camera.x, camera.y, viewW, viewH);
+    for (const oasis of oases) oasis.update(camera.x, camera.y, viewW, viewH);
+    for (const ff of farmFields) ff.update(camera.x, camera.y, viewW, viewH);
+    for (const ns of neonStations) ns.update(camera.x, camera.y, guestWorld.focusX, guestWorld.focusY, false, bullets);
+    for (const rb of ruinsBushes) rb.update();
+    for (const hg of hydroGardens) hg.update();
+    for (const rf of regolithFields) rf.update();
+    for (const sp of sludgePools) sp.update(guestWorld.focusX, guestWorld.focusY, false);
+    // Pady rysuja sie w update() — u goscia pozycja "daleko" = sam wyglad, zero aktywacji (stan meczu liczy host).
+    const tPad = simNowMs() / 1000;
+    for (const pad of mediPads) pad.update(-9999, -9999, false, 1, 1, tPad);
+    for (const pad of powerPads) pad.update(-9999, -9999, tPad);
+    effects.update(delta);
+    // Glebokosc pseudo-3D: auto-sort PIXI jest WYLACZONY (v0.68.0), host sortuje recznie na koncu
+    // runLogicStep. Gosc go nie wola — bez tej linii czolgi lezaly NA palmach oazy (playtest 2026-09-29).
+    worldContainer.sortChildren();
+    if (coopBadgeEl) {
+        coopBadgeEl.textContent = `👀 ${t('coop.spectate')}  ·  ❤ ${guestWorld.hostHp}/${guestWorld.hostMaxHp}  ·  ⭐ ${guestWorld.score}`;
+    }
+}
+
+/** COOP LAN-3a: host — migawka swiata co 3. krok logiki (20 Hz) po kanale 'fast'. */
+function hostAfterStep(): void {
+    if (netRole() !== 'host' || !coopSession.connection || gameState !== 'PLAYING' || !currentSession) return;
+    if (++hostSnapCounter % 3 !== 0) return;
+    const snap: Snapshot = {
+        tick: logicTick, score: currentSession.score,
+        players: players.map((pl, idx) => ({
+            idx, x: pl.x, y: pl.y, moveA: pl.moveAngle, turA: pl.turretAngle, hp: pl.hp, maxHp: pl.maxHp,
+            moving: pl.isMoving, superShot: pl.isSuperShotActive, turbo: pl.hasSpeedBoost,
+            brawlerIdx: Math.max(0, BRAWLERS.findIndex(b => b.id === pl.brawler.id)),
+        })),
+        enemies: enemies.filter(e => e.active).map(e => ({
+            id: e.netId,
+            kind: e.isMegaBoss ? EnemyKind.Mega : e.isPursuit ? EnemyKind.Pursuit : e.isBoss ? EnemyKind.Boss : EnemyKind.Normal,
+            frozen: simNowMs() < e.frozenUntil, x: e.x, y: e.y, a: e.viewAngle, hp: e.hp, maxHp: e.maxHp,
+        })),
+        pbullets: bullets.filter(b => b.active).map(b => ({
+            id: b.netId, x: b.x, y: b.y, a: Math.atan2(b.vy, b.vx), superShot: b.isSuper, tower: b.source === 'tower',
+            brawlerIdx: Math.max(0, BRAWLERS.findIndex(br => br.id === b.brawlerId)),
+        })),
+        ebullets: enemyBullets.filter(b => b.active).map(b => ({ id: b.netId, x: b.x, y: b.y, a: b.angle, type: b.bulletType, color: b.color })),
+    };
+    sendFast(encodeSnapshot(snap));
+}
 
 menu.onContinueRequested = (lastSession: LastSession) => {
     // FAZA CTF F1: ctf odblokowane. Guard na stale sesje sprzed odblokowania:
@@ -1534,6 +1684,7 @@ async function tryLockLandscape(): Promise<void> {
 }
 
 function returnToMenuFromEnd(): void {
+    if (netRole() === 'host') setNetRole('solo'); // COOP LAN-3a: polaczenie zostaje, rola wraca do solo
     itemHints.clear(); // schowaj ewentualny wiszacy dymek podpowiedzi
     clearModeGoal();   // FAZA C: schowaj ewentualna wiszaca karte celu
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
@@ -3115,6 +3266,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     localPlayer = new Player(brawler, worldContainer, activeProfile?.flagId ?? null, skinPulse);
     players = [localPlayer]; // Z0.3: tablica = zrodlo prawdy (dzis zawsze 1 element)
     powerSystems.set(localPlayer, powerSystem); // COOP S7
+    // COOP LAN-3a: gosc nie ma jeszcze wlasnego czolgu (LAN-2) — ogląda swiat hosta z migawek.
+    guestWorld?.clear();
+    guestWorld = null;
+    hostSnapCounter = 0;
+    if (netRole() === 'guest') {
+        localPlayer.container.visible = false;
+        guestWorld = new GuestWorld(worldContainer);
+    }
+    setCoopBadge(netRole() === 'guest');
 
     // FAZA CTF F1: spawn w hangarze (200,1500) — legacy 1:1. Player konstruktor
     // ustawia (800,800); nadpisanie przed pierwsza klatka (container synce w update).
@@ -3185,7 +3345,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // Reset szczytow perf-overlay na nowy mecz (?perf=1).
     perfWorstMs = 0; perfPeakEBul = 0; perfPeakBul = 0; perfPeakPart = 0; perfPeakKids = 0; perfPeakEnemies = 0;
 
-    touchManager.show();
+    if (netRole() === 'guest') touchManager.hide(); else touchManager.show(); // COOP LAN-3a: gosc tylko oglada
 
     if (touchManager.isActive) {
         tryLockLandscape();
@@ -3974,6 +4134,7 @@ function applyHazardDamageToEnemy(enemy: Enemy, dmg: number, src: DamageSource):
 }
 
 async function triggerGameOver(): Promise<void> {
+    if (netRole() === 'host') sendRel({ t: 'end', result: 'gameover' }); // COOP LAN-3a
     // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
     if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
@@ -4005,7 +4166,8 @@ async function triggerGameOver(): Promise<void> {
             // koszt tej blokady: 120 rozegranych meczow Zamku i Krolowej, ZERO zapisanych
             // wynikow (49% calej rozgrywki). Zostaje wylacznie gate bota.
             sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT });
-            if (!SIGMA_BOT && currentSession.config.scenario !== 'range') { // SigmaTester: bot nigdy nie wysyla wynikow; STRZELNICA: poligon dev tez nie
+            // COOP LAN-3a (decyzja §9.8): mecz koopowy NIE idzie do rankingu (Edge i tak odrzuca mode=coop do Z0.7b).
+            if (!SIGMA_BOT && currentSession.config.scenario !== 'range' && currentSession.config.mode !== 'coop') { // SigmaTester: bot nigdy nie wysyla wynikow; STRZELNICA: poligon dev tez nie
                 await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
                 // Log MUSI byc w srodku `if` — wczesniej stal obok i meldowal "Submitted"
                 // takze wtedy, gdy nic nie poszlo. Przy diagnozie brakujacych wynikow
@@ -4076,6 +4238,7 @@ async function triggerGameOver(): Promise<void> {
 }
 
 async function triggerVictory(): Promise<void> {
+    if (netRole() === 'host') sendRel({ t: 'end', result: 'victory' }); // COOP LAN-3a
     // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
     if (currentSession) ProgressionService.setSeasonMissStreak(currentSession.config.profileId, seasonMissStreak);
@@ -4113,7 +4276,8 @@ async function triggerVictory(): Promise<void> {
             // KROK 2 (2026-09-24): skip dla `castle` i `save_queen` ZDJETY — patrz notka
             // w triggerGameOver. Zwyciestwo Zamku/Krolowej tez trafia teraz do rankingu.
             sigmaEmit({ t: 'submitAttempt', mode: currentSession.config.scenario, blocked: SIGMA_BOT });
-            if (!SIGMA_BOT && currentSession.config.scenario !== 'range') { // SigmaTester: bot nigdy nie wysyla wynikow; STRZELNICA: poligon dev tez nie
+            // COOP LAN-3a (decyzja §9.8): mecz koopowy NIE idzie do rankingu (Edge i tak odrzuca mode=coop do Z0.7b).
+            if (!SIGMA_BOT && currentSession.config.scenario !== 'range' && currentSession.config.mode !== 'coop') { // SigmaTester: bot nigdy nie wysyla wynikow; STRZELNICA: poligon dev tez nie
                 await scoreService.submitScore(currentSession.score, currentSession.config, collectRunStats());
                 console.log(`[Score] Submitted (Victory): ${currentSession.score} pts`);
             }
@@ -4225,6 +4389,8 @@ app.ticker.add((rawDelta) => {
     }
 
     if (gameState !== 'PLAYING' || !localPlayer || !effects || !spawnSystem || !powerSystem || !currentSession) return;
+    // COOP LAN-3a: gosc NIE symuluje — rysuje swiat hosta z migawek.
+    if (netRole() === 'guest') { runGuestStep(Math.max(0.5, Math.min(3, rawDelta))); return; }
 
     // Z0.9: probka FPS (kubelek 1 Hz w TelemetryService). Koszt: jeden inkrement.
     telemetryTickFrame(performance.now());
@@ -4259,6 +4425,7 @@ app.ticker.add((rawDelta) => {
             icPlPX = icPlCX; icPlPY = icPlCY;
             icOfPX = icOfCX; icOfPY = icOfCY;
             runLogicStep(1); // staly krok: delta=1 (determinizm — plynnosc daje interp)
+            hostAfterStep(); // COOP LAN-3a: migawka co 3. krok
             steps++;
         }
         applySmoothInterp(logicAccMs / LOGIC_STEP_MS);
@@ -4266,6 +4433,7 @@ app.ticker.add((rawDelta) => {
     }
 
     runLogicStep(smoothedDelta);
+    hostAfterStep(); // COOP LAN-3a
 });
 
 /**

@@ -24,6 +24,10 @@ import { nextNetId } from '../systems/NetId'; // COOP S5b
 export class EnemyBullet {
     /** COOP S5b: stabilny id encji do migawek hosta (LAN-3); nowy przy kazdym reuzyciu z puli (reset). */
     public netId: number = nextNetId();
+    /** COOP LAN-3a: wyglad pocisku (migawka hosta odtwarza go u goscia). */
+    public bulletType: EnemyBulletType | null = null;
+    public color = 0;
+    public angle = 0;
     public x: number = 0;
     public y: number = 0;
     public active: boolean = true;
@@ -70,6 +74,7 @@ export class EnemyBullet {
         bulletType: EnemyBulletType | null,
     ): void {
         this.netId = nextNetId(); // COOP S5b: reuzycie z puli = nowa encja
+        this.bulletType = bulletType; this.color = color; this.angle = angle; // COOP LAN-3a: wyglad do migawki
         this.x = x; this.y = y;
         this.active = true;
         this.distance = 0;
@@ -163,6 +168,13 @@ export class EnemyBullet {
 
         this.distance += this.speed * delta;
         if (this.distance > 900) this.deactivate();
+    }
+
+    /** COOP LAN-3a: pozycja z migawki hosta — TYLKO widok (u goscia bez lotu i kolizji). */
+    setPose(x: number, y: number): void {
+        this.x = x; this.y = y;
+        const d = this.bakerActive && this.sprite ? this.sprite : this.gfx;
+        if (d) { d.x = x; d.y = y; d.zIndex = y + 10; }
     }
 
     /**

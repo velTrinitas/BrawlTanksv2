@@ -1202,4 +1202,10 @@ export const en: typeof pl = {
     'coop.errCloudOff': 'Playing with a friend is turned off right now.',
     'coop.errExpired': 'The room expired - nobody joined. Create a new one.',
     'coop.errClosed': 'The connection was lost.',
+    'coop.onlyClassic': 'For now you can play together only in classic mode (King of the Hill).',
+    'coop.partnerLeft': 'YOUR FRIEND DISCONNECTED - PLAYING SOLO',
+    'coop.endWin': 'Your friend won the match! 🏆',
+    'coop.endLose': 'Your friend\'s match is over.',
+    'coop.spectate': 'SPECTATING - friend\'s game',
+    'coop.waitHost': 'Waiting for your friend to start the match...',
 };

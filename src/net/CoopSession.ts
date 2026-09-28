@@ -66,8 +66,9 @@ export class CoopSession {
     }
 
     private set(s: CoopState): void {
+        const prevK = this.state.k;
         this.state = s;
-        console.log('[CoopSession]', s.k, s.k === 'failed' ? `${s.reason} ${s.detail ?? ''}` : '');
+        if (prevK !== s.k) console.log('[CoopSession]', s.k, s.k === 'failed' ? `${s.reason} ${s.detail ?? ''}` : '');
         for (const fn of this.listeners) {
             try { fn(s); } catch (err) { console.error('[CoopSession] listener failed', (err as Error).stack); }
         }
@@ -170,10 +171,24 @@ export class CoopSession {
         }
     }
 
+    /** COOP LAN-3a: wiadomosci meczu (po uzgodnieniu wersji) — CoopMatch sie tu podpina. */
+    private matchListeners = new Set<(ch: 'rel' | 'fast', data: string | ArrayBuffer, msg: Record<string, unknown> | null) => void>();
+    onMatchMessage(fn: (ch: 'rel' | 'fast', data: string | ArrayBuffer, msg: Record<string, unknown> | null) => void): () => void {
+        this.matchListeners.add(fn);
+        return () => this.matchListeners.delete(fn);
+    }
+
     private onPeerMessage(ch: 'rel' | 'fast', data: string | ArrayBuffer): void {
-        if (ch !== 'rel' || typeof data !== 'string') return; // 'fast' = LAN-2+
+        if (ch === 'fast' || typeof data !== 'string') {
+            if (this.handshakeOk) for (const fn of this.matchListeners) fn(ch, data, null);
+            return;
+        }
         let msg: Record<string, unknown>;
         try { msg = JSON.parse(data) as Record<string, unknown>; } catch { return; }
+        if (msg.t !== 'hs') {
+            if (this.handshakeOk) for (const fn of this.matchListeners) fn(ch, data, msg);
+            return;
+        }
         if (msg.t === 'hs' && !this.handshakeOk) {
             const s = this.state;
             if (s.k !== 'pairing') return;

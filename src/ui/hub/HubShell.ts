@@ -33,6 +33,7 @@ import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebra
 import { CoopOverlay } from './overlays/CoopOverlay'; // COOP LAN-1
 import { isMultiplayerEnabled } from '../../config/multiplayer'; // COOP LAN-1
 import { readJoinCodeFromUrl } from '../../net/RoomCode'; // COOP LAN-1
+import { requestHostStart } from '../../net/CoopMatch'; // COOP LAN-3a
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
@@ -133,6 +134,9 @@ export class HubShell implements IScreen {
             this.onPlay?.(scenario, map, brawlerId, difficulty);
         // v0.127.0 — sekcja prosi o popup mapy, shell montuje go w swoim roocie
         // (ta sama sciezka co CrateOverlay / SeasonOverlay).
+        // COOP LAN-3a: "Graj razem" = biezacy wybor BITWY jako mecz koopowy (main.ts zabiera prosbe).
+        this.coop.onPlayTogether = () => { requestHostStart(); this.battle.startCurrentMatch(); };
+        window.addEventListener('bt-coop-match-start', () => this.coop.close());
         this.battle.onOpenCoop = () => {
             if (this.rootEl && isMultiplayerEnabled()) this.coop.open(this.rootEl);
         };

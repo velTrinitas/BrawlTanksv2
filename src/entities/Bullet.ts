@@ -418,6 +418,23 @@ export class Bullet {
         }
     }
 
+    /**
+     * COOP LAN-3a: poza z migawki hosta — TYLKO widok (u goscia bez lotu, kolizji i efektow).
+     * Kierunek z kata migawki (rotacja 'dir' / boomerang); spin liczy sie sam z zegara jak w update().
+     */
+    setPose(x: number, y: number, angle: number): void {
+        this.x = x; this.y = y;
+        this.vx = Math.cos(angle) * this.speed;
+        this.vy = Math.sin(angle) * this.speed;
+        if (this.bakerActive && this.sprite) {
+            this.sprite.x = x; this.sprite.y = y; this.sprite.zIndex = y + 10;
+            if (this.spinMode === 'spin') this.sprite.rotation = performance.now() * this.spinRate;
+            else if (this.spinMode === 'dir') this.sprite.rotation = angle;
+        } else if (this.gfx) {
+            this.gfx.x = x; this.gfx.y = y; this.gfx.zIndex = y + 10;
+        }
+    }
+
     /** FAZA P5 Batch 2 — boomerang: faza out do maxOutDist, potem powrot do gracza. */
     private stepBoomerang(delta: number, ctx?: BulletCtx): void {
         if (this.phase === 'out') {

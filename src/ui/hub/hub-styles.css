@@ -3740,3 +3740,10 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
     .bt-coop-btn { min-width: 120px; font-size: 15px; }
     .bt-coop-entry { font-size: 12px; padding: 6px 10px; }
 }
+/* COOP LAN-3a — plakietka podgladu u goscia (zamiast HUD do czasu wlasnego czolgu w LAN-2). */
+.bt-coop-badge {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 50;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 15px; color: #fff;
+    background: rgba(10, 20, 30, 0.72); border: 2px solid var(--hub-accent, #f1c40f);
+    border-radius: 12px; padding: 6px 14px; pointer-events: none; white-space: nowrap;
+}

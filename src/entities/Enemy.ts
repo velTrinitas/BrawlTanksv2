@@ -737,11 +737,47 @@ export class Enemy {
      * FAZA P4 — swap baked tekstury na kat (rotacja wpieczona). Nakladka flash podaza za hullem.
      * Wolane zamiast this.hull.rotation w bake mode.
      */
+    /** COOP LAN-3a: kat, w ktorym wrog jest NARYSOWANY (bake: ostatni applyBakedAngle, flat: rotacja kadluba). */
+    private bakedAngle = 0;
+    public get viewAngle(): number { return this.bakerArch ? this.bakedAngle : this.hull.rotation; }
+
     private applyBakedAngle(angle: number): void {
         if (!this.bakerArch) return;
+        this.bakedAngle = angle;
         this.hull.texture = EnemySpriteBaker.getTexture(this.bakerArch, angle);
         if (this.flashOverlay) this.flashOverlay.texture = this.hull.texture;
         if (this.accessory) this.accessory.rotation = angle; // Q6: dzwig Budowniczego obraca sie z kadlubem
+    }
+
+    /**
+     * COOP LAN-3a: poza z migawki hosta — TYLKO widok (u goscia wrog nie ma AI, kolizji ani RNG).
+     * Pozycja/zIndex jak w update(), kat przez bake albo rotacje, pasek HP przy zmianie, tint mrozu.
+     */
+    public setPose(x: number, y: number, angle: number, hp: number, frozen: boolean): void {
+        this.x = x; this.y = y;
+        if (this.isPursuit && this.policeLights) {
+            this.drawPoliceLights();
+            this.policeLights.rotation = angle;
+        }
+        if (this.bakerArch) this.applyBakedAngle(angle);
+        else { this.hull.rotation = angle; this.turret.rotation = angle; }
+        this.container.x = x;
+        this.container.y = y;
+        this.container.zIndex = y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : (this.isPursuit ? 24 : 19));
+        if (hp !== this.hp) { this.hp = hp; this.drawHp(); }
+        if (frozen !== this.frozenTintApplied) {
+            this.frozenTintApplied = frozen;
+            const tint = frozen ? 0x66ddff : (this.bakerArch ? 0xffffff : this.tintHex);
+            this.hull.tint = tint;
+            this.turret.tint = tint;
+        }
+    }
+
+    /** COOP LAN-3a: zdjecie widoku u goscia (wrog zniknal z migawki hosta). */
+    public destroyView(): void {
+        this.markDestroyedExternally();
+        if (this.container.parent) this.container.parent.removeChild(this.container);
+        this.container.destroy({ children: true });
     }
 
     /** Q6: plaski dodatek NA pieczonym kadlubie (dzwig Budowniczego) — obraca sie z facingiem, nad hullem, pod hpBar. */

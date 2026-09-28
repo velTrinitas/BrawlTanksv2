@@ -20,6 +20,8 @@ export class CoopOverlay {
     private view: 'choose' | 'join' = 'choose';
     private joinDraft = '';
     private copied = false;
+    /** COOP LAN-3a: host kliknal "Graj razem" — shell startuje biezacy wybor BITWY jako mecz koopowy. */
+    public onPlayTogether: (() => void) | null = null;
 
     open(parent: HTMLElement, joinCode: string | null = null): void {
         this.close();
@@ -99,7 +101,9 @@ export class CoopOverlay {
                 <p class="bt-coop-status is-ok">✅ ${t('coop.connected')}</p>
                 <p class="bt-coop-ping">${t('coop.ping')}: <b>${ping}</b>${s.route ? ` <span class="bt-coop-route">${s.route}</span>` : ''}</p>
                 <div class="bt-coop-actions">
-                    <button class="bt-coop-btn is-primary" type="button" disabled title="${t('coop.soon')}">▶ ${t('coop.playTogether')} <small>${t('coop.soon')}</small></button>
+                    ${s.role === 'host'
+                        ? `<button class="bt-coop-btn is-primary" data-action="play" type="button">▶ ${t('coop.playTogether')}</button>`
+                        : `<p class="bt-coop-status is-wait">⏳ ${t('coop.waitHost')}</p>`}
                     <button class="bt-coop-btn" data-action="leave" type="button">${t('coop.disconnect')}</button>
                 </div>`;
         } else if (s.k === 'failed') {
@@ -160,6 +164,7 @@ export class CoopOverlay {
                 }).catch((err: unknown) => console.warn('[CoopOverlay] clipboard failed', (err as Error)?.stack));
                 break;
             }
+            case 'play': this.onPlayTogether?.(); break;
             case 'leave': this.view = 'choose'; coopSession.leave(); break;
             case 'reset': this.view = 'choose'; coopSession.leave(); break;
         }

@@ -1240,4 +1240,10 @@ export const pl = {
     'coop.errCloudOff': 'Gra z kolegą jest teraz wyłączona.',
     'coop.errExpired': 'Pokój wygasł — nikt nie dołączył. Załóż nowy.',
     'coop.errClosed': 'Połączenie zostało przerwane.',
+    'coop.onlyClassic': 'Z kolegą zagracie na razie tylko w trybie klasycznym (Król Wzgórza).',
+    'coop.partnerLeft': 'KOLEGA SIĘ ROZŁĄCZYŁ — GRASZ DALEJ SAM',
+    'coop.endWin': 'Kolega wygrał mecz! 🏆',
+    'coop.endLose': 'Mecz kolegi się skończył.',
+    'coop.spectate': 'PODGLĄD — gra kolegi',
+    'coop.waitHost': 'Czekam, aż kolega wystartuje mecz…',
 };

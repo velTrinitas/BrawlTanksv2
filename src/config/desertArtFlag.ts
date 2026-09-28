@@ -6,7 +6,7 @@
  * przed flipem, `?desertart=0` ZAWSZE wylacza (rollback bez deployu). Balans wrogow, pady,
  * spawn gemow sa nietkniete niezaleznie od flagi.
  */
-export const DESERT_ART_V2 = false; // flip po playtescie A54
+export const DESERT_ART_V2 = true; // v0.218.0: NA PRODUKCJI (flip 2026-09-28 po playtescie desktop + mobile); rollback ?desertart=0
 
 export function isDesertArtV2(): boolean {
     try {

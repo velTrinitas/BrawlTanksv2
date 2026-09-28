@@ -6,8 +6,8 @@
  * wiec catch-up i przyszly koop licza identycznie (multiplayer-ready #1/#2).
  *
  * `CURSE_RULESET_ID` idzie obok `SIM_VERSION`: rozjazd = odmowa startu meczu sieciowego.
- * SIM_VERSION NIE jest podbity, bo cala mechanika siedzi za flaga `?desertart=1`
- * (DESERT_ART_V2=false). Bump SIM_VERSION + ewentualne punkty (score_version) = flip flagi.
+ * Flip na produkcje w v0.218.0 razem z SIM_VERSION 1 -> 2. Klatwa NIE daje punktow,
+ * wiec score_version bez zmian (punkty za mumie = osobna decyzja + bump score_version).
  */
 export const CURSE_RULESET_ID = 'curse-v1';
 

@@ -37,5 +37,8 @@ export function isMultiplayerSandbox(): boolean {
  * Historia:
  *  1 — stan symulacji na koniec ETAPU 0 (v0.154.0): fixed-step OFF, seeded RNG
  *      (mulberry32, worldRng/ambientRng), DamageSource, resolveEnemyTarget.
+ *  2 — DESERT ART v2 na produkcji (v0.218.0): nowe kolizje Pustyni (piramidy/sfinks pad 30,
+ *      katarakty, obrzeze 28, piaskowiec, zabytki zniszczalne, jeep), petla karawany,
+ *      klatwa piramidy / Zemsta Ra (DamageSource curse_fog / ra_fire, CURSE_RULESET_ID).
  */
-export const SIM_VERSION = 1;
+export const SIM_VERSION = 2;

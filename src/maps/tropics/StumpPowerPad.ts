@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * v0.38.1 FAZA T7.x — STUMP POWER PAD ("Nienaładowany Pień z Błyskawicą")
@@ -375,7 +376,7 @@ export class StumpPowerPad {
         playerY: number,
         time: number,
     ): PowerPadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let activated = false;
 
@@ -404,7 +405,7 @@ export class StumpPowerPad {
     }
 
     private drawVisuals(isActive: boolean, time: number): void {
-        const now = Date.now();
+        const now = simNowMs();
 
         // Delta dla particle aging
         const delta = this.lastTime === 0 ? 1 / 60 : Math.min(0.1, time - this.lastTime);

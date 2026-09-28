@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { Enemy } from '../entities/Enemy';
 import { worldRng } from './Rng'; // Z0.1: seeded gameplay RNG (wizualia zostaja na Math.random)
+import { simNowMs } from './SimClock'; // COOP S1: gameplay timers on the sim clock
 import type { Player } from '../entities/Player';
 import type { EffectsManager } from '../rendering/Effects';
 import {
@@ -55,7 +56,7 @@ export class PowerSystem {
     /** 3 sloty z GARAZU, rozwiazane pod scenariusz (resolveLoadoutForMatch w startGame). */
     public readonly loadout: readonly [PowerId, PowerId, PowerId];
 
-    /** Date.now() timestamps gdy cooldown wygasa per moc (klucze z rejestru). */
+    /** simNowMs() timestamps gdy cooldown wygasa per moc (klucze z rejestru). */
     public powerCooldowns: Record<PowerId, number>;
 
     /**
@@ -66,7 +67,7 @@ export class PowerSystem {
      * Wlasny cooldown (diceReadyAt), NIE wpis w powerCooldowns.
      */
     public readonly diceEnabled: boolean;
-    /** Date.now() timestamp gdy kostka znow gotowa (liczony od TAPU, nie od reveal). */
+    /** simNowMs() timestamp gdy kostka znow gotowa (liczony od TAPU, nie od reveal). */
     private diceReadyAt: number = 0;
     /** Ostatnio wylosowana moc — HUD/touch pokazuja jej emoji podczas cooldownu kostki. */
     public lastRolled: PowerId | null = null;
@@ -354,14 +355,14 @@ export class PowerSystem {
      */
     canActivate(id: PowerId): boolean {
         if (this.activePowerId !== null) return false;
-        return Date.now() >= (this.powerCooldowns[id] ?? 0);
+        return simNowMs() >= (this.powerCooldowns[id] ?? 0);
     }
 
     canActivateSlot(slot: 0 | 1 | 2): boolean {
         if (slot === 2 && this.diceEnabled) {
             // Kostka: ta sama blokada "jedna moc naraz" co canActivate + wlasny cooldown
             // (roll w toku = cooldown juz nabity, wiec nie trzeba osobnego warunku).
-            return this.activePowerId === null && Date.now() >= this.diceReadyAt;
+            return this.activePowerId === null && simNowMs() >= this.diceReadyAt;
         }
         return this.canActivate(this.loadout[slot]);
     }
@@ -369,14 +370,14 @@ export class PowerSystem {
     /** Cooldown progress 0..1 (0 = gotowy, 1 = pelny cooldown). */
     getCooldownProgress(id: PowerId): number {
         const power = POWERS[id];
-        const remaining = (this.powerCooldowns[id] ?? 0) - Date.now();
+        const remaining = (this.powerCooldowns[id] ?? 0) - simNowMs();
         if (remaining <= 0) return 0;
         return Math.min(1, remaining / power.cooldownMs);
     }
 
     /** Pozostale sekundy cooldownu (lub 0 jesli gotowy). */
     getCooldownSecondsLeft(id: PowerId): number {
-        const remaining = (this.powerCooldowns[id] ?? 0) - Date.now();
+        const remaining = (this.powerCooldowns[id] ?? 0) - simNowMs();
         return Math.max(0, remaining / 1000);
     }
 
@@ -384,7 +385,7 @@ export class PowerSystem {
     getSlotCooldownProgress(slot: 0 | 1 | 2): number {
         if (slot === 2 && this.diceEnabled) {
             if (this.diceRolling) return 0; // podczas rolla NIE pokazuj zegara — ikony migaja
-            const remaining = this.diceReadyAt - Date.now();
+            const remaining = this.diceReadyAt - simNowMs();
             if (remaining <= 0) return 0;
             return Math.min(1, remaining / DICE_COOLDOWN_MS);
         }
@@ -395,7 +396,7 @@ export class PowerSystem {
     getSlotCooldownSecondsLeft(slot: 0 | 1 | 2): number {
         if (slot === 2 && this.diceEnabled) {
             if (this.diceRolling) return 0;
-            return Math.max(0, (this.diceReadyAt - Date.now()) / 1000);
+            return Math.max(0, (this.diceReadyAt - simNowMs()) / 1000);
         }
         return this.getCooldownSecondsLeft(this.loadout[slot]);
     }
@@ -410,7 +411,7 @@ export class PowerSystem {
             const step = Math.floor((DICE_ROLL_FRAMES - this.diceRollFramesLeft) / 7);
             return POWERS[TIER3_POWERS[step % TIER3_POWERS.length]].emoji;
         }
-        if (this.lastRolled && Date.now() < this.diceReadyAt) {
+        if (this.lastRolled && simNowMs() < this.diceReadyAt) {
             return POWERS[this.lastRolled].emoji;
         }
         return DICE_EMOJI;
@@ -453,7 +454,7 @@ export class PowerSystem {
             if (!this.canActivateSlot(2)) {
                 return { activated: false };
             }
-            this.diceReadyAt = Date.now() + DICE_COOLDOWN_MS;
+            this.diceReadyAt = simNowMs() + DICE_COOLDOWN_MS;
             this.diceRollFramesLeft = DICE_ROLL_FRAMES;
             this.diceCtx = ctx; // referencje (player/enemies/effects/audio/hud) zyja caly mecz
             console.log(`[PowerSystem] Dice roll started (${DICE_ROLL_FRAMES} frames)`);
@@ -465,7 +466,7 @@ export class PowerSystem {
         }
         const def = POWERS[id];
         console.log(`[PowerSystem] Activating ${id} (slot ${slot + 1}), cooldown ${def.cooldownMs}ms`);
-        this.powerCooldowns[id] = Date.now() + def.cooldownMs;
+        this.powerCooldowns[id] = simNowMs() + def.cooldownMs;
         const res = def.onActivate({ ...ctx, system: this });
         // OBRON ZAMEK F3: NAPRAWA naprawia tez STRUKTURY (hook systemu scenariusza, nie if-chain
         // logiki mocy — sam heal gracza zostaje w rejestrze). null poza zamkiem = brak akcji.
@@ -496,7 +497,7 @@ export class PowerSystem {
         this.lastRolled = id;
         const def = POWERS[id];
         console.log(`[PowerSystem] Dice rolled ${id}`);
-        this.powerCooldowns[id] = Date.now() + def.cooldownMs;
+        this.powerCooldowns[id] = simNowMs() + def.cooldownMs;
         try {
             ctx.hud.addNotif(t('hud.diceRolled', { name: t(def.labelKey) }), '#f1c40f');
             def.onActivate({ ...ctx, system: this });
@@ -517,7 +518,7 @@ export class PowerSystem {
 
     activateMagnet(durationMs: number): void {
         this.magnetActive = true;
-        this.magnetEndTime = Date.now() + durationMs;
+        this.magnetEndTime = simNowMs() + durationMs;
     }
 
     /** Czy gracz aktualnie ma tarcze (invulnerability)? */
@@ -537,7 +538,7 @@ export class PowerSystem {
         _worldContainer: PIXI.Container,
         effects: EffectsManager
     ): void {
-        if (this.magnetActive && Date.now() >= this.magnetEndTime) {
+        if (this.magnetActive && simNowMs() >= this.magnetEndTime) {
             this.magnetActive = false;
         }
 
@@ -2197,7 +2198,7 @@ export class PowerSystem {
         // malym d, a wygasanie wpisu daje naturalna histereze: wrog nie wraca na gracza
         // w tej samej klatce, w ktorej przekroczy granice.
         const active = this.grannyFramesLeft > 0 || this.grannyFearFade > 0;
-        const now = Date.now();
+        const now = simNowMs();
         let st = this.grannyFear.get(enemy);
 
         if (active) {
@@ -2295,7 +2296,7 @@ export class PowerSystem {
      * czystym odrzutem — robil wrazenie, ale nic nie kosztowal przeciwnika.
      */
     burpBlast(px: number, py: number, enemies: Enemy[]): void {
-        const now = Date.now();
+        const now = simNowMs();
         for (const e of enemies) {
             if (!e.active) continue;
             const dx = e.x - px, dy = e.y - py;
@@ -2364,7 +2365,7 @@ export class PowerSystem {
             puffs.push({ s, dx: Math.cos(a) * dist, dy: Math.sin(a) * dist, spin: (i % 2 ? 0.006 : -0.005), size, delay });
         }
         this.worldContainer.addChild(cont);
-        this.burpCloud = { cont, puffs, born: Date.now(), x: px, y: py, tick: BURP_CONFIG.cloudTickFrames };
+        this.burpCloud = { cont, puffs, born: simNowMs(), x: px, y: py, tick: BURP_CONFIG.cloudTickFrames };
     }
 
     private burpClearCloud(): void {
@@ -2382,7 +2383,7 @@ export class PowerSystem {
     burpFearFor(enemy: Enemy): { x: number; y: number } | null {
         const st = this.burpFear.get(enemy);
         if (!st) return null;
-        if (st.until <= Date.now()) { this.burpFear.delete(enemy); return null; }
+        if (st.until <= simNowMs()) { this.burpFear.delete(enemy); return null; }
         this.grannyFearPoint.x = enemy.x + st.dx * 600;
         this.grannyFearPoint.y = enemy.y + st.dy * 600;
         return this.grannyFearPoint;
@@ -2426,7 +2427,7 @@ export class PowerSystem {
         // stanie w pelnej sile -> rozwianie. Same transformy sprita, zero rysowania.
         const c = this.burpCloud;
         if (c) {
-            const age = Date.now() - c.born;
+            const age = simNowMs() - c.born;
             if (age >= BURP_CONFIG.cloudMs) {
                 this.burpClearCloud();
             } else {

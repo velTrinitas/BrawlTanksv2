@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 // TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
 import { t } from '../../i18n/i18n';
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * v0.38.1 FAZA T7.x — CLOVER MEDI PAD ("Ogródek Koniczyny")
@@ -490,7 +491,7 @@ export class CloverMediPad {
         playerMaxHp: number,
         time: number,
     ): PadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let healed = false;
         let justHealed = false;
@@ -544,7 +545,7 @@ export class CloverMediPad {
 
     private drawVisuals(isActive: boolean, time: number): void {
         const isHealing = this.repairProgress > 0;
-        const now = Date.now();
+        const now = simNowMs();
 
         // Delta computation
         const delta = this.lastTime === 0 ? 1 / 60 : Math.min(0.1, time - this.lastTime);

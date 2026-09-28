@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
+import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 /**
  * Heart pickup — leczy gracza po dotknięciu.
@@ -84,7 +85,7 @@ export class Heart {
         sigmaEmit({ t: 'spawn', kind: 'heart', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
         this.x = x; this.y = y;
         this.active = true;
-        this.bornAt = Date.now();
+        this.bornAt = simNowMs();
         
         this.sprite = new PIXI.Sprite(getHeartTexture());
         this.sprite.anchor.set(0.5);
@@ -102,9 +103,9 @@ export class Heart {
         this.sprite.scale.set(1 + Math.sin(t) * 0.12);
         
         // Migotanie przed zniknięciem
-        const age = Date.now() - this.bornAt;
+        const age = simNowMs() - this.bornAt;
         if (age > Heart.LIFETIME_MS - 3000) {
-            const blink = Math.sin(Date.now() / 80) > 0 ? 1 : 0.3;
+            const blink = Math.sin(simNowMs() / 80) > 0 ? 1 : 0.3;
             this.sprite.alpha = blink;
         }
         

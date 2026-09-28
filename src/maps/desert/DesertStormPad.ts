@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * DesertStormPad — desert wariant PowerHoverPad ("Ołtarz Burzy").
@@ -113,7 +114,7 @@ export class DesertStormPad {
         playerY: number,
         time: number
     ): PowerPadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let activated = false;
         
@@ -213,7 +214,7 @@ export class DesertStormPad {
         // Cooldown
         if (!isActive) {
             this.cooldownLabel.visible = true;
-            const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
+            const cdLeft = Math.ceil((this.cooldownEnd - simNowMs()) / 1000);
             this.cooldownLabel.text = `${cdLeft}s`;
             this.cooldownLabel.x = PAD_SIZE / 2;
             this.cooldownLabel.y = PAD_SIZE / 2 + 14;  // pod błyskawicą (zmniejszone z 22)

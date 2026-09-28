@@ -20,6 +20,7 @@ import type { PowerSystem } from '../systems/PowerSystem';
 import type { TranslationKey } from '../i18n/i18n';
 import type { ScenarioId } from '../types/Scenario';
 import { t } from '../i18n/i18n';
+import { simNowMs } from '../systems/SimClock'; // COOP S1: freeze na zegarze symulacji
 
 export type PowerId =
     | 'aura' | 'megaBomb' | 'freeze' | 'repair' | 'tower' | 'rockets' | 'ghost' | 'mines' | 'build'
@@ -455,7 +456,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
             ctx.system.beginTimedEffect('freeze');
             // freezeUntil PUBLICZNE na systemie — fix v0.87.1: wrogowie spawnowani PODCZAS
             // freeze sa mrozeni do tego samego czasu (main.ts czyta system.freezeUntil).
-            const freezeUntil = Date.now() + (POWERS.freeze.durationFrames / 60) * 1000;
+            const freezeUntil = simNowMs() + (POWERS.freeze.durationFrames / 60) * 1000;
             ctx.system.freezeUntil = freezeUntil;
             for (const enemy of ctx.enemies) {
                 if (enemy.active) enemy.freeze(freezeUntil);

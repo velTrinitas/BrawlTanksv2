@@ -6,6 +6,7 @@ import type { MarsCargo } from './MarsCargo';
 import { MARS_HEX } from '../MarsMap';
 import { FuelStation } from './FuelStation';
 import { WORLD_W, WORLD_H } from '../../config/constants';
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * UfoAbductor — the map's STAR MECHANIC (grammar layer 9).
@@ -145,7 +146,7 @@ export class UfoAbductor {
     private shieldLamps: PIXI.Graphics[] = [];
     private shieldArmedRim: PIXI.Graphics;
     private hp = UFO_HP;
-    private alertedAt = 0;               // 0 = calm; else Date.now() of first hit
+    private alertedAt = 0;               // 0 = calm; else simNowMs() of first hit
     private lastShotAt = 0;
     private lastAlienShotAt = 0;
     private alienOut = false;
@@ -186,8 +187,8 @@ export class UfoAbductor {
         this.y = WORLD_H * 0.35;
         // Z0.2 AUDIT: WORLD RNG (kurs bladzenia -> pozycja UFO -> kogo porywa) — SEEDED w Z0.1 (worldRng)
         this.wanderAngle = worldRng.next() * Math.PI * 2;
-        this.phaseAt = Date.now();
-        this.cooldownUntil = Date.now() + 6000;   // grace period after map start
+        this.phaseAt = simNowMs();
+        this.cooldownUntil = simNowMs() + 6000;   // grace period after map start
 
         // Ground shadow lives in the WORLD, not in the saucer's container — the
         // gap between body and shadow is the whole illusion (lesson A9).
@@ -353,7 +354,7 @@ export class UfoAbductor {
      * Cruise, hunt, abduct. Returns an event only on the frame a victim lands.
      */
     public update(delta: number, enemies: Enemy[], cargo: MarsCargo[], playerX: number, playerY: number): UfoTick | null {
-        const now = Date.now();
+        const now = simNowMs();
         const tick: UfoTick = {};
 
         // ── shot down: wait out the respawn, then a fresh saucer arrives ──
@@ -476,9 +477,9 @@ export class UfoAbductor {
         // ESCALATION: each hit raises the threat level; combat starts at level 5.
         if (this.threat < PROVOKE_HITS) {
             this.threat++;
-            this.lastHitAt = Date.now();
+            this.lastHitAt = simNowMs();
             this.threatBumped = true;                 // main.ts turns this into feedback
-            if (this.threat >= PROVOKE_HITS) this.alertedAt = Date.now();
+            if (this.threat >= PROVOKE_HITS) this.alertedAt = simNowMs();
         }
         if (this.hp <= 0) this.markDead();
     }
@@ -504,7 +505,7 @@ export class UfoAbductor {
 
     private markDead(): void {
         this.dead = true;
-        this.respawnAt = Date.now() + RESPAWN_MS;
+        this.respawnAt = simNowMs() + RESPAWN_MS;
         this.container.visible = false;
         // baked art is reused by the respawned saucer — hide it, never clear it
         this.gfxShadow.visible = false;

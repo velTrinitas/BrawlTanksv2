@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { EffectsManager } from '../../rendering/Effects';
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * IglooYeti — obronca igloo (ARC-R2b "Lodowa Arena").
@@ -182,13 +183,13 @@ export class IglooYeti {
     /** Wolanie z Igloo.onProvoked — start sekwencji (gdy idle i po cooldownie). */
     public provoke(): void {
         if (this.state !== 'hidden') return;
-        if (Date.now() < this.cooldownUntil) return;
+        if (simNowMs() < this.cooldownUntil) return;
         this.provokePending = true;
     }
 
     /** Per-frame: maszyna stanow + lot sniezek. playerX/Y = cel rzutow. */
     public update(_delta: number, playerX: number, playerY: number): void {
-        const now = Date.now();
+        const now = simNowMs();
         const playerDist = Math.hypot(playerX - this.homeX, playerY - this.homeY);
 
         // start sekwencji: sprowokowany + gracz w zasiegu (fairness gate)

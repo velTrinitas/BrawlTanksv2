@@ -9,6 +9,7 @@ import { GameConfigBuilder } from '../types/GameConfig';
 import { setSigmaEmitter, sigmaFrame, type SigmaEvent } from './sigmaFlag';
 import { runOracles, ORACLES, shotMismatch, type OracleInput } from './oracles';
 import { BotPolicy, type BotMode } from './BotPolicy';
+import { simNowMs } from '../systems/SimClock'; // COOP S1
 
 /**
  * SigmaTest — warstwa testowa gry (`window.__sigmaTest`), ladowana DYNAMICZNIE tylko z `?bot=1`.
@@ -149,7 +150,7 @@ export function installSigmaTest(bridge: SigmaBridge): void {
             enemies: bridge.enemies.map(e => ({
                 id: e.sigmaId, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp,
                 kind: e.isMegaBoss ? 'mega' : e.isBoss ? 'boss' : e.isPursuit ? 'pursuit' : 'enemy',
-                role: e.castleRole ?? e.queenRole ?? (e.guard ? 'guard' : null), frozen: Date.now() < e.frozenUntil, active: e.active, stuck: e.sigmaStuckFrames, shots: e.sigmaShots,
+                role: e.castleRole ?? e.queenRole ?? (e.guard ? 'guard' : null), frozen: simNowMs() < e.frozenUntil, active: e.active, stuck: e.sigmaStuckFrames, shots: e.sigmaShots,
             })),
             bullets: bridge.bullets.length, enemyBullets: bridge.enemyBullets.length,
             bulletsNear: p ? bridge.enemyBullets

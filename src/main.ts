@@ -217,6 +217,7 @@ import { isRangeMode } from './config/rangeFlag';                       // STRZE
 import { RangeDirector, type RangeReport } from './systems/range/RangeDirector'; // STRZELNICA v0.209.0
 import { RANGE_TUNING } from './systems/range/rangeTuning';             // STRZELNICA v0.209.0 // SigmaTester: ?bot=1 (warstwa testowa laduje sie dynamicznie na koncu bootu)
 import { worldRng, seedMatchRng } from './systems/Rng';
+import { simNowMs, advanceSimClock } from './systems/SimClock';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
@@ -1396,8 +1397,8 @@ if (import.meta.env.DEV) {
  * SigmaTester (oracle J7) zmierzyl skutek: -200/-400 HP w 5 sekund, az do smierci, bez mozliwosci
  * reakcji. Dla 9-12 lat to czysta niesprawiedliwosc — obrocil telefon, przegral mecz.
  *
- * UWAGA (dlug): zatrzymujemy logike i muzyke, ale zegary scenariuszy licza z Date.now()
- * (Krolowa/Zamek), wiec czas celu plynie dalej. Pelne zamrozenie = wyciecie Date.now() z logiki
+ * UWAGA (dlug): od COOP S1 (SimClock) zegary trybu klasycznego stoja razem z logika; zegary scenariuszy
+ * Krolowej/Zamku nadal licza z Date.now() (poza MVP koopa), wiec tam czas celu plynie dalej
  * (dlug ETAP 1 determinizmu).
  */
 let orientationPaused = false;
@@ -1534,7 +1535,7 @@ function tryActivateSuper(slot: 0 | 1 | 2 = 0): void {
 
         for (const enemy of result.megaBombTargets) {
             // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (na wszelki wypadek).
-            const wasFrozen = Date.now() < enemy.frozenUntil;
+            const wasFrozen = simNowMs() < enemy.frozenUntil;
             const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects, SRC_POWER_MEGA_BOMB); // Z0.5
             if (killed) {
                 spawnSystem!.registerKill(enemy);
@@ -2775,7 +2776,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         for (const enemy of enemies) {
             if (!enemy.active) continue;
             if ((enemy.x - x) ** 2 + (enemy.y - y) ** 2 > r2) continue;
-            const wasFrozen = Date.now() < enemy.frozenUntil;
+            const wasFrozen = simNowMs() < enemy.frozenUntil;
             const killed = enemy.takeDamage(dmg, enemy.x, enemy.y, worldContainer, effects, SRC_POWER); // Z0.5: generyczne AOE mocy (miny/rakiety/Dziura/Laser)
             if (killed) {
                 spawnSystem.registerKill(enemy);
@@ -3063,7 +3064,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // i na koncu meczu (nie co 4 s — to byloby pisanie do localStorage w petli).
         seasonMissStreak = ProgressionService.getSeasonMissStreak(config.profileId);
         // pierwszy spawn po pelnym odstepie — inaczej znajdzka lezy juz w sekundzie zero
-        seasonNextSpawnAt = Date.now() + (seasonContentCache?.spawn.everyMs ?? 0);
+        seasonNextSpawnAt = simNowMs() + (seasonContentCache?.spawn.everyMs ?? 0);
     }
     isMouseDown = false;
     gameState = 'PLAYING';
@@ -3856,7 +3857,7 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
  */
 function applyHazardDamageToEnemy(enemy: Enemy, dmg: number, src: DamageSource): boolean {
     if (!enemy.active || !effects || !spawnSystem || !currentSession) return false;
-    const wasFrozen = Date.now() < enemy.frozenUntil;
+    const wasFrozen = simNowMs() < enemy.frozenUntil;
     const killed = enemy.takeDamage(dmg, enemy.x, enemy.y, worldContainer, effects, src);
     if (killed) {
         spawnSystem.registerKill(enemy);
@@ -4172,6 +4173,7 @@ app.ticker.add((rawDelta) => {
 function runLogicStep(delta: number): void {
     if (gameState !== 'PLAYING' || !localPlayer || !effects || !spawnSystem || !powerSystem || !currentSession) return;
     if (orientationPaused) return; // v0.186.0: telefon w pionie => gra STOI (ostrzezenie zakrywa plansze i kontrolki)
+    advanceSimClock(delta * LOGIC_STEP_MS); // COOP S1: czas gry plynie tylko w krokach logiki
 
     // SHOP-1 — paczka glosowa: ostrzezenie przy spadku ponizej polowy pancerza.
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
@@ -4400,7 +4402,7 @@ function runLogicStep(delta: number): void {
         if (wf.isPointInside(localPlayer.x, localPlayer.y)) { playerInWheat = true; break; }
     }
 
-    const nowMs = Date.now();
+    const nowMs = simNowMs();
     const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden || playerInWheat;
     const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame || wasInHydroGardenLastFrame || wasInWheatLastFrame;
 
@@ -4725,7 +4727,7 @@ function runLogicStep(delta: number): void {
         sandKickFrameCounter = 0;
     }
 
-    const time = Date.now() / 1000;
+    const time = simNowMs() / 1000;
     for (const pad of mediPads) {
         const result = pad.update(localPlayer.x, localPlayer.y, localPlayer.isMoving, localPlayer.hp, localPlayer.maxHp, time);
         if (result.healed) {
@@ -4805,7 +4807,7 @@ function runLogicStep(delta: number): void {
         if (content) {
             // v0.139.0: `hud.seasonIcon` usuniete — chip pokazuje sama liczbe pod
             // podpisem „ZNAJDŹKI", bez emoji 📕 (ktore i tak dublowalo zle znaczenie).
-            const nowMs = Date.now();
+            const nowMs = simNowMs();
             // JEDEN zegar spawnu na cala pule (nie po jednym na rzadkosc): przedmiot
             // wybiera losowanie wazone z manifestu, wiec rzadkosc wynika z wagi,
             // a nie z osobnego, latwego do rozjechania tempa per tier.
@@ -4947,7 +4949,7 @@ function runLogicStep(delta: number): void {
         }
     }
 
-    const now = Date.now();
+    const now = simNowMs();
     if (isMouseDown && !(castleJump?.isAirborne() ?? false) && now - lastShotTime > localPlayer.brawler.reload) { // GRUPA E: w locie bez strzalu
         // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
         // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
@@ -5205,7 +5207,7 @@ function runLogicStep(delta: number): void {
 
             if (!enemy.isBoss && !enemy.isMegaBoss) {
                 // v0.50.0 Scoring v2.1: snapshot frozen state PRZED enemy.active = false.
-                const wasFrozen = Date.now() < enemy.frozenUntil;
+                const wasFrozen = simNowMs() < enemy.frozenUntil;
 
                 effects.spawnExplosionAndWreck(enemy.x, enemy.y, enemy.tintHex);
                 audio.playExplosion();
@@ -5279,7 +5281,7 @@ function runLogicStep(delta: number): void {
                 // super-shotu nie moze dostac fioletowego floatera ani super hit-stopu.
                 const wasSuperShot = b.source === 'player' && localPlayer.isSuperShotActive;
                 // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (frozen kill bonus).
-                const wasFrozen = Date.now() < enemy.frozenUntil;
+                const wasFrozen = simNowMs() < enemy.frozenUntil;
                 // Z0.5: pocisk gracza vs pocisk Wiezy (moc) — Bullet.source rozstrzyga
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects,
                     b.source === 'player' ? SRC_PLAYER_BULLET : SRC_POWER);
@@ -5547,7 +5549,7 @@ if (SIGMA_BOT) {
             },
             get powersUsed() { return currentSession?.superPowersUsed ?? 0; },
             // pady naprawy: x/y = TOP-LEFT, PAD_SIZE 100 na wszystkich mapach => srodek +50
-            get mediPads() { return mediPads.map(p => ({ x: p.x + 50, y: p.y + 50, ready: Date.now() >= p.cooldownEnd })); },
+            get mediPads() { return mediPads.map(p => ({ x: p.x + 50, y: p.y + 50, ready: simNowMs() >= p.cooldownEnd })); },
             get ctfInfo() { return hud.ctfInfo; },
             // S5b: prostokaty HUD z ostatniej klatki (J2) + stan audio po zwinieciu (J10)
             get hudRects() { return hud.sigmaRects ?? []; },

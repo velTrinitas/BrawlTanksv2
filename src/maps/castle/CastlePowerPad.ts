@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 /**
  * CastlePowerPad — power/turbo pad scenariusza CTF (FAZA F4.2), wariant ruin.
@@ -73,7 +74,7 @@ export class CastlePowerPad {
     }
 
     update(playerX: number, playerY: number, time: number): PowerPadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let activated = false;
 
@@ -117,7 +118,7 @@ export class CastlePowerPad {
 
         if (!isActive) {
             this.cooldownLabel.visible = true;
-            const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
+            const cdLeft = Math.ceil((this.cooldownEnd - simNowMs()) / 1000);
             this.cooldownLabel.text = `⏱ ${cdLeft}s`;
             this.cooldownLabel.x = PAD_SIZE / 2;
             this.cooldownLabel.y = -18;

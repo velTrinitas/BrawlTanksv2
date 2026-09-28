@@ -3,6 +3,7 @@ import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
 import { PICKUP_CONFIG } from '../../config/powers';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded gameplay RNG
+import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 /**
  * Gem pickup — zielony heksagonalny diamond.
@@ -115,7 +116,7 @@ export class Gem {
         this.y = y + worldRng.range(-15, 15); // Z0.1: seeded
         this.baseY = this.y;
         this.active = true;
-        this.bornAt = Date.now();
+        this.bornAt = simNowMs();
         
         this.sprite = new PIXI.Sprite(getGemTexture());
         this.sprite.anchor.set(0.5);
@@ -161,9 +162,9 @@ export class Gem {
         this.sprite.x = this.x;
         this.sprite.y = this.baseY + floatOffset;
         
-        const age = Date.now() - this.bornAt;
+        const age = simNowMs() - this.bornAt;
         if (age > PICKUP_CONFIG.gemLifetimeMs - 3000) {
-            const blink = Math.sin(Date.now() / 80) > 0 ? 1 : 0.3;
+            const blink = Math.sin(simNowMs() / 80) > 0 ? 1 : 0.3;
             this.sprite.alpha = blink;
         }
         
@@ -188,7 +189,7 @@ export class Gem {
         this.y = y + worldRng.range(-15, 15); // Z0.1: seeded
         this.baseY = this.y;
         this.active = true;
-        this.bornAt = Date.now();
+        this.bornAt = simNowMs();
         this.attracted = false;
         this.vx = 0;
         this.vy = 0;

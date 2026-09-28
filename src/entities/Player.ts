@@ -16,6 +16,7 @@ import type { DamageSource } from '../types/DamageSource'; // Z0.5
 // FAZA 7c: profile flag override via FLAGS config (data-driven)
 import { FLAGS, type FlagConfig } from '../config/flags';
 import type { FlagId } from '../types/Profile';
+import { simNowMs } from '../systems/SimClock'; // COOP S1
 
 interface KeysState { w: boolean; a: boolean; s: boolean; d: boolean; }
 
@@ -537,16 +538,16 @@ export class Player {
 
     applyTurboBoost(durationMs: number, multiplier: number): void {
         this.speedBoostMult = multiplier;
-        this.speedBoostEnd = Date.now() + durationMs;
+        this.speedBoostEnd = simNowMs() + durationMs;
     }
 
     get currentSpeed(): number {
-        if (Date.now() > this.speedBoostEnd) this.speedBoostMult = 1;
+        if (simNowMs() > this.speedBoostEnd) this.speedBoostMult = 1;
         return this.baseSpeed * this.speedBoostMult * this.speedModifier;
     }
 
     get hasSpeedBoost(): boolean {
-        return Date.now() < this.speedBoostEnd && this.speedBoostMult > 1;
+        return simNowMs() < this.speedBoostEnd && this.speedBoostMult > 1;
     }
 
     addSuperCharge(amount: number): void {
@@ -554,7 +555,7 @@ export class Player {
     }
 
     tryActivateOrContinueSuperShot(): boolean {
-        const now = Date.now();
+        const now = simNowMs();
         if (this.superActive && now < this.superEndTime) return true;
         if (this.superActive && now >= this.superEndTime) this.superActive = false;
         if (!this.superActive && this.superCharges > 0) {
@@ -567,12 +568,12 @@ export class Player {
     }
 
     get isSuperShotActive(): boolean {
-        return this.superActive && Date.now() < this.superEndTime;
+        return this.superActive && simNowMs() < this.superEndTime;
     }
 
     get superShotSecondsLeft(): number {
         if (!this.superActive) return 0;
-        return Math.max(0, (this.superEndTime - Date.now()) / 1000);
+        return Math.max(0, (this.superEndTime - simNowMs()) / 1000);
     }
 
     // ── DASH (BALANCE_V2 S3) ────────────────────────────────────────────────────────────
@@ -978,7 +979,7 @@ export class Player {
         // tint super mocy / turbo (informacja o mocy nie ginie).
         this.updateCriticalArmor(delta, damageSmoke ?? null);
 
-        if (this.superActive && Date.now() >= this.superEndTime) this.superActive = false;
+        if (this.superActive && simNowMs() >= this.superEndTime) this.superActive = false;
 
         this.updateSuperRing();
         this.updateBrawlerTracks();

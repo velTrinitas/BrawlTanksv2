@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 // TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
 import { t } from '../i18n/i18n';
+import { simNowMs } from '../systems/SimClock';
 
 /**
  * HoverRepairPad — MediPad z v4.48.
@@ -196,7 +197,7 @@ export class HoverRepairPad {
         playerMaxHp: number,
         time: number
     ): PadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let healed = false;
         
@@ -295,7 +296,7 @@ export class HoverRepairPad {
         
         if (!isActive) {
             this.cooldownLabel.visible = true;
-            const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
+            const cdLeft = Math.ceil((this.cooldownEnd - simNowMs()) / 1000);
             this.cooldownLabel.text = `⏱ ${cdLeft}s`;
             this.cooldownLabel.x = PAD_SIZE / 2;
             this.cooldownLabel.y = -16;

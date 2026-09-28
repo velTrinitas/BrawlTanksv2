@@ -17,6 +17,7 @@ import { CatapultStone } from '../../entities/castle/CatapultStone'; // F4
 import { SRC_CATAPULT } from '../../types/DamageSource'; // F4
 import { CastleDebris } from '../../maps/castle/CastleDebris'; // F6
 import * as PIXI from 'pixi.js';
+import { simNowMs } from '../SimClock'; // COOP S1: frozenUntil jest na zegarze symulacji
 
 /**
  * CastleSystem — rdzen scenariusza OBRON ZAMEK (F3). Wzorzec strukturalny: CtfSystem.
@@ -734,7 +735,7 @@ export class CastleSystem {
     private contactDamage(now: number): void {
         for (const e of this.opts.enemies) {
             if (!e.active || !e.castleArrived || !e.castleTargetPart) continue;
-            if (now < e.frozenUntil) continue; // P0.3: mroz = zero kontaktu
+            if (simNowMs() < e.frozenUntil) continue; // P0.3: mroz = zero kontaktu
             const p = e.castleTargetPart;
             if (p.isDestroyed) { e.castleArrived = false; e.castleTargetPart = null; e.castleRouteId = ''; continue; }
             const cd = e.isBoss || e.isMegaBoss ? T.bossContactCooldownMs : T.contactCooldownMs;
@@ -806,7 +807,7 @@ export class CastleSystem {
     private updateMachines(now: number): void {
         for (const e of this.opts.enemies) {
             if (!e.active || !CastleSystem.isMachine(e.castleRole)) continue;
-            if (now < e.frozenUntil) continue; // P0.3: zamrozona maszyna nie strzela i nie taranuje
+            if (simNowMs() < e.frozenUntil) continue; // P0.3: zamrozona maszyna nie strzela i nie taranuje
             if (e.castleRole === 'taran') this.updateTaran(e, now);
             else this.updateLobber(e, now);
         }

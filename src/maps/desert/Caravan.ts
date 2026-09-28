@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import { isPointInView } from '../cullGate';
+import { simNowMs } from '../../systems/SimClock';
 import {
     DESERT_CARAVAN_PATH,
     DESERT_CARAVAN_CAMEL_COUNT,
@@ -90,7 +91,7 @@ export class Caravan {
         }
         
         this.updateCamelPositions();
-        this.lastDropTime = Date.now();
+        this.lastDropTime = simNowMs();
     }
     
     private buildCamel(index: number): Camel {
@@ -509,7 +510,7 @@ export class Caravan {
             this.animateCamels(delta);
         }
 
-        const now = Date.now();
+        const now = simNowMs();
         if (now - this.lastDropTime >= DESERT_CARAVAN_DROP_INTERVAL_MS) {
             this.lastDropTime = now;
             

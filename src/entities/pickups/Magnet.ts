@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
+import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 /**
  * Magnet pickup — rare. Aktywuje 5s podczas których wszystkie gems lecą do gracza.
@@ -55,7 +56,7 @@ export class Magnet {
         sigmaEmit({ t: 'spawn', kind: 'magnet', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
         this.x = x; this.y = y;
         this.active = true;
-        this.bornAt = Date.now();
+        this.bornAt = simNowMs();
 
         // glow POD magnesem (osobny sprite — asset nie ma własnej poświaty)
         this.glowSprite = new PIXI.Sprite(getMagnetGlowTexture());
@@ -84,9 +85,9 @@ export class Magnet {
         this.sprite.rotation += 0.015;
         this.glowSprite.scale.set(pulse);
 
-        const age = Date.now() - this.bornAt;
+        const age = simNowMs() - this.bornAt;
         if (age > Magnet.LIFETIME_MS - 3000) {
-            const blink = Math.sin(Date.now() / 80) > 0 ? 1 : 0.4;
+            const blink = Math.sin(simNowMs() / 80) > 0 ? 1 : 0.4;
             this.sprite.alpha = blink;
             this.glowSprite.alpha = blink;
         }

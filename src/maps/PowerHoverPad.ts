@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { getPadShadowTexture } from './HoverRepairPad';
+import { simNowMs } from '../systems/SimClock';
 
 /**
  * PowerHoverPad — Turbo pad z v4.48.
@@ -162,7 +163,7 @@ export class PowerHoverPad {
         playerY: number,
         time: number
     ): PowerPadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let activated = false;
         
@@ -229,7 +230,7 @@ export class PowerHoverPad {
         // Cooldown
         if (!isActive) {
             this.cooldownLabel.visible = true;
-            const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
+            const cdLeft = Math.ceil((this.cooldownEnd - simNowMs()) / 1000);
             this.cooldownLabel.text = `⏱ ${cdLeft}s`;
             this.cooldownLabel.x = PAD_SIZE / 2;
             this.cooldownLabel.y = -16;

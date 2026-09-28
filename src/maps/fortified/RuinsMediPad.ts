@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 // TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
 import { t } from '../../i18n/i18n';
+import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 /**
  * RuinsMediPad — medi pad scenariusza CTF (FAZA F4.2), wariant w klimacie ruin.
@@ -98,7 +99,7 @@ export class RuinsMediPad {
         playerMaxHp: number,
         time: number,
     ): PadInteractionResult {
-        const now = Date.now();
+        const now = simNowMs();
         const isActive = now >= this.cooldownEnd;
         let healed = false;
 
@@ -188,7 +189,7 @@ export class RuinsMediPad {
         // Cooldown label
         if (!isActive) {
             this.cooldownLabel.visible = true;
-            const cdLeft = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
+            const cdLeft = Math.ceil((this.cooldownEnd - simNowMs()) / 1000);
             this.cooldownLabel.text = `⏱ ${cdLeft}s`;
             this.cooldownLabel.x = PAD_SIZE / 2;
             this.cooldownLabel.y = -18;

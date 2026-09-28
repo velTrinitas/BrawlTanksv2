@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
 import { MARS_HEX } from '../MarsMap';
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * DustStorm — cyclic Martian dust storm (grammar layer P, weather).
@@ -80,7 +81,7 @@ export class DustStorm {
         worldContainer.addChild(this.container);
 
         // Z0.2 AUDIT: WORLD RNG (timing startu burzy = wspolne zdarzenie swiata) — SEEDED w Z0.1 (worldRng)
-        this.phaseEndsAt = Date.now() + IDLE_MIN_MS + worldRng.next() * (IDLE_MAX_MS - IDLE_MIN_MS);
+        this.phaseEndsAt = simNowMs() + IDLE_MIN_MS + worldRng.next() * (IDLE_MAX_MS - IDLE_MIN_MS);
 
         for (let i = 0; i < PARTICLE_COUNT; i++) this.motes.push(this.makeMote(true));
         for (let i = 0; i < STREAK_COUNT; i++) this.streaks.push(this.makeStreak(true));
@@ -114,7 +115,7 @@ export class DustStorm {
     public forceStart(): void {
         if (this.phase !== 'idle') return;
         this.phase = 'rampUp';
-        this.phaseEndsAt = Date.now() + RAMP_MS;
+        this.phaseEndsAt = simNowMs() + RAMP_MS;
         this.container.visible = true;
         this.onStart();
     }
@@ -127,7 +128,7 @@ export class DustStorm {
      *        blows 2.4x faster on a 144 Hz screen than on 60 Hz (lesson D4).
      */
     public update(camX: number, camY: number, viewW: number, viewH: number, delta: number): void {
-        const now = Date.now();
+        const now = simNowMs();
         this.viewW = viewW;
         this.viewH = viewH;
 

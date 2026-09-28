@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import type { SeasonContentDef, SeasonItemDef } from '../../config/seasonContent';
+import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 /**
  * SeasonPickup — sezonowa znajdzka (Season Kit, warstwa 1).
@@ -132,7 +133,7 @@ export class SeasonPickup {
         this.radius = content.radius;
         this.value = item.value;
         this.size = content.size;
-        this.bornAt = Date.now();
+        this.bornAt = simNowMs();
         this.phase = Math.random() * Math.PI * 2;
 
         // WSZYSTKIE obiekty wyswietlane w PIERWSZYM bloku konstruktora (E1)
@@ -192,7 +193,7 @@ export class SeasonPickup {
     public reset(x: number, y: number, item: SeasonItemDef, content: SeasonContentDef): void {
         this.x = x; this.y = y;
         this.value = item.value;
-        this.bornAt = Date.now();
+        this.bornAt = simNowMs();
         this.phase = Math.random() * Math.PI * 2;
         this.active = true;
         this.applyDef(item, content);
@@ -211,7 +212,7 @@ export class SeasonPickup {
     public update(delta: number, _playerX: number, _playerY: number): void {
         if (!this.active) return;
 
-        const age = Date.now() - this.bornAt;
+        const age = simNowMs() - this.bornAt;
         if (age >= TTL_MS) { this.despawn(); return; }
 
         const t = Date.now() / 260;

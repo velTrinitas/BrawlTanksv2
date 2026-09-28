@@ -15,6 +15,7 @@ import type { PowerCube } from './pickups/PowerCube';
 import type { CastleRole } from '../systems/castle/castleWaves'; // OBRON ZAMEK F3
 import type { CastleLaneId } from '../maps/CastleMap'; // OBRON ZAMEK F3
 import type { CastlePart } from '../maps/castle/CastlePart'; // OBRON ZAMEK F3
+import { simNowMs } from '../systems/SimClock'; // COOP S1
 
 /**
  * FAZA CTF F2 — stan straznika flagi.
@@ -287,10 +288,10 @@ export class Enemy {
             this.burstSpread = 0;
         }
 
-        this.lastShotTime = Date.now() + worldRng.next() * 1000 - this.shootIntervalMs; // Z0.1: seeded
+        this.lastShotTime = simNowMs() + worldRng.next() * 1000 - this.shootIntervalMs; // Z0.1: seeded
 
         if (isMegaBoss) {
-            this.megaShieldNextTime = Date.now() + 12000;
+            this.megaShieldNextTime = simNowMs() + 12000;
         }
 
         // v0.58.0: losowy poczatkowy kierunek orbitowania dla pursuit
@@ -575,7 +576,7 @@ export class Enemy {
         this.container.zIndex = this.y + 19;
 
         if (g.state !== 'patrol') {
-            const now = Date.now();
+            const now = simNowMs();
             const dx = playerX - this.x;
             const dy = playerY - this.y;
             const dist = Math.hypot(dx, dy);
@@ -830,7 +831,7 @@ export class Enemy {
             this.policeLights.rotation = this.hull.rotation;
         }
 
-        if (Date.now() < this.frozenUntil) {
+        if (simNowMs() < this.frozenUntil) {
             // Freeze: multiply tint 0x66ddff dziala tez na baked kolory (cyan cast, czyta sie jako mroz).
             this.hull.tint = 0x66ddff;
             this.turret.tint = 0x66ddff;
@@ -918,7 +919,7 @@ export class Enemy {
             else if (hpPct > 0.3) this.megaPhase = 'strafe';
             else this.megaPhase = 'flee';
 
-            const now = Date.now();
+            const now = simNowMs();
             if (!this.megaShieldActive && now >= this.megaShieldNextTime) {
                 this.megaShieldActive = true;
                 this.megaShieldEndTime = now + 3000;
@@ -1015,7 +1016,7 @@ export class Enemy {
         // CASTLE_FIRE_CONE (ponizej). Dotyczy tylko `castleRole`; reszta scenariuszy bez zmian.
         const shootRange = this.shootRangeOverride ?? (this.isPursuit ? PURSUIT_SHOOT_RANGE : 640);
         const shotWanted = !isChasingCube && !this.castleNoShoot
-            && Date.now() - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange;
+            && simNowMs() - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange;
         let facing = aimAngle;
         if (this.castleRole) {
             const mdx = this.x - this.preMoveX, mdy = this.y - this.preMoveY;
@@ -1059,7 +1060,7 @@ export class Enemy {
                 aligned = Math.abs(d) <= CASTLE_FIRE_CONE;
             }
             if (aligned) {
-                const now = Date.now();
+                const now = simNowMs();
                 this.lastShotTime = now;
                 const muzzleOffset = this.isMegaBoss ? 70 : this.isBoss ? 55 : (this.isPursuit ? 48 : 40);
                 const muzzleX = this.x + Math.cos(facing) * muzzleOffset;

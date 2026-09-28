@@ -42,6 +42,7 @@
 import type { GameConfig } from '../types/GameConfig';
 import { getDifficultyMultiplier } from '../types/GameConfig';
 import { QuestService } from './QuestService'; // PROG-F3 — metryki rozkazow (skill bonusy = zdarzenia questowe)
+import { simNowMs } from '../systems/SimClock'; // COOP S1
 
 /**
  * Tier indicator combo (1-4+). Uzywany jako toast text label ("DOUBLE!"/"TRIPLE!"/"MEGA").
@@ -468,7 +469,7 @@ export class GameSession {
      * Zostawiony dla back-compat (gdyby zewnetrzny kod chcial sprawdzic tier).
      */
     getComboMultiplier(): number {
-        if (Date.now() >= this.comboEndTime) {
+        if (simNowMs() >= this.comboEndTime) {
             return 1;
         }
         return Math.min(MAX_COMBO_TIER, this.comboCount);
@@ -481,7 +482,7 @@ export class GameSession {
      * Uzywany przez addKillScore() do obliczenia bonusu comba per kill.
      */
     getComboScoreMultiplier(): number {
-        if (Date.now() >= this.comboEndTime) {
+        if (simNowMs() >= this.comboEndTime) {
             return COMBO_SCORE_MULTIPLIERS[0]; // 1.0
         }
         const idx = Math.min(COMBO_SCORE_MULTIPLIERS.length - 1, this.comboCount);
@@ -490,7 +491,7 @@ export class GameSession {
 
     /** True gdy combo aktywne (jeszcze nie wygaslo). */
     isComboActive(): boolean {
-        return Date.now() < this.comboEndTime;
+        return simNowMs() < this.comboEndTime;
     }
 
     /**
@@ -502,7 +503,7 @@ export class GameSession {
      * NOWEGO comboMult (opcja A: drugi kill w serii dostaje ×1.2 DOUBLE).
      */
     registerKill(comboWindowMs: number = 2000): number {
-        const now = Date.now();
+        const now = simNowMs();
         if (now < this.comboEndTime) {
             this.comboCount++;
         } else {

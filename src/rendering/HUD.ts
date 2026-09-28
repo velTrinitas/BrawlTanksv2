@@ -8,6 +8,7 @@ import { t as tr } from '../i18n/i18n';
 import { crosshairStyle, DEFAULT_CROSSHAIR, type CrosshairId } from './crosshairs';
 import { hpColorRGB } from './hpColor'; // v0.187.0 — wspolny kolor HP z paskiem nad czolgiem
 import { heartbeat } from './heartbeat'; // v0.187.0 — ten sam rytm co puls kadluba gracza
+import { simNowMs } from '../systems/SimClock'; // COOP S1
 
 const GEMS_PER_SUPER_CHARGE_TRIGGER = 10;
 const SUPER_TINT_HEX = '#c850ff';
@@ -1349,7 +1350,7 @@ export class HUD {
     private drawMagnetStatus(powerSystem: PowerSystem): void {
         if (!powerSystem.magnetActive) return;
         const c = this.ctx;
-        const remaining = Math.max(0, (powerSystem.magnetEndTime - Date.now()) / 1000);
+        const remaining = Math.max(0, (powerSystem.magnetEndTime - simNowMs()) / 1000);
         
         // v0.186.0: przestrzen skalowana uiScale (wczesniej surowy screenW => pigulka konczyla sie 210 px przed krawedzia)
         const px = this.screenW / this.uiScale - 14 - 200;
@@ -1377,7 +1378,7 @@ export class HUD {
     private drawTurboStatus(player: Player): void {
         if (!player.hasSpeedBoost) return;
         const c = this.ctx;
-        const remaining = Math.max(0, (player.speedBoostEnd - Date.now()) / 1000);
+        const remaining = Math.max(0, (player.speedBoostEnd - simNowMs()) / 1000);
         
         // v0.186.0: przestrzen skalowana uiScale (jak magnes)
         const px = this.screenW / this.uiScale - 14 - 200;

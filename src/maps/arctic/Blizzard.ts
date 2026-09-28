@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded RNG
+import { simNowMs } from '../../systems/SimClock';
 
 /**
  * Blizzard — cykliczna sniezyca na Arktyce (ARC-R3, podejscie zaakceptowane przez
@@ -77,7 +78,7 @@ export class Blizzard {
             });
         }
 
-        this.phaseAt = Date.now();
+        this.phaseAt = simNowMs();
         // Z0.2 AUDIT: WORLD RNG (timing pierwszej zamieci = wspolne zdarzenie swiata) — SEEDED w Z0.1 (worldRng)
         this.idleDuration = FIRST_IDLE_MIN_MS + worldRng.next() * 4_000;
     }
@@ -89,7 +90,7 @@ export class Blizzard {
 
     /** Per-frame. camX/camY/viewW/viewH = viewport world-space (jak buildings.forEach). */
     public update(camX: number, camY: number, viewW: number, viewH: number, delta: number): void {
-        const now = Date.now();
+        const now = simNowMs();
 
         // ── maszyna cyklu ──
         switch (this.phase) {

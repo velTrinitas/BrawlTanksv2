@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
 import { simNowMs } from '../../systems/SimClock'; // COOP S1
+import { nextNetId } from '../../systems/NetId'; // COOP S5b
 
 /**
  * Heart pickup — leczy gracza po dotknięciu.
@@ -72,6 +73,8 @@ function getHeartTexture(): PIXI.Texture {
 }
 
 export class Heart {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3). */
+    public netId: number = nextNetId();
     public x: number;
     public y: number;
     public active: boolean;

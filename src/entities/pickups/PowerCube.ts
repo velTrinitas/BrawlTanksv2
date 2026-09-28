@@ -22,6 +22,7 @@ import { sigmaEmit } from '../../testing/sigmaFlag';
 
 import * as PIXI from 'pixi.js';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded gameplay RNG
+import { nextNetId } from '../../systems/NetId'; // COOP S5b
 
 export type PowerCubeType = 'dmg' | 'hp';
 
@@ -41,6 +42,8 @@ interface CubeTex { body: PIXI.Texture; glow: PIXI.Texture; }
 const CUBE_CACHE = new Map<PowerCubeType, CubeTex>();
 
 export class PowerCube {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3). */
+    public netId: number = nextNetId();
     public x: number;
     public y: number;
     public readonly radius: number = RADIUS;

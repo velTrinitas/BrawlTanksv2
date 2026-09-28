@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { SeasonContentDef, SeasonItemDef } from '../../config/seasonContent';
 import { simNowMs } from '../../systems/SimClock'; // COOP S1
+import { nextNetId } from '../../systems/NetId'; // COOP S5b
 
 /**
  * SeasonPickup — sezonowa znajdzka (Season Kit, warstwa 1).
@@ -111,6 +112,8 @@ function getShadowTexture(): PIXI.Texture {
 }
 
 export class SeasonPickup {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3); nowy przy kazdym reuzyciu z puli (reset). */
+    public netId: number = nextNetId();
     public x: number;
     public y: number;
     public active: boolean = true;
@@ -191,6 +194,7 @@ export class SeasonPickup {
 
     /** Pooling (wzorzec Gem): obiekt wraca do puli i jest wznawiany w nowym miejscu. */
     public reset(x: number, y: number, item: SeasonItemDef, content: SeasonContentDef): void {
+        this.netId = nextNetId(); // COOP S5b: reuzycie z puli = nowa encja
         this.x = x; this.y = y;
         this.value = item.value;
         this.bornAt = simNowMs();

@@ -4,6 +4,7 @@ import type { EffectsManager } from '../../rendering/Effects';
 import { PICKUP_CONFIG } from '../../config/powers';
 import { worldRng } from '../../systems/Rng'; // Z0.1: seeded gameplay RNG
 import { simNowMs } from '../../systems/SimClock'; // COOP S1
+import { nextNetId } from '../../systems/NetId'; // COOP S5b
 
 /**
  * Gem pickup — zielony heksagonalny diamond.
@@ -97,6 +98,8 @@ const ROTATION_SPEED = 0.008;   // v0.4c: continuous slow rotation
 const FLOAT_AMPLITUDE = 5;      // v0.4c: większa lewitacja
 
 export class Gem {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3); nowy przy kazdym reuzyciu z puli (reset). */
+    public netId: number = nextNetId();
     public x: number;
     public y: number;
     public active: boolean;
@@ -185,6 +188,7 @@ export class Gem {
      * i jest w kontenerze (ukryty), wiec tylko go pokazujemy i repozycjonujemy.
      */
     reset(x: number, y: number): void {
+        this.netId = nextNetId(); // COOP S5b: reuzycie z puli = nowa encja
         this.x = x + worldRng.range(-15, 15); // Z0.1: seeded (pozycja pickupu)
         this.y = y + worldRng.range(-15, 15); // Z0.1: seeded
         this.baseY = this.y;

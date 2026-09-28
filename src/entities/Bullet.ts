@@ -9,6 +9,7 @@ import type { ICollidable } from '../types/MapType';
 import { AudioSys } from '../audio/AudioSys';
 import { BAKER_ENABLED } from '../rendering/SpriteFactory';
 import { BulletSpriteBaker } from '../rendering/BulletSpriteBaker';
+import { nextNetId } from '../systems/NetId'; // COOP S5b
 
 /**
  * Bullet z per-brawler stats + super-shot mode (v0.7 Sesja 5).
@@ -64,6 +65,8 @@ const BULLET_DISPLAY_SCALE = 1.25;
 export interface BulletCtx { bullets: Bullet[]; playerX: number; playerY: number; }
 
 export class Bullet {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3); nowy przy kazdym reuzyciu z puli (reset). */
+    public netId: number = nextNetId();
     // POOLING: initializery (pola ustawiane w reset(), nie wprost w konstruktorze).
     public x: number = 0;
     public y: number = 0;
@@ -81,6 +84,10 @@ export class Bullet {
      * combo/celnosc/frozen-bonus (auto-aim != skill; celnosc >100% lamalaby L2b).
      */
     public source: 'player' | 'tower' = 'player';
+    /** COOP S5b: indeks gracza-wlasciciela w players[] (kredyt za kill, playerIndex w DamageSource). */
+    public ownerIndex = 0;
+    /** COOP S5b: brawler, ktorym pocisk zostal zbudowany (pula nie moze oddac pocisku innego czolgu). */
+    public get brawlerId(): string { return this.brawlerInfo.id; }
 
     // FAZA P5 Batch 2 — behavior system (breakup / boomerang)
     public behavior: 'straight' | 'breakup' | 'boomerang' | 'shockwave' = 'straight';
@@ -160,6 +167,7 @@ export class Bullet {
      * — tworzony leniwie tylko przy pierwszym uzyciu instancji.
      */
     reset(x: number, y: number, angle: number, isSuper: boolean, superDmgOverride?: number): void {
+        this.netId = nextNetId(); // COOP S5b: reuzycie z puli = nowa encja
         const b = this.brawlerInfo;
         this.x = x; this.y = y;
         this.active = true;
@@ -445,6 +453,7 @@ export class Bullet {
         for (let i = 0; i < n; i++) {
             const a = base + (i - (n - 1) / 2) * this.fragSpread;
             const frag = new Bullet(this.x, this.y, a, this.brawlerInfo, this.worldContainer, this.isSuper, fragDmg);
+            frag.ownerIndex = this.ownerIndex; // COOP S5b: fragment dziedziczy wlasciciela
             frag.speed *= 0.85;
             frag.vx = Math.cos(a) * frag.speed;
             frag.vy = Math.sin(a) * frag.speed;

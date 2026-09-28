@@ -4,6 +4,21 @@ import type { AudioSys } from '../../audio/AudioSys';
 import { DESERT_CURSE } from '../../config/desertCurse';
 import { bakeToSprite } from '../propBaker';
 
+/** COOP S5: gracz widziany przez klatwe/Ra (Player spelnia ten ksztalt). */
+export interface CursePlayer { x: number; y: number; isDashing: boolean; hp: number }
+
+/** COOP S5: najblizszy zywy gracz do punktu (null gdy brak). */
+export function nearestCursePlayer(pls: ReadonlyArray<CursePlayer>, x: number, y: number): CursePlayer | null {
+    let best: CursePlayer | null = null;
+    let bestD = Infinity;
+    for (const p of pls) {
+        if (p.hp <= 0) continue;
+        const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (d < bestD) { bestD = d; best = p; }
+    }
+    return best;
+}
+
 /**
  * RaWrath — DESERT ART v2 / E7 (uwaga Mariusza 2026-09-28). ZEMSTA BOGA RA: jednorazowo
  * na piramidzie „na dole" — po poludniowej stronie piramidy objawia sie Ra (sokol z tarcza
@@ -19,8 +34,9 @@ import { bakeToSprite } from '../propBaker';
  */
 
 export interface RaHooks {
-    getPlayer(): { x: number; y: number } | null;
-    damagePlayer(amount: number): void;
+    /** COOP S5: wszyscy gracze (indeks = players[]). */
+    getPlayers(): ReadonlyArray<CursePlayer>;
+    damagePlayer(index: number, amount: number): void;
     /** Liczby per poziom trudnosci (CURSE_BY_DIFFICULTY). */
     balls: number;
     dmg: number;
@@ -228,7 +244,7 @@ export class RaWrath {
 
         this.telegraph.clear();
         this.trails.clear();
-        const pl = this.hooks.getPlayer();
+        const pls = this.hooks.getPlayers();
         for (let i = this.balls.length - 1; i >= 0; i--) {
             const b = this.balls[i];
             b.t++;
@@ -256,7 +272,7 @@ export class RaWrath {
             }
             this.trails.lineStyle(0);
             if (b.t >= RaWrath.FLIGHT) {
-                this.impact(b.tx, b.ty, pl);
+                this.impact(b.tx, b.ty, pls);
                 b.head.destroy();
                 this.balls.splice(i, 1);
             }
@@ -273,7 +289,7 @@ export class RaWrath {
     /** Cel: gracz (co 3. kula prosto w niego) albo pierscien wokol; daleko = okolice piramidy. */
     private launch(i: number): void {
         const C = DESERT_CURSE;
-        const pl = this.hooks.getPlayer();
+        const pl = nearestCursePlayer(this.hooks.getPlayers(), this.px, this.py); // COOP S5: cel = najblizszy piramidy
         const h = (n: number) => { const v = Math.sin(n * 12.9898 + 4.1) * 43758.5453; return v - Math.floor(v); };
         let cx = this.px, cy = this.py + this.pyrSize / 2 + 160;
         if (pl && Math.hypot(pl.x - this.px, pl.y - this.py) < C.raReach) { cx = pl.x; cy = pl.y; }
@@ -291,7 +307,7 @@ export class RaWrath {
         this.audio.playFireballWhoosh();
     }
 
-    private impact(x: number, y: number, pl: { x: number; y: number } | null): void {
+    private impact(x: number, y: number, pls: ReadonlyArray<CursePlayer>): void {
         const C = DESERT_CURSE;
         this.effects.spawnRocketExplosion(x, y);
         this.effects.spawnShockwaveRing(x, y, C.raHitRadius + 20, 0xff8a2a);
@@ -306,9 +322,10 @@ export class RaWrath {
         s.zIndex = 6;
         this.world.addChild(s);
         this.scorches.push({ s, life: 480 });
-        if (pl) {
+        for (let pi = 0; pi < pls.length; pi++) { // COOP S5: wybuch rani kazdego gracza w strefie
+            const pl = pls[pi];
             const nx = (pl.x - x) / C.raHitRadius, ny = (pl.y - y) / (C.raHitRadius * 0.7);
-            if (nx * nx + ny * ny <= 1) this.hooks.damagePlayer(this.hooks.dmg);
+            if (nx * nx + ny * ny <= 1) this.hooks.damagePlayer(pi, this.hooks.dmg);
         }
     }
 

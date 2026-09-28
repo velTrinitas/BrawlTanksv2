@@ -47,5 +47,7 @@ export function isMultiplayerSandbox(): boolean {
  *      (runLogicStep(1) + catch-up do 3 krokow) zamiast zmiennej delty; rollback ?smooth=0.
  *  4 — COOP S1 (v0.220.0): SimClock — cooldowny, moce, zamrozenie, combo, pickupy, pady i timery
  *      propsow map licza z simNowMs() (rosnie tylko w krokach logiki) zamiast Date.now().
+ *  5 — COOP S5 (v0.222.0): petle players[] (strefy, stealth per gracz, pickupy, pady, pociski wrogow,
+ *      taran, klatwa/Ra/Yeti), netId encji, Bullet.ownerIndex + playerIndex w DamageSource.
  */
-export const SIM_VERSION = 4;
+export const SIM_VERSION = 5;

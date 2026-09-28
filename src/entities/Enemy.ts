@@ -16,6 +16,7 @@ import type { CastleRole } from '../systems/castle/castleWaves'; // OBRON ZAMEK 
 import type { CastleLaneId } from '../maps/CastleMap'; // OBRON ZAMEK F3
 import type { CastlePart } from '../maps/castle/CastlePart'; // OBRON ZAMEK F3
 import { simNowMs } from '../systems/SimClock'; // COOP S1
+import { nextNetId } from '../systems/NetId'; // COOP S5b
 
 /**
  * FAZA CTF F2 — stan straznika flagi.
@@ -109,6 +110,8 @@ const PURSUIT_BURST_COUNT = 1;
 const PURSUIT_BURST_SPREAD = 0;
 
 export class Enemy {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3). */
+    public netId: number = nextNetId();
     public x: number;
     public y: number;
     public speed: number;

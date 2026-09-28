@@ -8,6 +8,7 @@ import {
     ENEMY_BULLET_DISPLAY_SCALE,
     type EnemyBulletType,
 } from '../rendering/EnemyBulletSpriteBaker';
+import { nextNetId } from '../systems/NetId'; // COOP S5b
 
 /**
  * EnemyBullet z per-typ 2.5D bake (FAZA P4).
@@ -21,6 +22,8 @@ import {
  * zorientowac sprite (spin: 'none' kula enemy_basic / 'dir' elipsa boss_shell+mega_shell).
  */
 export class EnemyBullet {
+    /** COOP S5b: stabilny id encji do migawek hosta (LAN-3); nowy przy kazdym reuzyciu z puli (reset). */
+    public netId: number = nextNetId();
     public x: number = 0;
     public y: number = 0;
     public active: boolean = true;
@@ -66,6 +69,7 @@ export class EnemyBullet {
         speed: number, dmg: number, color: number,
         bulletType: EnemyBulletType | null,
     ): void {
+        this.netId = nextNetId(); // COOP S5b: reuzycie z puli = nowa encja
         this.x = x; this.y = y;
         this.active = true;
         this.distance = 0;

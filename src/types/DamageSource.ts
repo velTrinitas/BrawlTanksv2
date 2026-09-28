@@ -59,3 +59,16 @@ export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bul
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });
 export const SRC_POWER_MEGA_BOMB: DamageSource = Object.freeze({ kind: 'power' as const, powerId: 'megaBomb', playerIndex: 0 });
+
+// COOP S5b: zrodla z indeksem gracza (koop). Cache per indeks => zero alokacji w petli kolizji.
+// Stale SRC_* wyzej = aliasy dla gracza 0 (solo / gracz lokalny hosta).
+const _srcCache = new Map<string, DamageSource>();
+function cachedSrc(key: string, make: () => DamageSource): DamageSource {
+    let s = _srcCache.get(key);
+    if (!s) { s = Object.freeze(make()); _srcCache.set(key, s); }
+    return s;
+}
+export function srcPlayerBullet(i: number): DamageSource { return i === 0 ? SRC_PLAYER_BULLET : cachedSrc('pb' + i, () => ({ kind: 'player_bullet', playerIndex: i })); }
+export function srcPower(i: number): DamageSource { return i === 0 ? SRC_POWER : cachedSrc('pw' + i, () => ({ kind: 'power', playerIndex: i })); }
+export function srcShockwave(i: number): DamageSource { return i === 0 ? SRC_SHOCKWAVE : cachedSrc('sw' + i, () => ({ kind: 'shockwave', playerIndex: i })); }
+export function srcMegaBomb(i: number): DamageSource { return i === 0 ? SRC_POWER_MEGA_BOMB : cachedSrc('mb' + i, () => ({ kind: 'power', powerId: 'megaBomb', playerIndex: i })); }

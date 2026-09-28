@@ -8,7 +8,7 @@ import { DESERT_CURSE, CURSE_BY_DIFFICULTY } from '../../config/desertCurse';
 import { Mummy } from '../../entities/desert/Mummy';
 import { Scarab } from '../../entities/desert/Scarab';
 import { DesertJuice } from './DesertJuice';
-import { RaWrath } from './RaWrath';
+import { RaWrath, nearestCursePlayer, type CursePlayer } from './RaWrath';
 import { ArchaeologistGroup } from '../../entities/desert/Archaeologist';
 import { SRC_RA_FIRE } from '../../types/DamageSource';
 import { bakeSmokePuff } from '../../rendering/Tier3Baker';
@@ -43,15 +43,17 @@ const CURSE_FOG_ALPHA = BURP_CONFIG.cloudAlpha;
  *  - max 1 aktywna klatwa na mape.
  */
 
+export type { CursePlayer } from './RaWrath';
+
 export interface CurseHooks {
-    /** Gracz (null = brak / martwy). */
-    getPlayer(): { x: number; y: number; isDashing: boolean } | null;
+    /** COOP S5: wszyscy gracze (indeks = players[]; [0] = gracz tego urzadzenia). */
+    getPlayers(): ReadonlyArray<CursePlayer>;
     /** Czy klatwa moze dzialac (gra w toku). */
     isLive(): boolean;
     /** Przeszkody ruchu (buildings) — mumia i stado ich nie przechodza. */
     getObstacles(): ICollidable[];
-    /** Zadaj obrazenia graczowi (guardy nietykalnosci / tutorialu po stronie main.ts). */
-    damagePlayer(amount: number, src: DamageSource): void;
+    /** Zadaj obrazenia graczowi o indeksie `index` (guardy nietykalnosci / tutorialu po stronie main.ts). */
+    damagePlayer(index: number, amount: number, src: DamageSource): void;
     notify(key: 'warn' | 'awake' | 'lifted' | 'faded' | 'ra' | 'archeo'): void;
     /** Nick gracza do kartusza na piramidzie (E5 flex). */
     playerName(): string;
@@ -84,6 +86,8 @@ interface ActiveCurse {
  * kazdy z wlasnym dryfem, obrotem i opoznieniem; bez obwodki. Strefa obrazen to ELIPSA
  * dopasowana do splaszczonego gazu (jak BURP_CONFIG.cloudHitX/Y) — rani to, co widac.
  */
+const NO_PLAYERS: ReadonlyArray<CursePlayer> = [];
+
 interface FogPuff { s: PIXI.Sprite; dx: number; dy: number; spin: number; size: number; delay: number }
 interface FogZone {
     x: number;
@@ -94,8 +98,8 @@ interface FogZone {
     maxLife: number;
     dps: number;          // ciagle obrazenia (paczkami), 0 = brak
     oneShot: number;      // jednorazowe obrazenia przy wejsciu w strefe, 0 = brak
-    hitDone: boolean;
-    tick: number;
+    hitDone: boolean[]; // COOP S5: per gracz (indeks players[])
+    tick: number[];     // COOP S5: per gracz
     view: PIXI.Container;
     puffs: FogPuff[];
 }
@@ -248,8 +252,9 @@ export class PyramidCurse {
             if (sum >= C.threshold && !act && !s.spent && s.cooldown === 0 && live) this.trigger(s);
         }
 
-        const pl = live ? this.hooks.getPlayer() : null;
-        this.updateFogs(pl);
+        const pls = live ? this.hooks.getPlayers() : NO_PLAYERS;
+        const pl = pls.length ? pls[0] : null; // gracz lokalny — tylko wizual/dzwiek (archeolodzy, chrobot)
+        this.updateFogs(pls);
 
         // E7: Zemsta Ra (stan gry: kule i obrazenia) + archeolodzy (tylko wizual)
         for (let i = this.raEvents.length - 1; i >= 0; i--) {
@@ -262,15 +267,18 @@ export class PyramidCurse {
         }
 
         let nearest = 1e9;
-        for (const a of [...this.actives]) nearest = Math.min(nearest, this.stepCurse(a, pl));
+        for (const a of [...this.actives]) nearest = Math.min(nearest, this.stepCurse(a, pls));
         if (pl && nearest < 500) this.audio.playScarabSkitter(1 - nearest / 500);
     }
 
     /** Krok jednej klatwy. Zwraca dystans najblizszego skarabeusza do gracza (dzwiek). */
-    private stepCurse(a: ActiveCurse, pl: { x: number; y: number; isDashing: boolean } | null): number {
+    private stepCurse(a: ActiveCurse, pls: ReadonlyArray<CursePlayer>): number {
         const C = DESERT_CURSE;
         a.t++;
         const v = a.p.pyramid.getVisual();
+        // COOP S5: mumia i stado scigaja NAJBLIZSZEGO zywego gracza do piramidy (przy 1 graczu = on).
+        const pl = nearestCursePlayer(pls, v.x, v.y);
+        const local = pls.length ? pls[0] : null; // dystans do dzwieku chrobotu = gracz lokalny
         if (a.t < C.emergeSteps) return 1e9;
         if (!a.mummy) {
             a.mummy = new Mummy(a.homeX, a.homeY, this.worldContainer);
@@ -301,7 +309,7 @@ export class PyramidCurse {
             if (sc.step(this.stepNo, pl ? pl.x : null, pl ? pl.y : null, m.x, m.y, canAttach, this.resolve)) attached++;
             // Oblepiaja czolg (przeszkadzaja), ale NIE zadaja obrazen. Dash je strzasa.
             if (sc.state === 'attached' && pl && pl.isDashing) sc.detach(pl.x, pl.y);
-            if (pl) nearest = Math.min(nearest, Math.hypot(sc.x - pl.x, sc.y - pl.y));
+            if (local) nearest = Math.min(nearest, Math.hypot(sc.x - local.x, sc.y - local.y));
         }
         if (a.t % 300 === 0) this.audio.playMummyRoar();
         return nearest;
@@ -328,30 +336,34 @@ export class PyramidCurse {
             puffs.push({ s: sp, dx: Math.cos(a) * dist, dy: Math.sin(a) * dist, spin: i % 2 ? 0.006 : -0.005, size, delay });
         });
         this.worldContainer.addChild(view);
-        this.fogs.push({ x, y, rx: r, ry: r * 0.72, life: steps, maxLife: steps, dps, oneShot, hitDone: false, tick: 0, view, puffs });
+        this.fogs.push({ x, y, rx: r, ry: r * 0.72, life: steps, maxLife: steps, dps, oneShot, hitDone: [], tick: [], view, puffs });
     }
 
-    private updateFogs(pl: { x: number; y: number } | null): void {
+    private updateFogs(pls: ReadonlyArray<CursePlayer>): void {
         const C = DESERT_CURSE;
         for (let i = this.fogs.length - 1; i >= 0; i--) {
             const f = this.fogs[i];
             f.life--;
             const age = f.maxLife - f.life;              // kroki od wybuchu
-            const nx = pl ? (pl.x - f.x) / f.rx : 9;
-            const ny = pl ? (pl.y - f.y) / f.ry : 9;
-            const inside = nx * nx + ny * ny <= 1;
-            if (inside && f.oneShot > 0 && !f.hitDone) {
-                f.hitDone = true;
-                this.hooks.damagePlayer(f.oneShot, SRC_CURSE_FOG);
-            }
-            if (inside && f.dps > 0) {
-                f.tick++;
-                if (f.tick >= C.damageTickSteps) {
-                    f.tick = 0;
-                    this.hooks.damagePlayer(f.dps * (C.damageTickSteps / 60), SRC_CURSE_FOG);
+            // COOP S5: kazdy gracz w chmurze dostaje wlasne trafienie i wlasny licznik tykniec.
+            for (let pi = 0; pi < pls.length; pi++) {
+                const pl = pls[pi];
+                const nx = (pl.x - f.x) / f.rx;
+                const ny = (pl.y - f.y) / f.ry;
+                const inside = nx * nx + ny * ny <= 1;
+                if (inside && f.oneShot > 0 && !f.hitDone[pi]) {
+                    f.hitDone[pi] = true;
+                    this.hooks.damagePlayer(pi, f.oneShot, SRC_CURSE_FOG);
                 }
-            } else {
-                f.tick = 0;
+                if (inside && f.dps > 0) {
+                    f.tick[pi] = (f.tick[pi] ?? 0) + 1;
+                    if (f.tick[pi] >= C.damageTickSteps) {
+                        f.tick[pi] = 0;
+                        this.hooks.damagePlayer(pi, f.dps * (C.damageTickSteps / 60), SRC_CURSE_FOG);
+                    }
+                } else {
+                    f.tick[pi] = 0;
+                }
             }
             // Animacja jak Bek: buchniecie (rozrost) -> stanie -> rozwianie w ostatnich 30%
             const expand = Math.max(1, Math.round(f.maxLife * 0.16));
@@ -397,8 +409,8 @@ export class PyramidCurse {
         if (s.event === 'ra') {
             s.spent = true;
             this.raEvents.push(new RaWrath(v.x, v.y, v.size, this.worldContainer, this.effects, this.audio, {
-                getPlayer: () => (this.hooks.isLive() ? this.hooks.getPlayer() : null),
-                damagePlayer: (amount) => this.hooks.damagePlayer(amount, SRC_RA_FIRE),
+                getPlayers: () => (this.hooks.isLive() ? this.hooks.getPlayers() : NO_PLAYERS),
+                damagePlayer: (index, amount) => this.hooks.damagePlayer(index, amount, SRC_RA_FIRE),
                 balls: this.tuning.raBalls,
                 dmg: this.tuning.raDmg,
                 directEvery: this.tuning.raDirectEvery,

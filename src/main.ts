@@ -218,8 +218,9 @@ import { RangeDirector, type RangeReport } from './systems/range/RangeDirector';
 import { RANGE_TUNING } from './systems/range/rangeTuning';             // STRZELNICA v0.209.0 // SigmaTester: ?bot=1 (warstwa testowa laduje sie dynamicznie na koncu bootu)
 import { worldRng, seedMatchRng } from './systems/Rng';
 import { simNowMs, advanceSimClock } from './systems/SimClock';
+import { resetNetIds } from './systems/NetId'; // COOP S5b
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
-import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB } from './types/DamageSource'; // Z0.5
+import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB, srcPlayerBullet, srcPower } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
@@ -491,7 +492,6 @@ let castleEnemyBuildings: ICollidable[] | null = null;
 /** Precomputed RAZ na mecz: kolizja POCISKOW WROGA (solidBuildings z proxy zamku, ktore
  *  przyjmuja obrazenia). Pociski gracza dostaja zwykle solidBuildings (friendly fire OFF). */
 let castleEnemyBulletSolids: ICollidable[] | null = null;
-let wasInWheatLastFrame = false; // OBRON ZAMEK F2 — stealth w zbozu
 /** OBRON ZAMEK F3 — rdzen scenariusza (fale, cele, obrazenia struktur, respawn). */
 let castleSystem: CastleSystem | null = null;
 let castleJump: CastleJump | null = null; // GRUPA E — null poza Zamkiem
@@ -648,19 +648,61 @@ let parkings: Parking[] = []; // v0.60.0 — parkingi (niekolizyjne dekoracje)
 let groundClutter: GroundClutter | null = null; // v0.60.0 — wypelniacze tla (passable)
 let neonStations: NeonOasisStation[] = []; // v0.60.0 — cyberpunk stealth (kriogeniczna myjnia)
 
-let oasisStealthEndTime: number = 0;
-let wasInOasisLastFrame: boolean = false;
-let wasInCornLastFrame: boolean = false;
-let wasInNeonLastFrame: boolean = false; // v0.60.0 — stealth NEON-OASIS
-let wasInRuinsBushLastFrame: boolean = false; // FAZA CTF F1 — stealth zarosla
-let wasInHydroGardenLastFrame: boolean = false; // FAZA MARS M4 — stealth hydroponika
 let neonDidShootLastFrame = false; // v0.60.0 TIER 3 — strzal z poprzedniej klatki (panika drona)
-let wasStealthActiveLastFrame: boolean = false;
-// PROG-F3 — mirror stanu stealth dostepny poza petla (rozkaz "zniszcz wrogow ze strefy ukrycia").
-let stealthActiveNow: boolean = false;
-// v0.50.1 fix: track czy ostatnie zerwanie stealth bylo wynikiem strzalu (anti-cheese Michala).
-// Strzal ze strefy stealth = natychmiastowe wykrycie. Flag pozwala pokazac inny komunikat HUD.
-let stealthBrokenByShot: boolean = false;
+/**
+ * COOP S5: stan symulacji PER GRACZ (dawniej globale modulu przy jednym graczu).
+ * stealthEndTime/wasIn*: stealth (oaza/pola/neon/zarosla/hydroponika/zboze) z detekcja krawedzi;
+ * stealthActive: mirror dla metryki "kill ze strefy ukrycia" (PROG-F3) i taranu;
+ * stealthBrokenByShot (v0.50.1, anti-cheese Michala): strzal ze strefy = natychmiastowe wykrycie;
+ * lowHpVoiceFired (SHOP-1): latch ostrzezenia glosowego — raz na mecz.
+ * Mapa czyszczona w startGame (nowi gracze = nowy stan).
+ */
+interface PlayerSimState {
+    stealthEndTime: number;
+    wasInOasis: boolean; wasInFarm: boolean; wasInNeon: boolean;
+    wasInRuinsBush: boolean; wasInHydro: boolean; wasInWheat: boolean;
+    wasStealthActive: boolean;
+    stealthActive: boolean;
+    stealthBrokenByShot: boolean;
+    lowHpVoiceFired: boolean;
+}
+const playerSim = new Map<Player, PlayerSimState>();
+function simOf(p: Player): PlayerSimState {
+    let st = playerSim.get(p);
+    if (!st) {
+        st = { stealthEndTime: 0, wasInOasis: false, wasInFarm: false, wasInNeon: false,
+            wasInRuinsBush: false, wasInHydro: false, wasInWheat: false,
+            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false };
+        playerSim.set(p, st);
+    }
+    return st;
+}
+/** COOP S5: pierwszy gracz w promieniu r od punktu (kolejnosc players[]) albo null. */
+function playerTouching(x: number, y: number, r: number): Player | null {
+    for (const p of players) {
+        const dx = p.x - x, dy = p.y - y;
+        if (dx * dx + dy * dy < r * r) return p;
+    }
+    return null;
+}
+/** COOP S5: gracz stojacy na padzie (x/y = TOP-LEFT, PAD 100 px na wszystkich mapach) albo lokalny. */
+function padOccupant(padX: number, padY: number): Player {
+    for (const p of players) {
+        if (p.x >= padX && p.x <= padX + 100 && p.y >= padY && p.y <= padY + 100) return p;
+    }
+    return localPlayer!;
+}
+/** COOP S5: najblizszy zywy gracz (fallback localPlayer) — wspolny dla celu wroga, stealthu i magnesu. */
+function nearestLivingPlayer(x: number, y: number): Player {
+    let best = localPlayer!;
+    let bestDistSq = Infinity;
+    for (const p of players) {
+        if (p.hp <= 0) continue;
+        const dSq = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (dSq < bestDistSq) { bestDistSq = dSq; best = p; }
+    }
+    return best;
+}
 let sandKickFrameCounter: number = 0;
 
 // v0.45.0 FAZA 8.7: hit-stop frame counter. Gdy > 0, ticker robi early return.
@@ -733,7 +775,6 @@ const audio = AudioSys.getInstance();
  * powtarzanym dzwiekiem (stad safePlayVaried dla strzalow) — piec ostrzezen jest
  * gorsze niz cisza. Reset w startGame().
  */
-let lowHpVoiceFired = false;
 const LOW_HP_VOICE_AT = 0.5;
 
 /**
@@ -1685,14 +1726,14 @@ function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
  * Zwraca instancje (caller sam robi dmg-mult + applyBehavior + push, jak przy new Bullet).
  */
 let bulletPool: Bullet[] = [];
-function acquireBullet(x: number, y: number, angle: number, isSuper: boolean, superDmgOverride?: number): Bullet {
-    const pooled = bulletPool.pop();
-    if (pooled) {
-        pooled.reset(x, y, angle, isSuper, superDmgOverride);
-        return pooled;
-    }
-    // Fallback: nowa instancja. brawler staly per mecz -> pooled.reset uzywa this.brawlerInfo.
-    return new Bullet(x, y, angle, localPlayer!.brawler, worldContainer, isSuper, superDmgOverride);
+function acquireBullet(x: number, y: number, angle: number, isSuper: boolean, superDmgOverride?: number, shooter: Player = localPlayer!): Bullet {
+    // COOP S5b: pula dzieli pociski tylko tego samego czolgu (look i zachowanie z brawlerInfo).
+    const top = bulletPool[bulletPool.length - 1];
+    const pooled = top && top.brawlerId === shooter.brawler.id ? bulletPool.pop() : undefined;
+    const b = pooled ?? new Bullet(x, y, angle, shooter.brawler, worldContainer, isSuper, superDmgOverride);
+    if (pooled) pooled.reset(x, y, angle, isSuper, superDmgOverride);
+    b.ownerIndex = Math.max(0, players.indexOf(shooter)); // COOP S5b
+    return b;
 }
 
 /**
@@ -1840,6 +1881,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // FAZA A: tutorialMode = sandbox nauki na realnej mapie tego czolgu, spawn wrogow OFF.
     tutorialActive = tutorialMode;
     lastGameConfig = config;
+    resetNetIds(); // COOP S5b: numeracja encji od zera co mecz (determinizm) — PRZED tworzeniem encji
     clearTutorialSandbox(); // FAZA B: wyczysc ring/tracking z ew. poprzedniego tutorialu
     document.body.classList.add('bt-in-match'); // v0.186.0: chowa #credits na dotyku (lezal pod lewym joystickiem)
     document.getElementById('victoryScreen')!.classList.remove('active-screen');
@@ -1904,7 +1946,6 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     castleEnemyBarriers = [];
     castleEnemyBuildings = null;
     castleEnemyBulletSolids = null;
-    wasInWheatLastFrame = false;
     castleSystem?.destroy(); castleSystem = null; // OBRON ZAMEK F3
     castleJump?.destroy(); castleJump = null; // GRUPA E
     queenSystem?.destroy(); queenSystem = null; // SAVE THE QUEEN Q2
@@ -1983,12 +2024,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             };
         }
 
-    oasisStealthEndTime = 0;
-    wasInOasisLastFrame = false;
-    wasInCornLastFrame = false;
-    wasStealthActiveLastFrame = false;
+    playerSim.clear(); // COOP S5: stealth/latche per gracz od zera
     neonDidShootLastFrame = false; // v0.60.0
-    stealthBrokenByShot = false; // v0.50.1
     sandKickFrameCounter = 0;
     hitStopFramesRemaining = 0; // v0.45.0 FAZA 8.7 reset
 
@@ -2890,18 +2927,19 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // spojnie z pociskami wrogow: nietykalnosc / tutorial / perfect-run). Tylko strzelnica bez.
     if (desertPyramidsV2.length && config.scenario !== 'range') {
         pyramidCurse = new PyramidCurse(desertPyramidsV2, worldContainer, effects, audio, {
-            getPlayer: () => (localPlayer ? { x: localPlayer.x, y: localPlayer.y, isDashing: localPlayer.isDashing } : null),
+            getPlayers: () => players, // COOP S5: Player spelnia CursePlayer (x/y/isDashing/hp)
             isLive: () => gameState === 'PLAYING' && !!localPlayer && !!currentSession,
             getObstacles: () => buildings, // mumia i stado nie wchodza na piramidy/skaly/rzeke
             playerName: () => ProfileService.getActiveProfile()?.nickname ?? '', // E5 kartusz
-            damagePlayer: (amount, src) => {
-                if (!localPlayer || !currentSession || gameState !== 'PLAYING') return;
+            damagePlayer: (index, amount, src) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
                 const protectedNow = powerSystem!.isInvulnerable || tutorialActive;
-                const died = localPlayer.takeDamage(amount, protectedNow, src); // Z0.5: DamageSource 'curse_fog'
+                const died = cp.takeDamage(amount, protectedNow, src); // Z0.5: DamageSource 'curse_fog' / 'ra_fire'
                 if (!protectedNow) {
-                    effects!.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0x7dff6a);
-                    effects!.spawnFloatingText(localPlayer.x, localPlayer.y - 30, `-${Math.round(amount)}`, 0xff6b6b);
-                    audio.playHit('player');
+                    effects!.spawnEnemyHitSparks(cp.x, cp.y, 0x7dff6a);
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, `-${Math.round(amount)}`, 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
                     currentSession.markDamageTaken();
                 }
                 if (died) { void triggerGameOver(); }
@@ -2947,17 +2985,18 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                 ARCTIC_IGLOO_POS.x, ARCTIC_IGLOO_POS.y, ARCTIC_IGLOO_POS.size,
                 worldContainer, effects,
                 (ix, iy) => {
-                    if (!localPlayer || !currentSession || gameState !== 'PLAYING') return;
-                    const d = Math.hypot(localPlayer.x - ix, localPlayer.y - iy);
+                    if (!currentSession || gameState !== 'PLAYING') return;
+                    for (const sp of players) { // COOP S5: sniezka rani kazdego gracza w promieniu
+                    const d = Math.hypot(sp.x - ix, sp.y - iy);
                     if (d <= SNOWBALL_HIT_RADIUS) {
-                        const died = localPlayer.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive, SRC_SNOWBALL); // Z0.5
+                        const died = sp.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive, SRC_SNOWBALL); // Z0.5
                         if (!powerSystem!.isInvulnerable) {
-                            effects!.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0xff0000);
-                            effects!.shake(4, 6);
-                            audio.playHit('player');
+                            effects!.spawnEnemyHitSparks(sp.x, sp.y, 0xff0000);
+                            if (sp === localPlayer) { effects!.shake(4, 6); audio.playHit('player'); }
                             currentSession.markDamageTaken();
                         }
-                        if (died) { void triggerGameOver(); }
+                        if (died) { void triggerGameOver(); return; }
+                    }
                     }
                 },
                 () => {
@@ -3262,7 +3301,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // SHOP-1 — PACZKA GLOSOWA. Latch 50% HP zerujemy na kazdy mecz, potem kwestia
     // startowa. Napis idzie razem z dzwiekiem: VO bez napisu to informacja, ktora
     // znika u kogos z wyciszonym telefonem.
-    lowHpVoiceFired = false;
+    playerSim.clear(); // COOP S5: latch lowHp per gracz
     // Klakson i druga kwestia sciagamy z wyprzedzeniem — rejestr kupowanych dzwiekow
     // jest LENIWY z zalozenia (zeby nie obciazac gracza towarem, ktorego nie kupil),
     // wiec bez tego pierwsze H w meczu czekaloby na siec.
@@ -3844,14 +3883,7 @@ function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
         if (ct) return ct;
     }
     // Z0.3: najblizszy ZYWY gracz z players[] (dzis 1 element => identycznie jak alias).
-    let best = localPlayer!;
-    let bestDistSq = Infinity;
-    for (const p of players) {
-        if (p.hp <= 0) continue;
-        const dSq = (p.x - enemy.x) ** 2 + (p.y - enemy.y) ** 2;
-        if (dSq < bestDistSq) { bestDistSq = dSq; best = p; }
-    }
-    return best;
+    return nearestLivingPlayer(enemy.x, enemy.y);
 }
 
 /**
@@ -4183,9 +4215,12 @@ function runLogicStep(delta: number): void {
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
     // snieg, pady, serca, kostki mocy) i callback na takeDamage() przegapilby leczenie.
     // Koszt: jedno dzielenie na krok logiki, po czym latch zamyka temat na caly mecz.
-    if (!lowHpVoiceFired && localPlayer.hp / localPlayer.maxHp < LOW_HP_VOICE_AT) {
-        lowHpVoiceFired = true;
-        playVoiceLine('lowHp');
+    for (const p of players) { // COOP S5: latch per gracz, glos tylko u gracza tego urzadzenia
+        const st = simOf(p);
+        if (!st.lowHpVoiceFired && p.hp / p.maxHp < LOW_HP_VOICE_AT) {
+            st.lowHpVoiceFired = true;
+            if (p === localPlayer) playVoiceLine('lowHp');
+        }
     }
 
     const ZOOM = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
@@ -4272,57 +4307,39 @@ function runLogicStep(delta: number): void {
     const mouseWorldX = mouse.screenX / ZOOM + camera.x;
     const mouseWorldY = mouse.screenY / ZOOM + camera.y;
 
-    let playerInQuicksand = false;
-    for (const qs of quicksands) {
-        // v0.132.0 — kamera do bramki cullingu. `isPointInside` nizej dziala niezaleznie
-        // od bramki, wiec spowolnienie strefy zostaje nienaruszone.
-        qs.update(camera.x, camera.y, viewW, viewH);
-        if (qs.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInQuicksand = true;
-        }
-    }
-// v0.59.0 Warstwa D — toksyczne rozlewiska (slow 0.5x + fluid wakes)
-    let playerInSludge = false;
-    for (const sp of sludgePools) {
-        sp.update(localPlayer.x, localPlayer.y, localPlayer.isMoving); // v0.59.0 AAA #3 — wakes z gasienic
-        if (sp.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInSludge = true;
-        }
-    }
+    // COOP S5: update stref = WIDOK (culling kamery, slady gasienic gracza lokalnego) — raz na krok;
+    // decyzja o spowolnieniu liczona PER GRACZ nizej (isPointInside).
+    // v0.132.0 — kamera do bramki cullingu; `isPointInside` dziala niezaleznie od bramki.
+    for (const qs of quicksands) qs.update(camera.x, camera.y, viewW, viewH);
+    // v0.59.0 Warstwa D — toksyczne rozlewiska (slow 0.5x + fluid wakes z gasienic)
+    for (const sp of sludgePools) sp.update(localPlayer.x, localPlayer.y, localPlayer.isMoving);
     // FAZA MARS M4 — pola sypkiego regolitu: slow 0.5x (wzorzec quicksand/sludge)
-    let playerInRegolith = false;
-    for (const rf of regolithFields) {
-        rf.update();
-        if (rf.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInRegolith = true;
-        }
-    }
+    for (const rf of regolithFields) rf.update();
     // FAZA MARS M4b — farma solarna: sledzenie slonca + impulsy w kanale do bazy
     if (solarFarm) solarFarm.update();
     if (fuelStation) fuelStation.update(); // MARS M5c — swiatla ladowiska
 
     for (const pk of parkings) pk.update(localPlayer.x, localPlayer.y); // v0.60.0 — puls diod + alarm na najechanie
     // FAZA CTF F1 — fosa: slow 0.5x jak quicksand/sludge (passable)
-    let playerInFosa = false;
-    if (ruinsFosa) {
-        ruinsFosa.update();
-        if (ruinsFosa.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInFosa = true;
-        }
-    }
+    if (ruinsFosa) ruinsFosa.update();
     // OBRON ZAMEK F2 — fosa zamku: slow 0.5x (mosty = wyciecia, pelna predkosc)
-    if (castleMoat) {
-        castleMoat.update();
-        if (castleMoat.isPointInside(localPlayer.x, localPlayer.y)) playerInFosa = true;
-    }
+    if (castleMoat) castleMoat.update();
     for (const wf of castleWheat) wf.update();
     if (castlePennants) castlePennants.update(camera.x, camera.y, viewW, viewH);
     if (castleCrows) castleCrows.update(camera.x, camera.y, viewW, viewH); // F6
     // FAZA CTF F2 — carry penalty (x0.90/0.85/0.80 wg eskalacji) MULTIPLIKATYWNIE
     // ze slow-zone (fosa z flaga = 0.5 * carry) — legacy 1536 1:1.
     const ctfCarryMult = ctfSystem ? ctfSystem.getCarrySpeedMult() : 1.0;
-    const playerInLava = !!queenSystem && queenSystem.isLavaAt(localPlayer.x, localPlayer.y); // SAVE THE QUEEN Q4
-    localPlayer.speedModifier = ((playerInQuicksand || playerInSludge || playerInFosa || playerInRegolith || playerInLava) ? 0.5 : 1.0) * ctfCarryMult;
+    for (const p of players) { // COOP S5: spowolnienie per gracz
+        let slow = (!!ruinsFosa && ruinsFosa.isPointInside(p.x, p.y))
+            || (!!castleMoat && castleMoat.isPointInside(p.x, p.y))
+            || (!!queenSystem && queenSystem.isLavaAt(p.x, p.y)); // SAVE THE QUEEN Q4
+        if (!slow) for (const qs of quicksands) if (qs.isPointInside(p.x, p.y)) { slow = true; break; }
+        if (!slow) for (const sp of sludgePools) if (sp.isPointInside(p.x, p.y)) { slow = true; break; }
+        if (!slow) for (const rf of regolithFields) if (rf.isPointInside(p.x, p.y)) { slow = true; break; }
+        // CTF (poza MVP koopa): kara za niesiona flage dotyczy gracza lokalnego
+        p.speedModifier = (slow ? 0.5 : 1.0) * (p === localPlayer ? ctfCarryMult : 1.0);
+    }
     
     groundClutter?.update(); // v0.60.0 — para z 1-2 studzienek
     
@@ -4351,114 +4368,99 @@ function runLogicStep(delta: number): void {
         enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
     }
 
-    let playerInOasis = false;
-    for (const oasis of oases) {
-        // v0.132.0 — kamera do bramki cullingu; stealth dalej przez `isPointInside`.
-        oasis.update(camera.x, camera.y, viewW, viewH);
-        if (oasis.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInOasis = true;
-        }
-    }
-
+    // COOP S5: update stref stealth = WIDOK (culling, parallax, mgla z gasienic gracza lokalnego) —
+    // raz na krok; wejscie/wyjscie ze strefy i czas ukrycia liczone PER GRACZ nizej.
+    // v0.132.0 — kamera do bramki cullingu; stealth dalej przez `isPointInside`.
+    for (const oasis of oases) oasis.update(camera.x, camera.y, viewW, viewH);
     // v0.60.0 — NEON-OASIS stealth (cyberpunk). update z camera dla parallaxu dachu.
-    let playerInNeonStation = false;
     for (const ns of neonStations) {
         ns.update(camera.x, camera.y, localPlayer.x, localPlayer.y, neonDidShootLastFrame, bullets);
         ns.onTankEnter(localPlayer.x, localPlayer.y); // fog wakes z gasienic
-        if (ns.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInNeonStation = true;
-        }
     }
-
-    // FAZA CTF F1 — zarosla (stealth kola, wzorzec oasis)
-    let playerInRuinsBush = false;
-    for (const rb of ruinsBushes) {
-        rb.update();
-        if (rb.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInRuinsBush = true;
-        }
-    }
-
-    // FAZA MARS M4 — ogrody hydroponiczne (stealth; jedyna zielen na Marsie)
-    let playerInHydroGarden = false;
-    for (const hg of hydroGardens) {
-        hg.update();
-        if (hg.isPointInside(localPlayer.x, localPlayer.y)) {
-            playerInHydroGarden = true;
-        }
-    }
-
-    let playerInCornField = false;
-    let playerInSugarcaneField = false;
+    for (const rb of ruinsBushes) rb.update();   // FAZA CTF F1 — zarosla (stealth kola, wzorzec oasis)
+    for (const hg of hydroGardens) hg.update();  // FAZA MARS M4 — ogrody hydroponiczne (jedyna zielen na Marsie)
     for (const ff of farmFields) {
         ff.update(camera.x, camera.y, viewW, viewH);
         ff.onTankEnter(localPlayer.x, localPlayer.y);
-        if (ff.isPointInside(localPlayer.x, localPlayer.y)) {
-            if (ff instanceof CornField) playerInCornField = true;
-            else if (ff instanceof SugarcaneField) playerInSugarcaneField = true;
-        }
-    }
-    const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
-
-    // OBRON ZAMEK F2 — pola zboza (stealth; wzorzec hydroponika)
-    let playerInWheat = false;
-    for (const wf of castleWheat) {
-        if (wf.isPointInside(localPlayer.x, localPlayer.y)) { playerInWheat = true; break; }
     }
 
     const nowMs = simNowMs();
-    const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden || playerInWheat;
-    const wasInAnyStealthLastFrame = wasInOasisLastFrame || wasInCornLastFrame || wasInNeonLastFrame || wasInRuinsBushLastFrame || wasInHydroGardenLastFrame || wasInWheatLastFrame;
-
-    if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
-        oasisStealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
-    }
-
-    const isStealthActive = playerInAnyStealth && nowMs < oasisStealthEndTime;
-    stealthActiveNow = isStealthActive; // PROG-F3 — mirror dla metryki "kill ze strefy ukrycia"
-
-    if (isStealthActive && !wasStealthActiveLastFrame) {
-        if (playerInSugarcaneField && !playerInOasis) {
-            hud.addNotif(t('hud.stealthSugarcane'), '#a8d870');
-        } else if (playerInCornField && !playerInOasis) {
-            hud.addNotif(t('hud.stealthCorn'), '#d4b830');
-} else if (playerInNeonStation) {
-            hud.addNotif(t('hud.stealthNeon'), '#6ad8ff');
-        } else if (playerInRuinsBush) {
-            hud.addNotif(t('hud.stealthBush'), '#76ab63'); // FAZA CTF F1
-        } else if (playerInHydroGarden) {
-            hud.addNotif(t('hud.stealthHydro'), '#5fd489'); // FAZA MARS M4
-        } else if (playerInWheat) {
-            hud.addNotif(t('hud.stealthWheat'), '#d8b855'); // OBRON ZAMEK F2
-        } else {
-            hud.addNotif(t('hud.stealthOasis'), '#a8c878');
+    for (const p of players) {
+        const st = simOf(p);
+        let playerInOasis = false;
+        for (const oasis of oases) if (oasis.isPointInside(p.x, p.y)) { playerInOasis = true; break; }
+        let playerInNeonStation = false;
+        for (const ns of neonStations) if (ns.isPointInside(p.x, p.y)) { playerInNeonStation = true; break; }
+        let playerInRuinsBush = false;
+        for (const rb of ruinsBushes) if (rb.isPointInside(p.x, p.y)) { playerInRuinsBush = true; break; }
+        let playerInHydroGarden = false;
+        for (const hg of hydroGardens) if (hg.isPointInside(p.x, p.y)) { playerInHydroGarden = true; break; }
+        let playerInCornField = false;
+        let playerInSugarcaneField = false;
+        for (const ff of farmFields) {
+            if (ff.isPointInside(p.x, p.y)) {
+                if (ff instanceof CornField) playerInCornField = true;
+                else if (ff instanceof SugarcaneField) playerInSugarcaneField = true;
+            }
         }
-        audio.playMagnetPickup();
-    } else if (!isStealthActive && wasStealthActiveLastFrame && playerInAnyStealth) {
-        // v0.50.1: rozny komunikat zaleznie od powodu zerwania stealth.
-        // Strzal -> jasna informacja edukacyjna "STRZAL ZDRADZIL POZYCJE".
-        // Natural timeout (10s minelo) -> standardowe "ZOSTALES ZAUWAZONY".
-        const breakMsg = stealthBrokenByShot ? t('hud.shotRevealed') : t('hud.stealthSpotted');
-        hud.addNotif(breakMsg, '#ff8855');
-        effects.shake(3, 8);
+        const playerInFarmStealth = playerInCornField || playerInSugarcaneField;
+        // OBRON ZAMEK F2 — pola zboza (stealth; wzorzec hydroponika)
+        let playerInWheat = false;
+        for (const wf of castleWheat) if (wf.isPointInside(p.x, p.y)) { playerInWheat = true; break; }
+
+        const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden || playerInWheat;
+        const wasInAnyStealthLastFrame = st.wasInOasis || st.wasInFarm || st.wasInNeon || st.wasInRuinsBush || st.wasInHydro || st.wasInWheat;
+
+        if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
+            st.stealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
+        }
+
+        const isStealthActive = playerInAnyStealth && nowMs < st.stealthEndTime;
+        st.stealthActive = isStealthActive;
+
+        // Komunikaty HUD/dzwiek — tylko gracz TEGO urzadzenia (stan liczy sie dla kazdego).
+        if (p === localPlayer) {
+            if (isStealthActive && !st.wasStealthActive) {
+                if (playerInSugarcaneField && !playerInOasis) {
+                    hud.addNotif(t('hud.stealthSugarcane'), '#a8d870');
+                } else if (playerInCornField && !playerInOasis) {
+                    hud.addNotif(t('hud.stealthCorn'), '#d4b830');
+                } else if (playerInNeonStation) {
+                    hud.addNotif(t('hud.stealthNeon'), '#6ad8ff');
+                } else if (playerInRuinsBush) {
+                    hud.addNotif(t('hud.stealthBush'), '#76ab63'); // FAZA CTF F1
+                } else if (playerInHydroGarden) {
+                    hud.addNotif(t('hud.stealthHydro'), '#5fd489'); // FAZA MARS M4
+                } else if (playerInWheat) {
+                    hud.addNotif(t('hud.stealthWheat'), '#d8b855'); // OBRON ZAMEK F2
+                } else {
+                    hud.addNotif(t('hud.stealthOasis'), '#a8c878');
+                }
+                audio.playMagnetPickup();
+            } else if (!isStealthActive && st.wasStealthActive && playerInAnyStealth) {
+                // v0.50.1: rozny komunikat zaleznie od powodu zerwania stealth.
+                // Strzal -> "STRZAL ZDRADZIL POZYCJE"; natural timeout -> "ZOSTALES ZAUWAZONY".
+                const breakMsg = st.stealthBrokenByShot ? t('hud.shotRevealed') : t('hud.stealthSpotted');
+                hud.addNotif(breakMsg, '#ff8855');
+                effects.shake(3, 8);
+            }
+        }
+
+        st.wasInOasis = playerInOasis;
+        st.wasInFarm = playerInFarmStealth;
+        st.wasInNeon = playerInNeonStation; // v0.60.0
+        st.wasInRuinsBush = playerInRuinsBush; // FAZA CTF F1
+        st.wasInHydro = playerInHydroGarden; // FAZA MARS M4
+        st.wasInWheat = playerInWheat; // OBRON ZAMEK F2
+        st.wasStealthActive = isStealthActive;
+        // v0.50.1: catch-all reset flagi stealthBrokenByShot gdy stealth nieaktywne (edge case:
+        // strzal ze strefy i natychmiastowe wyjscie -> bledny komunikat przy nastepnym wejsciu).
+        if (!isStealthActive) st.stealthBrokenByShot = false;
     }
 
+    // COOP S5: wrog "nie widzi" gracza, ktorego sciga (najblizszy zywy), jesli ten jest ukryty.
     for (const enemy of enemies) {
-        enemy.playerStealthed = isStealthActive;
-    }
-
-    wasInOasisLastFrame = playerInOasis;
-    wasInCornLastFrame = playerInFarmStealth;
-    wasInNeonLastFrame = playerInNeonStation; // v0.60.0
-    wasInRuinsBushLastFrame = playerInRuinsBush; // FAZA CTF F1
-    wasInHydroGardenLastFrame = playerInHydroGarden; // FAZA MARS M4
-    wasInWheatLastFrame = playerInWheat; // OBRON ZAMEK F2
-    wasStealthActiveLastFrame = isStealthActive;
-    // v0.50.1: catch-all reset flag stealthBrokenByShot gdy stealth nieaktywne.
-    // Pokrywa edge case: gracz strzelil ze strefy ale wyszedl ZARAZ -> flag bez reset
-    // -> nastepne wejscie do strefy -> bledny komunikat. Reset tutaj eliminuje problem.
-    if (!isStealthActive) {
-        stealthBrokenByShot = false;
+        enemy.playerStealthed = simOf(nearestLivingPlayer(enemy.x, enemy.y)).stealthActive;
     }
 
     // FAZA CTF F2 — rdzen CTF. Po bloku stealth (enemy.playerStealthed swieze),
@@ -4732,24 +4734,32 @@ function runLogicStep(delta: number): void {
     }
 
     const time = simNowMs() / 1000;
+    // COOP S5: pad obsluguje gracza, ktory na nim stoi (pierwszy w players[]); pusty pad
+    // dostaje gracza lokalnego (stan "nikt nie stoi" pad liczy sam z pozycji).
     for (const pad of mediPads) {
-        const result = pad.update(localPlayer.x, localPlayer.y, localPlayer.isMoving, localPlayer.hp, localPlayer.maxHp, time);
+        const pp = padOccupant(pad.x, pad.y);
+        const result = pad.update(pp.x, pp.y, pp.isMoving, pp.hp, pp.maxHp, time);
         if (result.healed) {
-            localPlayer.hp = Math.min(localPlayer.maxHp, localPlayer.hp + 100);
-            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0x2ecc71);
-            hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
-            audio.playHeartPickup();
-            QuestService.track('medi_pad'); // PROG-F3
+            pp.hp = Math.min(pp.maxHp, pp.hp + 100);
+            effects.spawnEnemyHitSparks(pp.x, pp.y, 0x2ecc71);
+            if (pp === localPlayer) {
+                hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
+                audio.playHeartPickup();
+                QuestService.track('medi_pad'); // PROG-F3
+            }
         }
     }
     for (const pad of powerPads) {
-        const result = pad.update(localPlayer.x, localPlayer.y, time);
+        const pp = padOccupant(pad.x, pad.y);
+        const result = pad.update(pp.x, pp.y, time);
         if (result.activated) {
-            localPlayer.applyTurboBoost(result.durationMs, result.multiplier);
-            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, 0xff6600);
-            effects.shake(5, 8);
-            hud.addNotif(t('hud.turboBoost', { sec: Math.round(result.durationMs / 1000) }), '#ffcc00');
-            audio.playMagnetPickup();
+            pp.applyTurboBoost(result.durationMs, result.multiplier);
+            effects.spawnEnemyHitSparks(pp.x, pp.y, 0xff6600);
+            if (pp === localPlayer) {
+                effects.shake(5, 8);
+                hud.addNotif(t('hud.turboBoost', { sec: Math.round(result.durationMs / 1000) }), '#ffcc00');
+                audio.playMagnetPickup();
+            }
         }
     }
 
@@ -4757,14 +4767,16 @@ function runLogicStep(delta: number): void {
         const h = hearts[i];
         h.update(delta);
         if (!h.active) { h.destroy(); hearts.splice(i, 1); continue; } // COOP S4: wygasniecie (sim) -> teardown widoku tutaj
-        const dx = localPlayer.x - h.x, dy = localPlayer.y - h.y;
-        if (dx * dx + dy * dy < (h.radius + 22) * (h.radius + 22)) {
+        const hpl = playerTouching(h.x, h.y, h.radius + 22); // COOP S5: zbiera ktorykolwiek gracz
+        if (hpl) {
             if (h.pickup(effects)) {
-                localPlayer.hp = Math.min(localPlayer.maxHp, localPlayer.hp + h.healAmount);
+                hpl.hp = Math.min(hpl.maxHp, hpl.hp + h.healAmount);
                 if (currentSession) currentSession.heartsHealed++;
-                QuestService.track('heart'); // PROG-F3
-                hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
-                audio.playHeartPickup();
+                if (hpl === localPlayer) {
+                    QuestService.track('heart'); // PROG-F3
+                    hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
+                    audio.playHeartPickup();
+                }
                 h.destroy();
                 hearts.splice(i, 1);
             }
@@ -4774,22 +4786,25 @@ function runLogicStep(delta: number): void {
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
         if (powerSystem.magnetActive) g.attracted = true;
-        g.update(delta, localPlayer.x, localPlayer.y);
+        const gTo = nearestLivingPlayer(g.x, g.y); // COOP S5: magnes ciagnie do najblizszego gracza
+        g.update(delta, gTo.x, gTo.y);
         if (!g.active) { gems.splice(i, 1); gemPool.push(g); continue; } // POOLING: zwrot do puli
-        const dx = localPlayer.x - g.x, dy = localPlayer.y - g.y;
-        if (dx * dx + dy * dy < (g.radius + PICKUP_CONFIG.gemAutoCollectRadius) * (g.radius + PICKUP_CONFIG.gemAutoCollectRadius)) {
+        const gp = playerTouching(g.x, g.y, g.radius + PICKUP_CONFIG.gemAutoCollectRadius);
+        if (gp) {
             if (g.pickup(effects)) {
                 const prevTotal = spawnSystem.gemsCollected;
                 spawnSystem.registerGemCollected();
                 currentSession.addGemScore(1); // v0.49.0 Scoring v2: gem NIE skaluje combo, tylko difficulty
-                audio.playGemPickup();
+                if (gp === localPlayer) audio.playGemPickup();
 
                 const prevTrigger = Math.floor(prevTotal / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 const newTrigger = Math.floor(spawnSystem.gemsCollected / GEMS_PER_SUPER_CHARGE_TRIGGER);
                 if (newTrigger > prevTrigger) {
-                    localPlayer.addSuperCharge(SUPER_CHARGES_PER_TRIGGER);
-                    hud.addNotif(t('hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: localPlayer.superCharges }), '#c850ff');
-                    effects.shake(4, 8);
+                    gp.addSuperCharge(SUPER_CHARGES_PER_TRIGGER); // COOP S5: ladunek dla zbierajacego
+                    if (gp === localPlayer) {
+                        hud.addNotif(t('hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: gp.superCharges }), '#c850ff');
+                        effects.shake(4, 8);
+                    }
                 }
 
                 gems.splice(i, 1);
@@ -4853,11 +4868,10 @@ function runLogicStep(delta: number): void {
     }
     for (let i = seasonPickups.length - 1; i >= 0; i--) {
         const sp = seasonPickups[i];
-        sp.update(delta, localPlayer.x, localPlayer.y);
+        const spTo = nearestLivingPlayer(sp.x, sp.y); // COOP S5
+        sp.update(delta, spTo.x, spTo.y);
         if (!sp.active) { seasonPickups.splice(i, 1); seasonPickupPool.push(sp); continue; }
-        const dx = localPlayer.x - sp.x, dy = localPlayer.y - sp.y;
-        const rr = sp.radius + 18;
-        if (dx * dx + dy * dy < rr * rr) {
+        if (playerTouching(sp.x, sp.y, sp.radius + 18)) { // COOP S5: zbiera ktorykolwiek gracz (znajdzki = pula druzyny)
             // PIERWSZE zdobycie tego typu? Sprawdzamy PRZED inkrementacja: trwaly stan
             // z progresji (poprzednie mecze) + to, co juz padlo w tym meczu.
             const ownedBefore = ProgressionService.getSeasonItemsOwned(currentSession.config.profileId);
@@ -4906,13 +4920,15 @@ function runLogicStep(delta: number): void {
         const m = magnets[i];
         m.update(delta);
         if (!m.active) { m.destroy(); magnets.splice(i, 1); continue; } // COOP S4
-        const dx = localPlayer.x - m.x, dy = localPlayer.y - m.y;
-        if (dx * dx + dy * dy < (m.radius + 22) * (m.radius + 22)) {
+        const mp = playerTouching(m.x, m.y, m.radius + 22); // COOP S5
+        if (mp) {
             if (m.pickup(effects)) {
-                powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs);
-                hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
-                audio.playMagnetPickup();
-                QuestService.track('magnet'); // PROG-F3
+                powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs); // magnes = stan wspolny (PowerSystem per gracz = S7)
+                if (mp === localPlayer) {
+                    hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
+                    audio.playMagnetPickup();
+                    QuestService.track('magnet'); // PROG-F3
+                }
                 m.destroy();
                 magnets.splice(i, 1);
             }
@@ -4930,25 +4946,25 @@ function runLogicStep(delta: number): void {
             continue;
         }
 
-        const dx = localPlayer.x - pc.x, dy = localPlayer.y - pc.y;
-        const touchR = 22 + pc.radius;
-        if (dx * dx + dy * dy < touchR * touchR) {
+        const cp = playerTouching(pc.x, pc.y, 22 + pc.radius); // COOP S5
+        if (cp) {
             const type = pc.type;
-            currentSession.registerCubePickup(type, localPlayer.brawler.cubeDmgMult ?? 1); // v0.211.0: Zwiad/Shadow polowa
-            QuestService.track('cube'); // PROG-F3
+            // Bonus DMG kostek zyje dzis w GameSession (wspolny) — per gracz przy S7/LAN-4.
+            currentSession.registerCubePickup(type, cp.brawler.cubeDmgMult ?? 1); // v0.211.0: Zwiad/Shadow polowa
+            if (cp === localPlayer) QuestService.track('cube'); // PROG-F3
 
             const isDmg = type === 'dmg';
             const color = isDmg ? 0xe74c3c : 0x2980b9;
             const labelText = isDmg ? t('pickup.dmgUp') : t('pickup.hpUp');
-            effects.spawnFloatingText(localPlayer.x, localPlayer.y - 30, labelText, color);
+            effects.spawnFloatingText(cp.x, cp.y - 30, labelText, color);
 
             if (type === 'hp') {
-                localPlayer.maxHp += POWERCUBE_HP_BONUS_PER_PICKUP;
-                localPlayer.hp = Math.min(localPlayer.maxHp, localPlayer.hp + POWERCUBE_HP_BONUS_PER_PICKUP);
+                cp.maxHp += POWERCUBE_HP_BONUS_PER_PICKUP;
+                cp.hp = Math.min(cp.maxHp, cp.hp + POWERCUBE_HP_BONUS_PER_PICKUP);
             }
 
-            effects.spawnEnemyHitSparks(localPlayer.x, localPlayer.y, color);
-            audio.playGemPickup();
+            effects.spawnEnemyHitSparks(cp.x, cp.y, color);
+            if (cp === localPlayer) audio.playGemPickup();
 
             pc.destroy();
             powerCubes.splice(i, 1);
@@ -4962,9 +4978,10 @@ function runLogicStep(delta: number): void {
         // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
         // Naprawia exploit: gracz wpadal w corn/sugarcane/oasis, czekal 10s na "reset",
         // wyjezdzal, strzelal — przeciwnicy nie widzieli go bo flagger stealth byl aktywny.
-        if (now < oasisStealthEndTime) {
-            oasisStealthEndTime = 0;
-            stealthBrokenByShot = true;
+        const shooterSt = simOf(localPlayer); // COOP S5 (wejscie per gracz = S6)
+        if (now < shooterSt.stealthEndTime) {
+            shooterSt.stealthEndTime = 0;
+            shooterSt.stealthBrokenByShot = true;
         }
 
         const angle = localPlayer.turretAngle;
@@ -5096,22 +5113,24 @@ function runLogicStep(delta: number): void {
             enemyBulletPool.push(eb); // POOLING
             continue;
         }
-        const dx = eb.x - localPlayer.x, dy = eb.y - localPlayer.y;
-        if (dx * dx + dy * dy < 25 * 25) {
+        const hitP = playerTouching(eb.x, eb.y, 25); // COOP S5: pocisk trafia pierwszego gracza w zasiegu
+        if (hitP) {
+            const isLocal = hitP === localPlayer;
+            // Sanktuarium CTF/Zamku/Krolowej liczone dla gracza lokalnego (tryby poza MVP koopa).
+            const sanct = isLocal && ctfSanctuary;
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
-            const hpBeforeHit = localPlayer.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
-            const playerDied = localPlayer.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
+            const hpBeforeHit = hitP.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
+            const playerDied = hitP.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || sanct,
                 { kind: 'enemy_bullet', attackerRef: eb }); // Z0.5
-            currentSession.damageTaken += Math.max(0, hpBeforeHit - localPlayer.hp);
-            if (!powerSystem.isInvulnerable) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
+            currentSession.damageTaken += Math.max(0, hpBeforeHit - hitP.hp);
+            if (isLocal && !powerSystem.isInvulnerable) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
 
-            if (powerSystem.isInvulnerable || ctfSanctuary) {
+            if (powerSystem.isInvulnerable || sanct) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
-                effects.shake(4, 6);
-                audio.playHit('player');
+                if (isLocal) { effects.shake(4, 6); audio.playHit('player'); }
                 // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
                 currentSession.markDamageTaken();
             }
@@ -5190,24 +5209,31 @@ function runLogicStep(delta: number): void {
             spawnEnemyShot(shotInfo);
         }
 
-        const dP = (localPlayer.x - enemy.x) ** 2 + (localPlayer.y - enemy.y) ** 2;
         const collisionDist = enemy.isMegaBoss ? 80 : enemy.isBoss ? 60 : 45;
+        // COOP S5: taran trafia pierwszego NIEUKRYTEGO gracza w zasiegu.
+        let ramP: Player | null = null;
+        for (const p of players) {
+            if (simOf(p).stealthActive) continue;
+            if ((p.x - enemy.x) ** 2 + (p.y - enemy.y) ** 2 < collisionDist * collisionDist) { ramP = p; break; }
+        }
+        const ramSanct = ramP === localPlayer && ctfSanctuary; // sanktuaria trybow poza MVP = gracz lokalny
         // OBRON ZAMEK F3: przy nietykalnosci (sanktuarium/respawn/martwy) ZERO interakcji taranu —
         // inaczej oblegajacy gina o nietykalnego gracza za darmo (legacy bug #7).
-        if (!enemy.playerStealthed && dP < collisionDist * collisionDist && !(castleSystem && ctfSanctuary)) {
+        if (ramP && !(castleSystem && ramSanct)) {
+            const ramLocal = ramP === localPlayer;
             // TIER 3 DISCO v2: taran zmeczonego tancerza tez -20%
             const collDmg = powerSystem.isDiscoTired(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
                 : enemy.collisionDmg;
-            const hpBeforeRam = localPlayer.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
-            const playerDied = localPlayer.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ctfSanctuary,
+            const hpBeforeRam = ramP.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
+            const playerDied = ramP.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ramSanct,
                 { kind: 'enemy_ram', attackerRef: enemy }); // Z0.5; tutorial/sanktuarium => niesmiertelny
-            currentSession.damageTaken += Math.max(0, hpBeforeRam - localPlayer.hp);
-            if (!powerSystem.isInvulnerable) haptic(HAPTIC.ram); // v0.208.0 — dwa impulsy: „to bylo cos wiekszego"
+            currentSession.damageTaken += Math.max(0, hpBeforeRam - ramP.hp);
+            if (ramLocal && !powerSystem.isInvulnerable) haptic(HAPTIC.ram); // v0.208.0 — dwa impulsy: „to bylo cos wiekszego"
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.
-            if (!powerSystem.isInvulnerable && !ctfSanctuary) {
+            if (!powerSystem.isInvulnerable && !ramSanct) {
                 currentSession.markDamageTaken();
             }
 
@@ -5239,7 +5265,7 @@ function runLogicStep(delta: number): void {
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
-                if (!powerSystem.isInvulnerable) {
+                if (ramLocal && !powerSystem.isInvulnerable) {
                     effects.shake(8, 10);
                     audio.playHit('player');
                 }
@@ -5290,7 +5316,7 @@ function runLogicStep(delta: number): void {
                 const wasFrozen = simNowMs() < enemy.frozenUntil;
                 // Z0.5: pocisk gracza vs pocisk Wiezy (moc) — Bullet.source rozstrzyga
                 const killed = enemy.takeDamage(b.dmg, hitX, hitY, worldContainer, effects,
-                    b.source === 'player' ? SRC_PLAYER_BULLET : SRC_POWER);
+                    b.source === 'player' ? srcPlayerBullet(b.ownerIndex) : srcPower(b.ownerIndex)); // COOP S5b
                 // TANK ART v2: trafienie = pierscien + iskry w kolorze + blysk; mikro hit-stop / drzenie
                 // tylko dla ciezkich strzalow (shotFx.ts). Hit-stop = istniejacy triggerHitStop (override
                 // wieksza wartoscia), bezpieczny pod ?smooth=1 (early-return PRZED akumulatorem czasu).
@@ -5323,7 +5349,7 @@ function runLogicStep(delta: number): void {
                     // PROG-F3 — strzal ze strefy ukrycia zrywa stealth dopiero po tej klatce,
                     // wiec flaga jest jeszcze aktualna w momencie zabicia (risk/reward stealtha).
                     // F7b-2: tylko pocisk GRACZA — wieza koszaca z pola nie farmi questa.
-                    if (b.source === 'player' && stealthActiveNow) QuestService.track('stealth_kill');
+                    if (b.source === 'player' && simOf(localPlayer).stealthActive) QuestService.track('stealth_kill'); // COOP S5: strzelec = gracz lokalny (S5b/S6)
                     handleEnemyDrop(enemy);
                     if (enemy.isMegaBoss) setTimeout(() => triggerVictory(), 800);
 

@@ -51,5 +51,7 @@ export function isMultiplayerSandbox(): boolean {
  *      taran, klatwa/Ra/Yeti), netId encji, Bullet.ownerIndex + playerIndex w DamageSource.
  *  6 — COOP S6 (v0.223.0): krok logiki czyta sterowanie WYLACZNIE z PlayerInput (kwantyzowany:
  *      ruch 1/127, aim w swiecie int px); dash i moce z kolejki w kroku, nie w handlerze zdarzen.
+ *  7 — COOP S7 (v0.224.0): PowerSystem na gracza (aura/cooldowny/magnes per gracz), efekty swiatowe
+ *      (freeze/disco/pong/widmo/strach) agregowane po instancjach, macierz mocy koopa (Tier 1 bez Widma).
  */
-export const SIM_VERSION = 6;
+export const SIM_VERSION = 7;

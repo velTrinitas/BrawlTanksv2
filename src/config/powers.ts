@@ -819,6 +819,13 @@ export const ALLOWED_POWERS: Record<ScenarioId, readonly PowerId[] | null> = {
 };
 
 /**
+ * COOP S7 (decyzja §9.7): pula mocy w koopie = Tier 1 BEZ Widma (wabik miesza cel wrogom obu
+ * graczy — najwieksza powierzchnia bledow). Tier 2/3 i kostka 🎲 w koopie wylaczone.
+ * Uzywane dopiero, gdy LAN-4 ustawi tryb koop — solo bez zmian.
+ */
+export const COOP_ALLOWED_POWERS: readonly PowerId[] = ['aura', 'megaBomb', 'freeze', 'rockets', 'mines', 'repair', 'build', 'tower'];
+
+/**
  * Loadout przefiltrowany pod scenariusz + WLASNOSC + walidacja id. Niedozwolony /
  * nieznany / NIEPOSIADANY slot dostaje pierwsza dozwolona posiadana moc spoza drugiego
  * slotu (gracz NIGDY nie wchodzi w mecz z pustym przyciskiem). Czysta funkcja.
@@ -835,8 +842,13 @@ export function resolveLoadoutForMatch(
     scenario: ScenarioId,
     owned: readonly PowerId[],
     remapped?: { value: boolean },
+    opts?: { coop?: boolean },
 ): [PowerId, PowerId, PowerId] {
-    const allowed = ALLOWED_POWERS[scenario] ?? null;
+    const scenarioAllowed = ALLOWED_POWERS[scenario] ?? null;
+    // COOP S7: w koopie przeciecie z macierza koopa (null scenariusza = pelna pula => sama macierz koopa).
+    const allowed = opts?.coop
+        ? (scenarioAllowed ?? POWER_ORDER).filter(id => COOP_ALLOWED_POWERS.includes(id))
+        : scenarioAllowed;
     // v0.114.0: Tier 3 (szalone) NIE wchodza do loadoutu — dostep do nich MA TYLKO
     // kostka 🎲 (decyzja Mariusza: rownoczesnie w slocie i w puli = bez sensu).
     const pool = (allowed ?? POWER_ORDER).filter(id =>

@@ -221,7 +221,7 @@ import { simNowMs, advanceSimClock } from './systems/SimClock';
 import { resetNetIds } from './systems/NetId'; // COOP S5b
 import { createPlayerInput, quantizeInput, type PlayerInput } from './input/PlayerInput'; // COOP S6
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
-import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB, srcPlayerBullet, srcPower } from './types/DamageSource'; // Z0.5
+import { SRC_SNOWBALL, SRC_PLAYER_BULLET, SRC_POWER, SRC_SHOCKWAVE, SRC_POWER_MEGA_BOMB, srcPlayerBullet, srcPower, srcMegaBomb } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
 import { ItemHints } from './tutorial/ItemHints'; // just-in-time podpowiedzi przedmiotow/stref
 import { showModeGoal, clearModeGoal } from './tutorial/GoalCard'; // FAZA C — karta celu trybu
@@ -721,7 +721,24 @@ let effects: EffectsManager | null = null;
 // znikal w walce, a particleContainer (zIndex 500) chowal go pod czolgiem na ~85% mapy.
 let damageSmoke: DamageSmoke | null = null;
 let spawnSystem: SpawnSystem | null = null;
-let powerSystem: PowerSystem | null = null;
+let powerSystem: PowerSystem | null = null; // COOP S7: instancja GRACZA LOKALNEGO (HUD, dotyk, wybor slotu)
+/** COOP S7: osobny PowerSystem na gracza (moce, cooldowny, aura, magnes). Solo: 1 wpis = powerSystem. */
+const powerSystems = new Map<Player, PowerSystem>();
+function psOf(p: Player): PowerSystem { return powerSystems.get(p) ?? powerSystem!; }
+// COOP S7: efekty SWIATOWE (dzialaja na wszystkich wrogow) — agregacja po instancjach wszystkich graczy.
+function anyFreezeActive(): boolean { for (const ps of powerSystems.values()) if (ps.isFreezeActive) return true; return false; }
+function maxFreezeUntil(): number { let m = 0; for (const ps of powerSystems.values()) if (ps.isFreezeActive) m = Math.max(m, ps.freezeUntil); return m; }
+function anyDiscoActive(): boolean { for (const ps of powerSystems.values()) if (ps.discoActive) return true; return false; }
+function isDiscoTiredAny(e: Enemy): boolean { for (const ps of powerSystems.values()) if (ps.isDiscoTired(e)) return true; return false; }
+function pongDeflectsAny(x: number, y: number): boolean { for (const ps of powerSystems.values()) if (ps.pongDeflects(x, y)) return true; return false; }
+function ghostAbsorbsAny(x: number, y: number): boolean { for (const ps of powerSystems.values()) if (ps.ghostAbsorbs(x, y)) return true; return false; }
+/** COOP S7: nadpisanie celu wroga przez moce (bek > babcia > widmo) — po wszystkich instancjach, w tej kolejnosci. */
+function powerSteerFor(e: Enemy): { x: number; y: number } | null {
+    for (const ps of powerSystems.values()) { const t = ps.burpFearFor(e); if (t) return t; }
+    for (const ps of powerSystems.values()) { const t = ps.grannyFearFor(e); if (t) return t; }
+    for (const ps of powerSystems.values()) { const t = ps.ghostTauntFor(e); if (t) return t; }
+    return null;
+}
 let camera = { x: 0, y: 0 };
 
 // Smoothed frame delta (mobile pacing fix). PIXI rawDelta faluje nawet przy maxFPS=60 (FPS 46..60
@@ -1045,8 +1062,7 @@ function applyPlayerActions(p: Player, input: PlayerInput): void {
             effects.shake(3, 6);
         }
     }
-    // Moce: wspolny PowerSystem gracza lokalnego (osobna instancja na gracza = S7).
-    if (input.superSlot >= 0 && p === localPlayer) tryActivateSuper(input.superSlot as 0 | 1 | 2);
+    if (input.superSlot >= 0) tryActivateSuper(input.superSlot as 0 | 1 | 2, p); // COOP S7: instancja mocy gracza
 }
 touchManager.onDashRequested = requestDash;
 
@@ -1597,19 +1613,22 @@ installDiagOverlay(app.renderer, () => _renderRes);
  * Zachowanie mocy zyje w PowerDef.onActivate (registry) — tutaj zostaje TYLKO to,
  * co nalezy do petli gry: kill-path mega bomby (registerKill/score/drop/victory).
  */
-function tryActivateSuper(slot: 0 | 1 | 2 = 0): void {
-    if (gameState !== 'PLAYING' || !powerSystem || !localPlayer || !effects || !currentSession) return;
+function tryActivateSuper(slot: 0 | 1 | 2 = 0, p: Player | null = localPlayer): void {
+    if (gameState !== 'PLAYING' || !p || !effects || !currentSession) return;
+    const ps = powerSystems.get(p) ?? (p === localPlayer ? powerSystem : null); // COOP S7: moc z instancji TEGO gracza
+    if (!ps) return;
+    const isLocal = p === localPlayer;
 
-    const result = powerSystem.activate(slot, { player: localPlayer, enemies, effects, audio, hud }); // Z0.3: klucz ctx zostaje 'player'
+    const result = ps.activate(slot, { player: p, enemies, effects, audio, hud }); // Z0.3: klucz ctx zostaje 'player'
     if (!result.activated) return;
 
     // Desktop: wybor podaza za ostatnia uzyta moca (PPM/SPACJA powtarza ja bez scrollowania).
-    powerSystem.selectedSlot = slot;
+    ps.selectedSlot = slot;
 
     currentSession.superPowersUsed++;
-    QuestService.track('super_power'); // PROG-F3
+    if (isLocal) QuestService.track('super_power'); // PROG-F3
 
-    if (slot === 2 && powerSystem.diceEnabled) {
+    if (slot === 2 && ps.diceEnabled) {
         // Kostka: tap startuje ROLL (~1.3s) — reveal + notif "🎲 X!" robi PowerSystem
         // (diceRollTick). funMode = usage-based: run flagowany od realnego rolla.
         currentSession.dicePowersUsed++;
@@ -1623,7 +1642,7 @@ function tryActivateSuper(slot: 0 | 1 | 2 = 0): void {
         for (const enemy of result.megaBombTargets) {
             // v0.50.0 Scoring v2.1: snapshot frozen state PRZED takeDamage (na wszelki wypadek).
             const wasFrozen = simNowMs() < enemy.frozenUntil;
-            const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects, SRC_POWER_MEGA_BOMB); // Z0.5
+            const killed = enemy.takeDamage(MEGA_BOMB_CONFIG.damage, enemy.x, enemy.y, worldContainer, effects, srcMegaBomb(Math.max(0, players.indexOf(p)))); // Z0.5, COOP S7: sprawca
             if (killed) {
                 spawnSystem!.registerKill(enemy);
                 // v0.49.0 Scoring v2: mega bomba NIE wola registerKill na GameSession (AOE != skill streak),
@@ -2825,17 +2844,22 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // = bramka progow trofeow — reczna edycja localStorage/chmury nie daje mocy zza progu).
     const powerState = ProgressionService.getPowerState(config.profileId);
     const remapped = { value: false };
-    const matchLoadout = resolveLoadoutForMatch(powerState.loadout, config.scenario, powerState.owned, remapped);
+    // COOP S7: mecz koopowy = macierz mocy koopa (Tier 1 bez Widma) + bez kostki. Tryb ustawi LAN-4.
+    const coopMatch = config.mode === 'coop';
+    const matchLoadout = resolveLoadoutForMatch(powerState.loadout, config.scenario, powerState.owned, remapped, { coop: coopMatch });
     // v0.114.0: slot 🎲 z toggle "Szalone Moce" (Garaz). Tutorial trzyma 2 przyciski —
     // jego skrypt i ringSelector celuja w sloty stale.
-    const diceEnabled = powerState.funModeOn && !tutorialMode;
+    const diceEnabled = powerState.funModeOn && !tutorialMode && !coopMatch;
     // F7b-2: spawner pociskow Wiezy — WYMAGANY parametr (nie wstrzykniecie po fakcie:
     // przy ponownym `new PowerSystem` cichy null-callback bylby klasycznym `?.()`-skipem).
     // Wieza strzela realnymi pociskami z puli gracza => kolizje/dmg-numbery/drop/quest-kille
     // za darmo z petli; przemalowanie na teal tracer, zeby nie wygladaly jak strzal gracza.
-    powerSystem = new PowerSystem(worldContainer, matchLoadout, (x, y, angle) => {
-        const dmg = Math.round(localPlayer!.brawler.dmg * TOWER_CONFIG.dmgMult * (1 + currentSession.dmgBonus));
-        const b = acquireBullet(x, y, angle, false, dmg);
+    // COOP S7: fabryka instancji — wlasciciel podawany LENIWIE (gracz lokalny powstaje nizej, przy
+    // spawnie czolgu; w LAN-2 host zbuduje druga instancje dla goscia). Solo: jedna instancja.
+    const buildPowerSystem = (owner: () => Player): PowerSystem => new PowerSystem(worldContainer, matchLoadout, (x, y, angle) => {
+        const o = owner();
+        const dmg = Math.round(o.brawler.dmg * TOWER_CONFIG.dmgMult * (1 + currentSession.dmgBonus));
+        const b = acquireBullet(x, y, angle, false, dmg, o); // COOP S7: kill Wiezy = kredyt wlasciciela
         b.styleAsTowerTracer();
         b.speed = TOWER_CONFIG.bulletSpeed;
         b.vx = Math.cos(angle) * b.speed;
@@ -2898,7 +2922,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         }
         // ...i nie NA graczu (pas + cofka moga zawinac droge na punkt zrzutu — mur
         // spawnujacy sie na czolgu zablokowalby ruch gracza az do expiry 8s).
-        if (localPlayer && (localPlayer.x - wx) ** 2 + (localPlayer.y - wy) ** 2 < 42 * 42) return null;
+        for (const pl of players) if ((pl.x - wx) ** 2 + (pl.y - wy) ** 2 < 42 * 42) return null; // COOP S7: zaden gracz
         buildings.push(wall);
         solidBuildings.push(wall);
         const ctfArr = ctfEnemyBuildings !== null && ctfEnemyBuildings !== buildings ? ctfEnemyBuildings : null;
@@ -2911,6 +2935,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             }
         };
     }, diceEnabled);
+    powerSystem = buildPowerSystem(() => localPlayer!);
+    powerSystems.clear(); // wpis gracza lokalnego po utworzeniu czolgu (players = [localPlayer])
     // v0.114.0: 3 sloty; przy Szalonych Mocach slot 3 gra jako kostka (ikona + fioletowy ring).
     touchManager.setSlotPowers([
         POWERS[matchLoadout[0]].emoji,
@@ -2977,7 +3003,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             damagePlayer: (index, amount, src) => {
                 const cp = players[index];
                 if (!cp || !currentSession || gameState !== 'PLAYING') return;
-                const protectedNow = powerSystem!.isInvulnerable || tutorialActive;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive; // COOP S7
                 const died = cp.takeDamage(amount, protectedNow, src); // Z0.5: DamageSource 'curse_fog' / 'ra_fire'
                 if (!protectedNow) {
                     effects!.spawnEnemyHitSparks(cp.x, cp.y, 0x7dff6a);
@@ -3032,8 +3058,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                     for (const sp of players) { // COOP S5: sniezka rani kazdego gracza w promieniu
                     const d = Math.hypot(sp.x - ix, sp.y - iy);
                     if (d <= SNOWBALL_HIT_RADIUS) {
-                        const died = sp.takeDamage(SNOWBALL_DMG, powerSystem!.isInvulnerable || tutorialActive, SRC_SNOWBALL); // Z0.5
-                        if (!powerSystem!.isInvulnerable) {
+                        const spInv = psOf(sp).isInvulnerable; // COOP S7
+                        const died = sp.takeDamage(SNOWBALL_DMG, spInv || tutorialActive, SRC_SNOWBALL); // Z0.5
+                        if (!spInv) {
                             effects!.spawnEnemyHitSparks(sp.x, sp.y, 0xff0000);
                             if (sp === localPlayer) { effects!.shake(4, 6); audio.playHit('player'); }
                             currentSession.markDamageTaken();
@@ -3087,6 +3114,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     })();
     localPlayer = new Player(brawler, worldContainer, activeProfile?.flagId ?? null, skinPulse);
     players = [localPlayer]; // Z0.3: tablica = zrodlo prawdy (dzis zawsze 1 element)
+    powerSystems.set(localPlayer, powerSystem); // COOP S7
 
     // FAZA CTF F1: spawn w hangarze (200,1500) — legacy 1:1. Player konstruktor
     // ustawia (800,800); nadpisanie przed pierwsza klatka (container synce w update).
@@ -3115,7 +3143,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         worldContainer,
         enemies,
         difficulty: getDifficultyModifiers(config.difficulty),
-        onSpawn: (enemy) => { attachEnemyCubeStolenCallback(enemy); if (powerSystem?.isFreezeActive) enemy.freeze(powerSystem.freezeUntil); },
+        onSpawn: (enemy) => { attachEnemyCubeStolenCallback(enemy); if (anyFreezeActive()) enemy.freeze(maxFreezeUntil()); }, // COOP S7
         stats: () => currentSession
             ? { shotsFired: currentSession.shotsFired, shotsHit: currentSession.shotsHit, damageDealt: currentSession.damageDealt, damageTaken: currentSession.damageTaken }
             : { shotsFired: 0, shotsHit: 0, damageDealt: 0, damageTaken: 0 },
@@ -3234,7 +3262,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             banner: (text, color, frames) => hud.triggerCastleBanner(text, color, frames),
             onEnemySpawned: (enemy) => {
                 attachEnemyCubeStolenCallback(enemy);
-                if (powerSystem.isFreezeActive) enemy.freeze(powerSystem.freezeUntil);
+                if (anyFreezeActive()) enemy.freeze(maxFreezeUntil()); // COOP S7
             },
             onWaveStart: () => { audio.playCastleWaveAlert(); }, // v0.196.0: asset Mariusza zamiast shockwave
             onWaveCleared: (_wave, bonus) => {
@@ -3320,7 +3348,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             killCount: () => spawnSystem?.regularKills ?? 0,
             onSpawn: (enemy) => {
                 attachEnemyCubeStolenCallback(enemy);
-                if (powerSystem.isFreezeActive) enemy.freeze(powerSystem.freezeUntil);
+                if (anyFreezeActive()) enemy.freeze(maxFreezeUntil()); // COOP S7
             },
             onBossSpawned: () => { hud.triggerCastleBanner(t('queen.boss'), '#ff3b3b', 120); audio.playShockwave(); },
             // telegraf lane'u: portal na kracie + dzwiek (jak Zamek F6) + flara dyrektora + strzalka HUD (activeLanes)
@@ -3917,9 +3945,7 @@ function fitEndTitleToButton(screenEl: HTMLElement): void {
 // Bossowie: mega boss siedzi w enemies[] (isMegaBoss) => ta sama sciezka; boss+straznicy
 // CTF zyja w CtfSystem z wlasnym targetowaniem — przejda na players[] przy Z0.3.
 function resolveEnemyTarget(enemy: Enemy): { x: number; y: number } {
-    const steer = powerSystem!.burpFearFor(enemy)
-        ?? powerSystem!.grannyFearFor(enemy)
-        ?? powerSystem!.ghostTauntFor(enemy);
+    const steer = powerSteerFor(enemy); // COOP S7: moce wszystkich graczy
     if (steer) return steer;
     // OBRON ZAMEK F3: oblegajacy/maszyny ida trasa do struktur (raiderzy: null => gracz).
     if (castleSystem) {
@@ -4911,8 +4937,15 @@ function runLogicStep(delta: number): void {
 
     for (let i = gems.length - 1; i >= 0; i--) {
         const g = gems[i];
-        if (powerSystem.magnetActive) g.attracted = true;
-        const gTo = nearestLivingPlayer(g.x, g.y); // COOP S5: magnes ciagnie do najblizszego gracza
+        // COOP S7: gem ciagnie najblizszy gracz Z AKTYWNYM magnesem (brak => najblizszy zywy, jak dotad)
+        let gTo = nearestLivingPlayer(g.x, g.y);
+        let gMagD = Infinity;
+        for (const [mpl, mps] of powerSystems) {
+            if (!mps.magnetActive || mpl.hp <= 0) continue;
+            const d = (mpl.x - g.x) ** 2 + (mpl.y - g.y) ** 2;
+            if (d < gMagD) { gMagD = d; gTo = mpl; }
+        }
+        if (gMagD < Infinity) g.attracted = true;
         g.update(delta, gTo.x, gTo.y);
         if (!g.active) { gems.splice(i, 1); gemPool.push(g); continue; } // POOLING: zwrot do puli
         const gp = playerTouching(g.x, g.y, g.radius + PICKUP_CONFIG.gemAutoCollectRadius);
@@ -5049,7 +5082,7 @@ function runLogicStep(delta: number): void {
         const mp = playerTouching(m.x, m.y, m.radius + 22); // COOP S5
         if (mp) {
             if (m.pickup(effects)) {
-                powerSystem.activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs); // magnes = stan wspolny (PowerSystem per gracz = S7)
+                psOf(mp).activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs); // COOP S7: magnes ZBIERAJACEGO
                 if (mp === localPlayer) {
                     hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
                     audio.playMagnetPickup();
@@ -5128,7 +5161,7 @@ function runLogicStep(delta: number): void {
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const eb = enemyBullets[i];
         // FREEZE: pociski wroga stoja w miejscu i NIE trafiaja (wznawiaja lot po mrozie).
-        if (powerSystem.isFreezeActive) continue;
+        if (anyFreezeActive()) continue; // COOP S7: mroz dowolnego gracza
         // OBRON ZAMEK F2: pociski wroga trafiaja proxy zamku z takeDamage (gracz — zwykle solidBuildings).
         eb.update(delta, castleEnemyBulletSolids ?? solidBuildings, effects);
         if (!eb.active) { enemyBullets.splice(i, 1); enemyBulletPool.push(eb); continue; } // POOLING
@@ -5148,7 +5181,7 @@ function runLogicStep(delta: number): void {
         // TIER 2 PING-PONG: aura ODBIJA pocisk wroga -> wraca jako pocisk GRACZA
         // (dumb-reflect +180 stopni — EnemyBullet nie zna nadawcy, fallback z reguly;
         // pula gracza => kolizje/dmg-numbery za darmo, source='tower' => zero combo/celnosci).
-        if (powerSystem.pongDeflects(eb.x, eb.y)) {
+        if (pongDeflectsAny(eb.x, eb.y)) { // COOP S7
             const backAngle = Math.atan2(-eb.vy, -eb.vx);
             const rb = acquireBullet(eb.x, eb.y, backAngle, false, PONG_CONFIG.reflectDmg);
             rb.styleAsTowerTracer();
@@ -5167,7 +5200,7 @@ function runLogicStep(delta: number): void {
         // F7b-4 WIDMO: wabik ABSORBUJE pociski wroga (sim 1:1 — fioletowy puff).
         // Sensoryka + uczciwosc: skoro wrogowie strzelaja DO wabika, pociski nie moga
         // przelatywac przez niego i trafiac gracza stojacego za nim.
-        if (powerSystem.ghostAbsorbs(eb.x, eb.y)) {
+        if (ghostAbsorbsAny(eb.x, eb.y)) { // COOP S7
             effects.spawnEnemyHitSparks(eb.x, eb.y, 0xb39ddb);
             eb.deactivate();
             enemyBullets.splice(i, 1);
@@ -5182,12 +5215,13 @@ function runLogicStep(delta: number): void {
             // tutorialActive => gracz niesmiertelny (smierc w samouczku psuje jego dokonczenie/restart).
             // Feedback trafienia (ponizej) lecze normalnie — sensoryka zostaje, tylko HP nie spada.
             const hpBeforeHit = hitP.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
-            const playerDied = hitP.takeDamage(eb.dmg, powerSystem.isInvulnerable || tutorialActive || sanct,
+            const hitInv = psOf(hitP).isInvulnerable; // COOP S7: aura TRAFIONEGO gracza
+            const playerDied = hitP.takeDamage(eb.dmg, hitInv || tutorialActive || sanct,
                 { kind: 'enemy_bullet', attackerRef: eb }); // Z0.5
             currentSession.damageTaken += Math.max(0, hpBeforeHit - hitP.hp);
-            if (isLocal && !powerSystem.isInvulnerable) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
+            if (isLocal && !hitInv) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
 
-            if (powerSystem.isInvulnerable || sanct) {
+            if (hitInv || sanct) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
@@ -5207,7 +5241,7 @@ function runLogicStep(delta: number): void {
         for (const newEnemy of spawnResult.newEnemies) {
             attachEnemyCubeStolenCallback(newEnemy);
             // FREEZE: wrog zespawnowany PODCZAS freeze tez zamrozony (inaczej nowe czolgi jada+strzelaja).
-            if (powerSystem.isFreezeActive) newEnemy.freeze(powerSystem.freezeUntil);
+            if (anyFreezeActive()) newEnemy.freeze(maxFreezeUntil()); // COOP S7
         }
         enemies.push(...spawnResult.newEnemies);
         hearts.push(...spawnResult.newHearts);
@@ -5215,7 +5249,7 @@ function runLogicStep(delta: number): void {
         if (spawnResult.megaBossJustSpawned) hud.triggerMegaBossAlert();
     }
 
-    powerSystem.update(delta, localPlayer, enemies, worldContainer, effects);
+    for (const [pp, ps] of powerSystems) ps.update(delta, pp, enemies, worldContainer, effects); // COOP S7: kazda instancja z wlasnym graczem
 
     // v0.146.1 — koniec Ping-Ponga musi byc WIDOCZNY (zgloszenie: „nie wiemy, kiedy sie
     // konczy"). PowerSystem nie zna HUD, wiec zdaje flage, a petla ja konsumuje.
@@ -5254,7 +5288,7 @@ function runLogicStep(delta: number): void {
         if (ufo && ufo.isAbducted(enemy)) {
             // MARS M5: wrog wisi w promieniu UFO — jego container nalezy do UFO
             // (pozycja/skala/rotacja). ZERO enemy.update, jak przy disco.
-        } else if (powerSystem.discoActive) {
+        } else if (anyDiscoActive()) { // COOP S7
             enemy.container.rotation += 0.13 * delta;
         } else {
             if (enemy.container.rotation !== 0) enemy.container.rotation = 0; // koniec imprezy
@@ -5266,7 +5300,7 @@ function runLogicStep(delta: number): void {
         }
         // TIER 3 DISCO v2: zmeczony tancerz bije 20% slabiej do konca meczu.
         if (shotInfo) {
-            if (powerSystem.isDiscoTired(enemy)) shotInfo.dmg = Math.round(shotInfo.dmg * DISCO_CONFIG.danceDmgMult);
+            if (isDiscoTiredAny(enemy)) shotInfo.dmg = Math.round(shotInfo.dmg * DISCO_CONFIG.danceDmgMult);
             spawnEnemyShot(shotInfo);
         }
 
@@ -5283,18 +5317,19 @@ function runLogicStep(delta: number): void {
         if (ramP && !(castleSystem && ramSanct)) {
             const ramLocal = ramP === localPlayer;
             // TIER 3 DISCO v2: taran zmeczonego tancerza tez -20%
-            const collDmg = powerSystem.isDiscoTired(enemy)
+            const collDmg = isDiscoTiredAny(enemy)
                 ? Math.round(enemy.collisionDmg * DISCO_CONFIG.danceDmgMult)
                 : enemy.collisionDmg;
             const hpBeforeRam = ramP.hp; // v0.209.0 (STRZELNICA): obrazenia otrzymane
-            const playerDied = ramP.takeDamage(collDmg, powerSystem.isInvulnerable || tutorialActive || ramSanct,
+            const ramInv = psOf(ramP).isInvulnerable; // COOP S7: aura TARANOWANEGO gracza
+            const playerDied = ramP.takeDamage(collDmg, ramInv || tutorialActive || ramSanct,
                 { kind: 'enemy_ram', attackerRef: enemy }); // Z0.5; tutorial/sanktuarium => niesmiertelny
             currentSession.damageTaken += Math.max(0, hpBeforeRam - ramP.hp);
-            if (ramLocal && !powerSystem.isInvulnerable) haptic(HAPTIC.ram); // v0.208.0 — dwa impulsy: „to bylo cos wiekszego"
+            if (ramLocal && !ramInv) haptic(HAPTIC.ram); // v0.208.0 — dwa impulsy: „to bylo cos wiekszego"
 
             // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
             // Wczesnie tutaj zeby objac OBA path-e ponizej (regular kill + boss hit) jednym wywolaniem.
-            if (!powerSystem.isInvulnerable && !ramSanct) {
+            if (!ramInv && !ramSanct) {
                 currentSession.markDamageTaken();
             }
 
@@ -5326,7 +5361,7 @@ function runLogicStep(delta: number): void {
                 if (enemy.container.parent) enemy.container.parent.removeChild(enemy.container);
                 enemy.container.destroy({ children: true });
             } else {
-                if (ramLocal && !powerSystem.isInvulnerable) {
+                if (ramLocal && !ramInv) {
                     effects.shake(8, 10);
                     audio.playHit('player');
                 }

@@ -213,6 +213,8 @@ import { AudioSys } from './audio/AudioSys';
 // === FAZA 6.5.1: Config + Session architecture ===
 import { GameConfigBuilder, describeGameConfig, type GameConfig } from './types/GameConfig';
 import { SIGMA_BOT, sigmaEmit } from './testing/sigmaFlag';
+import { isPlasmaShotEnabled } from './config/enemyShot'; // ENEMY-SHOT v0.235.0
+const PLASMA_ON = isPlasmaShotEnabled();
 import { isRangeMode } from './config/rangeFlag';                       // STRZELNICA v0.209.0
 import { RangeDirector, type RangeReport } from './systems/range/RangeDirector'; // STRZELNICA v0.209.0
 import { RANGE_TUNING } from './systems/range/rangeTuning';             // STRZELNICA v0.209.0 // SigmaTester: ?bot=1 (warstwa testowa laduje sie dynamicznie na koncu bootu)
@@ -2149,6 +2151,8 @@ function spawnEnemyShot(shot: import('./entities/Enemy').EnemyShotInfo): void {
             shot.bulletType, // FAZA P4 — typ pocisku dla bakera (null => flat)
         );
     }
+    // ENEMY-SHOT v0.235.0: blysk wylotu plazmowej kuli (raz na salwe, tylko wizual).
+    if (shot.bulletType === 'enemy_basic' && PLASMA_ON && effects) effects.spawnPlasmaMuzzle(shot.x, shot.y);
 }
 
 /**
@@ -5693,7 +5697,9 @@ function runLogicStep(delta: number): void {
             } else if (sanct) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
-                effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
+                // ENEMY-SHOT v0.235.0: plazma = zloty pierscien + iskry; reszta pociskow jak dotad.
+                if (PLASMA_ON && eb.bulletType === 'enemy_basic') effects.spawnPlasmaHit(eb.x, eb.y);
+                else effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);
                 if (isLocal) { effects.shake(4, 6); audio.playHit('player'); }
                 // v0.50.0 Scoring v2.2: applied damage → Perfect Run flag SET (Aura by zachowala streak).
                 currentSession.markDamageTaken();

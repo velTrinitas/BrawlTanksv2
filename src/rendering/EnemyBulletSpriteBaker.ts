@@ -29,6 +29,7 @@
  *   const { mode } = EnemyBulletSpriteBaker.getSpin('boss_shell');   // 'dir' | 'none'
  */
 import * as PIXI from 'pixi.js';
+import { isPlasmaShotEnabled, PLASMA_RADIUS } from '../config/enemyShot'; // ENEMY-SHOT v0.235.0
 
 // ── Enemy bullet types baked (render2d drawBullet cases) ─────────────────────
 export type EnemyBulletType = 'enemy_basic' | 'boss_shell' | 'mega_shell';
@@ -45,7 +46,7 @@ interface EnemyBulletBakeCfg {
 }
 
 const CFG: Record<EnemyBulletType, EnemyBulletBakeCfg> = {
-    enemy_basic: { type: 'enemy_basic', size: 6, tex: 40, spin: 'none' },
+    enemy_basic: { type: 'enemy_basic', size: 6, tex: 40, spin: 'none' }, // plazma: r 6,6, poswiata r*2.1 = srednica ~28 px, miesci sie w tex 40
     boss_shell: { type: 'boss_shell', size: 7, tex: 72, spin: 'dir' }, // tex 72 (bylo 44): rakieta + ogon-kometa
     mega_shell: { type: 'mega_shell', size: 8, tex: 72, spin: 'dir' }, // tex 72 (bylo 48): premium glow ma miejsce
 };
@@ -159,6 +160,9 @@ class EnemyBulletSpriteBakerImpl {
             // Origin przesuniety w prawo (tex*0.61), bo ogon ciagnie sie w -X i musi zmiescic sie
             // w teksturze; pivot (anchor 0.5) zostaje w korpusie rakiety. Baked RIGHT, spin 'dir'.
             this.drawBossRocketPremium(ctx as unknown as CanvasRenderingContext2D, cfg.tex * 0.61, c, cfg.size);
+        } else if (cfg.type === 'enemy_basic' && isPlasmaShotEnabled()) {
+            // ENEMY-SHOT v0.235.0: Plazmowa kula 1:1 z symulacji (plasmaBall). ?plasma=0 = drawBullet.
+            drawPlasmaBall(ctx as unknown as CanvasRenderingContext2D, c, c, PLASMA_RADIUS);
         } else {
             r2d.drawBullet(ctx as unknown as CanvasRenderingContext2D, b);
         }
@@ -310,6 +314,22 @@ class EnemyBulletSpriteBakerImpl {
     disposeAll(): void {
         for (const type of this.cache.keys()) this.dispose(type);
     }
+}
+
+/**
+ * ENEMY-SHOT v0.235.0 — Plazmowa kula 1:1 z symulacji (`plasmaBall` w artefakcie Mariusza):
+ * poswiata radialna r*2.1, czerwona kula z ciemnym obrysem, bialo-zolte jadro przesuniete
+ * w lewo-gore (swiatlo). Statyczne — puls robi skala sprite'a w EnemyBullet.ts.
+ */
+function drawPlasmaBall(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+    let g = ctx.createRadialGradient(x, y, 0, x, y, s * 2.1);
+    g.addColorStop(0, 'rgba(255,90,40,.75)'); g.addColorStop(1, 'rgba(255,40,30,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s * 2.1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e8322a'; ctx.strokeStyle = '#4a0e08'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    g = ctx.createRadialGradient(x - s * 0.2, y - s * 0.2, 0, x, y, s * 0.75);
+    g.addColorStop(0, '#fffbe0'); g.addColorStop(0.5, '#ffd23a'); g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s * 0.75, 0, Math.PI * 2); ctx.fill();
 }
 
 /** Singleton — use this everywhere. */

@@ -9,6 +9,13 @@ import {
     type EnemyBulletType,
 } from '../rendering/EnemyBulletSpriteBaker';
 import { nextNetId } from '../systems/NetId'; // COOP S5b
+import { simNowMs } from '../systems/SimClock';
+import { isPlasmaShotEnabled, PLASMA_TAIL_GHOSTS } from '../config/enemyShot'; // ENEMY-SHOT v0.235.0
+
+/** Plazma liczona raz na sesje (URL nie zmienia sie w trakcie gry). */
+const PLASMA_ON = isPlasmaShotEnabled();
+/** Odstep duchow ogona wzdluz lotu (px) — 1:1 z symulacji (drawA). */
+const PLASMA_GHOST_STEP = 5.5;
 
 /**
  * EnemyBullet z per-typ 2.5D bake (FAZA P4).
@@ -43,6 +50,9 @@ export class EnemyBullet {
     private bakerActive: boolean = false;
     private sprite: PIXI.Sprite | null = null; // bake path display object
     private spinMode: 'dir' | 'none' = 'none';
+    /** ENEMY-SHOT: duchy ogona plazmowej kuli (leniwie, raz na instancje z puli; ten sam sprite). */
+    private ghosts: PIXI.Sprite[] = [];
+    private plasma = false;
 
     // POOLING (v0.73.6) — kontener trzymany, by reset() mogl leniwie dotworzyc
     // brakujacy display object (gdy pooled pocisk zmienia tryb baked<->flat).
@@ -105,6 +115,29 @@ export class EnemyBullet {
             this.sprite.zIndex = this.y + 10;
             this.sprite.visible = true;
             if (this.gfx) this.gfx.visible = false; // ukryj tryb flat, gdy uzywamy baked
+            // ENEMY-SHOT v0.235.0: plazmowa kula = puls + ogon z duchow (tylko enemy_basic).
+            this.plasma = PLASMA_ON && bulletType === 'enemy_basic';
+            if (this.plasma) {
+                const tex = this.sprite.texture;
+                while (this.ghosts.length < PLASMA_TAIL_GHOSTS) {
+                    const gs = new PIXI.Sprite(tex);
+                    gs.anchor.set(0.5);
+                    this.worldContainer.addChild(gs);
+                    this.ghosts.push(gs);
+                }
+                for (let i = 0; i < this.ghosts.length; i++) {
+                    const gs = this.ghosts[i];
+                    const k = i + 1;
+                    gs.texture = tex;
+                    gs.scale.set(ENEMY_BULLET_DISPLAY_SCALE * (1 - k * 0.15));
+                    gs.alpha = 0.38 - k * 0.07;
+                    gs.visible = true;
+                }
+                this.placePlasma();
+            } else {
+                this.sprite.scale.set(ENEMY_BULLET_DISPLAY_SCALE);
+                for (const gs of this.ghosts) gs.visible = false;
+            }
         } else {
             // ── FLAT PATH (bit-for-bit jak dotad) ──
             if (!this.gfx) {
@@ -123,6 +156,8 @@ export class EnemyBullet {
             this.gfx.zIndex = this.y + 10;
             this.gfx.visible = true;
             if (this.sprite) this.sprite.visible = false; // ukryj tryb baked, gdy uzywamy flat
+            this.plasma = false;
+            for (const gs of this.ghosts) gs.visible = false;
         }
     }
 
@@ -160,6 +195,7 @@ export class EnemyBullet {
             this.sprite.x = this.x;
             this.sprite.y = this.y;
             this.sprite.zIndex = this.y + 10;
+            if (this.plasma) this.placePlasma();
         } else if (this.gfx) {
             this.gfx.x = this.x;
             this.gfx.y = this.y;
@@ -175,6 +211,27 @@ export class EnemyBullet {
         this.x = x; this.y = y;
         const d = this.bakerActive && this.sprite ? this.sprite : this.gfx;
         if (d) { d.x = x; d.y = y; d.zIndex = y + 10; }
+        if (this.plasma) this.placePlasma(); // gosc koopa widzi ten sam puls i ogon
+    }
+
+    /**
+     * ENEMY-SHOT v0.235.0: puls jadra (1 +- 15%, sin(t*22), zegar MECZU — zamiera w pauzie)
+     * + duchy ogona co 5,5 px wstecz wzdluz lotu. Tylko transformy, zero redraw.
+     */
+    private placePlasma(): void {
+        const sp = this.sprite;
+        if (!sp) return;
+        const pulse = 1 + 0.15 * Math.sin((simNowMs() / 1000) * 22);
+        sp.scale.set(ENEMY_BULLET_DISPLAY_SCALE * pulse);
+        const inv = this.speed > 0 ? 1 / this.speed : 0;
+        const ux = this.vx * inv, uy = this.vy * inv;
+        for (let i = 0; i < this.ghosts.length; i++) {
+            const gs = this.ghosts[i];
+            const k = (i + 1) * PLASMA_GHOST_STEP;
+            gs.x = this.x - ux * k;
+            gs.y = this.y - uy * k;
+            gs.zIndex = this.y + 9;
+        }
     }
 
     /**
@@ -187,6 +244,7 @@ export class EnemyBullet {
         this.active = false;
         if (this.sprite) this.sprite.visible = false;
         if (this.gfx) this.gfx.visible = false;
+        for (const gs of this.ghosts) gs.visible = false;
     }
 
     /** Pelne zniszczenie (nieuzywane w hot-path po poolingu; zostaje dla teardownu). */
@@ -202,5 +260,7 @@ export class EnemyBullet {
             this.gfx.destroy();
             this.gfx = null;
         }
+        for (const gs of this.ghosts) { if (gs.parent) gs.parent.removeChild(gs); gs.destroy(); }
+        this.ghosts = [];
     }
 }

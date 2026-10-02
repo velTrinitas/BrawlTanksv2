@@ -612,6 +612,23 @@ export class EffectsManager {
         if (fire) this.spawnParticles(x, y - 6, 0x5a5550, Math.min(5, Math.round(2 + 2 * k)), { speed: 1.4, size: 5 * k + 2, decay: 0.022, spread: 1.0 });
     }
 
+    /** ENEMY-SHOT v0.235.0: blysk wylotu plazmy (#fff3b0, r ~9, ~5 klatek). 1 sprite z puli. */
+    spawnPlasmaMuzzle(x: number, y: number): void {
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
+        g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xfff3b0; g.sprite.alpha = 1;
+        g.sprite.scale.set(18 / 16); g.life = 1; g.max = 5; g.grow = 0;
+    }
+
+    /** ENEMY-SHOT v0.235.0: trafienie plazma — zloty pierscien r8->30 (~0.28 s) + 6 iskier. */
+    spawnPlasmaHit(x: number, y: number): void {
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 14);
+        r.sprite.anchor.set(0.5); r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0;
+        r.sprite.tint = 0xffd23a; r.sprite.alpha = 1; r.delay = 0; r.sprite.visible = true;
+        r.sprite.scale.set(8 / 32); r.life = 1; r.max = 17; r.grow = ((30 - 8) / 32) / 17;
+        this.spawnParticles(x, y, 0xfff3b0, 3, { speed: 3.7, size: 2, decay: 0.05, spread: 1.0 });
+        this.spawnParticles(x, y, 0xff7a2a, 3, { speed: 3.7, size: 2, decay: 0.05, spread: 1.0 });
+    }
+
     /** NAPRAWA: zielony plus plynacy w gore nad czolgiem (pula 8). */
     spawnHealPlus(x: number, y: number): void {
         const p = this.acquireFx(this.fxPluses, getPlusTexture(), this.fxAddLayer, true, 8);

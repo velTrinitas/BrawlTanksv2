@@ -78,6 +78,9 @@ export class GarageSection implements HubSection {
     /** GARAZ v2 / TRANSZA E: HubShell otwiera przymierzalnie (SkinsOverlay). */
     public onOpenSkins: (() => void) | null = null;
 
+    /** GALERIA CZOLGOW (v0.230.0): HubShell otwiera TankRosterOverlay. */
+    public onOpenRoster: (() => void) | null = null;
+
     /** SKIN-1: ULOTNY preview zablokowanego skina (znika przy zmianie czolgu/kafla/sekcji). */
     private previewSkinId: string | null = null;
 
@@ -174,6 +177,7 @@ export class GarageSection implements HubSection {
                       mocami znika, hero + moce zostaja jedynym blokiem sekcji. */''}
                 <div class="bt-gr2-titlerow">
                     <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.garage')}</h2>
+                    <button class="bt-gr2-rosterbtn is-compact" data-action="gr2-open-roster" type="button"><b>${t('hub.roster.button')}</b></button>
                     ${this.crateChipHtml(pid)}
                 </div>
                 <div class="bt-gr2-hero" data-gr2-hero>${this.heroHtml(pid)}</div>
@@ -356,6 +360,17 @@ export class GarageSection implements HubSection {
     }
 
     /** GARAZ-3: karuzela czolgow — commit natychmiast (bez preview/potwierdz). */
+    /** GALERIA CZOLGOW: wybor z galerii = ta sama sciezka co karuzela (persist + hero + skiny). */
+    public selectTank(id: string): void {
+        const el = this.el;
+        if (!el || !BRAWLERS.some(b => b.id === id) || id === this.sel.brawlerId) return;
+        this.previewSkinId = null;
+        this.sel.brawlerId = id;
+        this.persistBrawler();
+        this.updateHero(el);
+        if (isSkinsEnabled()) this.refreshSkins(el, ProfileService.getActiveProfile()?.id ?? 'default');
+    }
+
     private cycleTank(el: HTMLElement, dir: 1 | -1): void {
         const idx = BRAWLERS.findIndex(b => b.id === this.sel.brawlerId);
         const next = BRAWLERS[(idx + dir + BRAWLERS.length) % BRAWLERS.length];
@@ -409,6 +424,10 @@ export class GarageSection implements HubSection {
                           w kolumnie tozsamosci — nie pod podium. Puste miejsce obok czolgu
                           bylo jedynym wolnym slotem kompozycji. */''}
                     ${pid && isSkinsModeEnabled() ? this.skinsAreaHtml(pid) : ''}
+                    ${/* GALERIA CZOLGOW (v0.230.0): wszystkie czolgi + staty naraz. */''}
+                    <button class="bt-gr2-rosterbtn" data-action="gr2-open-roster" type="button">
+                        <b>${t('hub.roster.button')}</b><span class="ch" aria-hidden="true">&#8250;</span>
+                    </button>
                 </div>
             </div>`;
     }
@@ -547,6 +566,10 @@ export class GarageSection implements HubSection {
                 case 'gr2-skin-shop':
                     playUiClick();
                     this.onOpenShop?.();
+                    return;
+                case 'gr2-open-roster':
+                    playUiClick();
+                    this.onOpenRoster?.();
                     return;
                 case 'gr2-open-skins':
                     playUiClick();

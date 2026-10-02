@@ -610,6 +610,17 @@ export const en: typeof pl = {
     'hub.garage.loadout': 'PICK 3 SUPER POWERS',
     'hub.garage.slotsLabel': 'PICK SUPER POWERS',
     'hub.garage.slotsHint': 'Tap a slot to change a power',
+    // TANK GALLERY (v0.230.0)
+    'hub.roster.button': 'ALL TANKS',
+    'hub.roster.title': 'ALL TANKS',
+    'hub.roster.hint': 'Compare and tap a tank to pick it',
+    'hub.roster.mine': 'YOURS',
+    'hub.roster.pick': 'PICK',
+    'hub.roster.selected': 'PICKED',
+    'hub.roster.soon': 'COMING SOON',
+    'hub.roster.trait.volley': 'VOLLEY x{n}',
+    'hub.roster.trait.pierce': 'PIERCE x{n}',
+    'hub.roster.trait.dash': 'DASH',
     // BALANCE_V2 (S5): tank stat labels - hardcoded in UI code until v0.199.0.
     'stat.hp': 'HP',
     'stat.dmg': 'DMG',

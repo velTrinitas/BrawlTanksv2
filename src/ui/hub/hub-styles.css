@@ -3760,3 +3760,143 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
     .bt-coop-badge { font-size: 12px; gap: 6px; padding: 4px 10px; }
     .bt-coop-badge .ch-hp { width: 90px; }
 }
+
+/* ── GALERIA CZOLGOW (v0.230.0) ─────────────────────────────────────────────
+   Przycisk w kolumnie tozsamosci garazu + overlay z calym rosterem.
+   Czysty DOM/CSS (hub) — zero kosztu dla petli gry. */
+.bt-gr2-rosterbtn {
+    position: relative; overflow: hidden;
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 10px; min-height: 44px; padding: 8px 14px;
+    border: 2px solid var(--hub-gold); border-radius: var(--radius-pill);
+    background: linear-gradient(180deg, #ffd94a 0%, #f1a90f 100%);
+    color: #3a2400; cursor: pointer;
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 15px; letter-spacing: 0.6px;
+    box-shadow: 0 4px 0 #a86a00, 0 6px 18px rgba(241, 196, 15, 0.35);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.bt-gr2-rosterbtn .ic { font-size: 18px; line-height: 1; }
+.bt-gr2-rosterbtn .ch { font-size: 20px; line-height: 1; }
+/* polysk przelatujacy co ~4 s */
+.bt-gr2-rosterbtn::after {
+    content: ""; position: absolute; top: -20%; bottom: -20%; width: 40%; left: -60%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+    transform: skewX(-20deg); animation: bt-rs-shine 4s ease-in-out infinite;
+}
+@keyframes bt-rs-shine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+.bt-gr2-rosterbtn.is-compact { display: none; }
+.bt-gr2-rosterbtn:hover { transform: translateY(-2px) scale(1.04); }
+.bt-gr2-rosterbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #a86a00, 0 2px 8px rgba(241, 196, 15, 0.3); }
+
+.bt-rs-modal {
+    max-width: 1120px; height: 94%; max-height: 94%; padding: 14px 16px 16px;
+    background: radial-gradient(120% 80% at 50% 0%, #26384a 0%, var(--hub-steel-900) 60%);
+    border: 2px solid rgba(241, 196, 15, 0.45);
+}
+.bt-rs-title { font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 22px; gap: 10px; flex-wrap: wrap; color: var(--hub-gold); text-shadow: 0 2px 0 #7a4b00; }
+.bt-rs-title small { font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 12px; color: var(--hub-ink-dim); text-shadow: none; letter-spacing: 0.3px; }
+.bt-rs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding-top: 6px; }
+
+.bt-rs-card {
+    position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 7px;
+    padding: 10px 10px 12px; text-align: left; cursor: pointer; font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; color: var(--hub-ink);
+    border: 2px solid color-mix(in srgb, var(--tank) 55%, transparent); border-radius: 16px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tank) 22%, var(--hub-steel-850)) 0%, var(--hub-steel-900) 70%);
+    box-shadow: 0 6px 0 color-mix(in srgb, var(--tank) 35%, #000), 0 10px 22px rgba(0, 0, 0, 0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.bt-rs-card:hover {
+    transform: translateY(-5px) rotate(-0.6deg);
+    box-shadow: 0 10px 0 color-mix(in srgb, var(--tank) 35%, #000), 0 16px 30px rgba(0, 0, 0, 0.5), 0 0 24px color-mix(in srgb, var(--tank) 45%, transparent);
+}
+.bt-rs-card:active { transform: translateY(2px) scale(0.98); }
+.bt-rs-card.is-mine { border-color: var(--hub-gold); box-shadow: 0 6px 0 #a86a00, 0 0 0 3px rgba(241, 196, 15, 0.25), 0 0 28px rgba(241, 196, 15, 0.45); }
+.bt-rs-modal.is-anim .bt-rs-card { animation: bt-rs-in 0.45s cubic-bezier(.2, 1.4, .4, 1) both; animation-delay: calc(var(--i) * 45ms); }
+.bt-rs-modal.is-anim .bt-rs-card.is-mine {
+    animation: bt-rs-in 0.45s cubic-bezier(.2, 1.4, .4, 1) both, bt-rs-glow 1.8s ease-in-out infinite;
+    animation-delay: calc(var(--i) * 45ms), 0.8s;
+}
+@keyframes bt-rs-in { from { opacity: 0; transform: translateY(26px) scale(0.85); } to { opacity: 1; transform: none; } }
+@keyframes bt-rs-glow { 50% { box-shadow: 0 6px 0 #a86a00, 0 0 0 5px rgba(241, 196, 15, 0.35), 0 0 40px rgba(241, 196, 15, 0.7); } }
+
+.bt-rs-card .rs-mine {
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
+    position: absolute; top: -10px; left: 12px; z-index: 2; font-style: normal; font-size: 11px; letter-spacing: 0.5px;
+    padding: 3px 9px; border-radius: var(--radius-pill); background: var(--hub-gold); color: #3a2400;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+/* Obrazki maja BIALE tlo: jasny panel w barwie czolgu + multiply = biel znika. */
+.bt-rs-card .rs-media {
+    display: block; height: 161px; border-radius: 12px; overflow: hidden;
+    background: radial-gradient(circle at 50% 55%, #ffffff 0%, color-mix(in srgb, var(--tank) 30%, #ffffff) 100%);
+}
+.bt-rs-card .rs-media img {
+    height: 100%; width: 100%; object-fit: contain; mix-blend-mode: multiply; transform: scale(1.2); pointer-events: none;
+    transition: transform 0.25s cubic-bezier(.2, 1.4, .4, 1);
+}
+.bt-rs-card:hover .rs-media img { transform: scale(1.28) translateY(-3px); }
+.bt-rs-card .rs-name { font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 22px; letter-spacing: 0.5px; color: var(--tank); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+.bt-rs-card .rs-recs { display: flex; flex-wrap: wrap; gap: 4px; }
+.bt-rs-card .rs-recs em {
+    font-style: normal; font-size: 10.5px; letter-spacing: 0.3px; padding: 2px 7px; border-radius: var(--radius-pill);
+    background: rgba(241, 196, 15, 0.16); color: var(--hub-gold); border: 1px solid rgba(241, 196, 15, 0.45);
+}
+.bt-rs-card .rs-stats { display: flex; flex-direction: column; gap: 5px; }
+.bt-rs-card .cd-stat { display: flex; align-items: center; gap: 6px; line-height: 1; font-variant-numeric: tabular-nums; }
+.bt-rs-card .cd-stat em { font-style: normal; font-size: 10.5px; letter-spacing: 0.4px; color: var(--hub-ink-dim); width: 50px; flex: 0 0 auto; }
+.bt-rs-card .cd-stat .bar {
+    flex: 1 1 auto; height: 9px; border-radius: var(--radius-pill); overflow: hidden;
+    background: var(--hub-steel-950); border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.bt-rs-card .cd-stat .bar b {
+    display: block; height: 100%; border-radius: var(--radius-pill); background: var(--tank);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+    box-shadow: 0 0 10px var(--tank); transform-origin: left center;
+}
+.bt-rs-modal.is-anim .bt-rs-card .cd-stat .bar b { animation: bt-rs-fill 0.7s cubic-bezier(.2, .9, .3, 1) both; animation-delay: calc(var(--i) * 45ms + 200ms); }
+@keyframes bt-rs-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.bt-rs-card .cd-stat u { text-decoration: none; font-size: 13px; color: var(--hub-ink); width: 40px; text-align: right; flex: 0 0 auto; }
+.bt-rs-card .rs-traits { display: flex; flex-wrap: wrap; gap: 4px; }
+.bt-rs-card .rs-traits span {
+    font-size: 10.5px; padding: 2px 7px; border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--tank) 25%, transparent); border: 1px solid color-mix(in srgb, var(--tank) 60%, transparent);
+}
+.bt-rs-card .rs-desc { font-family: var(--font-body, system-ui, sans-serif); font-size: 12px; line-height: 1.35; color: var(--hub-ink-dim); }
+.bt-rs-card .rs-cta {
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400;
+    margin-top: auto; text-align: center; padding: 8px; border-radius: 10px; font-size: 14px; letter-spacing: 0.8px;
+    background: var(--tank); color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+}
+.bt-rs-card.is-mine .rs-cta { background: var(--hub-gold); color: #3a2400; text-shadow: none; }
+.bt-rs-card.is-soon { cursor: default; opacity: 0.8; }
+.bt-rs-card.is-soon:hover { transform: none; }
+.bt-rs-card.is-soon .rs-media img { filter: brightness(0) opacity(0.55); mix-blend-mode: normal; }
+.bt-rs-card.is-soon .rs-name { color: var(--hub-ink-dim); }
+.bt-rs-card .rs-soon { font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; margin-top: auto; text-align: center; font-size: 14px; color: var(--hub-ink-dim); letter-spacing: 0.8px; }
+
+/* Mobile landscape: kompaktowe karty, bez opisu; siatka gesciej. */
+@media (orientation: landscape) and (max-height: 560px) {
+    /* Na niskim landscape kolumna tozsamosci wchodzi pod dok — przycisk jedzie do paska tytulu. */
+    .bt-gr2-side .bt-gr2-rosterbtn { display: none; }
+    .bt-gr2-rosterbtn.is-compact { display: inline-flex; margin: 0 0 0 auto; min-height: 36px; padding: 4px 12px; font-size: 12.5px; gap: 6px; }
+    .bt-gr2-rosterbtn.is-compact .ic { font-size: 15px; }
+    .bt-rs-modal { padding: 10px 10px 12px; height: 96%; max-height: 96%; }
+    .bt-rs-title { font-size: 17px; margin-bottom: 6px; min-height: 30px; }
+    .bt-rs-title small { display: none; }
+    .bt-rs-grid { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 8px; }
+    .bt-rs-card { padding: 7px 7px 9px; gap: 5px; }
+    .bt-rs-card .rs-media { height: 90px; }
+    .bt-rs-overlay { padding: 8px; z-index: 60; }
+    .bt-rs-card .rs-recs em { font-size: 9px; padding: 1px 5px; }
+    .bt-rs-card .rs-name { font-size: 16px; }
+    .bt-rs-card .rs-desc { display: none; }
+    .bt-rs-card .cd-stat em { width: 40px; font-size: 9.5px; }
+    .bt-rs-card .cd-stat u { font-size: 11px; width: 32px; }
+    .bt-rs-card .cd-stat .bar { height: 7px; }
+    .bt-rs-card .rs-cta { padding: 6px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bt-gr2-rosterbtn::after { animation: none; display: none; }
+    .bt-rs-card, .bt-rs-card .rs-media img { transition: none; }
+}

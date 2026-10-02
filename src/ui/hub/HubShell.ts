@@ -9,6 +9,7 @@ import { BattleSection } from './sections/BattleSection';
 import { GarageSection } from './sections/GarageSection';
 import { LoadoutOverlay } from './overlays/LoadoutOverlay'; // GARAZ-3 — wybor mocy (?choose=1)
 import { SkinsOverlay } from './overlays/SkinsOverlay';     // GARAZ v2 — przymierzalnia barw
+import { TankRosterOverlay } from './overlays/TankRosterOverlay'; // GALERIA CZOLGOW
 import { sessionService } from '../../services/SessionService';  // GARAZ-2 — seed HubSelection
 import { BRAWLERS } from '../../config/brawlers';                // GARAZ-2 — walidacja seedu
 import { QuestsSection } from './sections/QuestsSection';
@@ -95,6 +96,8 @@ export class HubShell implements IScreen {
     private readonly loadout = new LoadoutOverlay();
     /** GARAZ v2 — przymierzalnia barw czolgu (duzy czolg + siatka, WYSIWYG). */
     private readonly skins = new SkinsOverlay();
+    /** GALERIA CZOLGOW (v0.230.0). */
+    private readonly roster = new TankRosterOverlay();
     private readonly quests = new QuestsSection();
     /** v0.208.0 — trzymany z nazwy, bo HubShell podaje mu `prevTrophies` (pasek dojezdza). */
     private readonly trophyRoad = new TrophyRoadSection();
@@ -185,6 +188,16 @@ export class HubShell implements IScreen {
                     if (this.rootEl) this.shopModal.openDetail(this.rootEl, sku, this.pid());
                 },
                 onDone: () => this.garage.refreshAfterSkins(),
+            });
+        };
+        // GALERIA CZOLGOW (v0.230.0): overlay w kolumnie tresci (jak loadout); wybor = karuzela garazu.
+        // Niski landscape (telefon): kolumna tresci ma ~220 px miedzy topbarem a dokiem — galeria idzie na caly ekran.
+        this.garage.onOpenRoster = () => {
+            const short = window.innerHeight <= 560;
+            const host = (short ? null : this.rootEl?.querySelector<HTMLElement>('.bt-hub0-main')) ?? this.rootEl;
+            if (host) this.roster.open(host, {
+                selectedId: this.hubSel.brawlerId,
+                onPick: (id) => this.garage.selectTank(id),
             });
         };
         this.garage.onOpenCrate = () => {
@@ -454,6 +467,7 @@ export class HubShell implements IScreen {
         this.shopModal.close();
         this.loadout.close(); // GARAZ-3
         this.skins.close();   // GARAZ v2
+        this.roster.close();  // GALERIA CZOLGOW
         this.rootEl?.remove();
         this.rootEl = null;
     }

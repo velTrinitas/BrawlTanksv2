@@ -633,6 +633,17 @@ export const pl = {
     'hub.garage.loadout': 'WYBIERZ 3 SUPER MOCE',
     'hub.garage.slotsLabel': 'WYBIERZ SUPER MOCE',
     'hub.garage.slotsHint': 'Dotknij slot, aby zmienić moc',
+    // GALERIA CZOLGOW (v0.230.0)
+    'hub.roster.button': 'WSZYSTKIE CZOŁGI',
+    'hub.roster.title': 'WSZYSTKIE CZOŁGI',
+    'hub.roster.hint': 'Porównaj i dotknij czołg, aby go wybrać',
+    'hub.roster.mine': 'TWÓJ',
+    'hub.roster.pick': 'WYBIERZ',
+    'hub.roster.selected': 'WYBRANY',
+    'hub.roster.soon': 'WKRÓTCE',
+    'hub.roster.trait.volley': 'SALWA ×{n}',
+    'hub.roster.trait.pierce': 'PRZEBICIE ×{n}',
+    'hub.roster.trait.dash': 'DASH',
     // BALANCE_V2 (S5): etykiety statow czolgu — do v0.199.0 byly HARDKODOWANE w kodzie UI.
     'stat.hp': 'HP',
     'stat.dmg': 'DMG',

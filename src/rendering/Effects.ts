@@ -110,7 +110,7 @@ export function getTrailTexture(): PIXI.Texture {
     return _trailTexture;
 }
 
-interface FxSprite { sprite: PIXI.Sprite; life: number; max: number; grow: number; active: boolean; }
+interface FxSprite { sprite: PIXI.Sprite; life: number; max: number; grow: number; active: boolean; delay?: number; }
 
 let _holeFunnelTexture: PIXI.Texture | null = null;
 /**
@@ -573,11 +573,20 @@ export class EffectsManager {
     // ═══ MOCE JUICY cz.1 (v0.233.0) — wspolne klocki ADD (pule sprite'ow, zero redraw) ═══
 
     /** Pierscien ADD z puli (tekstura pierscienia rosnie i gasnie) — zamiennik Graphics redraw. */
-    spawnRingFx(x: number, y: number, radius: number, color: number, frames = 16): void {
-        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
+    spawnRingFx(x: number, y: number, radius: number, color: number, frames = 16, delay = 0): void {
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 14);
         r.sprite.anchor.set(0.5); r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0;
         r.sprite.tint = color; r.sprite.alpha = 1;
         r.sprite.scale.set(0.2); r.life = 1; r.max = frames; r.grow = (radius / 32 - 0.2) / frames;
+        r.delay = delay;
+        if (delay > 0) r.sprite.visible = false;
+    }
+
+    /** v0.234.0 — KONFETTI (Paczkomat): 3 kolory, max 15 czastek z puli. */
+    spawnConfetti(x: number, y: number): void {
+        for (const c of [0xff5fa2, 0x4fd2ff, 0xffd84a]) {
+            this.spawnParticles(x, y - 6, c, 5, { speed: 6.5, size: 2.2, decay: 0.035, spread: 0.5, baseAngle: -Math.PI / 2 });
+        }
     }
 
     /**
@@ -660,6 +669,7 @@ export class EffectsManager {
     private updateFxPool(pool: FxSprite[], delta: number, fade: (f: FxSprite, t: number) => void): void {
         for (const f of pool) {
             if (!f.active) continue;
+            if (f.delay && f.delay > 0) { f.delay -= delta; f.sprite.visible = f.delay <= 0; if (f.delay > 0) continue; } // v0.234.0: fale z opoznieniem
             f.life -= delta / f.max;
             if (f.life <= 0) { f.active = false; f.sprite.visible = false; continue; }
             fade(f, 1 - f.life);
@@ -1105,6 +1115,8 @@ export class EffectsManager {
      * bez glow/fill — mobile fill-rate safe (rAF self-destruct ~0.3s). Fioletowy motyw pancernego.
      */
     spawnShockwaveRing(x: number, y: number, maxRadius: number, color: number = 0x9b59d0): void {
+        // v0.234.0: wewnetrzna linia lawendowa tylko dla domyslnego fioletu; inne kolory = jasna biel
+        const inner = color === 0x9b59d0 ? 0xd8b8ff : 0xffffff;
         const ring = new PIXI.Graphics();
         ring.x = x;
         ring.y = y;
@@ -1117,7 +1129,7 @@ export class EffectsManager {
             g.clear();
             g.lineStyle(5 - t * 4, color, 1 - t);
             g.drawCircle(0, 0, radius);
-            g.lineStyle(2, 0xd8b8ff, (1 - t) * 0.6);
+            g.lineStyle(2, inner, (1 - t) * 0.6);
             g.drawCircle(0, 0, radius - 4);
         });
     }

@@ -5656,6 +5656,8 @@ function runLogicStep(delta: number): void {
             bullets.push(rb);
             audio.playPongDeflect();
             effects.spawnEnemyHitSparks(eb.x, eb.y, PONG_CONFIG.color); // v0.146.1 — pomarancz mocy
+            effects.spawnRingFx(eb.x, eb.y, 34, PONG_CONFIG.color, 10); // v0.234.0: ODBICIE widac
+            effects.spawnRingFx(eb.x, eb.y, 18, 0xffffff, 8);
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING

@@ -632,6 +632,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
         unlockAtTrophies: 2500,  // PROWIZORYCZNE — Tier 2 wchodzi transzami sezonowymi. KEEP IN SYNC: progression.ts ACT_III_MILESTONES
         onActivate: (ctx) => {
             ctx.system.strikeLaunch(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
+            ctx.effects.shake(4, 10); // v0.234.0: nadlot eskadry czuc od pierwszej klatki
             ctx.hud.addNotif(t('hud.strikeStart'), '#9fd0ff');
             ctx.audio.playSuperActivate('strike');
             return { activated: true, powerId: 'strike' };
@@ -721,6 +722,11 @@ export const POWERS: Record<PowerId, PowerDef> = {
         unlockAtTrophies: 6500,  // PROWIZORYCZNE
         onActivate: (ctx) => {
             ctx.system.lockerSpawn(ctx.player.x, ctx.player.y, ctx.player.turretAngle);
+            {   // v0.234.0: "dostawa" — pierscien + blysk w miejscu szafy
+                const lx = ctx.player.x + Math.cos(ctx.player.turretAngle) * LOCKER_CONFIG.spawnDist;
+                const ly = ctx.player.y + Math.sin(ctx.player.turretAngle) * LOCKER_CONFIG.spawnDist;
+                ctx.effects.spawnBlastFx(lx, ly, 70, 0xf2b705, false);
+            }
             ctx.hud.addNotif(t('hud.lockerStart'), '#f2b705');
             ctx.audio.playSuperActivate('locker');
             return { activated: true, powerId: 'locker' };
@@ -737,6 +743,9 @@ export const POWERS: Record<PowerId, PowerDef> = {
         unlockAtTrophies: 7000,  // PROWIZORYCZNE
         onActivate: (ctx) => {
             ctx.system.discoActivate();
+            // v0.234.0: kolorowa salwa startu (roz / cyjan / zolty, fala za fala)
+            [0xff7ce0, 0x7ef0f7, 0xffe066].forEach((c, i) => ctx.effects.spawnRingFx(ctx.player.x, ctx.player.y, 150 + i * 70, c, 22, i * 6));
+            ctx.effects.spawnBlastFx(ctx.player.x, ctx.player.y, 60, 0xff7ce0, false);
             ctx.hud.addNotif(t('hud.discoStart'), '#ff7ce0');
             ctx.audio.playSuperActivate('disco');
             return { activated: true, powerId: 'disco' };
@@ -753,6 +762,9 @@ export const POWERS: Record<PowerId, PowerDef> = {
         unlockAtTrophies: 7500,  // PROWIZORYCZNE
         onActivate: (ctx) => {
             ctx.system.grannySpawn(ctx.player);
+            // v0.234.0: rozowy "poof" wejscia + pokaz strefy strachu (raz, gasnaca fala)
+            ctx.effects.spawnBlastFx(ctx.player.x + GRANNY_CONFIG.sideOffset, ctx.player.y, 55, 0xe8a0bf, false);
+            ctx.effects.spawnRingFx(ctx.player.x, ctx.player.y, GRANNY_CONFIG.fearRadius, 0xe8a0bf, 34, 4);
             ctx.hud.addNotif(t('hud.grannyStart'), '#e8a0bf');
             ctx.audio.playSuperActivate('granny');
             return { activated: true, powerId: 'granny' };
@@ -773,9 +785,9 @@ export const POWERS: Record<PowerId, PowerDef> = {
             // v0.146.0: kolor podany JAWNIE. `spawnShockwaveRing` ma domyslny fiolet
             // (0x9b59d0), wiec fale beku byly fioletowe mimo zielonego koloru mocy —
             // gracz nie mial jak powiazac efektu z ikona.
-            for (const r of BURP_CONFIG.ringRadii) {
-                ctx.effects.spawnShockwaveRing(ctx.player.x, ctx.player.y, r, BURP_CONFIG.cloudColor);
-            }
+            // v0.234.0: fale ROZCHODZA SIE KOLEJNO (sprite'y z puli, opoznienie 6 klatek) zamiast 4 naraz
+            BURP_CONFIG.ringRadii.forEach((r, i) => ctx.effects.spawnRingFx(ctx.player.x, ctx.player.y, r, BURP_CONFIG.cloudColor, 22, i * 6));
+            ctx.effects.spawnBlastFx(ctx.player.x, ctx.player.y, 120, BURP_CONFIG.cloudColor, false);
             ctx.hud.addNotif(t('hud.burpStart'), '#9ae66e');
             ctx.audio.playSuperActivate('burp');
             ctx.effects.shake(12, 12);

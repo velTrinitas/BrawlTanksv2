@@ -274,6 +274,9 @@ export class PowerSystem {
     private pongSparkIdx = 0;
     /** Ustawiana w `pongFinish`, zdejmowana przez `consumePongEnded` w petli gry. */
     private pongEnded = false;
+    /** v0.234.0: efekt wejscia kaczki w 1. klatce lotu + throttle efektow przy bossie. */
+    private duckPoofPending = false;
+    private duckFxT = 0;
 
     // ═══ TIER 3 SZALONE (v0.112.0) — art z Tier3Baker (baked Canvas 2D + transformy) ═══
     // KACZKA: sprite + cien na gruncie (2.5D — kaczka LECI, cien zostaje na ziemi).
@@ -1526,6 +1529,10 @@ export class PowerSystem {
             g.drawRect(-4, -16, 7, 32);
             g.drawRect(-14, -7, 5, 14);
             g.endFill();
+            const trail = new PIXI.Sprite(getGlowTexture()); // v0.234.0: jasna smuga za samolotem (ADD)
+            trail.anchor.set(0.5); trail.tint = 0x9fd0ff; trail.blendMode = PIXI.BLEND_MODES.ADD;
+            trail.x = -22; trail.scale.set(2.2, 0.7); trail.alpha = 0.8;
+            g.addChild(trail);
             g.rotation = aimAngle;
             g.scale.set(STRIKE_CONFIG.planeScale); // v2: sylwetki +50%
             g.zIndex = 1e6; // cien LECI NAD wszystkim (warstwa "pogodowa", wzorzec sniezycy)
@@ -1568,6 +1575,7 @@ export class PowerSystem {
         g.x = x;
         g.y = y;
         g.zIndex = 9; // decal GRUNTU — pod wszystkim Y-sortowanym (wzorzec BossBomb zIndex 8)
+        g.scale.set(1.7, 1.5); // v0.234.0: krater na miare wybuchu r80 (byl 17 px)
         this.worldContainer.addChild(g);
         this.strikeCraters.push({ g, life: STRIKE_CONFIG.craterFrames });
     }
@@ -1592,9 +1600,11 @@ export class PowerSystem {
             if (b.delay <= 0) {
                 this.strikeBombs.splice(i, 1);
                 AudioSys.getInstance().playRocketBoom(); // seria boomow = dywan (sygnatura mocy)
-                effects.spawnShockwaveRing(b.x, b.y, STRIKE_CONFIG.bombRadius);
+                // v0.234.0: wybuch ADD w kolorze mocy zamiast fioletowej fali + generycznego puffu
+                effects.spawnBlastFx(b.x, b.y, STRIKE_CONFIG.bombRadius, 0x9fd0ff, true);
+                effects.shake(this.strikeBombs.length === 0 ? 12 : 3, this.strikeBombs.length === 0 ? 14 : 5); // ostatnia = final
                 this.strikeSpawnCrater(b.x, b.y); // v2: dziura w podlodze zostaje
-                this.aoeExplode(b.x, b.y, STRIKE_CONFIG.bombRadius, STRIKE_CONFIG.bombDmg);
+                this.aoeExplode(b.x, b.y, STRIKE_CONFIG.bombRadius, STRIKE_CONFIG.bombDmg, true);
             }
         }
         // v2: kratery gasna (fade jak BossBomb CTF — alpha z life, potem destroy)
@@ -1908,6 +1918,11 @@ export class PowerSystem {
         if (!this.pongGfx) {
             const g = new PIXI.Graphics();
             g.zIndex = 400;
+            // v0.234.0: poswiata ADD pod aura (dziecko Graphics — clear() jej nie kasuje)
+            const glow = new PIXI.Sprite(getGlowTexture());
+            glow.anchor.set(0.5); glow.tint = PONG_CONFIG.color; glow.blendMode = PIXI.BLEND_MODES.ADD;
+            glow.scale.set((PONG_CONFIG.deflectRadius * 2.6) / 32); glow.alpha = 0.45;
+            g.addChild(glow);
             this.worldContainer.addChild(g);
             this.pongGfx = g;
         }
@@ -2011,7 +2026,7 @@ export class PowerSystem {
         const g = this.pongGfx;
         if (g) { g.visible = false; g.clear(); }
         effects.spawnShockwaveRing(player.x, player.y, PONG_CONFIG.deflectRadius * 1.5, PONG_CONFIG.color);
-        effects.spawnEnemyHitSparks(player.x, player.y, PONG_CONFIG.color);
+        effects.spawnBlastFx(player.x, player.y, PONG_CONFIG.deflectRadius * 1.4, PONG_CONFIG.color, false); // v0.234.0
         effects.shake(3, 5);
         AudioSys.getInstance().playPongEnd();
         this.pongEnded = true;
@@ -2091,6 +2106,7 @@ export class PowerSystem {
         }
         this.duckSprite.visible = true;
         if (this.duckShadow) this.duckShadow.visible = true;
+        this.duckPoofPending = true; // v0.234.0: poof wejscia w 1. klatce (tu brak effects)
         AudioSys.getInstance().startDuckLoop();   // v0.146.0 — kwak leci przez caly lot
     }
 
@@ -2102,9 +2118,14 @@ export class PowerSystem {
             if (sp) sp.visible = false;
             if (sh) sh.visible = false;
             AudioSys.getInstance().stopDuckLoop();   // v0.146.0 — dzwiek milknie Z kaczka
-            effects.spawnEnemyHitSparks(this.duckX, this.duckY, 0xffd93b); // "kwak…" puff
+            effects.spawnBlastFx(this.duckX, this.duckY - 26, 60, 0xffd93b, false); // v0.234.0: poof odlotu
             return;
         }
+        if (this.duckPoofPending) {
+            this.duckPoofPending = false;
+            effects.spawnBlastFx(this.duckX, this.duckY - 26, 70, 0xffd93b, false);
+        }
+        this.duckFxT -= delta;
         this.duckWob += DUCK_CONFIG.wobbleRate * delta;
         this.duckX += this.duckVx * delta;
         this.duckY += this.duckVy * delta;
@@ -2166,7 +2187,12 @@ export class PowerSystem {
                 const dmg = (e.isBoss || e.isMegaBoss)
                     ? DUCK_CONFIG.crushDmg * DUCK_CONFIG.bossDmgMult
                     : DUCK_CONFIG.crushDmg;
-                this.aoeExplode(e.x, e.y, 10, dmg);
+                const ex = e.x, ey = e.y;
+                // v0.234.0: quiet (bez generycznego puffu) + wlasny efekt: zabicie = zolty wybuch
+                // z piorkami; boss = maly pierscien max co 10 klatek (koniec spamu wybuchow).
+                this.aoeExplode(ex, ey, 10, dmg, true);
+                if (!e.active) effects.spawnBlastFx(ex, ey, 55, 0xffd93b, false);
+                else if (this.duckFxT <= 0) { this.duckFxT = 10; effects.spawnRingFx(ex, ey, 40, 0xffd93b, 10); }
             }
         }
         // Transformy: pozycja + machanie (rotacja sinusem) + flip wg kierunku +
@@ -2233,8 +2259,11 @@ export class PowerSystem {
                 for (const d of [p.sp, p.sh]) { if (d.parent) d.parent.removeChild(d); d.destroy(); }
                 this.parcels.splice(i, 1);
                 AudioSys.getInstance().playRocketBoom();
-                effects.spawnShockwaveRing(p.x1, p.y1, LOCKER_CONFIG.blastRadius);
-                this.aoeExplode(p.x1, p.y1, LOCKER_CONFIG.blastRadius, LOCKER_CONFIG.blastDmg);
+                // v0.234.0: zloty wybuch + konfetti zamiast fioletowej fali i generycznego puffu
+                effects.spawnBlastFx(p.x1, p.y1, LOCKER_CONFIG.blastRadius, 0xf2b705, true);
+                effects.spawnConfetti(p.x1, p.y1);
+                effects.shake(3, 5);
+                this.aoeExplode(p.x1, p.y1, LOCKER_CONFIG.blastRadius, LOCKER_CONFIG.blastDmg, true);
                 continue;
             }
             // Pozycja XY liniowo + LUK w pionie (parabola sinusem) — cien zostaje na
@@ -2259,6 +2288,7 @@ export class PowerSystem {
         if (this.lockerFramesLeft <= 0) {
             if (c) c.visible = false;
             effects.spawnEnemyHitSparks(this.lockerX, this.lockerY, 0x8899aa); // puff demontazu
+            effects.spawnRingFx(this.lockerX, this.lockerY, 80, 0xf2b705, 14); // v0.234.0
             return;
         }
         if (c) {
@@ -2307,11 +2337,12 @@ export class PowerSystem {
             const cols = [0xff7ce0, 0x7ef0f7, 0xffe066];
             for (let i = 0; i < 3; i++) {
                 const a = (i / 3) * Math.PI * 2;
-                lights.beginFill(cols[i], 0.16);
+                lights.beginFill(cols[i], 0.38); // v0.234.0: 0.16 -> 0.38 + ADD (bylo ledwo widac)
                 lights.drawEllipse(Math.cos(a) * 90, Math.sin(a) * 90 * 0.6, 55, 33);
                 lights.endFill();
             }
             lights.zIndex = 9;
+            lights.blendMode = PIXI.BLEND_MODES.ADD;
             this.worldContainer.addChild(lights);
             this.discoLights = lights;
         }
@@ -2336,6 +2367,7 @@ export class PowerSystem {
         if (this.discoFramesLeft <= 0) {
             if (ball) ball.visible = false;
             if (lights) lights.visible = false;
+            [0xffe066, 0x7ef0f7, 0xff7ce0].forEach((c, i) => effects.spawnRingFx(player.x, player.y, 120 + i * 60, c, 20, i * 5)); // v0.234.0
             return;
         }
         if (ball) {
@@ -2360,6 +2392,7 @@ export class PowerSystem {
             if (alive.length > 0) {
                 const e = alive[worldRng.int(alive.length)]; // Z0.1: seeded (wybor celu)
                 effects.spawnFloatingText(e.x, e.y - 26, '♪', 0xff7ce0);
+                effects.spawnRingFx(e.x, e.y, 36, [0xff7ce0, 0x7ef0f7, 0xffe066][Math.floor(Math.random() * 3)], 14); // v0.234.0
             }
         }
     }
@@ -2452,7 +2485,7 @@ export class PowerSystem {
         if (this.grannyFramesLeft <= 0) {
             if (sp) sp.visible = false;
             this.grannyFearFade = GRANNY_CONFIG.fearFadeFrames; // v3: transition startuje
-            effects.spawnEnemyHitSparks(this.grannyX, this.grannyY, 0xe8a0bf); // pozegnalny puff
+            effects.spawnBlastFx(this.grannyX, this.grannyY - 20, 55, 0xe8a0bf, false); // v0.234.0: pozegnalny poof
             return;
         }
         // v2 (playtest Mariusza): uciekajacy dostaja EKSTRA odrzut ponad wlasny naped —
@@ -2470,6 +2503,7 @@ export class PowerSystem {
         }
         // Zupa leczy: % maxHp/s skalowane delta (wzorzec Naprawy — FPS-independent)
         player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * GRANNY_CONFIG.healPerSecPct / 60) * delta);
+        if (this.grannyFramesLeft % 30 < delta) effects.spawnHealPlus(player.x, player.y); // v0.234.0: leczenie WIDAC
         // "A SIO!" / "ZUPA! 🍲" + rozowe iskierki milosci
         this.grannySayT -= delta;
         if (this.grannySayT <= 0) {
@@ -2563,6 +2597,7 @@ export class PowerSystem {
         ];
         const puffs: Array<{ s: PIXI.Sprite; dx: number; dy: number; spin: number; size: number; delay: number }> = [];
         for (let i = 0; i < LAYOUT.length; i++) {
+            if (i % 4 === 3) continue; // v0.234.0: 11 -> 9 klebow (mniejszy overdraw na mobile)
             const [turn, dist, size, delay] = LAYOUT[i];
             const a = turn * Math.PI * 2;
             const s = new PIXI.Sprite(tex);

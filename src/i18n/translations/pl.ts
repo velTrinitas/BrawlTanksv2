@@ -318,7 +318,7 @@ export const pl = {
     'crate.close': 'Zamknij',
     'crate.newCosmetic': 'Nowy kosmetyk!',
     'crate.dup': 'Duplikat → sigmy',
-    'crate.bolts': 'sigm',
+    'crate.bolts': 'sigma',
     'cosmetic.nc_gold': 'Złoty nick',
     'cosmetic.nc_lime': 'Limonkowy nick',
     'cosmetic.nc_fire': 'Ognisty nick',

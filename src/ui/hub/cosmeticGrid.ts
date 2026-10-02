@@ -190,3 +190,36 @@ export function wireCosmeticGrid(el: HTMLElement, pid: string, onEquipped: () =>
         });
     });
 }
+
+/**
+ * SKRZYNKA v3 (v0.232.0) — DUZA grafika kosmetyku (nagroda wypadajaca ze skrzyni).
+ * Te same zrodla wygladu co karta kolekcji (WYSIWYG): kolor nicku, ramka, tlo awatara,
+ * baner profilu, barwa czolgu, celownik (canvas — wolajacy maluje `paintCrosshairPreviews`),
+ * emoji klaksonu/glosu/naklejki. `px` = bok grafiki.
+ */
+export function cosmeticArtHtml(def: CosmeticDef, px: number): string {
+    // v0.232.0 (Mariusz): grafika ma sie TLUMACZYC SAMA — ramka gruba i swiecaca w swoim kolorze,
+    // tlo jako pelna plansza za sylwetka, kolor nicku jako duzy napis. Format prostokatny (karta).
+    const w = Math.round(px * 1.25);
+    const size = `width:${w}px;height:${px}px;`;
+    const sil = `<span class="bt-cosart-sil" style="font-size:${Math.round(px * 0.5)}px;">👤</span>`;
+    switch (def.type) {
+        case 'nickColor':
+            return `<span class="bt-cosart bt-cosart--nick" style="${size}"><b style="${nickColorStyle(def)}font-size:${Math.round(px * 0.36)}px;">NICK</b></span>`;
+        case 'frame': {
+            const col = (def.border ?? '').match(/#[0-9a-fA-F]{3,8}/)?.[0] ?? '#ffd84a';
+            const bw = Math.max(8, Math.round(px * 0.08));
+            return `<span class="bt-cosart bt-cosart--frame" style="${size}"><span class="bt-cosart-pic" style="border:${bw}px solid ${col};box-shadow:0 0 ${Math.round(px * 0.22)}px ${col},inset 0 0 ${Math.round(px * 0.1)}px ${col};">${sil}</span></span>`;
+        }
+        case 'avatarBg':
+            return `<span class="bt-cosart bt-cosart--bg" style="${size}${avatarBgStyle(def)}">${sil}</span>`;
+        case 'profileSkin':
+            return `<span class="bt-cosart bt-cosart--banner" style="width:${Math.round(px * 1.8)}px;height:${Math.round(px * 0.7)}px;${profileSkinStyle(def, COS_BASE)}"></span>`;
+        case 'tankSkin':
+            return `<span class="bt-cosart bt-cosart--bg" style="${size}${tankSkinSwatchStyle(def)}"></span>`;
+        case 'crosshair':
+            return `<span class="bt-cosart bt-cosart--xhair" style="${size}">${crosshairCanvasHtml(def.id, Math.round(px * 0.85), true)}</span>`;
+        default:
+            return `<span class="bt-cosart bt-cosart--emoji" style="${size}font-size:${Math.round(px * 0.6)}px;">${def.emoji ?? '🎁'}</span>`;
+    }
+}

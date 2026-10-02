@@ -3900,3 +3900,408 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
     .bt-gr2-rosterbtn::after { animation: none; display: none; }
     .bt-rs-card, .bt-rs-card .rs-media img { transition: none; }
 }
+
+/* ── SKRZYNKA v3 (v0.232.0) — scena zrzutu na cala nakladke ─────────────────────
+   Uwagi: Michal (tlo + dym, nagroda jako GRAFIKA), Mariusz (po 3. tapie pusta skrzynka,
+   za duzo szarosci; skrzynia na STOLE, duzo monet, karta nagrody, juicy pigulka rzadkosci).
+   MOBILE: animowane tylko transform/opacity malych elementow; tlo i stol STATYCZNE;
+   zero filter: blur; limity sztuk w CrateOverlay.ts. */
+.bt-crx-overlay { padding: 10px; background: rgba(4, 7, 11, 0.85); z-index: 40; }
+.bt-crx-stage {
+    --rc: #f1c40f; --box: 304px;
+    position: relative; width: min(1180px, 100%); height: 100%;
+    border-radius: 22px; overflow: hidden; isolation: isolate;
+    border: 2px solid rgba(241, 196, 15, 0.35);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    background:
+        radial-gradient(42% 60% at 50% 0%, rgba(255, 226, 140, 0.30) 0%, rgba(255, 200, 80, 0.10) 45%, transparent 75%),
+        linear-gradient(180deg, #24364a 0%, #172331 60%, #0d151d 100%);
+}
+.bt-crx-stage::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(50% 65% at 50% 42%, color-mix(in srgb, var(--rc) 45%, transparent) 0%, transparent 70%);
+    opacity: 0; transition: opacity 0.5s ease;
+}
+.bt-crx-stage.is-open::before { opacity: 1; }
+.bt-crx-stage::after {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+.bt-crx-stage > * { position: absolute; z-index: 1; }
+.bt-crx-stage.quake { animation: bt-crx-quake 0.24s ease-out; }
+@keyframes bt-crx-quake {
+    0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-4px, 3px); }
+    45% { transform: translate(4px, -2px); } 70% { transform: translate(-2px, 1px); }
+}
+.bt-crx-rays {
+    left: 50%; top: 45%; width: 1000px; height: 1000px; margin: -500px 0 0 -500px; z-index: 0;
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--rc) 22%, transparent) 0deg 6deg, transparent 6deg 18deg);
+    -webkit-mask-image: radial-gradient(closest-side, #000 15%, transparent 70%);
+    mask-image: radial-gradient(closest-side, #000 15%, transparent 70%);
+    opacity: 0.5; animation: bt-crx-spin 30s linear infinite; pointer-events: none;
+}
+.bt-crx-stage.is-open .bt-crx-rays { opacity: 1; animation-duration: 12s; }
+@keyframes bt-crx-spin { to { transform: rotate(360deg); } }
+
+.bt-crx-stage .bt-hub0-modal-close { top: 12px; right: 12px; z-index: 5; }
+.bt-crx-title {
+    top: 16px; left: 18px;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 24px; color: var(--hub-gold);
+    text-shadow: 0 2px 0 #7a4b00, 0 0 18px rgba(241, 196, 15, 0.35);
+}
+.bt-crx-pools {
+    top: 56px; left: 18px; z-index: 5; cursor: pointer;
+    font-family: var(--font-body, system-ui, sans-serif); font-weight: 800; font-size: 12px; color: var(--hub-ink);
+    padding: 6px 12px; min-height: 32px; border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* STOL — metalowy blat w perspektywie (statyczny: clip-path + gradienty, zero ruchu) */
+.bt-crx-table { left: 50%; bottom: 15%; width: min(62%, 656px); height: 18%; transform: translateX(-50%); }
+.bt-crx-table i { position: absolute; left: 0; right: 0; display: block; }
+.bt-crx-table .top {
+    top: 0; bottom: 18px;
+    clip-path: polygon(13% 0, 87% 0, 100% 100%, 0 100%);
+    background:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 9px),
+        linear-gradient(180deg, #4b5c6e 0%, #6e8296 55%, #8597aa 100%);
+}
+.bt-crx-table .edge {
+    bottom: 0; height: 18px;
+    background: linear-gradient(180deg, #2b3744 0%, #1a232d 100%);
+    border-top: 2px solid #b8c6d4;
+    box-shadow: 0 14px 22px rgba(0, 0, 0, 0.55);
+}
+.bt-crx-table .shine {
+    top: 0; bottom: 18px;
+    clip-path: polygon(13% 0, 87% 0, 100% 100%, 0 100%);
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.16) 42%, transparent 52%);
+}
+
+/* Kotwica skrzyni = srodek blatu (wszystko liczone od niej) */
+.bt-crx-anchor { left: 50%; bottom: 23%; width: 0; height: 0; }
+.bt-crx-box {
+    position: absolute; left: 0; bottom: -10px;
+    width: var(--box); height: var(--box); margin-left: calc(var(--box) / -2);
+    border: 0; padding: 0; background: transparent; cursor: pointer; outline: none; z-index: 2;
+    -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    transform-origin: 50% 100%;
+    transform: scale(var(--tapscale, 1));
+    transition: transform 0.15s;
+}
+.bt-crx-box::before { /* cien skrzyni na blacie */
+    content: ''; position: absolute; left: 8%; right: 8%; bottom: 4%; height: 14%;
+    background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent); z-index: -1;
+}
+.bt-crx-box img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+.bt-crx-seam {
+    position: absolute; left: 14%; right: 14%; top: 35%; height: 11px; border-radius: 6px;
+    background: linear-gradient(90deg, transparent, #fff6c8 30%, #ffd84a 50%, #fff6c8 70%, transparent);
+    box-shadow: 0 0 22px 8px rgba(255, 210, 80, 0.8);
+    opacity: var(--glow, 0); transform: scaleX(calc(0.4 + var(--glow, 0) * 0.6));
+    transition: opacity 0.2s, transform 0.2s; pointer-events: none;
+}
+.bt-crx-box.is-open .bt-crx-seam { opacity: 0; }
+.bt-crx-box.is-dropping { animation: bt-crx-drop 0.855s cubic-bezier(0.45, 0, 0.85, 0.6) both; pointer-events: none; }
+/* 0.855 s x 0.76 = 650 ms = huk w crate_drop.mp3 (pomiar v0.144.0) */
+@keyframes bt-crx-drop {
+    0%   { transform: translateY(-560px) scale(0.85); opacity: 0.9; }
+    76%  { transform: translateY(0) scale(1); opacity: 1; }
+    86%  { transform: translateY(0) scale(1.12, 0.84); }
+    100% { transform: translateY(0) scale(1); }
+}
+.bt-crx-box.shake { animation: bt-crx-shake 0.32s ease; }
+@keyframes bt-crx-shake {
+    0%, 100% { transform: scale(var(--tapscale, 1)) rotate(0); }
+    20% { transform: scale(calc(var(--tapscale, 1) * 1.06), calc(var(--tapscale, 1) * 0.92)) rotate(-5deg); }
+    55% { transform: scale(var(--tapscale, 1)) translateY(-12px) rotate(4deg); }
+    80% { transform: scale(var(--tapscale, 1)) rotate(-2deg); }
+}
+.bt-crx-box.is-open { pointer-events: none; animation: bt-crx-open 0.4s ease-out; }
+@keyframes bt-crx-open { 0% { transform: scale(1.22); } 40% { transform: scale(1.1, 0.9); } 100% { transform: scale(1); } }
+.bt-crx-lid {
+    position: absolute; left: 0; bottom: -10px; width: var(--box); height: var(--box); margin-left: calc(var(--box) / -2);
+    object-fit: contain; pointer-events: none; z-index: 4;
+    animation: bt-crx-lid-fly 0.7s cubic-bezier(0.2, 0.9, 0.4, 1) forwards;
+}
+@keyframes bt-crx-lid-fly {
+    0%   { transform: translate(0, -14%) rotate(0deg); opacity: 1; }
+    35%  { transform: translate(18%, -70%) rotate(24deg); opacity: 1; }
+    100% { transform: translate(75%, -40%) rotate(80deg) scale(0.8); opacity: 0; }
+}
+.bt-crx-beam {
+    position: absolute; left: calc(var(--box) * -0.32); bottom: calc(var(--box) * 0.42); width: calc(var(--box) * 0.64); height: 620px; z-index: 0;
+    background: linear-gradient(0deg, color-mix(in srgb, var(--rc) 85%, #fff) 0%, color-mix(in srgb, var(--rc) 40%, transparent) 40%, transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+    transform-origin: 50% 100%; transform: scaleY(0); opacity: 0; pointer-events: none;
+}
+.bt-crx-stage.is-open .bt-crx-beam { animation: bt-crx-beam 0.5s cubic-bezier(.2, .9, .3, 1) forwards, bt-crx-beampulse 1.6s ease-in-out 0.5s infinite; }
+@keyframes bt-crx-beam { from { transform: scaleY(0) scaleX(0.4); opacity: 1; } to { transform: scaleY(1) scaleX(1); opacity: 0.9; } }
+@keyframes bt-crx-beampulse { 50% { opacity: 0.6; transform: scaleY(1) scaleX(0.85); } }
+.bt-crx-flash {
+    position: absolute; left: -12px; bottom: calc(var(--box) * 0.45); width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; pointer-events: none; z-index: 5;
+    animation: bt-crx-flash 0.45s ease-out forwards;
+}
+.bt-crx-flash[data-rarity='e'] { animation-duration: 0.6s; }
+.bt-crx-flash[data-rarity='l'] { animation-duration: 0.8s; }
+@keyframes bt-crx-flash { from { transform: scale(0.5); opacity: 1; } to { transform: scale(16); opacity: 0; } }
+
+/* Efekty liczone od srodka skrzyni */
+.bt-crx-fx { position: absolute; left: 0; bottom: calc(var(--box) * 0.2); width: 0; height: 0; z-index: 5; pointer-events: none; }
+.bt-crx-smoke {
+    position: absolute; left: 0; top: 0; width: 80px; height: 80px; margin: -40px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(205, 200, 190, 0.55) 0%, rgba(160, 155, 145, 0.25) 45%, transparent 70%);
+    opacity: 0; animation: bt-crx-smoke 1.3s ease-out forwards;
+}
+.bt-crx-smoke.is-open { background: radial-gradient(circle, color-mix(in srgb, var(--rc) 45%, rgba(230, 225, 215, 0.6)) 0%, rgba(200, 195, 185, 0.2) 50%, transparent 70%); animation-duration: 1.6s; }
+@keyframes bt-crx-smoke {
+    0%   { transform: translate(0, 0) scale(calc(var(--s, 1) * 0.4)); opacity: 0.9; }
+    100% { transform: translate(var(--dx, 0), var(--dy, -40px)) scale(calc(var(--s, 1) * 1.8)); opacity: 0; }
+}
+.bt-crx-dust {
+    position: absolute; left: 0; top: 0; width: calc(18px * var(--s, 1)); height: calc(18px * var(--s, 1));
+    margin: calc(-9px * var(--s, 1)); border-radius: 50%;
+    background: radial-gradient(circle, rgba(190, 180, 160, 0.9), rgba(140, 130, 110, 0) 70%);
+    animation: bt-crx-dust 0.65s ease-out forwards;
+}
+.bt-crx-dust.gold { background: radial-gradient(circle, rgba(255, 216, 90, 0.95), rgba(255, 160, 0, 0) 70%); }
+@keyframes bt-crx-dust {
+    from { transform: translate(0, 0) scale(0.5); opacity: 1; }
+    to   { transform: translate(var(--dx, 0), var(--dy, -30px)) scale(1.7); opacity: 0; }
+}
+.bt-crx-spark {
+    position: absolute; left: 0; top: calc(var(--box) * -0.3); width: 22px; height: 3px; margin-top: -1.5px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--rc, #ffd75e), transparent); transform-origin: 0 50%;
+    animation: bt-crx-spark 0.65s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+@keyframes bt-crx-spark {
+    from { transform: rotate(var(--rot, 0deg)) translateX(0) scaleX(0.4); opacity: 1; }
+    to   { transform: rotate(var(--rot, 0deg)) translateX(var(--dist, 110px)) scaleX(1.4); opacity: 0; }
+}
+/* DRZAZGI przy tapie (pkt 4: wieksze) */
+.bt-crx-chip {
+    position: absolute; left: 0; top: calc(var(--box) * -0.35);
+    width: calc(18px * var(--sz, 1)); height: calc(8px * var(--sz, 1)); border-radius: 2px;
+    background: linear-gradient(180deg, #e0a660 0%, #a86a30 55%, #6e4219 100%);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+    animation: bt-crx-chip 0.7s cubic-bezier(.2, .7, .4, 1) forwards;
+}
+@keyframes bt-crx-chip {
+    0%   { transform: translate(0, 0) rotate(0) scale(0.6); opacity: 1; }
+    60%  { opacity: 1; }
+    100% { transform: translate(var(--dx, 0), calc(var(--dy, -40px) + 70px)) rotate(var(--r, 180deg)) scale(1); opacity: 0; }
+}
+/* MONETY: wystrzelone z otworu, laduja na blacie i LEZA (scaleY = splaszczenie) */
+.bt-crx-coins { position: absolute; left: 0; bottom: 0; width: 0; height: 0; z-index: 3; pointer-events: none; }
+.bt-crx-coin {
+    position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; opacity: 0;
+    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.45));
+    animation: bt-crx-coin 1s cubic-bezier(.3, .6, .5, 1) forwards;
+}
+@keyframes bt-crx-coin {
+    0%   { transform: translate(0, calc(var(--box) * -0.62)) scale(0.4) rotate(0); opacity: 0; }
+    8%   { opacity: 1; }
+    45%  { transform: translate(calc(var(--dx, 60px) * 0.5), var(--peak, -160px)) scale(1.15) rotate(calc(var(--rz, 180deg) * 0.6)); }
+    82%  { transform: translate(var(--dx, 60px), var(--dy, 10px)) scale(1, var(--sy, 0.5)) rotate(var(--rz, 180deg)); }
+    90%  { transform: translate(var(--dx, 60px), calc(var(--dy, 10px) - 7px)) scale(1, calc(var(--sy, 0.5) + 0.1)) rotate(var(--rz, 180deg)); }
+    100% { transform: translate(var(--dx, 60px), var(--dy, 10px)) scale(1, var(--sy, 0.5)) rotate(var(--rz, 180deg)); opacity: 1; }
+}
+
+/* NAGRODA */
+.bt-crx-reward { inset: 0; pointer-events: none; z-index: 3; }
+.bt-crx-reward > * { pointer-events: auto; }
+/* pkt 5: JUICY pigulka rzadkosci w prawym gornym rogu (obok krzyzyka) */
+.bt-crx-rarity {
+    position: absolute; top: 12px; right: 64px; perspective: 400px;
+    animation: bt-crx-pillin 0.6s cubic-bezier(.2, 1.6, .4, 1) 0.35s both;
+}
+.bt-crx-rarity span {
+    position: relative; overflow: hidden; display: inline-block;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 22px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: #fff; padding: 6px 26px 7px; border-radius: var(--radius-pill);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 55%, #fff) 0%, var(--rc) 55%, color-mix(in srgb, var(--rc) 70%, #000) 100%);
+    border: 3px solid color-mix(in srgb, var(--rc) 35%, #fff);
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 5px 0 color-mix(in srgb, var(--rc) 55%, #000), 0 0 26px var(--rc);
+    animation: bt-crx-pillglow 1.6s ease-in-out 1s infinite;
+}
+.bt-crx-rarity span::after {
+    content: ''; position: absolute; top: -20%; bottom: -20%; width: 35%; left: -50%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+    transform: skewX(-20deg); animation: bt-rs-shine 2.6s ease-in-out 1s infinite;
+}
+@keyframes bt-crx-pillin { from { transform: scale(0) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes bt-crx-pillglow { 50% { box-shadow: 0 5px 0 color-mix(in srgb, var(--rc) 55%, #000), 0 0 44px var(--rc); transform: scale(1.05); } }
+
+.bt-crx-item {
+    position: absolute; left: 50%; top: 20%; width: 0; height: 0;
+    animation: bt-crx-item-rise 0.8s cubic-bezier(.2, 1.3, .4, 1) both;
+}
+@keyframes bt-crx-item-rise {
+    0%   { transform: translateY(300px) scale(0.15) rotate(-30deg); opacity: 0; }
+    20%  { opacity: 1; }
+    70%  { transform: translateY(-16px) scale(1.14) rotate(5deg); }
+    100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+}
+/* pkt 6: KARTA (prostokat) z ramka w kolorze rzadkosci, poswiata i polyskiem */
+.bt-crx-card {
+    position: absolute; left: 0; top: 0; transform: translate(-50%, 0);
+    display: grid; place-items: center; padding: 14px; overflow: hidden;
+    border-radius: 20px; border: 4px solid var(--rc);
+    background:
+        radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--rc) 40%, transparent), transparent 70%),
+        linear-gradient(180deg, #2a3a4c, #141e29);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25), 0 0 34px var(--rc), 0 14px 26px rgba(0, 0, 0, 0.55);
+    animation: bt-crx-float 2.4s ease-in-out 0.9s infinite;
+}
+.bt-crx-card .shine {
+    position: absolute; top: -30%; bottom: -30%; width: 30%; left: -50%; z-index: 2; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    transform: skewX(-20deg); animation: bt-rs-shine 3s ease-in-out 0.8s infinite;
+}
+@keyframes bt-crx-float { 50% { transform: translate(-50%, -8px); } }
+.bt-crx-itemrays { /* parasol promieni ZA skrzynia (w kotwicy, pod korpusem) */
+    position: absolute; left: calc(var(--box) * -0.9); bottom: calc(var(--box) * -0.4); width: calc(var(--box) * 1.8); height: calc(var(--box) * 1.8);
+    border-radius: 50%; z-index: 0; pointer-events: none;
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--rc) 55%, transparent) 0deg 10deg, transparent 10deg 24deg);
+    -webkit-mask-image: radial-gradient(closest-side, #000 20%, transparent 75%);
+    mask-image: radial-gradient(closest-side, #000 20%, transparent 75%);
+    animation: bt-crx-spin 8s linear infinite;
+}
+/* Podpis wygranej: duza KATEGORIA + nazwa */
+.bt-crx-caption {
+    position: absolute; left: 50%; bottom: 2.5%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 2px; white-space: nowrap; text-align: center;
+    animation: bt-crx-fadeup 0.4s ease-out 0.5s both; --tx: -50%;
+}
+.bt-crx-caption em {
+    font-style: normal; font-family: var(--font-display, 'Titan One', cursive); font-size: 30px; letter-spacing: 0.8px;
+    text-transform: uppercase; color: #fff;
+    text-shadow: 0 3px 0 color-mix(in srgb, var(--rc) 60%, #000), 0 0 20px var(--rc);
+}
+.bt-crx-caption b {
+    font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; font-size: 20px; color: var(--rc);
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+/* pkt 8: sigmy po LEWEJ, Zamknij po PRAWEJ */
+.bt-crx-bolts {
+    position: absolute; left: 22px; bottom: 5%; display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 28px; color: var(--hub-gold);
+    text-shadow: 0 2px 0 #6b4200, 0 0 14px rgba(241, 196, 15, 0.5); animation: bt-crx-fadeup 0.4s ease-out 0.7s both;
+}
+.bt-crx-bolts img { width: 36px; height: 36px; }
+.bt-crx-done { position: absolute; right: 22px; bottom: 5%; min-width: 140px; animation: bt-crx-fadeup 0.4s ease-out 0.9s both; }
+@keyframes bt-crx-fadeup { from { opacity: 0; transform: translate(var(--tx, 0), 14px); } to { opacity: 1; transform: translate(var(--tx, 0), 0); } }
+.bt-crx-dupart { position: relative; display: block; }
+.bt-crx-dupart img { position: absolute; width: 50%; height: 62%; object-fit: contain; }
+.bt-crx-dupart img:nth-child(1) { left: 4%; top: 30%; transform: rotate(-14deg); }
+.bt-crx-dupart img:nth-child(2) { right: 4%; top: 30%; transform: rotate(12deg); }
+.bt-crx-dupart img:nth-child(3) { left: 25%; top: 4%; }
+
+/* pkt 9: grafiki kosmetykow mowia same za siebie */
+.bt-cosart { display: grid; place-items: center; border-radius: 14px; background: #1b2633; color: #fff; overflow: hidden; }
+.bt-cosart-sil { line-height: 1; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.35)); }
+.bt-cosart--nick { background: linear-gradient(180deg, #1f2b38, #0f161e); }
+.bt-cosart--nick b { font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; letter-spacing: 1px; }
+.bt-cosart--frame { background: transparent; overflow: visible; }
+.bt-cosart-pic {
+    width: 76%; aspect-ratio: 1; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 35%, #3a4d61, #18222d);
+}
+.bt-cosart--bg { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.25), inset 0 -10px 20px rgba(0, 0, 0, 0.25); }
+.bt-cosart--banner { border-radius: 12px; background-size: cover; background-position: center; box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.25); }
+.bt-cosart--emoji { background: radial-gradient(circle at 50% 40%, #2c3e50, #141d27); }
+.bt-cosart--xhair { background: radial-gradient(circle, #2a3b4c, #121a23); }
+
+/* Stopka (przed otwarciem): pipsy + podpowiedz */
+.bt-crx-foot { left: 0; right: 0; bottom: 2.5%; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 2; }
+.bt-crx-pips { display: flex; gap: 10px; }
+.bt-crx-pips i {
+    width: 16px; height: 16px; border-radius: 50%; background: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.35); transition: transform 0.15s, background 0.15s;
+}
+.bt-crx-pips i.on { background: var(--hub-gold); border-color: #fff3b0; transform: scale(1.25); box-shadow: 0 0 10px rgba(241, 196, 15, 0.8); }
+.bt-crx-hint {
+    font-family: var(--font-display, 'Titan One', cursive); font-size: 16px; color: #fff;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); animation: bt-crx-hintpulse 1.2s ease-in-out infinite;
+}
+@keyframes bt-crx-hintpulse { 50% { transform: scale(1.08); opacity: 0.8; } }
+
+/* Telefon w poziomie */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-crx-overlay { padding: 6px; }
+    .bt-crx-stage { --box: 165px; border-radius: 16px; }
+    .bt-crx-title { top: 10px; left: 12px; font-size: 16px; }
+    .bt-crx-pools { top: 38px; left: 12px; font-size: 11px; min-height: 28px; padding: 4px 10px; }
+    .bt-crx-table { height: 21%; bottom: calc(17% + 20px); width: 56%; }
+    .bt-crx-table .top, .bt-crx-table .shine { bottom: 12px; }
+    .bt-crx-table .edge { height: 12px; }
+    .bt-crx-anchor { bottom: calc(27% + 20px); }
+    .bt-crx-beam { height: 340px; }
+    .bt-crx-coin { width: 22px; height: 22px; left: -11px; top: -11px; }
+    .bt-crx-item { top: 4%; }
+    .bt-crx-card { padding: 8px; border-width: 3px; border-radius: 14px; }
+    .bt-crx-rarity { top: 8px; right: 56px; }
+    .bt-crx-rarity span { font-size: 15px; padding: 4px 16px 5px; border-width: 2px; }
+    .bt-crx-caption { bottom: 2%; }
+    .bt-crx-caption em { font-size: 18px; }
+    .bt-crx-caption b { font-size: 13px; }
+    .bt-crx-bolts { left: 12px; bottom: 3%; font-size: 18px; }
+    .bt-crx-bolts img { width: 24px; height: 24px; }
+    .bt-crx-done { right: 12px; bottom: 3%; min-width: 100px; }
+    .bt-crx-hint { font-size: 13px; }
+    .bt-crx-pips i { width: 13px; height: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bt-crx-rays, .bt-crx-itemrays, .bt-crx-card, .bt-crx-card .shine, .bt-crx-hint,
+    .bt-crx-rarity span, .bt-crx-rarity span::after, .bt-crx-stage.is-open .bt-crx-beam { animation: none; }
+    .bt-crx-stage.is-open .bt-crx-beam { transform: none; opacity: 0.8; }
+    .bt-crx-box.is-dropping, .bt-crx-item, .bt-crx-rarity { animation: none; }
+}
+
+/* v0.232.0 (Mariusz, playtest): scena o POLOWE mniejsza na desktopie (telefon zostaje pelnym
+   ekranem — tam brak miejsca), karta nagrody 2x wieksza. */
+@media not all and (orientation: landscape) and (max-height: 560px) {
+    .bt-crx-overlay { display: grid; place-items: center; }
+    .bt-crx-stage { --box: 190px; width: min(600px, 100%); height: min(560px, 100%); }
+    .bt-crx-title { font-size: 19px; }
+    .bt-crx-table { width: 72%; height: 19%; bottom: calc(13% + 20px); }
+    .bt-crx-anchor { bottom: calc(21% + 20px); }
+    .bt-crx-beam { height: 420px; }
+    .bt-crx-item { top: 9%; }
+    .bt-crx-rarity span { font-size: 17px; padding: 5px 18px 6px; }
+    .bt-crx-caption em { font-size: 22px; }
+    .bt-crx-caption b { font-size: 15px; }
+    .bt-crx-bolts { left: 16px; font-size: 20px; }
+    .bt-crx-bolts img { width: 26px; height: 26px; }
+    .bt-crx-done { right: 16px; min-width: 110px; }
+    .bt-crx-coin { width: 24px; height: 24px; left: -12px; top: -12px; }
+}
+
+/* Pigulka skrzynek w Garazu (Mariusz: „nie moze byc przezroczysta — juicy z glow").
+   Pelne zloto jak przycisk WSZYSTKIE CZOLGI, puls poswiaty + polysk tylko gdy sa skrzynki. */
+.bt-gr2-cratechip.is-ready {
+    position: relative; overflow: hidden;
+    background: linear-gradient(180deg, #ffd94a 0%, #f1a90f 100%);
+    border: 2px solid #fff0a8; color: #3a2400;
+    box-shadow: 0 4px 0 #a86a00, 0 0 18px rgba(241, 196, 15, 0.6);
+    animation: bt-crate-chipglow 1.8s ease-in-out infinite;
+}
+.bt-gr2-cratechip.is-ready .go { color: #3a2400; font-family: var(--font-display, 'Titan One', cursive); font-weight: 400; }
+.bt-gr2-cratechip.is-ready b { color: #3a2400; }
+.bt-gr2-cratechip.is-ready::after {
+    content: ""; position: absolute; top: -20%; bottom: -20%; width: 35%; left: -60%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+    transform: skewX(-20deg); animation: bt-rs-shine 3.2s ease-in-out infinite; pointer-events: none;
+}
+.bt-gr2-cratechip.is-ready:hover { background: linear-gradient(180deg, #ffe066 0%, #f5b41c 100%); transform: translateY(-2px) scale(1.04); }
+.bt-gr2-cratechip.is-ready:active { transform: translateY(3px); box-shadow: 0 1px 0 #a86a00, 0 0 10px rgba(241, 196, 15, 0.5); }
+.bt-gr2-cratechip:disabled { opacity: 1; background: #1f2c39; border-color: rgba(255, 255, 255, 0.12); color: var(--hub-ink-dim); }
+@keyframes bt-crate-chipglow {
+    50% { box-shadow: 0 4px 0 #a86a00, 0 0 32px rgba(255, 210, 60, 0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bt-gr2-cratechip.is-ready, .bt-gr2-cratechip.is-ready::after { animation: none; }
+}

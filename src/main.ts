@@ -5685,7 +5685,9 @@ function runLogicStep(delta: number): void {
             currentSession.damageTaken += Math.max(0, hpBeforeHit - hitP.hp);
             if (isLocal && !hitInv) haptic(HAPTIC.hit); // v0.208.0 — „tick" (throttle 120 ms w module)
 
-            if (hitInv || sanct) {
+            if (hitInv) {
+                effects.spawnAuraHit(eb.x, eb.y); // v0.231.0: pocisk odbity od zlotej tarczy
+            } else if (sanct) {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xffdd00);
             } else {
                 effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff0000);

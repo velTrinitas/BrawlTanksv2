@@ -3,7 +3,7 @@ import type { Enemy } from '../entities/Enemy';
 import { worldRng } from './Rng'; // Z0.1: seeded gameplay RNG (wizualia zostaja na Math.random)
 import { simNowMs } from './SimClock'; // COOP S1: gameplay timers on the sim clock
 import type { Player } from '../entities/Player';
-import type { EffectsManager } from '../rendering/Effects';
+import { getGlowTexture, getLaserBeamTexture, getHoleFunnelTexture, getAuraBubbleTexture, getAuraHexTexture, type EffectsManager } from '../rendering/Effects';
 import {
     POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, MINES_CONFIG,
     BUILDER_CONFIG, STRIKE_CONFIG, HOLE_CONFIG, LASER_CONFIG, PONG_CONFIG,
@@ -92,6 +92,12 @@ export class PowerSystem {
 
     // Aura shield visual
     private auraGfx: PIXI.Graphics;
+    // AURA v3 (v0.231.0): pieczona banka + siatka heksow + poswiata gruntu (tylko transformacje w petli).
+    private auraC: PIXI.Container | null = null;
+    private auraBubble: PIXI.Sprite | null = null;
+    private auraHex: PIXI.Sprite | null = null;
+    private auraGround: PIXI.Sprite | null = null;
+    private auraSparks: PIXI.Sprite[] = [];
 
     // Magnet (osobna mechanika od super powers)
     public magnetActive: boolean = false;
@@ -212,8 +218,17 @@ export class PowerSystem {
     private holeFramesLeft = 0;
     private holeCrushT = 0;
     private holeAge = 0;
+    // CZARNA DZIURA v3: pierscienie "spadajace" w tunel + wrogowie deformowani wizualnie
+    // (skala/obrot KONTENERA wroga; pozycje i obrazenia bez zmian). base = skala sprzed wiru.
+    private holeTunnel: PIXI.Graphics[] = [];
+    private holeWarped = new Map<Enemy, { base: number; spin: number }>();
     // LASER: plamka celownika goni czolg z opoznieniem ("malujesz jazda").
-    private laserGfx: PIXI.Graphics | null = null;
+    // LASER v3 (v0.231.0): kontener = slup (poswiata + rdzen, ADD) + blask plamki + celownik.
+    private laserGfx: PIXI.Container | null = null;
+    private laserGlow: PIXI.Sprite | null = null;
+    private laserCore: PIXI.Sprite | null = null;
+    private laserSpot: PIXI.Sprite | null = null;
+    private laserReticle: PIXI.Graphics | null = null;
     private laserX = 0;
     private laserY = 0;
     private laserFramesLeft = 0;
@@ -577,13 +592,63 @@ export class PowerSystem {
     // ── Hooki wizualu aury (wolane przez PowerDef.onTick/onEnd — gfx jest prywatny) ──
 
     auraTick(playerX: number, playerY: number): void {
-        this.auraGfx.visible = true;
-        this.drawAuraShield(playerX, playerY);
+        if (!this.auraC) this.buildAura();
+        const c = this.auraC!;
+        c.visible = true;
+        c.x = playerX;
+        c.y = playerY;
+        c.zIndex = playerY + 80; // NAD czolgiem: zloty polysk na kadlubie = "jestem nietykalny"
+        const now = Date.now();
+        const pulse = 0.5 + 0.5 * Math.sin(now / 110);
+        // Ostatnie 1.5 s: tarcza MIGA (Czytelnosc — gracz widzi, ze ochrona sie konczy).
+        const ending = this.framesLeft < 90;
+        const blink = ending ? (Math.sin(now / 45) > 0 ? 1 : 0.25) : 1;
+        if (this.auraBubble) {
+            const s = (130 / 128) * (1 + 0.06 * pulse);
+            this.auraBubble.scale.set(s);
+            this.auraBubble.alpha = (0.75 + 0.25 * pulse) * blink;
+        }
+        if (this.auraHex) {
+            this.auraHex.rotation = now / 1400;
+            this.auraHex.alpha = (0.35 + 0.35 * pulse) * blink;
+        }
+        if (this.auraGround) this.auraGround.alpha = (0.55 + 0.3 * pulse) * blink;
+        for (let i = 0; i < this.auraSparks.length; i++) {
+            const a = now / 380 + (i / this.auraSparks.length) * Math.PI * 2;
+            const sp = this.auraSparks[i];
+            sp.x = Math.cos(a) * 62;
+            sp.y = Math.sin(a) * 62;
+            sp.alpha = (0.6 + 0.4 * Math.sin(now / 70 + i)) * blink;
+        }
     }
 
     auraHide(): void {
-        this.auraGfx.visible = false;
-        this.auraGfx.clear();
+        if (this.auraC) this.auraC.visible = false;
+    }
+
+    /** AURA v3 — buduje warstwy RAZ (pieczone tekstury, ADD), petla rusza tylko transformacjami. */
+    private buildAura(): void {
+        const c = new PIXI.Container();
+        const ground = new PIXI.Sprite(getGlowTexture());
+        ground.anchor.set(0.5); ground.tint = 0xffc400; ground.blendMode = PIXI.BLEND_MODES.ADD;
+        ground.scale.set(170 / 32, 120 / 32); ground.y = 6;
+        const bubble = new PIXI.Sprite(getAuraBubbleTexture());
+        bubble.anchor.set(0.5); bubble.tint = 0xffd23a; bubble.blendMode = PIXI.BLEND_MODES.ADD;
+        const hex = new PIXI.Sprite(getAuraHexTexture());
+        hex.anchor.set(0.5); hex.tint = 0xffe680; hex.blendMode = PIXI.BLEND_MODES.ADD;
+        hex.scale.set(124 / 128);
+        c.addChild(ground, bubble, hex);
+        this.auraSparks = [];
+        for (let i = 0; i < 4; i++) {
+            const sp = new PIXI.Sprite(getGlowTexture());
+            sp.anchor.set(0.5); sp.tint = 0xffffff; sp.blendMode = PIXI.BLEND_MODES.ADD; sp.scale.set(0.55);
+            c.addChild(sp);
+            this.auraSparks.push(sp);
+        }
+        c.visible = false;
+        this.worldContainer.addChild(c);
+        this.auraC = c;
+        this.auraBubble = bubble; this.auraHex = hex; this.auraGround = ground;
     }
 
     // ── F7b: generyczny RING KANALU (Naprawa i przyszle moce kanalowane) ─────
@@ -1367,9 +1432,11 @@ export class PowerSystem {
             this.holeC.destroy({ children: true });
             this.holeC = null;
             this.holeRing1 = this.holeRing2 = this.holeDots1 = this.holeDots2 = null;
+            this.holeTunnel = [];
+            this.holeWarped.clear();
         }
         this.laserFramesLeft = 0;
-        if (this.laserGfx) { if (this.laserGfx.parent) this.laserGfx.parent.removeChild(this.laserGfx); this.laserGfx.destroy(); this.laserGfx = null; }
+        if (this.laserGfx) { if (this.laserGfx.parent) this.laserGfx.parent.removeChild(this.laserGfx); this.laserGfx.destroy({ children: true }); this.laserGfx = null; this.laserGlow = this.laserCore = this.laserSpot = null; this.laserReticle = null; }
         this.pongFramesLeft = 0;
         this.pongEnded = false;  // v0.146.1 — flaga nie moze przezyc teardownu (notif po smierci)
         if (this.pongGfx) { if (this.pongGfx.parent) this.pongGfx.parent.removeChild(this.pongGfx); this.pongGfx.destroy(); this.pongGfx = null; }
@@ -1490,21 +1557,25 @@ export class PowerSystem {
             const c = new PIXI.Container();
             c.scale.y = 0.72; // perspektywa 2.5D — wir to LEJ w ziemi, nie plaski placek
 
-            // Warstwa statyczna: cien leja + ciemny rdzen z fioletowa poswiata krawedzi
-            const base = new PIXI.Graphics();
-            base.beginFill(0x000000, 0.35);
-            base.drawCircle(0, 0, 78);            // miekki cien leja
-            base.endFill();
-            base.beginFill(0x1a1030, 0.55);
-            base.drawCircle(0, 0, 46);
-            base.endFill();
-            base.beginFill(0x0a0612, 0.92);
-            base.drawCircle(0, 0, 26);            // czarny rdzen
-            base.endFill();
-            base.lineStyle(2, 0xc4b5fd, 0.5);
-            base.drawCircle(0, 0, 27);            // gorejaca krawedz horyzontu zdarzen
-            base.lineStyle(0);
-            c.addChild(base);
+            // v3 (Mariusz: "plaski placek"): fioletowa poswiata ADD wokol + PIECZONY lej w perspektywie
+            // (tunel pierscieni schodzacych w dol, oswietlona gorna warga) + pierscienie "spadajace"
+            // w glab w petli. Wszystko rysowane raz; w petli tylko skala/alpha/pozycja.
+            const halo = new PIXI.Sprite(getGlowTexture());
+            halo.anchor.set(0.5); halo.tint = 0x8b5cf6; halo.blendMode = PIXI.BLEND_MODES.ADD;
+            halo.scale.set(250 / 32); halo.alpha = 0.8;
+            c.addChild(halo);
+            const funnel = new PIXI.Sprite(getHoleFunnelTexture());
+            funnel.anchor.set(0.5); funnel.scale.set(200 / 256);
+            c.addChild(funnel);
+            this.holeTunnel = [];
+            for (let i = 0; i < 3; i++) {
+                const tg = new PIXI.Graphics();
+                tg.lineStyle(3, 0xd8ccff, 0.9);
+                tg.drawCircle(0, 0, 92);
+                tg.lineStyle(0);
+                c.addChild(tg);
+                this.holeTunnel.push(tg);
+            }
 
             // Pierscienie akrecyjne — OSOBNE gfx = kontr-rotacja roznymi predkosciami (sim 1:1)
             const mkRing = (r: number, width: number, alpha: number, arcs: number, arcLen: number) => {
@@ -1549,6 +1620,23 @@ export class PowerSystem {
         this.holeC.scale.set(HOLE_VISUAL_SCALE, 0.72 * HOLE_VISUAL_SCALE);
     }
 
+    /**
+     * CZARNA DZIURA v3: przywrocenie wygladu. Martwy wrog ma kontener ZNISZCZONY
+     * (Enemy.takeDamage -> container.destroy) — scale na zniszczonym obiekcie rzuca i zatrzymywalo petle gry.
+     */
+    private static unwarp(e: Enemy, base: number): void {
+        const c = e.container;
+        if (!c || c.destroyed) return;
+        c.scale.set(base);
+        c.rotation = 0;
+    }
+
+    /** CZARNA DZIURA v3: wrogowie odzyskuja skale/obrot sprzed wiru (koniec mocy / teardown). */
+    private holeRestoreWarped(): void {
+        for (const [e, w] of this.holeWarped) PowerSystem.unwarp(e, w.base);
+        this.holeWarped.clear();
+    }
+
     private holeUpdate(delta: number, enemies: Enemy[], effects: EffectsManager): void {
         if (this.holeFramesLeft <= 0) return;
         this.holeFramesLeft -= delta;
@@ -1557,6 +1645,8 @@ export class PowerSystem {
         if (this.holeFramesLeft <= 0) {
             // Implozja na koniec (sim: ring r120 + puff) — kill-path w rdzeniu robi ostatni crush.
             if (c) { c.visible = false; }
+            this.holeRestoreWarped();
+            effects.spawnHoleCollapse(this.holeX, this.holeY);
             effects.spawnShockwaveRing(this.holeX, this.holeY, 120);
             effects.spawnEnemyHitSparks(this.holeX, this.holeY, 0xa78bfa);
             effects.shake(6, 8);
@@ -1578,6 +1668,16 @@ export class PowerSystem {
             };
             spiral(this.holeDots1, 0, 1);
             spiral(this.holeDots2, CYCLE / 2, 1);
+            // Tunel: pierscienie maleja 1 -> 0.15 i schodza W DOL (glebia), 3 w rownych fazach.
+            const TCYCLE = 60;
+            for (let i = 0; i < this.holeTunnel.length; i++) {
+                const tg = this.holeTunnel[i];
+                const p = ((this.holeAge + (i * TCYCLE) / this.holeTunnel.length) % TCYCLE) / TCYCLE; // 0 -> 1
+                const s = 1 - p * 0.85;
+                tg.scale.set(s);
+                tg.y = p * 24;
+                tg.alpha = Math.min(1, p * 4) * (1 - p) * 0.9;
+            }
             // Oddech calego leja (puls grawitacyjny) — scale.y zachowuje squash 2.5D;
             // HOLE_VISUAL_SCALE 1.2 = wir wiekszy o 20% (feedback Mariusza)
             const breathe = (1 + 0.04 * Math.sin(Date.now() / 160)) * HOLE_VISUAL_SCALE;
@@ -1596,6 +1696,22 @@ export class PowerSystem {
             const f = HOLE_CONFIG.pullPerFrame * (1 - d / HOLE_CONFIG.pullRadius) * resist * delta;
             e.x += (dx / d) * f;
             e.y += (dy / d) * f;
+            // WIZUAL (zero wplywu na symulacje): im blizej rdzenia, tym wrog mniejszy i krecacy sie.
+            const k = (1 - d / HOLE_CONFIG.pullRadius) * resist;
+            if (e.container.destroyed) continue;
+            let w = this.holeWarped.get(e);
+            if (!w) { w = { base: e.container.scale.x, spin: 0 }; this.holeWarped.set(e, w); }
+            w.spin += k * k * 0.25 * delta;
+            e.container.scale.set(w.base * (1 - 0.5 * k * k));
+            e.container.rotation = w.spin;
+        }
+        // Wrog, ktory zginal albo wyszedl poza wir, wraca do normalnego wygladu.
+        for (const [e, w] of this.holeWarped) {
+            const dx = this.holeX - e.x, dy = this.holeY - e.y;
+            if (!e.active || dx * dx + dy * dy > r2) {
+                PowerSystem.unwarp(e, w.base);
+                this.holeWarped.delete(e);
+            }
         }
         // Miazdzenie w rdzeniu — tick co 0.2s (kill-path przez aoeExplode, quiet=krotka iskra).
         this.holeCrushT -= delta;
@@ -1623,25 +1739,39 @@ export class PowerSystem {
         this.laserFramesLeft = LASER_CONFIG.durationFrames;
         this.laserTickT = 0;
         if (!this.laserGfx) {
-            // Rysowane RAZ: pierscien celownika + krzyz + polprzezroczysta KOLUMNA z nieba
-            // (waski pas — zero full-screen overdraw) + gorace jadro.
-            const g = new PIXI.Graphics();
-            g.beginFill(0xff6bcb, 0.16);
-            g.drawRect(-13, -560, 26, 560);       // kolumna wiazki (v2: szersza, jak plamka)
-            g.endFill();
-            g.beginFill(0xff6bcb, 0.35);
-            g.drawCircle(0, 0, 18);               // gorace jadro (v2: +)
-            g.endFill();
-            g.lineStyle(3, 0xff6bcb, 0.8);
-            g.drawCircle(0, 0, LASER_CONFIG.beamRadius);
-            g.moveTo(-LASER_CONFIG.beamRadius - 8, 0); g.lineTo(-LASER_CONFIG.beamRadius + 10, 0);
-            g.moveTo(LASER_CONFIG.beamRadius - 10, 0); g.lineTo(LASER_CONFIG.beamRadius + 8, 0);
-            g.moveTo(0, -LASER_CONFIG.beamRadius - 8); g.lineTo(0, -LASER_CONFIG.beamRadius + 10);
-            g.moveTo(0, LASER_CONFIG.beamRadius - 10); g.lineTo(0, LASER_CONFIG.beamRadius + 8);
-            g.lineStyle(0);
-            g.zIndex = 1e6; // wiazka z nieba NAD swiatem (warstwa "pogodowa")
-            this.worldContainer.addChild(g);
-            this.laserGfx = g;
+            // LASER v3 (Mariusz: "praktycznie niewidoczny na Marsie, jakby go obcinalo").
+            // Wszystko pieczone RAZ, w petli tylko transformacje/alpha (zero redraw):
+            // - poswiata slupa: szeroki sprite ADD w rozu, gasnie ku gorze (bez twardego konca),
+            // - rdzen: waski bialo-rozowy sprite ADD — czyta sie na KAZDYM gruncie, tez czerwonym,
+            // - blask plamki: glow ADD u stopy wiazki,
+            // - celownik: rozowy pierscien z CIEMNYM obrysem (kontrast na jasnym piasku i na Marsie).
+            // Waskie pasy, zero full-screen overdraw.
+            const c = new PIXI.Container();
+            const beam = getLaserBeamTexture();
+            const glow = new PIXI.Sprite(beam);
+            glow.anchor.set(0.5, 1); glow.width = 84; glow.height = 1700;
+            glow.tint = 0xff4fbf; glow.blendMode = PIXI.BLEND_MODES.ADD; glow.alpha = 0.85;
+            const core = new PIXI.Sprite(beam);
+            core.anchor.set(0.5, 1); core.width = 22; core.height = 1700;
+            core.tint = 0xffe8f6; core.blendMode = PIXI.BLEND_MODES.ADD;
+            const spot = new PIXI.Sprite(getGlowTexture());
+            spot.anchor.set(0.5); spot.tint = 0xff6bcb; spot.blendMode = PIXI.BLEND_MODES.ADD;
+            spot.scale.set((LASER_CONFIG.beamRadius * 2.4) / 32, (LASER_CONFIG.beamRadius * 1.6) / 32);
+            const rt = new PIXI.Graphics();
+            const R0 = LASER_CONFIG.beamRadius;
+            rt.lineStyle(6, 0x2a0018, 0.45); rt.drawCircle(0, 0, R0);
+            rt.lineStyle(3, 0xff6bcb, 1); rt.drawCircle(0, 0, R0);
+            rt.lineStyle(3, 0xffffff, 0.9);
+            rt.moveTo(-R0 - 10, 0); rt.lineTo(-R0 + 12, 0);
+            rt.moveTo(R0 - 12, 0); rt.lineTo(R0 + 10, 0);
+            rt.moveTo(0, -R0 - 10); rt.lineTo(0, -R0 + 12);
+            rt.moveTo(0, R0 - 12); rt.lineTo(0, R0 + 10);
+            rt.lineStyle(0);
+            c.addChild(spot, glow, core, rt);
+            c.zIndex = 1e6; // wiazka z nieba NAD swiatem (warstwa "pogodowa")
+            this.worldContainer.addChild(c);
+            this.laserGfx = c;
+            this.laserGlow = glow; this.laserCore = core; this.laserSpot = spot; this.laserReticle = rt;
         }
         this.laserGfx.visible = true;
     }
@@ -1670,7 +1800,13 @@ export class PowerSystem {
         if (g) {
             g.x = this.laserX;
             g.y = this.laserY;
-            g.alpha = 0.75 + 0.25 * Math.sin(Date.now() / 60); // wibracja wiazki
+            // Energia wiazki (tylko wizual): rdzen migocze szerokoscia, poswiata oddycha,
+            // plamka pulsuje, celownik powoli sie obraca.
+            const now = Date.now();
+            if (this.laserCore) this.laserCore.width = 22 * (0.8 + 0.35 * Math.abs(Math.sin(now / 37)) + Math.random() * 0.15);
+            if (this.laserGlow) this.laserGlow.alpha = 0.7 + 0.25 * Math.sin(now / 90);
+            if (this.laserSpot) this.laserSpot.alpha = 0.75 + 0.25 * Math.sin(now / 70);
+            if (this.laserReticle) this.laserReticle.rotation += 0.03 * delta;
         }
         // Tick obrazen co 0.1s — kazdy wrog w plamce (quiet aoeExplode per wrog = male
         // trafienie z pelnym kill-pathem, bez fireballa per tick).
@@ -1678,14 +1814,20 @@ export class PowerSystem {
         if (this.laserTickT <= 0) {
             this.laserTickT = LASER_CONFIG.tickEveryFrames;
             const r2 = LASER_CONFIG.beamRadius * LASER_CONFIG.beamRadius;
+            let annihilated = 0;
             for (const e of enemies) {
                 if (!e.active) continue;
                 const dx = e.x - this.laserX, dy = e.y - this.laserY;
                 if (dx * dx + dy * dy < r2) {
                     effects.spawnEnemyHitSparks(e.x, e.y, 0xff6bcb);
-                    this.aoeExplode(e.x, e.y, 2, LASER_CONFIG.tickDmg, true);
+                    const ex = e.x, ey = e.y;
+                    this.aoeExplode(ex, ey, 2, LASER_CONFIG.tickDmg, true);
+                    // ANIHILACJA (tylko wizual), max 3 na tick — budzet czastek przy tlumie.
+                    if (!e.active && annihilated < 3) { annihilated++; effects.spawnLaserAnnihilation(ex, ey); }
                 }
             }
+            // Dym w miejscu uderzenia wiazki — wiazka "pali" grunt.
+            effects.spawnSoftPuff(this.laserX + (Math.random() - 0.5) * 30, this.laserY + (Math.random() - 0.5) * 16, 0xc77aa8, 2.4);
         }
     }
 
@@ -2481,42 +2623,6 @@ export class PowerSystem {
         return a + d * Math.min(1, t);
     }
 
-    /**
-     * Visual tarczy (zamiast "ognisty pierscien") — wnetrze pulsujace, deflection-style.
-     */
-    private drawAuraShield(playerX: number, playerY: number): void {
-        this.auraGfx.x = playerX;
-        this.auraGfx.y = playerY;
-        this.auraGfx.clear();
-
-        const t = Date.now() / 100;
-        const pulse = 0.7 + Math.sin(t) * 0.3;
-        const r = 55; // tarcza bezposrednio wokol gracza
-
-        // Zewnetrzny pierscien
-        this.auraGfx.lineStyle(4, 0xffdd00, pulse);
-        this.auraGfx.drawCircle(0, 0, r);
-
-        // Wewnetrzny ring (cienszy)
-        this.auraGfx.lineStyle(2, 0xffffaa, pulse * 0.5);
-        this.auraGfx.drawCircle(0, 0, r - 6);
-
-        // Subtelne wypelnienie (transparent shield)
-        this.auraGfx.beginFill(0xffdd00, 0.05 * pulse);
-        this.auraGfx.drawCircle(0, 0, r);
-        this.auraGfx.endFill();
-
-        // Heksagonalny pattern shield (segmenty)
-        const segments = 6;
-        for (let i = 0; i < segments; i++) {
-            const angle = (i / segments) * Math.PI * 2 + Date.now() / 800;
-            const sx = Math.cos(angle) * r;
-            const sy = Math.sin(angle) * r;
-            this.auraGfx.beginFill(0xffffff, pulse * 0.8);
-            this.auraGfx.drawCircle(sx, sy, 2);
-            this.auraGfx.endFill();
-        }
-    }
 
     /** Pozostaly czas aktywnego super w sekundach (do HUD). */
     getActiveSecondsLeft(): number {

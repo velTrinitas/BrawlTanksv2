@@ -415,7 +415,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
         onTick: (system, player) => system.auraTick(player.x, player.y),
         onEnd: (system, player, effects) => {
             system.auraHide();
-            effects.spawnEnemyHitSparks(player.x, player.y, 0xffdd00);
+            effects.spawnAuraShatter(player.x, player.y); // v0.231.0: banka peka w zlote odlamki
         },
     },
     megaBomb: {

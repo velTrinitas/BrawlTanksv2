@@ -112,6 +112,110 @@ export function getTrailTexture(): PIXI.Texture {
 
 interface FxSprite { sprite: PIXI.Sprite; life: number; max: number; grow: number; active: boolean; }
 
+let _holeFunnelTexture: PIXI.Texture | null = null;
+/**
+ * CZARNA DZIURA v3 (v0.231.0) — lej 256x256 w perspektywie: radialny gradient do czerni, koncentryczne
+ * "pierscienie tunelu" przesuwane w DOL im glebiej (oko czyta glebie, nie placek) + jasna krawedz
+ * GORNA i ciemna dolna (swiatlo z gory). Kontener i tak sciska Y do 0.72.
+ */
+export function getHoleFunnelTexture(): PIXI.Texture {
+    if (_holeFunnelTexture) return _holeFunnelTexture;
+    const S = 256, C = 128;
+    const c = document.createElement('canvas'); c.width = S; c.height = S;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createRadialGradient(C, C + 14, 0, C, C, 118);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.32, 'rgba(6,2,14,1)');
+    g.addColorStop(0.62, 'rgba(36,18,72,0.98)'); g.addColorStop(0.86, 'rgba(110,80,200,0.9)');
+    g.addColorStop(1, 'rgba(167,139,250,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(C, C, 120, 0, Math.PI * 2); ctx.fill();
+    // pierscienie tunelu: im mniejszy, tym nizej (glebiej) i ciemniej
+    for (let i = 0; i < 7; i++) {
+        const k = Math.pow(0.8, i);
+        const r = 104 * k;
+        ctx.strokeStyle = 'rgba(196,181,253,' + (0.55 * k).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, 3 * k);
+        ctx.beginPath(); ctx.ellipse(C, C + (1 - k) * 22, r, r, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    // gorna krawedz oswietlona (warga leja), dolna w cieniu
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(230,220,255,1)'; ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(240,232,255,0.95)'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(C, C, 108, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(10,4,24,0.7)'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(C, C, 106, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    _holeFunnelTexture = PIXI.Texture.from(c);
+    return _holeFunnelTexture;
+}
+
+let _auraBubbleTexture: PIXI.Texture | null = null;
+let _auraHexTexture: PIXI.Texture | null = null;
+/** AURA v3 — banka tarczy 128x128: przezroczysty srodek, zlota poswiata ku krawedzi, jasny brzeg. */
+export function getAuraBubbleTexture(): PIXI.Texture {
+    if (_auraBubbleTexture) return _auraBubbleTexture;
+    const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(0.62, 'rgba(255,255,255,0.14)');
+    g.addColorStop(0.86, 'rgba(255,255,255,0.5)'); g.addColorStop(0.93, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+    _auraBubbleTexture = PIXI.Texture.from(c);
+    return _auraBubbleTexture;
+}
+/** AURA v3 — siatka heksow 128x128 przycieta do kola (pieczona raz, obraca sie w petli). */
+export function getAuraHexTexture(): PIXI.Texture {
+    if (_auraHexTexture) return _auraHexTexture;
+    const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+    const ctx = c.getContext('2d')!;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(64, 64, 58, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.6;
+    const hr = 11, w = hr * Math.sqrt(3);
+    for (let row = -1; row < 9; row++) {
+        for (let col = -1; col < 8; col++) {
+            const x = col * w + (row % 2 ? w / 2 : 0), y = row * hr * 1.5;
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+                const a = Math.PI / 6 + k * Math.PI / 3;
+                const px = x + Math.cos(a) * hr, py = y + Math.sin(a) * hr;
+                if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath(); ctx.stroke();
+        }
+    }
+    ctx.restore();
+    // maska: heksy widoczne mocniej przy krawedzi banki (srodek = czolg czytelny)
+    ctx.globalCompositeOperation = 'destination-in';
+    const m = ctx.createRadialGradient(64, 64, 0, 64, 64, 60);
+    m.addColorStop(0, 'rgba(0,0,0,0.15)'); m.addColorStop(0.7, 'rgba(0,0,0,0.6)'); m.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.fillStyle = m; ctx.fillRect(0, 0, 128, 128);
+    _auraHexTexture = PIXI.Texture.from(c);
+    return _auraHexTexture;
+}
+
+let _laserBeamTexture: PIXI.Texture | null = null;
+/**
+ * LASER v3 (v0.231.0) — slup wiazki 64x256: poziomo miekki gauss (bialy srodek -> przezroczysty brzeg),
+ * pionowo gasnie ku GORZE (alpha 0 na szczycie). Anchor (0.5, 1) = stopa slupa w plamce. Bez twardej
+ * krawedzi u gory nie ma efektu "obcietej" wiazki, niezaleznie od tego, ile swiata widzi kamera.
+ */
+export function getLaserBeamTexture(): PIXI.Texture {
+    if (_laserBeamTexture) return _laserBeamTexture;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 256;
+    const ctx = c.getContext('2d')!;
+    const h = ctx.createLinearGradient(0, 0, 64, 0);
+    h.addColorStop(0, 'rgba(255,255,255,0)'); h.addColorStop(0.3, 'rgba(255,255,255,0.35)');
+    h.addColorStop(0.5, 'rgba(255,255,255,1)'); h.addColorStop(0.7, 'rgba(255,255,255,0.35)'); h.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = h; ctx.fillRect(0, 0, 64, 256);
+    ctx.globalCompositeOperation = 'destination-in';
+    const v = ctx.createLinearGradient(0, 0, 0, 256);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.45, 'rgba(0,0,0,0.85)'); v.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, 64, 256);
+    _laserBeamTexture = PIXI.Texture.from(c);
+    return _laserBeamTexture;
+}
+
 let _glowTexture: PIXI.Texture | null = null;
 let _arcTextures: PIXI.Texture[] | null = null;
 let _zigzagTexture: PIXI.Texture | null = null;
@@ -285,6 +389,8 @@ export class EffectsManager {
     private fxFlashes: FxSprite[] = [];
     private fxRings: FxSprite[] = [];
     private fxMarks: FxSprite[] = [];
+    /** LASER v3: rozblyski anihilacji (glow ADD, rosna i gasna). */
+    private fxGlows: FxSprite[] = [];
     private static readonly MAX_BULLET_MARKS = 8;
 
     constructor(worldContainer: PIXI.Container) {
@@ -385,6 +491,66 @@ export class EffectsManager {
         // iskry: odbite od celu (przeciwnie do lotu), z lekkim opadaniem
         this.spawnParticles(x, y, fx.color, fx.hitSparks, { speed: 5.5, size: 1.8, decay: 0.09, spread: 0.45, baseAngle: angle + Math.PI });
         this.spawnParticles(x, y, 0xffffff, 2, { speed: 7, size: 1.4, decay: 0.16, spread: 0.3, baseAngle: angle + Math.PI });
+    }
+
+    /**
+     * LASER v3 — ANIHILACJA wroga zabitego wiazka (na wierzch zwyklego wraku): bialo-rozowy blysk,
+     * pierscien, drobiny rozrzucone na boki i "wyssane" do gory po wiazce. Tylko wizual.
+     * Koszt: 2 sprite'y z puli + ~22 czastki z istniejacej puli; wolajacy limituje liczbe na tick.
+     */
+    spawnLaserAnnihilation(x: number, y: number): void {
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, 8);
+        g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xffd0ee; g.sprite.alpha = 1;
+        g.sprite.scale.set(2.5); g.life = 1; g.max = 16; g.grow = 0.45;
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
+        r.sprite.anchor.set(0.5); r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0; r.sprite.tint = 0xff6bcb; r.sprite.alpha = 1;
+        r.sprite.scale.set(0.3); r.life = 1; r.max = 18; r.grow = (90 / 32) / 18;
+        this.spawnParticles(x, y, 0xff6bcb, 10, { speed: 6.5, size: 2.4, decay: 0.05, spread: 1.0 });
+        this.spawnParticles(x, y, 0xffffff, 4, { speed: 8, size: 1.6, decay: 0.09, spread: 1.0 });
+        for (let i = 0; i < 8; i++) {
+            const p = this.getParticle();
+            p.sprite.x = x + (Math.random() - 0.5) * 34; p.sprite.y = y + (Math.random() - 0.5) * 20;
+            p.sprite.tint = i % 2 ? 0xffffff : 0xff9ad8; p.sprite.scale.set(1.6 + Math.random() * 1.4); p.sprite.alpha = 1;
+            p.vx = (Math.random() - 0.5) * 0.8; p.vy = -(4 + Math.random() * 5);
+            p.life = 1; p.decay = 0.035 + Math.random() * 0.02; p.scaleDecay = 0.03;
+        }
+    }
+
+    /** AURA v3 — pocisk odbity od tarczy: zloty pierscien w punkcie trafienia + iskry. */
+    spawnAuraHit(x: number, y: number): void {
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
+        r.sprite.anchor.set(0.5); r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0; r.sprite.tint = 0xffdd00; r.sprite.alpha = 1;
+        r.sprite.scale.set(0.2); r.life = 1; r.max = 12; r.grow = (34 / 32) / 12;
+        this.spawnParticles(x, y, 0xffdd00, 7, { speed: 5.5, size: 1.8, decay: 0.1, spread: 1.0 });
+        this.spawnParticles(x, y, 0xffffff, 3, { speed: 6.5, size: 1.4, decay: 0.15, spread: 1.0 });
+    }
+
+    /** AURA v3 — koniec tarczy: banka PEKA w zlote odlamki (blysk + pierscien + odlamki). */
+    spawnAuraShatter(x: number, y: number): void {
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, 8);
+        g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xffe680; g.sprite.alpha = 1;
+        g.sprite.scale.set(3.5); g.life = 1; g.max = 14; g.grow = 0.35;
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
+        r.sprite.anchor.set(0.5); r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0; r.sprite.tint = 0xffdd00; r.sprite.alpha = 1;
+        r.sprite.scale.set(1.8); r.life = 1; r.max = 16; r.grow = (110 / 32 - 1.8) / 16;
+        for (let i = 0; i < 14; i++) {
+            const a = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+            const p = this.getParticle();
+            p.sprite.x = x + Math.cos(a) * 58; p.sprite.y = y + Math.sin(a) * 58;
+            p.sprite.tint = i % 3 === 0 ? 0xffffff : 0xffd23a; p.sprite.scale.set(2 + Math.random() * 1.2); p.sprite.alpha = 1;
+            p.vx = Math.cos(a) * (3 + Math.random() * 3); p.vy = Math.sin(a) * (3 + Math.random() * 3);
+            p.life = 1; p.decay = 0.045 + Math.random() * 0.02; p.scaleDecay = 0.05;
+        }
+        this.shake(3, 6);
+    }
+
+    /** CZARNA DZIURA v3 — implozja na koniec: fioletowy blysk zapadajacy sie + drobiny. */
+    spawnHoleCollapse(x: number, y: number): void {
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, 8);
+        g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xc4b5fd; g.sprite.alpha = 1;
+        g.sprite.scale.set(9); g.life = 1; g.max = 18; g.grow = -0.45;
+        this.spawnParticles(x, y, 0xa78bfa, 16, { speed: 8, size: 2.6, decay: 0.05, spread: 1.0 });
+        this.spawnParticles(x, y, 0xffffff, 6, { speed: 10, size: 1.8, decay: 0.08, spread: 1.0 });
     }
 
     /** Ogniarz v2: jezyk ognia za pociskiem (1 czastka z puli; wolajacy dba o czestotliwosc). */
@@ -1111,6 +1277,7 @@ export class EffectsManager {
         // === TANK ART v2: rozblyski / pierscienie / slady (pule sprite'ow) ===
         this.updateFxPool(this.fxFlashes, delta, (f, t) => { f.sprite.alpha = 1 - t * t; const s = Math.max(0.2, f.sprite.scale.x + f.grow * delta); f.sprite.scale.set(s, s * (1 - t * 0.35)); });
         this.updateFxPool(this.fxRings, delta, (f, t) => { f.sprite.alpha = 1 - t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
+        this.updateFxPool(this.fxGlows, delta, (f, t) => { f.sprite.alpha = 1 - t * t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
         this.updateFxPool(this.fxMarks, delta, (f, t) => { f.sprite.alpha = 0.6 * (1 - t); });
 
         // === Tick-anims (v0.155.3 D2): pierscienie mega bomby/shockwave/portalu + overlay freeze ===

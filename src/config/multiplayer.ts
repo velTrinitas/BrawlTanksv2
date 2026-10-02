@@ -53,5 +53,15 @@ export function isMultiplayerSandbox(): boolean {
  *      ruch 1/127, aim w swiecie int px); dash i moce z kolejki w kroku, nie w handlerze zdarzen.
  *  7 — COOP S7 (v0.224.0): PowerSystem na gracza (aura/cooldowny/magnes per gracz), efekty swiatowe
  *      (freeze/disco/pong/widmo/strach) agregowane po instancjach, macierz mocy koopa (Tier 1 bez Widma).
+ *  8 — COOP LAN-2a (v0.227.0): host symuluje drugiego gracza (gosc) z wejscia sieciowego; smierc goscia
+ *      = odrodzenie po 5 s przy hoscie (nie konczy meczu); lezacy gracz nie zbiera/nie obrywa.
+ *  9 — COOP LAN-3b (v0.228.0): w meczu koopowym bez klatwy piramid/Ra, Yeti i UFO (COOP_HAZARDS_ENABLED).
  */
-export const SIM_VERSION = 7;
+/**
+ * COOP LAN-3b: zagrozenia map, ktorych gosc jeszcze NIE widzi (klatwa piramid + Ra, Yeti, UFO),
+ * sa w meczu koopowym WYLACZONE — Czytelnosc > Sensoryka: gosc nie moze obrywac od czegos
+ * niewidzialnego. Wlaczamy po kolei razem z synchronizacja (LAN-3b-2). Solo bez zmian.
+ */
+export const COOP_HAZARDS_ENABLED = false;
+
+export const SIM_VERSION = 9;

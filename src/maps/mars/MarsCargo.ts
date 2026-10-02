@@ -335,6 +335,17 @@ export class MarsCargo implements ICollidable {
         this.container.visible = true;
     }
 
+    /**
+     * COOP LAN-3b: stan do migawki hosta (0..2 = etap uszkodzenia, 255 = zniszczony) i jego
+     * zastosowanie u goscia — TEN SAM wizual rozpadu/odrodzenia, ale bez dropow i bez wlasnego
+     * zegara odrodzenia (o odrodzeniu decyduje host).
+     */
+    public netState(): number { return this.isDestroyed ? 255 : 0; }
+    public applyNetState(s: number): void {
+        if (s === 255) { if (!this.isDestroyed) this.destroy(); this.respawnTimer = 1e9; return; }
+        if (this.isDestroyed) this.respawn();
+    }
+
     /** Dedicated loop in main.ts — respawn timer only (frame-locked, as Crate). */
     public update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
         if (this.isDestroyed) {

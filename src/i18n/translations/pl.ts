@@ -1245,5 +1245,7 @@ export const pl = {
     'coop.endWin': 'Kolega wygrał mecz! 🏆',
     'coop.endLose': 'Mecz kolegi się skończył.',
     'coop.spectate': 'PODGLĄD — gra kolegi',
+    'coop.partnerDown': 'KOLEGA OBERWAŁ — WRACA ZA 5 S',
+    'coop.respawning': 'Oberwałeś! Wracasz za chwilę…',
     'coop.waitHost': 'Czekam, aż kolega wystartuje mecz…',
 };

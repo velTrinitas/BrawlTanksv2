@@ -245,6 +245,12 @@ export class SeasonPickup {
     }
 
     /** Zebrana albo wygasla — main.ts zwraca ja do puli. */
+    /** COOP LAN-3b: pozycja z migawki hosta — TYLKO widok (u goscia pickup nie ma wlasnej logiki). */
+    public setViewPos(x: number, y: number): void {
+        this.x = x; this.y = y;
+        this.container.x = x; this.container.y = y; this.container.zIndex = y + 3;
+    }
+
     public despawn(): void {
         this.active = false;
         this.container.visible = false;

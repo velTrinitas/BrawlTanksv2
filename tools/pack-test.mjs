@@ -108,7 +108,7 @@ for (const d of done) console.log('  ✓ ' + d);
 console.log('  ── co jest wpieczone ──');
 console.log('  baza assetow : ' + base);
 console.log('  data waznosci: ' + (expires
-    ? expires + '  (ostatni dzien grania; blokada nastepnego dnia o 00:00)'
+    ? expires + (expires.includes('T') ? '  (blokada DOKLADNIE o tej godzinie, czas lokalny urzadzenia)' : '  (ostatni dzien grania; blokada nastepnego dnia o 00:00)')
     : 'BRAK — ta paczka NIGDY nie wygasnie'));
 console.log('────────────────────────────────────────────────────\n');
 

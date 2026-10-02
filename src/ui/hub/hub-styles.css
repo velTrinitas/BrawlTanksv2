@@ -3747,3 +3747,16 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
     background: rgba(10, 20, 30, 0.72); border: 2px solid var(--hub-accent, #f1c40f);
     border-radius: 12px; padding: 6px 14px; pointer-events: none; white-space: nowrap;
 }
+/* COOP LAN-3b — HUD goscia (DOM): HP, ladunki super, wynik druzyny, sloty mocy (desktop). */
+.bt-coop-badge { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.bt-coop-badge .ch-hp { position: relative; display: inline-block; width: 120px; height: 18px; border-radius: 9px; background: rgba(255,255,255,0.15); overflow: hidden; }
+.bt-coop-badge .ch-hp i { position: absolute; left: 0; top: 0; bottom: 0; background: #39d98a; border-radius: 9px; }
+.bt-coop-badge .ch-hp b { position: relative; display: block; text-align: center; font-weight: 400; font-size: 12px; line-height: 18px; text-shadow: 0 1px 2px #000; }
+.bt-coop-badge .ch-slots { display: inline-flex; gap: 6px; }
+.bt-coop-badge .cs { padding: 1px 6px; border-radius: 6px; background: rgba(57,217,138,0.25); }
+.bt-coop-badge .cs.is-cd { background: rgba(255,255,255,0.12); opacity: 0.8; }
+.bt-coop-badge .ch-dead { color: #ff8855; }
+@media (max-width: 460px), (orientation: landscape) and (max-height: 560px) {
+    .bt-coop-badge { font-size: 12px; gap: 6px; padding: 4px 10px; }
+    .bt-coop-badge .ch-hp { width: 90px; }
+}

@@ -255,6 +255,22 @@ export class SandstoneBlock implements ICollidable {
         this.effects.spawnSoftPuff(this.origX + SANDSTONE_SIZE / 2, this.origY + SANDSTONE_SIZE / 2, DUST, 1.4);
     }
 
+    /**
+     * COOP LAN-3b: stan do migawki hosta (0..2 = etap uszkodzenia, 255 = zniszczony) i jego
+     * zastosowanie u goscia — TEN SAM wizual rozpadu/odrodzenia, ale bez dropow i bez wlasnego
+     * zegara odrodzenia (o odrodzeniu decyduje host).
+     */
+    public netState(): number { return this.isDestroyed ? 255 : this.stage; }
+    public applyNetState(s: number): void {
+        if (s === 255) { if (!this.isDestroyed) this.crumble(); this.respawnTimer = 1e9; return; }
+        if (this.isDestroyed) this.respawn();
+        if (s !== this.stage && s >= 0 && s <= 2) {
+            this.stage = s;
+            const tex = getTexture(this.variant, s);
+            if (tex) this.sprite.texture = tex;
+        }
+    }
+
     public update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
         if (this.isDestroyed) {
             this.respawnTimer -= 1 / 60;

@@ -129,10 +129,27 @@ abstract class StaticMonument implements ICollidable {
         DesertJuice.active?.bigCrumble(this.cx, this.cy - this.artHeight * 0.3, this.bw);
     }
 
+    /**
+     * COOP LAN-3b: stan do migawki hosta (0..2 = etap uszkodzenia, 255 = zniszczony) i jego
+     * zastosowanie u goscia — TEN SAM wizual rozpadu/odrodzenia, ale bez dropow i bez wlasnego
+     * zegara odrodzenia (o odrodzeniu decyduje host).
+     */
+    public netState(): number { return this.isDestroyed ? 255 : this.stage; }
+    public applyNetState(s: number): void {
+        if (s === 255) { if (!this.isDestroyed) this.crumble(); this.respawn = 1e9; return; }
+        if (this.isDestroyed) this.restore();
+        if (s !== this.stage && s >= 0 && s <= 2) { this.stage = s; this.drawCracks(); }
+    }
+
     update(_camX?: number, _camY?: number, _w?: number, _h?: number): void {
         if (!this.isDestroyed) return;
         this.respawn -= 1 / 60;
         if (this.respawn > 0) return;
+        this.restore();
+    }
+
+    /** Odrodzenie bryly (wydzielone z update — gosc koopa wola je z migawki). */
+    private restore(): void {
         this.isDestroyed = false;
         this.hp = this.maxHp;
         this.stage = 0;

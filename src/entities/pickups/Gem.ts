@@ -187,6 +187,12 @@ export class Gem {
      * lewitacja/magnes) — zero roznicy wizualnej vs new Gem. Sprite juz istnieje
      * i jest w kontenerze (ukryty), wiec tylko go pokazujemy i repozycjonujemy.
      */
+    /** COOP LAN-3b: pozycja z migawki hosta — TYLKO widok (u goscia pickup nie ma wlasnej logiki). */
+    setViewPos(x: number, y: number): void {
+        this.x = x; this.y = y; this.baseY = y;
+        this.sprite.x = x; this.sprite.y = y;
+    }
+
     reset(x: number, y: number): void {
         this.netId = nextNetId(); // COOP S5b: reuzycie z puli = nowa encja
         this.x = x + worldRng.range(-15, 15); // Z0.1: seeded (pozycja pickupu)

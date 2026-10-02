@@ -223,8 +223,12 @@ import { createPlayerInput, quantizeInput, type PlayerInput } from './input/Play
 import { requestHostStart, netRole, setNetRole, consumeHostStartRequest, isCoopStartMsg, sendRel, sendFast, type CoopStartMsg } from './net/CoopMatch'; // COOP LAN-3a
 import { coopSession } from './net/CoopSession';
 import { GuestWorld } from './net/GuestWorld';
-import { isMultiplayerEnabled } from './config/multiplayer';
-import { encodeSnapshot, decodeSnapshot, EnemyKind, type Snapshot } from './net/Snapshot';
+import { isMultiplayerEnabled, COOP_HAZARDS_ENABLED } from './config/multiplayer';
+import { encodeSnapshot, decodeSnapshot, EnemyKind, PickupKind, type Snapshot, type SnapPickup, encodeInputPacket, decodeInputPacket } from './net/Snapshot';
+import { getPeerProfile, setPeerProfile, isCoopProfileMsg, localBrawlerId, setPartnerLook, getPartnerLook } from './net/CoopMatch'; // COOP LAN-2a/3b
+import { packInput, unpackInput } from './input/PlayerInput';
+import type { LoadoutTriple, PowerId } from './config/powers';
+import type { FlagId } from './types/Profile';
 import { telemetryResetMatch, telemetryTickFrame, telemetrySubmitMatch } from './services/TelemetryService'; // Z0.9
 import { SRC_SNOWBALL, SRC_POWER, SRC_SHOCKWAVE, srcPlayerBullet, srcPower, srcMegaBomb } from './types/DamageSource'; // Z0.5
 import { TutorialController } from './tutorial/TutorialController'; // FAZA A — onboarding; SAVE THE QUEEN Q6: kroki scenariusza na tym samym UI
@@ -241,7 +245,7 @@ import { QuestService, type QuestView } from './services/QuestService'; // PROG-
 import { MAP_LABEL_KEY, questDisplayValue } from './config/quests';
 import { sessionService, type LastSession } from './services/SessionService';
 import { SCENARIO_CONFIGS } from './types/Scenario';
-import { t, i18n } from './i18n/i18n';
+import { t, i18n, type TranslationKey } from './i18n/i18n';
 
 // === v0.50.0 Difficulty Balance v1: per-difficulty enemy stats + spawn config ===
 import { getDifficultyModifiers } from './config/difficulty';
@@ -672,6 +676,7 @@ interface PlayerSimState {
     stealthBrokenByShot: boolean;
     lowHpVoiceFired: boolean;
     lastShotTime: number; // COOP S6: przeladowanie per gracz (sim clock)
+    respawnAt: number;    // COOP LAN-2a: gosc lezy do tej chwili (0 = zyje)
 }
 const playerSim = new Map<Player, PlayerSimState>();
 function simOf(p: Player): PlayerSimState {
@@ -679,7 +684,7 @@ function simOf(p: Player): PlayerSimState {
     if (!st) {
         st = { stealthEndTime: 0, wasInOasis: false, wasInFarm: false, wasInNeon: false,
             wasInRuinsBush: false, wasInHydro: false, wasInWheat: false,
-            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false, lastShotTime: 0 };
+            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false, lastShotTime: 0, respawnAt: 0 };
         playerSim.set(p, st);
     }
     return st;
@@ -687,6 +692,7 @@ function simOf(p: Player): PlayerSimState {
 /** COOP S5: pierwszy gracz w promieniu r od punktu (kolejnosc players[]) albo null. */
 function playerTouching(x: number, y: number, r: number): Player | null {
     for (const p of players) {
+        if (p.hp <= 0) continue; // COOP LAN-2a: lezacy gracz nie zbiera i nie obrywa
         const dx = p.x - x, dy = p.y - y;
         if (dx * dx + dy * dy < r * r) return p;
     }
@@ -1061,6 +1067,7 @@ function collectLocalInput(aimWorldX: number, aimWorldY: number): PlayerInput {
 
 /** COOP S6: akcje jednorazowe gracza z jego wejscia (dash, moc) — wolane WYLACZNIE w kroku logiki. */
 function applyPlayerActions(p: Player, input: PlayerInput): void {
+    if (p.hp <= 0) return; // COOP LAN-2a: lezacy gracz nic nie odpala
     if (input.dash && p.tryDash(input.moveX, input.moveY, effects)) {
         if (p === localPlayer) {
             audio.playRocketLaunch();
@@ -1306,7 +1313,9 @@ menu.onGameRequested = (config: GameConfig) => {
     if (consumeHostStartRequest()) {
         if (config.scenario !== 'ktb') { showToast(t('coop.onlyClassic'), 3000); return; }
         const coopCfg: GameConfig = { ...config, mode: 'coop' };
-        const msg: CoopStartMsg = { t: 'start', scenario: config.scenario, map: config.map, difficulty: config.difficulty, hostBrawlerId: config.brawlerId, rngSeed: config.rngSeed };
+        const msg: CoopStartMsg = { t: 'start', scenario: config.scenario, map: config.map, difficulty: config.difficulty, hostBrawlerId: config.brawlerId, hostFlagId: ProfileService.getActiveProfile()?.flagId ?? null, rngSeed: config.rngSeed };
+        const pp = getPeerProfile();
+        setPartnerLook(pp ? { brawlerId: pp.brawlerId, flagId: pp.flagId } : null); // LAN-3b: host wypieka czolg goscia
         sendRel(msg as unknown as Record<string, unknown>);
         setNetRole('host');
         window.dispatchEvent(new Event('bt-coop-match-start'));
@@ -1353,24 +1362,148 @@ menu.onGameRequested = (config: GameConfig) => {
 
 // ── COOP LAN-3a: mecz koopowy po stronie GOSCIA + host wysyla migawki ──────────────
 let guestWorld: GuestWorld | null = null;
+/** COOP LAN-3b: obiekty niszczalne w STALEJ kolejnosci layoutu (identycznej u hosta i goscia). */
+type NetDestructible = { netState(): number; applyNetState(s: number): void };
+let netDestructibles: NetDestructible[] = [];
+/**
+ * COOP LAN-3b: zdarzenia dla goscia (efekty, liczby, komunikaty) — zbierane u hosta przez krok,
+ * wysylane paczka razem z migawka po 'rel'. Gosc je odtwarza lokalnie (Sensoryka: kill = wybuch).
+ * Komunikaty ida jako KLUCZE i18n + parametry (dwa urzadzenia moga miec dwa jezyki).
+ */
+type CoopEvent = (string | number | Record<string, string | number> | null)[];
+let hostEvents: CoopEvent[] = [];
+function hostEv(...e: CoopEvent): void {
+    if (netRole() !== 'host' || !coopSession.connection || hostEvents.length >= 300) return;
+    hostEvents.push(e);
+}
+/** Komunikat HUD dla GOSCIA (u hosta), gdy dotyczy jego czolgu. */
+function coopNotify(p: Player, key: string, params: Record<string, string | number> | null, color: string): void {
+    if (netRole() === 'host' && p === guestPlayer) hostEv('n', key, params, color);
+}
+/** Host: lustro wybranych efektow do goscia (jedno miejsce zamiast dziesiatek wywolan). */
+function installFxMirror(fx: EffectsManager): void {
+    const r = (v: number): number => Math.round(v);
+    const boom = fx.spawnExplosionAndWreck.bind(fx);
+    fx.spawnExplosionAndWreck = (x, y, c) => { boom(x, y, c); hostEv('b', r(x), r(y), c); };
+    const spark = fx.spawnEnemyHitSparks.bind(fx);
+    fx.spawnEnemyHitSparks = (x, y, c) => { spark(x, y, c); hostEv('s', r(x), r(y), c); };
+    const text = fx.spawnFloatingText.bind(fx);
+    fx.spawnFloatingText = (x, y, tx, c) => { text(x, y, tx, c); hostEv('f', r(x), r(y), String(tx), c); };
+    const rocket = fx.spawnRocketExplosion.bind(fx);
+    fx.spawnRocketExplosion = (x, y) => { rocket(x, y); hostEv('r', r(x), r(y)); };
+    const ring = fx.spawnShockwaveRing.bind(fx);
+    fx.spawnShockwaveRing = (x, y, rad, c = 0x9b59d0) => { ring(x, y, rad, c); hostEv('w', r(x), r(y), r(rad), c); };
+}
+/** Gosc: odtworzenie paczki zdarzen hosta. */
+function replayCoopEvents(list: unknown[]): void {
+    if (!effects) return;
+    for (const raw of list) {
+        if (!Array.isArray(raw)) continue;
+        const e = raw as CoopEvent;
+        const n = (i: number): number => (typeof e[i] === 'number' ? e[i] as number : 0);
+        switch (e[0]) {
+            case 'b': effects.spawnExplosionAndWreck(n(1), n(2), n(3)); audio.playExplosion(); break;
+            case 's': effects.spawnEnemyHitSparks(n(1), n(2), n(3)); break;
+            case 'f': effects.spawnFloatingText(n(1), n(2), String(e[3] ?? ''), n(4)); break;
+            case 'r': effects.spawnRocketExplosion(n(1), n(2)); break;
+            case 'w': effects.spawnShockwaveRing(n(1), n(2), n(3), n(4)); break;
+            case 'n': {
+                const key = String(e[1] ?? '');
+                const params = (e[2] && typeof e[2] === 'object') ? e[2] as Record<string, string | number> : undefined;
+                try { showToast(t(key as TranslationKey, params), 2200); } catch (err) { console.warn('[Coop] notif failed', key, (err as Error).stack); }
+                break;
+            }
+        }
+    }
+}
+// COOP LAN-2a (host): czolg goscia i jego zdarzenia jednorazowe z kanalu 'rel'.
+let guestPlayer: Player | null = null;
+let lastGuestSeq = -1;
+let pendingGuestDash = false;
+let pendingGuestSlot = -1;
+const COOP_RESPAWN_MS = 5000;
+let guestProfileSent = false;
+const _inBuf = new Int16Array(8);
+const _inTmp = createPlayerInput();
+const _outBuf = new Int16Array(8);
+
+/**
+ * COOP LAN-2a: smierc gracza, ktory NIE jest graczem tego urzadzenia (gosc u hosta) — mecz trwa,
+ * czolg znika i odradza sie po 5 s przy hoscie. true = obsluzone (wolajacy NIE konczy meczu).
+ */
+function coopHandleDeath(p: Player): boolean {
+    if (p === localPlayer || netRole() !== 'host') return false;
+    const st = simOf(p);
+    if (st.respawnAt > 0) return true;
+    p.hp = 0;
+    st.respawnAt = simNowMs() + COOP_RESPAWN_MS;
+    p.container.visible = false;
+    effects?.spawnExplosionAndWreck(p.x, p.y, 0x9aa4b0);
+    hud.addNotif(t('coop.partnerDown'), '#ff8855');
+    return true;
+}
+
+/** COOP LAN-2a (host): gosc odszedl w trakcie meczu — jego czolg znika z symulacji. */
+function removeGuestPlayer(): void {
+    const gp = guestPlayer;
+    if (!gp) return;
+    guestPlayer = null;
+    players = players.filter(pl => pl !== gp);
+    powerSystems.delete(gp);
+    playerInputs.delete(gp);
+    try { gp.container.destroy({ children: true }); } catch (err) { console.warn('[Coop] guest teardown failed', (err as Error).stack); }
+}
+
+/** COOP LAN-2a (gosc): profil po polaczeniu — czolg z BITWY, flaga, moce przefiltrowane pod koop. */
+function sendGuestProfile(): void {
+    const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+    const ps = ProgressionService.getPowerState(pid);
+    const loadout = resolveLoadoutForMatch(ps.loadout, 'ktb', ps.owned, undefined, { coop: true });
+    const brawlerId = localBrawlerId() ?? sessionService.getLastSession()?.brawlerId ?? BRAWLERS[0].id;
+    sendRel({ t: 'profile', brawlerId, flagId: ProfileService.getActiveProfile()?.flagId ?? null, loadout });
+}
 let hostSnapCounter = 0;
 let coopBadgeEl: HTMLElement | null = null;
 
 coopSession.onMatchMessage((ch, data, msg) => {
     if (ch === 'fast') {
-        if (netRole() === 'guest' && guestWorld && data instanceof ArrayBuffer) {
+        if (!(data instanceof ArrayBuffer)) return;
+        if (netRole() === 'guest' && guestWorld) {
             const snap = decodeSnapshot(data);
             if (snap) guestWorld.push(snap);
+        } else if (netRole() === 'host' && guestPlayer) {
+            // LAN-2a: wejscie goscia — trzymamy NAJNOWSZE (kanal nieuporzadkowany; seq zawija sie co 65536)
+            if (!decodeInputPacket(data, _inBuf)) return;
+            unpackInput(_inBuf, _inTmp);
+            const newer = lastGuestSeq < 0 || ((_inTmp.seq - lastGuestSeq) & 0xffff) < 0x8000;
+            if (!newer) return;
+            lastGuestSeq = _inTmp.seq;
+            const gi = playerInputs.get(guestPlayer);
+            if (!gi) return;
+            gi.moveX = _inTmp.moveX; gi.moveY = _inTmp.moveY; gi.analog = _inTmp.analog;
+            gi.aimX = _inTmp.aimX; gi.aimY = _inTmp.aimY; gi.fire = _inTmp.fire;
+            gi.seq = _inTmp.seq; gi.tick = _inTmp.tick;
         }
+        return;
+    }
+    if (isCoopProfileMsg(msg)) { // host: profil goscia do nastepnego startu
+        setPeerProfile({ brawlerId: msg.brawlerId, flagId: typeof msg.flagId === 'string' ? msg.flagId : null, loadout: msg.loadout as [string, string, string] });
+        return;
+    }
+    if (msg && msg.t === 'ev' && netRole() === 'guest' && Array.isArray(msg.e)) { replayCoopEvents(msg.e); return; } // LAN-3b
+    if (msg && msg.t === 'act' && netRole() === 'host') { // host: dash / moc goscia (niezawodnie)
+        if (msg.dash === true) pendingGuestDash = true;
+        if (typeof msg.slot === 'number' && msg.slot >= 0 && msg.slot <= 2) pendingGuestSlot = msg.slot;
         return;
     }
     if (isCoopStartMsg(msg) && netRole() === 'solo') {
         const pid = ProfileService.getActiveProfile()?.id ?? 'default';
         const built = new GameConfigBuilder()
             .setScenario(msg.scenario).setMap(msg.map).setDifficulty(msg.difficulty)
-            .setBrawlerId(msg.hostBrawlerId).setProfileId(pid).setMode('coop').build();
+            .setBrawlerId(localBrawlerId() ?? sessionService.getLastSession()?.brawlerId ?? msg.hostBrawlerId).setProfileId(pid).setMode('coop').build(); // LAN-2a: WLASNY czolg goscia
         const cfg: GameConfig = { ...built, rngSeed: msg.rngSeed }; // TEN SAM seed => ten sam statyczny swiat
         setNetRole('guest');
+        setPartnerLook({ brawlerId: msg.hostBrawlerId, flagId: typeof msg.hostFlagId === 'string' ? msg.hostFlagId : null }); // LAN-3b: gosc wypieka czolg hosta
         window.dispatchEvent(new Event('bt-coop-match-start'));
         if (gameState === 'PLAYING') returnToMenuFromEnd();
         menu.hide();
@@ -1380,7 +1513,11 @@ coopSession.onMatchMessage((ch, data, msg) => {
     }
 });
 coopSession.subscribe((st) => {
+    if (st.k === 'connected' && st.role === 'guest' && !guestProfileSent) { guestProfileSent = true; sendGuestProfile(); }
     if (st.k !== 'failed' && st.k !== 'idle') return;
+    guestProfileSent = false;
+    setPeerProfile(null);
+    removeGuestPlayer();
     if (netRole() === 'guest') { if (gameState === 'PLAYING') endGuestMatch('coop.errClosed'); else setNetRole('solo'); }
     else if (netRole() === 'host') {
         setNetRole('solo'); // host gra dalej solo (pauza 10 s = LAN-4)
@@ -1391,8 +1528,14 @@ coopSession.subscribe((st) => {
 // Dev/testy (tylko ?mp=1): start meczu koopowego hosta z konsoli / Playwright — ta sama sciezka co "Graj razem".
 if (isMultiplayerEnabled()) {
     (window as unknown as { __coopStats: () => unknown }).__coopStats = () => netRole() === 'guest'
-        ? { role: 'guest', ...(guestWorld?.counts ?? {}) }
-        : { role: netRole(), enemies: enemies.filter(e => e.active).length, ebullets: enemyBullets.filter(b => b.active).length, pbullets: bullets.filter(b => b.active).length };
+        ? { role: 'guest', ...(guestWorld?.counts ?? {}), destroyed: netDestructibles.filter(d => d.netState() === 255).length, destrTotal: netDestructibles.length }
+        : { role: netRole(), enemies: enemies.filter(e => e.active).length, ebullets: enemyBullets.filter(b => b.active).length, pbullets: bullets.filter(b => b.active).length,
+            guestBullets: bullets.filter(b => b.active && b.ownerIndex === 1).length,
+            pickups: collectSnapPickups().length, destroyed: netDestructibles.filter(d => d.netState() === 255).length, destrTotal: netDestructibles.length,
+            players: players.map(pl => ({ x: Math.round(pl.x), y: Math.round(pl.y), hp: pl.hp })) };
+    // testy LAN-3b: rozbij obiekt niszczalny nr i / upusc gem obok hosta
+    (window as unknown as { __coopBreak: (i: number) => void }).__coopBreak = (i) => { (netDestructibles[i] as unknown as { takeDamage?: (d: number, x: number, y: number) => void })?.takeDamage?.(1e6, 0, 0); };
+    (window as unknown as { __coopGem: () => void }).__coopGem = () => { if (localPlayer) spawnGem(localPlayer.x + 160, localPlayer.y + 60); };
     (window as unknown as { __coopHostStart: (map?: string) => void }).__coopHostStart = (map = 'desert') => {
         requestHostStart();
         const pid = ProfileService.getActiveProfile()?.id ?? 'default';
@@ -1410,6 +1553,31 @@ function setCoopBadge(visible: boolean): void {
     if (coopBadgeEl) coopBadgeEl.style.display = visible ? '' : 'none';
     const hc = document.getElementById('hudCanvas');
     if (hc) hc.style.visibility = visible ? 'hidden' : ''; // gosc: pelny HUD dopiero z wlasnym czolgiem (LAN-2)
+}
+
+/**
+ * COOP LAN-3b: HUD goscia (DOM) — HP, ladunki super, wynik druzyny i (desktop) 3 sloty mocy z
+ * odliczaniem. Pelny HUD Canvas dla goscia = LAN-4. Aktualizacja tylko przy zmianie (bez layoutu co klatke).
+ */
+let guestHudKey = '';
+function renderGuestHud(gw: GuestWorld): void {
+    if (!coopBadgeEl) return;
+    const own = gw.own;
+    const slots = powerSystem && !touchManager.isActive
+        ? powerSystem.loadout.map((id, i) => {
+            const sec = own ? own.cdSec[i] : 0;
+            return `<span class="cs${sec > 0 ? ' is-cd' : ''}">${i + 1} ${POWERS[id]?.emoji ?? '?'}${sec > 0 ? ` ${sec}s` : ''}</span>`;
+        }).join('')
+        : '';
+    const hp = own ? own.hp : 0, max = own ? Math.max(1, own.maxHp) : 1;
+    const key = `${own?.alive}|${hp}|${max}|${own?.superCharges}|${gw.score}|${slots}`;
+    if (key === guestHudKey) return;
+    guestHudKey = key;
+    coopBadgeEl.innerHTML = own && !own.alive
+        ? `<span class="ch-dead">💥 ${t('coop.respawning')}</span><span class="ch-score">⭐ ${gw.score}</span>`
+        : `<span class="ch-hp"><i style="width:${Math.round(100 * hp / max)}%"></i><b>❤ ${hp}/${max}</b></span>`
+          + `<span class="ch-super">⚡ ${own ? own.superCharges : 0}</span><span class="ch-score">⭐ ${gw.score}</span>`
+          + (slots ? `<span class="ch-slots">${slots}</span>` : '');
 }
 
 function endGuestMatch(msgKey: 'coop.endWin' | 'coop.endLose' | 'coop.errClosed'): void {
@@ -1432,6 +1600,32 @@ function runGuestStep(delta: number): void {
         camera.x = Math.max(0, Math.min(WORLD_W - viewW, ~~(guestWorld.focusX - viewW / 2)));
         camera.y = Math.max(0, Math.min(WORLD_H - viewH, ~~(guestWorld.focusY - viewH / 2)));
     }
+    // COOP LAN-2a: sterowanie goscia — ta sama sciezka zbierania co solo (klawiatura/mysz/dotyk/kolejka),
+    // cel liczony od WLASNEGO czolgu (kamera sledzi idx 1). Ruch/cel/ogien po 'fast', dash/moc po 'rel'.
+    if (touchManager.isActive) {
+        const aimVec = touchManager.aimVector;
+        if (aimVec) {
+            mouse.screenX = (guestWorld.focusX - camera.x) * ZOOM + aimVec.x * 200;
+            mouse.screenY = (guestWorld.focusY - camera.y) * ZOOM + aimVec.y * 200;
+        }
+        isMouseDown = touchManager.isFiring;
+        const own = guestWorld.own;
+        if (own) {
+            for (let i = 0; i < 3; i++) {
+                const slot = i as 0 | 1 | 2;
+                touchManager.updateSuperChargedVisual(slot, own.cdSec[i] === 0);
+                touchManager.updateSuperCooldown(slot, own.cd[i], own.cdSec[i]);
+            }
+            if (localPlayer) touchManager.updateDashState(localPlayer.hasDash, own.dashCd, 0);
+        }
+    }
+    logicTick++;
+    const gIn = collectLocalInput(mouse.screenX / ZOOM + camera.x, mouse.screenY / ZOOM + camera.y);
+    if (gIn.dash || gIn.superSlot >= 0) sendRel({ t: 'act', dash: gIn.dash, slot: gIn.superSlot });
+    const wasDash = gIn.dash, wasSlot = gIn.superSlot;
+    gIn.dash = false; gIn.superSlot = -1; // zdarzenia poszly niezawodnie — ramka 'fast' niesie tylko stan
+    sendFast(encodeInputPacket(packInput(gIn, _outBuf)));
+    gIn.dash = wasDash; gIn.superSlot = wasSlot;
     worldContainer.x = -camera.x * ZOOM + effects.shakeOffsetX;
     worldContainer.y = -camera.y * ZOOM + effects.shakeOffsetY;
     buildings.forEach(b => b.update(camera.x, camera.y, viewW, viewH)); // culling propsow (jak u hosta)
@@ -1446,6 +1640,13 @@ function runGuestStep(delta: number): void {
     for (const hg of hydroGardens) hg.update();
     for (const rf of regolithFields) rf.update();
     for (const sp of sludgePools) sp.update(guestWorld.focusX, guestWorld.focusY, false);
+    // COOP LAN-3b: stan swiata z migawki hosta — niszczalne (rozpad/odrodzenie z efektem) i cooldowny padow.
+    const dst = guestWorld.latestDestr;
+    for (let i = 0; i < dst.length && i < netDestructibles.length; i++) netDestructibles[i].applyNetState(dst[i]);
+    const allPads = [...mediPads, ...powerPads];
+    const pst = guestWorld.latestPads;
+    for (let i = 0; i < pst.length && i < allPads.length; i++) allPads[i].cooldownEnd = pst[i] > 0 ? simNowMs() + pst[i] * 1000 : -1;
+    guestWorld.tickPickups(delta);
     // Pady rysuja sie w update() — u goscia pozycja "daleko" = sam wyglad, zero aktywacji (stan meczu liczy host).
     const tPad = simNowMs() / 1000;
     for (const pad of mediPads) pad.update(-9999, -9999, false, 1, 1, tPad);
@@ -1455,8 +1656,19 @@ function runGuestStep(delta: number): void {
     // runLogicStep. Gosc go nie wola — bez tej linii czolgi lezaly NA palmach oazy (playtest 2026-09-29).
     worldContainer.sortChildren();
     if (coopBadgeEl) {
-        coopBadgeEl.textContent = `👀 ${t('coop.spectate')}  ·  ❤ ${guestWorld.hostHp}/${guestWorld.hostMaxHp}  ·  ⭐ ${guestWorld.score}`;
+        renderGuestHud(guestWorld);
     }
+}
+
+/** COOP LAN-3b: pickupy lezace na mapie (gemy, serca, magnesy, kostki, znajdzki) do migawki. */
+function collectSnapPickups(): SnapPickup[] {
+    const out: SnapPickup[] = [];
+    for (const g of gems) if (g.active) out.push({ id: g.netId, kind: PickupKind.Gem, value: 0, x: g.x, y: g.y });
+    for (const h of hearts) if (h.active) out.push({ id: h.netId, kind: PickupKind.Heart, value: 0, x: h.x, y: h.y });
+    for (const m of magnets) if (m.active) out.push({ id: m.netId, kind: PickupKind.Magnet, value: 0, x: m.x, y: m.y });
+    for (const c of powerCubes) if (c.active) out.push({ id: c.netId, kind: c.type === 'dmg' ? PickupKind.CubeDmg : PickupKind.CubeHp, value: 0, x: c.x, y: c.y });
+    for (const sp of seasonPickups) if (sp.active) out.push({ id: sp.netId, kind: PickupKind.Season, value: sp.value, x: sp.x, y: sp.y });
+    return out;
 }
 
 /** COOP LAN-3a: host — migawka swiata co 3. krok logiki (20 Hz) po kanale 'fast'. */
@@ -1467,7 +1679,10 @@ function hostAfterStep(): void {
         tick: logicTick, score: currentSession.score,
         players: players.map((pl, idx) => ({
             idx, x: pl.x, y: pl.y, moveA: pl.moveAngle, turA: pl.turretAngle, hp: pl.hp, maxHp: pl.maxHp,
-            moving: pl.isMoving, superShot: pl.isSuperShotActive, turbo: pl.hasSpeedBoost,
+            moving: pl.isMoving, superShot: pl.isSuperShotActive, turbo: pl.hasSpeedBoost, alive: pl.hp > 0,
+            cd: [0, 1, 2].map(k => psOf(pl).getSlotCooldownProgress(k as 0 | 1 | 2)) as [number, number, number],
+            cdSec: [0, 1, 2].map(k => psOf(pl).getSlotCooldownSecondsLeft(k as 0 | 1 | 2)) as [number, number, number],
+            dashCd: pl.dashCooldownProgress, superCharges: pl.superCharges,
             brawlerIdx: Math.max(0, BRAWLERS.findIndex(b => b.id === pl.brawler.id)),
         })),
         enemies: enemies.filter(e => e.active).map(e => ({
@@ -1480,8 +1695,12 @@ function hostAfterStep(): void {
             brawlerIdx: Math.max(0, BRAWLERS.findIndex(br => br.id === b.brawlerId)),
         })),
         ebullets: enemyBullets.filter(b => b.active).map(b => ({ id: b.netId, x: b.x, y: b.y, a: b.angle, type: b.bulletType, color: b.color })),
+        pickups: collectSnapPickups(),
+        destr: netDestructibles.map(d => d.netState()),
+        pads: [...mediPads, ...powerPads].map(pd => Math.max(0, (pd.cooldownEnd - simNowMs()) / 1000)),
     };
     sendFast(encodeSnapshot(snap));
+    if (hostEvents.length) { sendRel({ t: 'ev', e: hostEvents }); hostEvents = []; } // LAN-3b: zdarzenia z tego okna
 }
 
 menu.onContinueRequested = (lastSession: LastSession) => {
@@ -2843,8 +3062,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // M5 MECHANIKA-GWIAZDA: UFO-Porywacz (wrogowie + cargo; gracza NIE tyka).
         // M5c: cel dla pociskow gracza — trafialny TYLKO gdy stoi na ladowisku
         // (gettery zwracaja w/h=0 w locie, wzorzec MarsCargo).
-        ufo = new UfoAbductor(worldContainer);
-        solidBuildings.push(ufo.getBulletTarget());
+        if (!(config.mode === 'coop' && !COOP_HAZARDS_ENABLED)) { // COOP LAN-3b: UFO off w koopie
+            ufo = new UfoAbductor(worldContainer);
+            solidBuildings.push(ufo.getBulletTarget());
+        }
 
         // M4 PADY tematyczne (aktywacja AABB+8 = kontrakt DOCELOWY kitu, K9).
         // M4b: 3 medi + 2 power jak na kazdej innej mapie — po jednym padzie na
@@ -2972,6 +3193,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     effects = new EffectsManager(worldContainer);
+    installFxMirror(effects); // COOP LAN-3b: lustro efektow do goscia (no-op poza hostem koopa)
+    hostEvents = [];
     damageSmoke = new DamageSmoke(worldContainer);
     // OBRON ZAMEK F6 (#9): snopy siana — niszczalne, gem po rozwaleniu (konstrukcja PO effects, jak crates)
     if (config.map === 'castle_grounds') {
@@ -3007,7 +3230,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // za darmo z petli; przemalowanie na teal tracer, zeby nie wygladaly jak strzal gracza.
     // COOP S7: fabryka instancji — wlasciciel podawany LENIWIE (gracz lokalny powstaje nizej, przy
     // spawnie czolgu; w LAN-2 host zbuduje druga instancje dla goscia). Solo: jedna instancja.
-    const buildPowerSystem = (owner: () => Player): PowerSystem => new PowerSystem(worldContainer, matchLoadout, (x, y, angle) => {
+    const buildPowerSystem = (owner: () => Player, loadout: [PowerId, PowerId, PowerId] = matchLoadout): PowerSystem => new PowerSystem(worldContainer, loadout, (x, y, angle) => {
         const o = owner();
         const dmg = Math.round(o.brawler.dmg * TOWER_CONFIG.dmgMult * (1 + currentSession.dmgBonus));
         const b = acquireBullet(x, y, angle, false, dmg, o); // COOP S7: kill Wiezy = kredyt wlasciciela
@@ -3145,7 +3368,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
     // DESERT ART v2 / E4: klatwa piramidy (wzorzec IglooYeti — obrazenia rozstrzyga TEN closure,
     // spojnie z pociskami wrogow: nietykalnosc / tutorial / perfect-run). Tylko strzelnica bez.
-    if (desertPyramidsV2.length && config.scenario !== 'range') {
+    const coopNoHazards = config.mode === 'coop' && !COOP_HAZARDS_ENABLED; // COOP LAN-3b
+    if (desertPyramidsV2.length && config.scenario !== 'range' && !coopNoHazards) {
         pyramidCurse = new PyramidCurse(desertPyramidsV2, worldContainer, effects, audio, {
             getPlayers: () => players, // COOP S5: Player spelnia CursePlayer (x/y/isDashing/hp)
             isLive: () => gameState === 'PLAYING' && !!localPlayer && !!currentSession,
@@ -3162,7 +3386,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                     if (cp === localPlayer) audio.playHit('player');
                     currentSession.markDamageTaken();
                 }
-                if (died) { void triggerGameOver(); }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); } // COOP LAN-2a
             },
             notify: (key) => {
                 if (key === 'warn') hud.addNotif(t('hud.curseWarn'), '#e0c890');
@@ -3200,7 +3424,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         // ARC-R2b: YETI — obronca igloo (ostrzelaj igloo ~3x => wypada z rykiem i ciska
         // sniezkami z telegrafem). Impakt sniezki rozstrzyga TEN closure (centralnie:
         // invulnerability/tutorial/perfect-run — spojnie z pociskami wrogow).
-        if (arcticIgloo) {
+        if (arcticIgloo && !(config.mode === 'coop' && !COOP_HAZARDS_ENABLED)) { // COOP LAN-3b: Yeti off w koopie
             iglooYeti = new IglooYeti(
                 ARCTIC_IGLOO_POS.x, ARCTIC_IGLOO_POS.y, ARCTIC_IGLOO_POS.size,
                 worldContainer, effects,
@@ -3216,7 +3440,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                             if (sp === localPlayer) { effects!.shake(4, 6); audio.playHit('player'); }
                             currentSession.markDamageTaken();
                         }
-                        if (died) { void triggerGameOver(); return; }
+                        if (died && !coopHandleDeath(sp)) { void triggerGameOver(); return; } // COOP LAN-2a
                     }
                     }
                 },
@@ -3251,6 +3475,14 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         };
         await TankSpriteBaker.bakeBrawler(app, brawler.id, look);
         await BulletSpriteBaker.bakeBrawler(app, brawler.id); // FAZA P2 — pociski 2.5D (normal+super)
+        // COOP LAN-3b (playtest 2026-10-01: "stary Ogniarz"): czolg i pociski KOLEGI tez musza byc wypieczone,
+        // inaczej Player wpada w stary plaski rysunek. Cache per brawler: ten sam czolg u obu = wspolny bake
+        // (flaga kolegi wtedy jak nasza — do rozdzielenia cache per gracz w LAN-4).
+        const partner = config.mode === 'coop' ? getPartnerLook() : null;
+        if (partner && partner.brawlerId !== brawler.id && BRAWLERS.some(b => b.id === partner.brawlerId)) {
+            await TankSpriteBaker.bakeBrawler(app, partner.brawlerId, { flagId: (partner.flagId ?? null) as FlagId | null, number: null, skinHex: null, skinPattern: null });
+            await BulletSpriteBaker.bakeBrawler(app, partner.brawlerId);
+        }
         await EnemySpriteBaker.bakeAll(app);        // FAZA P4 — wrogowie 2.5D (grunt/boss/mega)
         await EnemyBulletSpriteBaker.bakeAll(app);  // FAZA P4 — pociski wrogow 2.5D
     }
@@ -3271,8 +3503,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     guestWorld = null;
     hostSnapCounter = 0;
     if (netRole() === 'guest') {
-        localPlayer.container.visible = false;
-        guestWorld = new GuestWorld(worldContainer);
+        localPlayer.container.visible = false; // czolg goscia rysuje GuestWorld z migawki hosta (idx 1)
+        guestWorld = new GuestWorld(worldContainer, 1);
+        document.body.classList.remove('game-cursor-hidden'); // gosc: brak HUD-owego celownika => zwykly kursor
     }
     setCoopBadge(netRole() === 'guest');
 
@@ -3345,7 +3578,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // Reset szczytow perf-overlay na nowy mecz (?perf=1).
     perfWorstMs = 0; perfPeakEBul = 0; perfPeakBul = 0; perfPeakPart = 0; perfPeakKids = 0; perfPeakEnemies = 0;
 
-    if (netRole() === 'guest') touchManager.hide(); else touchManager.show(); // COOP LAN-3a: gosc tylko oglada
+    touchManager.show(); // COOP LAN-2a: gosc tez steruje (przyciski/joysticki)
 
     if (touchManager.isActive) {
         tryLockLandscape();
@@ -3534,6 +3767,24 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // znika u kogos z wyciszonym telefonem.
     playerSim.clear(); // COOP S5: latch lowHp per gracz
     playerInputs.clear(); pendingDash = false; pendingSuperSlot = -1; logicTick = 0; // COOP S6: wejscia nowego meczu (klucz = obiekt gracza)
+    // COOP LAN-2a: host dodaje czolg GOSCIA (players[1]) — jego czolg, flaga i moce z profilu.
+    guestPlayer = null; lastGuestSeq = -1; pendingGuestDash = false; pendingGuestSlot = -1;
+    // COOP LAN-3b: niszczalne z mapy w kolejnosci budowy (kostki lodu, piaskowiec, zabytki, skrzynie, cargo).
+    netDestructibles = solidBuildings.filter((b): b is ICollidable & NetDestructible =>
+        typeof (b as Partial<NetDestructible>).netState === 'function' && typeof (b as Partial<NetDestructible>).applyNetState === 'function');
+    if (netRole() === 'host') {
+        const prof = getPeerProfile();
+        const gb = BRAWLERS.find(b => b.id === prof?.brawlerId) ?? BRAWLERS[0];
+        const gp = new Player(gb, worldContainer, (prof?.flagId ?? null) as FlagId | null);
+        gp.x = localPlayer.x + 90; gp.y = localPlayer.y;
+        players.push(gp);
+        const gLoad = resolveLoadoutForMatch((prof?.loadout ?? ['aura', 'megaBomb', 'freeze']) as unknown as LoadoutTriple,
+            config.scenario, (prof?.loadout ?? []) as PowerId[], undefined, { coop: true });
+        powerSystems.set(gp, buildPowerSystem(() => gp, gLoad));
+        const gi = createPlayerInput(); gi.aimX = gp.x + 100; gi.aimY = gp.y;
+        playerInputs.set(gp, gi);
+        guestPlayer = gp;
+    }
     // Klakson i druga kwestia sciagamy z wyprzedzeniem — rejestr kupowanych dzwiekow
     // jest LENIWY z zalozenia (zeby nie obciazac gracza towarem, ktorego nie kupil),
     // wiec bez tego pierwsze H w meczu czekaloby na siec.
@@ -4441,6 +4692,7 @@ app.ticker.add((rawDelta) => {
  * (lastShotTime, stealth) w PlayerSimState; dzwiek/questy tylko u gracza tego urzadzenia.
  */
 function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
+    if (p.hp <= 0) return; // COOP LAN-2a
     if (!effects || !currentSession) return;
     const isLocal = p === localPlayer;
     const pst = simOf(p);
@@ -4533,6 +4785,17 @@ function runLogicStep(delta: number): void {
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
     // snieg, pady, serca, kostki mocy) i callback na takeDamage() przegapilby leczenie.
     // Koszt: jedno dzielenie na krok logiki, po czym latch zamyka temat na caly mecz.
+    // COOP LAN-2a: odrodzenie lezacego goscia przy hoscie (tymczasowo — podnoszenie przez kolege = LAN-4).
+    for (const p of players) {
+        const ps0 = simOf(p);
+        if (ps0.respawnAt > 0 && simNowMs() >= ps0.respawnAt) {
+            ps0.respawnAt = 0;
+            p.hp = p.maxHp;
+            p.x = localPlayer.x + 70; p.y = localPlayer.y;
+            p.container.visible = true;
+            effects.spawnEnemyHitSparks(p.x, p.y, 0x39d98a);
+        }
+    }
     for (const p of players) { // COOP S5: latch per gracz, glos tylko u gracza tego urzadzenia
         const st = simOf(p);
         if (!st.lowHpVoiceFired && p.hp / p.maxHp < LOW_HP_VOICE_AT) {
@@ -4624,6 +4887,11 @@ function runLogicStep(delta: number): void {
     // COOP S6: od tego miejsca krok czyta sterowanie WYLACZNIE z PlayerInput gracza.
     logicTick++;
     const localInput = collectLocalInput(mouseWorldX, mouseWorldY);
+    if (guestPlayer) { // COOP LAN-2a: dash/moc goscia przyszly po 'rel' — wchodza do jego wejscia na TEN krok
+        const gi = playerInputs.get(guestPlayer);
+        if (gi) { gi.dash = pendingGuestDash; gi.superSlot = pendingGuestSlot; }
+        pendingGuestDash = false; pendingGuestSlot = -1;
+    }
     for (const [ip, inp] of playerInputs) applyPlayerActions(ip, inp);
     if (gameState !== 'PLAYING') return; // moc (np. mega bomba) mogla zakonczyc mecz
 
@@ -5040,6 +5308,12 @@ function runLogicStep(delta: number): void {
 
         localPlayer.update(delta, localInput, buildings, effects, damageSmoke); // COOP S6
     }
+    // COOP LAN-2a: pozostali gracze (gosc u hosta) — ta sama sciezka z ICH wejscia.
+    for (const [ip, inp] of playerInputs) {
+        if (ip === localPlayer || ip.hp <= 0) continue;
+        ip.firing = inp.fire;
+        ip.update(delta, inp, buildings, effects, null);
+    }
 
     if (currentSession.config.map === 'desert' && localPlayer.isMoving) {
         sandKickFrameCounter++;
@@ -5066,7 +5340,7 @@ function runLogicStep(delta: number): void {
                 hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
                 audio.playHeartPickup();
                 QuestService.track('medi_pad'); // PROG-F3
-            }
+            } else coopNotify(pp, 'hud.mediPadHeal', { hp: 100 }, '#2ecc71'); // LAN-3b
         }
     }
     for (const pad of powerPads) {
@@ -5079,7 +5353,7 @@ function runLogicStep(delta: number): void {
                 effects.shake(5, 8);
                 hud.addNotif(t('hud.turboBoost', { sec: Math.round(result.durationMs / 1000) }), '#ffcc00');
                 audio.playMagnetPickup();
-            }
+            } else coopNotify(pp, 'hud.turboBoost', { sec: Math.round(result.durationMs / 1000) }, '#ffcc00');
         }
     }
 
@@ -5096,7 +5370,7 @@ function runLogicStep(delta: number): void {
                     QuestService.track('heart'); // PROG-F3
                     hud.addNotif(t('hud.heartHeal', { hp: h.healAmount }), '#ff3366');
                     audio.playHeartPickup();
-                }
+                } else coopNotify(hpl, 'hud.heartHeal', { hp: h.healAmount }, '#ff3366');
                 h.destroy();
                 hearts.splice(i, 1);
             }
@@ -5131,7 +5405,7 @@ function runLogicStep(delta: number): void {
                     if (gp === localPlayer) {
                         hud.addNotif(t('hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: gp.superCharges }), '#c850ff');
                         effects.shake(4, 8);
-                    }
+                    } else coopNotify(gp, 'hud.superCharge', { count: SUPER_CHARGES_PER_TRIGGER, total: gp.superCharges }, '#c850ff');
                 }
 
                 gems.splice(i, 1);
@@ -5255,7 +5529,7 @@ function runLogicStep(delta: number): void {
                     hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
                     audio.playMagnetPickup();
                     QuestService.track('magnet'); // PROG-F3
-                }
+                } else coopNotify(mp, 'hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }, '#e74c3c');
                 m.destroy();
                 magnets.splice(i, 1);
             }
@@ -5400,7 +5674,7 @@ function runLogicStep(delta: number): void {
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING
-            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { if (queenSystem) queenSystem.onPlayerDied(); triggerGameOver(); return; } } // OBRON ZAMEK F3: respawn zamiast konca
+            if (playerDied && !coopHandleDeath(hitP)) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { if (queenSystem) queenSystem.onPlayerDied(); triggerGameOver(); return; } } // OBRON ZAMEK F3: respawn zamiast konca; COOP LAN-2a: gosc sie odradza
         }
     }
 
@@ -5476,7 +5750,7 @@ function runLogicStep(delta: number): void {
         // COOP S5: taran trafia pierwszego NIEUKRYTEGO gracza w zasiegu.
         let ramP: Player | null = null;
         for (const p of players) {
-            if (simOf(p).stealthActive) continue;
+            if (p.hp <= 0 || simOf(p).stealthActive) continue;
             if ((p.x - enemy.x) ** 2 + (p.y - enemy.y) ** 2 < collisionDist * collisionDist) { ramP = p; break; }
         }
         const ramSanct = ramP === localPlayer && ctfSanctuary; // sanktuaria trybow poza MVP = gracz lokalny
@@ -5534,7 +5808,7 @@ function runLogicStep(delta: number): void {
                     audio.playHit('player');
                 }
             }
-            if (playerDied) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { if (queenSystem) queenSystem.onPlayerDied(); triggerGameOver(); return; } } // OBRON ZAMEK F3
+            if (playerDied && !coopHandleDeath(ramP)) { if (castleSystem) castleSystem.onPlayerDied(localPlayer); else { if (queenSystem) queenSystem.onPlayerDied(); triggerGameOver(); return; } } // OBRON ZAMEK F3; COOP LAN-2a
         }
 
         for (let j = bullets.length - 1; j >= 0; j--) {

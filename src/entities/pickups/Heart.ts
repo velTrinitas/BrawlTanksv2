@@ -103,6 +103,12 @@ export class Heart {
      * COOP S4: krok SYMULACJI — tylko decyzja o wygasnieciu (active=false). Zero PIXI.
      * Sprzatanie sprite = destroy() wolane przez wlasciciela tablicy (main.ts).
      */
+    /** COOP LAN-3b: pozycja z migawki hosta — TYLKO widok (u goscia pickup nie ma wlasnej logiki). */
+    setViewPos(x: number, y: number): void {
+        this.x = x; this.y = y;
+        this.sprite.x = x; this.sprite.y = y; this.sprite.zIndex = y + 5;
+    }
+
     stepSim(): void {
         if (this.active && simNowMs() - this.bornAt > Heart.LIFETIME_MS) this.active = false;
     }

@@ -1207,5 +1207,7 @@ export const en: typeof pl = {
     'coop.endWin': 'Your friend won the match! 🏆',
     'coop.endLose': 'Your friend\'s match is over.',
     'coop.spectate': 'SPECTATING - friend\'s game',
+    'coop.partnerDown': 'YOUR FRIEND IS DOWN - BACK IN 5 S',
+    'coop.respawning': 'You got hit! Back in a moment...',
     'coop.waitHost': 'Waiting for your friend to start the match...',
 };

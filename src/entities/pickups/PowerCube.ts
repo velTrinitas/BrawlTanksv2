@@ -59,12 +59,13 @@ export class PowerCube {
     private rot: number;
     private sparkleTimer: number = 0;
 
-    constructor(x: number, y: number, worldContainer: PIXI.Container) {
+    /** @param forcedType COOP LAN-3b: typ z migawki hosta (gosc NIE losuje — worldRng nietkniety). */
+    constructor(x: number, y: number, worldContainer: PIXI.Container, forcedType?: PowerCubeType) {
         sigmaEmit({ t: 'spawn', kind: 'cube', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)
         this.x = x;
         this.y = y;
 
-        this.type = worldRng.chance(0.5) ? 'dmg' : 'hp'; // Z0.1: seeded (typ kostki = gameplay)
+        this.type = forcedType ?? (worldRng.chance(0.5) ? 'dmg' : 'hp'); // Z0.1: seeded (typ kostki = gameplay)
         this.pulse = Math.random() * Math.PI * 2;
         this.rot = Math.random() * Math.PI * 2;
 
@@ -107,6 +108,12 @@ export class PowerCube {
     }
 
     /** Animacja: bobbing + breathing + rotation + sparkle. */
+    /** COOP LAN-3b: pozycja z migawki hosta — TYLKO widok (u goscia pickup nie ma wlasnej logiki). */
+    setViewPos(x: number, y: number): void {
+        this.x = x; this.y = y;
+        this.container.x = x;
+    }
+
     update(delta: number): void {
         if (!this.active) return;
 

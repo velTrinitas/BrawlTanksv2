@@ -30,6 +30,8 @@ export interface CoopStartMsg {
     map: GameConfig['map'];
     difficulty: GameConfig['difficulty'];
     hostBrawlerId: string;
+    /** LAN-3b: flaga hosta (gosc wypieka czolg hosta z wlasciwa flaga). */
+    hostFlagId?: string | null;
     rngSeed: number;
 }
 
@@ -49,10 +51,33 @@ export function consumeHostStartRequest(): boolean {
     return r;
 }
 
+/** LAN-3b: czolg KOLEGI w biezacym meczu (wypiekany przy starcie po obu stronach). */
+let partnerLook: { brawlerId: string; flagId: string | null } | null = null;
+export function setPartnerLook(p: { brawlerId: string; flagId: string | null } | null): void { partnerLook = p; }
+export function getPartnerLook(): { brawlerId: string; flagId: string | null } | null { return partnerLook; }
+
 export function sendRel(obj: Record<string, unknown>): void {
     coopSession.connection?.sendRel(obj);
 }
 
 export function sendFast(buf: ArrayBuffer): void {
     coopSession.connection?.sendFast(buf);
+}
+
+// ── LAN-2a: profil goscia (czolg, flaga, moce) — gosc wysyla po polaczeniu, host trzyma do startu ──
+export interface CoopPeerProfile { brawlerId: string; flagId: string | null; loadout: [string, string, string] }
+
+let peerProfile: CoopPeerProfile | null = null;
+let localBrawlerProvider: (() => string) | null = null;
+
+/** Hub ustawia zrodlo czolgu wybranego w BITWIE (gosc wysyla go hostowi). */
+export function setLocalBrawlerProvider(fn: () => string): void { localBrawlerProvider = fn; }
+export function localBrawlerId(): string | null { return localBrawlerProvider?.() ?? null; }
+
+export function setPeerProfile(p: CoopPeerProfile | null): void { peerProfile = p; }
+export function getPeerProfile(): CoopPeerProfile | null { return peerProfile; }
+
+export function isCoopProfileMsg(m: Record<string, unknown> | null): m is Record<string, unknown> & { t: 'profile' } & CoopPeerProfile {
+    return !!m && m.t === 'profile' && typeof m.brawlerId === 'string'
+        && Array.isArray(m.loadout) && m.loadout.length === 3 && m.loadout.every(x => typeof x === 'string');
 }

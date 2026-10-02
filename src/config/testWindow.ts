@@ -42,7 +42,14 @@ const DAY_MS = 86_400_000;
  */
 export const TEST_EXPIRES_AT: number | null = (() => {
     const raw = import.meta.env.VITE_TEST_EXPIRES;
-    if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) return null;
+    if (typeof raw !== 'string') return null;
+    // v0.228.0: opcjonalna GODZINA — 'RRRR-MM-DDTHH:MM' = blokada DOKLADNIE wtedy (czas lokalny).
+    const mt = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(raw.trim());
+    if (mt) {
+        const at = new Date(+mt[1], +mt[2] - 1, +mt[3], +mt[4], +mt[5]);
+        return Number.isNaN(at.getTime()) ? null : at.getTime();
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) return null;
     const [y, m, d] = raw.trim().split('-').map(Number);
     // Konstruktor z trzema argumentami = POLNOC LOKALNA (nie UTC) — patrz naglowek.
     const lastDay = new Date(y, m - 1, d);

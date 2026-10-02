@@ -169,6 +169,22 @@ export class IceCube implements ICollidable {
         }
     }
 
+    /**
+     * COOP LAN-3b: stan do migawki hosta (0..2 = etap uszkodzenia, 255 = zniszczony) i jego
+     * zastosowanie u goscia — TEN SAM wizual rozpadu/odrodzenia, ale bez dropow i bez wlasnego
+     * zegara odrodzenia (o odrodzeniu decyduje host).
+     */
+    public netState(): number { return this.isDestroyed ? 255 : this.stage; }
+    public applyNetState(s: number): void {
+        if (s === 255) {
+            if (!this.isDestroyed) { const cb = this.onShatter; this.onShatter = null; this.shatter(); this.onShatter = cb; }
+            this.respawnTimer = 1e9;
+            return;
+        }
+        if (this.isDestroyed) this.respawn();
+        if (s !== this.stage && s >= 0 && s <= 2) { this.stage = s; this.sprite.texture = getIceCubeTexture(this.variant, s).tex; }
+    }
+
     /** Padded hitbox dla PLAYER collision (wzorzec Crate v0.34.1) — do buildings[]. */
     public getExtraCollidables(): ICollidable[] {
         const self = this;

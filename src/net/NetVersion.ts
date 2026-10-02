@@ -11,7 +11,7 @@ import { balanceRulesetId } from '../config/balanceFlag';
 import { CURSE_RULESET_ID } from '../config/desertCurse';
 
 /** Wersja protokolu sieciowego (format komunikatow kanalow danych). Bij przy kazdej zmianie. */
-export const NET_PROTOCOL_VERSION = 2; // 2 = LAN-3a: start meczu + migawki (Snapshot.ts)
+export const NET_PROTOCOL_VERSION = 4; // 2 = LAN-3a: start + migawki; 3 = LAN-2a: profil, wejscie goscia, cooldowny w migawce
 
 export interface NetVersion {
     proto: number;

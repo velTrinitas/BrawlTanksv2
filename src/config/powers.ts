@@ -437,6 +437,8 @@ export const POWERS: Record<PowerId, PowerDef> = {
                 return (dx * dx + dy * dy) < blastR2;
             });
             ctx.effects.spawnMegaBomb(ctx.player.x, ctx.player.y);
+            // v0.233.0: kazdy trafiony wrog dostaje bialy pierscien trafienia (max 8 — budzet puli).
+            for (const e of targets.slice(0, 8)) ctx.effects.spawnRingFx(e.x, e.y, 44, 0xffffff, 12);
             ctx.hud.addNotif(t('hud.megaBombHit', { count: targets.length }), '#ff4400');
             ctx.audio.playSuperActivate('megaBomb');
             return { activated: true, powerId: 'megaBomb', megaBombTargets: targets };
@@ -458,15 +460,21 @@ export const POWERS: Record<PowerId, PowerDef> = {
             // freeze sa mrozeni do tego samego czasu (main.ts czyta system.freezeUntil).
             const freezeUntil = simNowMs() + (POWERS.freeze.durationFrames / 60) * 1000;
             ctx.system.freezeUntil = freezeUntil;
+            let pops = 0;
             for (const enemy of ctx.enemies) {
-                if (enemy.active) enemy.freeze(freezeUntil);
+                if (!enemy.active) continue;
+                enemy.freeze(freezeUntil);
+                if (pops++ < 12) ctx.effects.spawnFrostPop(enemy.x, enemy.y); // lodowy rozblysk (limit 12)
             }
-            ctx.effects.spawnFreezeOverlay(300);
+            // v0.233.0: fala lodu zamiast pelnoekranowej nakladki 5 s (byla najdrozsza na mobile).
+            ctx.effects.spawnFrostWave(ctx.player.x, ctx.player.y);
             ctx.hud.addNotif(t('hud.freezeAll'), '#66ddff');
             ctx.effects.shake(3, 8);
             ctx.audio.playSuperActivate('freeze');
             return { activated: true, powerId: 'freeze' };
         },
+        // v0.233.0: koniec mrozu = lod PEKA na zamrozonych wrogach (spawnIceShatter, limit 12).
+        onEnd: (system, _player, effects) => system.freezeShatter(effects),
     },
     // ── F7b-1: NAPRAWA — pierwsza NOWA moc. Caly wpis = dowod tezy registry:
     //    zero zmian w PowerSystem/main.ts poza generycznymi sciezkami. ──
@@ -497,13 +505,13 @@ export const POWERS: Record<PowerId, PowerDef> = {
             system.channelRingTick(player.x, player.y, 0x2ecc71);
             // Iskry z poola co ~20 klatek. ZERO spawnFloatingText w petli (rasteryzacja
             // PIXI.Text = najdrozsza operacja — uwaga z przegladu).
-            if (system.framesLeft % 20 < delta) {
-                effects.spawnEnemyHitSparks(player.x, player.y - 10, 0x2ecc71);
-            }
+            // v0.233.0: zielone plusy plynace w gore (pula 8) zamiast iskier.
+            if (system.framesLeft % 9 < delta) effects.spawnHealPlus(player.x, player.y);
         },
         onEnd: (system, player, effects) => {
             system.channelRingHide();
-            effects.spawnEnemyHitSparks(player.x, player.y, 0x2ecc71);
+            effects.spawnBlastFx(player.x, player.y, 70, 0x2ecc71, false); // zielony rozblysk konca leczenia
+            effects.spawnFloatingText(player.x, player.y - 46, '+HP', 0x2ecc71);
         },
     },
     // ── F7b-2: WIEZA MG — FIRE-AND-FORGET (wzorzec magnesu: wlasny timer w PowerSystem,
@@ -567,6 +575,7 @@ export const POWERS: Record<PowerId, PowerDef> = {
                                  // dojdzie z designem Aktu III (droga konczy sie dzis na 1500)
         onActivate: (ctx) => {
             ctx.system.ghostSpawn(ctx.player);
+            ctx.effects.spawnPortal(ctx.player.x, ctx.player.y, 0xb39ddb); // v0.233.0: widmo "wychodzi" z portalu
             ctx.hud.addNotif(t('hud.ghostStart'), '#b39ddb');
             ctx.audio.playSuperActivate('ghost');
             return { activated: true, powerId: 'ghost' };

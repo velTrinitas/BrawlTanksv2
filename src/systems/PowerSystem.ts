@@ -3,7 +3,7 @@ import type { Enemy } from '../entities/Enemy';
 import { worldRng } from './Rng'; // Z0.1: seeded gameplay RNG (wizualia zostaja na Math.random)
 import { simNowMs } from './SimClock'; // COOP S1: gameplay timers on the sim clock
 import type { Player } from '../entities/Player';
-import { getGlowTexture, getLaserBeamTexture, getHoleFunnelTexture, getAuraBubbleTexture, getAuraHexTexture, type EffectsManager } from '../rendering/Effects';
+import { getGlowTexture, getRingTexture, getLaserBeamTexture, getHoleFunnelTexture, getAuraBubbleTexture, getAuraHexTexture, type EffectsManager } from '../rendering/Effects';
 import {
     POWERS, POWER_ORDER, TOWER_CONFIG, ROCKETS_CONFIG, GHOST_CONFIG, MINES_CONFIG,
     BUILDER_CONFIG, STRIKE_CONFIG, HOLE_CONFIG, LASER_CONFIG, PONG_CONFIG,
@@ -52,6 +52,32 @@ const TOWER_SQUASH_FRAMES = 6;  // przysiad po ladowaniu (squash & stretch)
  * Loadout wstrzykiwany w konstruktorze (system powstaje od nowa per mecz w startGame;
  * reset() nie istnieje — nie byl nigdzie wolany).
  */
+let _sandbagTex: PIXI.Texture | null = null;
+/** v0.233.0 (MOCE JUICY cz.1): worek muru — cieniowany, z cieniem na ziemi, pieczony RAZ. */
+function getSandbagTexture(size: number): PIXI.Texture {
+    if (_sandbagTex) return _sandbagTex;
+    const pad = 6, W = size + pad * 2, H = size + pad * 2;
+    const c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2;
+    const ctx = c.getContext('2d')!;
+    ctx.scale(2, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(W / 2 + 2, H / 2 + size / 2 - 1, size / 2 + 2, 5, 0, 0, Math.PI * 2); ctx.fill();
+    const rows = [[pad, pad, size, size / 2 - 1], [pad, pad + size / 2 + 1, size, size / 2 - 1]];
+    for (const [x, y, w, h] of rows) {
+        const gr = ctx.createLinearGradient(0, y, 0, y + h);
+        gr.addColorStop(0, '#e6c48a'); gr.addColorStop(0.5, '#c9a36a'); gr.addColorStop(1, '#8f6c3c');
+        ctx.fillStyle = gr; ctx.strokeStyle = '#6e5028'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(x, y, w, h, 5); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,240,200,0.55)'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(x + 4, y + 3); ctx.lineTo(x + w - 4, y + 3); ctx.stroke();
+        ctx.strokeStyle = 'rgba(80,55,25,0.6)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + w / 2, y + 2); ctx.lineTo(x + w / 2, y + h - 2); ctx.stroke();
+    }
+    _sandbagTex = PIXI.Texture.from(c);
+    _sandbagTex.baseTexture.setResolution(2);
+    return _sandbagTex;
+}
+
 export class PowerSystem {
     /** 3 sloty z GARAZU, rozwiazane pod scenariusz (resolveLoadoutForMatch w startGame). */
     public readonly loadout: readonly [PowerId, PowerId, PowerId];
@@ -111,6 +137,10 @@ export class PowerSystem {
     // w kontenerze ze scale.y=TILT (elipsa obrotu = tania perspektywa) + zrzut z nieba
     // z przysiadem, kurzem i wstrzasem w klatce LADOWANIA.
     private towerShadow: PIXI.Graphics | null = null;
+    /** v0.233.0: okrag zasiegu wiezy na ziemi (rysowany RAZ; Czytelnosc — widac, co broni). */
+    private towerRange: PIXI.Graphics | null = null;
+    /** v0.233.0: wrogowie z biezacego ticku (koniec Mrozu peka lod na zamrozonych). */
+    private tickEnemies: Enemy[] = [];
     // v0.189.0: Sprite (baker 2.5D) albo Graphics przy `?towerbake=0` — obie klasy maja
     //  x/y/alpha/scale/zIndex, wiec animacje zrzutu i przysiadu dzialaja tak samo.
     private towerBody: PIXI.Container | null = null;
@@ -177,7 +207,7 @@ export class PowerSystem {
     // ── F7b-6: BUILDER — druga "moc jazdy". Segment muru = REALNY collider w swiecie;
     // collidery wstawia/usuwa main.ts przez wallSpawner (zwraca remover albo null =
     // miejsce niedozwolone). PowerSystem trzyma okno/odometr/budzet + wizuale + timery.
-    private wallVisuals: PIXI.Graphics[] = [];
+    private wallVisuals: PIXI.Sprite[] = []; // v0.233.0: pieczony worek (sprite) zamiast Graphics
     private wallsActive: Array<{
         vi: number;
         x: number; y: number;
@@ -579,6 +609,7 @@ export class PowerSystem {
         // F7b: onTick dostaje DELTE (efekty narastajace w czasie, np. heal, musza byc
         // odporne na FPS) + effects (iskry z poola).
         if (this.activePowerId !== null) {
+            this.tickEnemies = enemies;
             const def = getPowerDef(this.activePowerId);
             this.framesLeft -= delta;
             def?.onTick?.(this, player, delta, effects);
@@ -619,6 +650,16 @@ export class PowerSystem {
             sp.x = Math.cos(a) * 62;
             sp.y = Math.sin(a) * 62;
             sp.alpha = (0.6 + 0.4 * Math.sin(now / 70 + i)) * blink;
+        }
+    }
+
+    /** v0.233.0: koniec Mrozu — lod peka na zamrozonych wrogach (limit 12, tylko wizual). */
+    freezeShatter(effects: EffectsManager): void {
+        let n = 0;
+        for (const e of this.tickEnemies) {
+            if (!e.active) continue;
+            effects.spawnIceShatter(e.x, e.y);
+            if (++n >= 12) break;
         }
     }
 
@@ -701,6 +742,15 @@ export class PowerSystem {
             shadow.endFill();
             this.worldContainer.addChild(shadow);
             this.towerShadow = shadow;
+            const range = new PIXI.Graphics();
+            range.lineStyle(3, 0x4dd7c8, 0.35);
+            range.drawCircle(0, 0, TOWER_CONFIG.range);
+            range.lineStyle(10, 0x4dd7c8, 0.08);
+            range.drawCircle(0, 0, TOWER_CONFIG.range - 6);
+            range.zIndex = 8; // na gruncie, pod wszystkim
+            range.visible = false; // pokazuje sie po ladowaniu
+            this.worldContainer.addChild(range);
+            this.towerRange = range;
 
             if (isTowerBakeEnabled()) {
                 // v0.189.0 FAZA 3 — art pieczony w Canvas 2D (gradienty walca, rzutowany cien, AO).
@@ -813,14 +863,18 @@ export class PowerSystem {
         this.towerFramesLeft = 0;
         this.towerTarget = null;
         if (!this.towerBody && !this.towerTurret && !this.towerShadow) return;
-        if (effects) effects.spawnEnemyHitSparks(this.towerX, this.towerY - TOWER_TOP_LIFT, 0x4dd7c8);
-        for (const d of [this.towerShadow, this.towerBody, this.towerTurretWrap]) {
+        if (effects) {
+            effects.spawnTowerDeployDust(this.towerX, this.towerY); // v0.233.0: wieza zapada sie w kurz
+            effects.spawnRingFx(this.towerX, this.towerY, 70, 0x4dd7c8, 14);
+        }
+        for (const d of [this.towerShadow, this.towerBody, this.towerTurretWrap, this.towerRange]) {
             if (d) {
                 if (d.parent) d.parent.removeChild(d);
                 d.destroy({ children: true }); // wrap niszczy lufe razem ze soba
             }
         }
         this.towerShadow = null;
+        this.towerRange = null;
         this.towerBody = null;
         this.towerTurretWrap = null;
         this.towerTurret = null;
@@ -858,6 +912,8 @@ export class PowerSystem {
                 this.towerDropLeft = 0;
                 this.towerSquashLeft = TOWER_SQUASH_FRAMES;
                 effects.spawnTowerDeployDust(this.towerX, this.towerY);
+                effects.spawnRingFx(this.towerX, this.towerY, 110, 0x4dd7c8, 16); // v0.233.0: fala ladowania
+                if (this.towerRange) { this.towerRange.visible = true; this.towerRange.x = this.towerX; this.towerRange.y = this.towerY; }
                 effects.shake(6, 8); // wstrzas w klatce LADOWANIA (thud w SFX wypada tu)
             }
             this.towerApplyDropOffset();
@@ -911,7 +967,7 @@ export class PowerSystem {
                 // czasteczek, wiec zero nowego kosztu poza kilkoma spritami na strzal.
                 effects.spawnMuzzleFlash(mx, my, a);
                 effects.spawnMuzzleFlash(mx - Math.cos(this.towerAngle) * 7, my - Math.sin(this.towerAngle) * 7, a);
-                effects.spawnEnemyHitSparks(mx, my, 0x4dd7c8);
+                // v0.233.0: bez iskier na kazdy strzal (10/s zapychalo pule czastek innym efektom).
                 this.towerBulletSpawner(mx, my, a);
             }
         }
@@ -929,6 +985,7 @@ export class PowerSystem {
         body.alpha = alpha;
         wrap.alpha = alpha;
         if (this.towerShadow) this.towerShadow.alpha = alpha;
+        if (this.towerRange) this.towerRange.alpha = alpha;
     }
 
     // ── F7b-3: SALWA RAKIET (spec: sim v6 134-139/459-467 — stagger/steering/dumb-fire) ──
@@ -975,6 +1032,10 @@ export class PowerSystem {
         flame.drawPolygon([-1, -1.8, -7, 0, -1, 1.8]);    // zar wewnetrzny
         flame.endFill();
         flame.x = -8;
+        const glow = new PIXI.Sprite(getGlowTexture()); // v0.233.0: poswiata dyszy (ADD)
+        glow.anchor.set(0.5); glow.tint = 0xff8a2a; glow.blendMode = PIXI.BLEND_MODES.ADD;
+        glow.x = -12; glow.scale.set(0.9, 0.6);
+        c.addChild(glow);
         c.addChild(flame);
         const body = new PIXI.Graphics();
         body.beginFill(0xc94f1f);                          // stateczniki (za kadlubem)
@@ -1033,6 +1094,7 @@ export class PowerSystem {
                 v.c.rotation = ang;
                 AudioSys.getInstance().playRocketLaunch();
                 effects.spawnMuzzleFlash(this.rocketOriginX, this.rocketOriginY, ang);
+                effects.shake(2, 3); // v0.233.0: kazdy start "kopie"
             }
         }
 
@@ -1070,7 +1132,10 @@ export class PowerSystem {
                 this.rocketVisuals[r.vi].c.visible = false;
                 this.rocketsActive.splice(i, 1);
                 AudioSys.getInstance().playRocketBoom(); // dzwiek = sygnatura mocy (wolajacy)
-                this.aoeExplode(r.x, r.y, ROCKETS_CONFIG.explosionRadius, ROCKETS_CONFIG.explosionDmg);
+                // v0.233.0: wlasny wybuch ADD (quiet = bez generycznego fireballa — pula czastek 200).
+                effects.spawnBlastFx(r.x, r.y, ROCKETS_CONFIG.explosionRadius, 0xff9f43, true);
+                effects.shake(3, 5);
+                this.aoeExplode(r.x, r.y, ROCKETS_CONFIG.explosionRadius, ROCKETS_CONFIG.explosionDmg, true);
                 continue;
             }
 
@@ -1104,7 +1169,12 @@ export class PowerSystem {
         const ring = new PIXI.Graphics();
         // Przerywany krag-aura wabienia (sim: dash 8/8 na r60) — 10 segmentow RAZ,
         // potem tylko rotacja + puls skali (zero redraw).
-        ring.lineStyle(2, 0xb39ddb, 0.45);
+        // v0.233.0: grubszy, swiecacy krag + poswiata pod widmem (czytelna strefa prowokacji).
+        const halo = new PIXI.Sprite(getGlowTexture());
+        halo.anchor.set(0.5); halo.tint = 0x9b6dff; halo.blendMode = PIXI.BLEND_MODES.ADD;
+        halo.scale.set(150 / 32, 110 / 32); halo.alpha = 0.7;
+        c.addChild(halo);
+        ring.lineStyle(4, 0xd1b3ff, 0.85);
         for (let i = 0; i < 10; i++) {
             const a0 = (i / 10) * Math.PI * 2;
             ring.moveTo(Math.cos(a0) * 60, Math.sin(a0) * 60);
@@ -1181,9 +1251,11 @@ export class PowerSystem {
         if (this.ghostFramesLeft <= 0) {
             const x = this.ghostX, y = this.ghostY;
             this.ghostDespawn();
-            effects.spawnEnemyHitSparks(x, y, 0xb39ddb); // fioletowy puff rozplyniecia
             AudioSys.getInstance().playRocketBoom(); // dzwiek = sygnatura mocy (wolajacy)
-            this.aoeExplode(x, y, GHOST_CONFIG.endExplosionRadius, GHOST_CONFIG.endExplosionDmg);
+            effects.spawnBlastFx(x, y, GHOST_CONFIG.endExplosionRadius, 0xb39ddb, false); // v0.233.0
+            effects.spawnRingFx(x, y, GHOST_CONFIG.endExplosionRadius * 1.3, 0xd1b3ff, 20);
+            effects.shake(5, 8);
+            this.aoeExplode(x, y, GHOST_CONFIG.endExplosionRadius, GHOST_CONFIG.endExplosionDmg, true);
             return;
         }
 
@@ -1238,6 +1310,9 @@ export class PowerSystem {
         plate.moveTo(-11, 0); plate.lineTo(11, 0); // zebra talerza (krzyz)
         plate.moveTo(0, -11); plate.lineTo(0, 11);
         plate.lineStyle(0);
+        plate.lineStyle(2, 0xa7b1bc, 0.9);         // v0.233.0: jasna obwodka — talerz widoczny na gruncie
+        plate.drawCircle(0, 0, 12.5);
+        plate.lineStyle(0);
         plate.beginFill(0x555c64, 0.9);            // srodkowy garb zapalnika
         plate.drawCircle(0, 0, 4.5);
         plate.endFill();
@@ -1247,6 +1322,9 @@ export class PowerSystem {
         diode.drawCircle(0, 0, 2.2);
         diode.endFill();
         diode.y = -6;
+        const dglow = new PIXI.Sprite(getGlowTexture()); // v0.233.0: dioda swieci (ADD, miga z dioda)
+        dglow.anchor.set(0.5); dglow.tint = 0xff3b3b; dglow.blendMode = PIXI.BLEND_MODES.ADD; dglow.scale.set(0.7);
+        diode.addChild(dglow);
         c.addChild(diode);
         this.worldContainer.addChild(c);
         this.mineVisuals.push({ c, diode });
@@ -1280,7 +1358,7 @@ export class PowerSystem {
                     v.c.y = my;
                     v.c.zIndex = my - 2; // plasko na gruncie — czolgi przejezdzaja NAD talerzem
                     this.minesArmed.push({ vi, x: mx, y: my, fuse: MINES_CONFIG.fuseFrames });
-                    effects.spawnEnemyHitSparks(mx, my, 0xff8a80); // puff zrzutu (sensoryka)
+                    effects.spawnRingFx(mx, my, 28, 0xff5252, 12); // v0.233.0: "uzbrojenie" miny
                     AudioSys.getInstance().playMineDrop(); // klik zatrzasku per mina
                 }
             }
@@ -1294,10 +1372,11 @@ export class PowerSystem {
                 this.mineVisuals[m.vi].c.visible = false;
                 this.minesArmed.splice(i, 1);
                 // "Swietna eksplozja" (sim): podwojny ring + mocniejszy wstrzas + AoE kill-path.
-                effects.spawnShockwaveRing(m.x, m.y, MINES_CONFIG.explosionRadius);
+                effects.spawnShockwaveRing(m.x, m.y, MINES_CONFIG.explosionRadius, 0xff5a2a); // v0.233.0: czerwony (byl domyslny fiolet)
+                effects.spawnBlastFx(m.x, m.y, MINES_CONFIG.explosionRadius, 0xff5a2a, true);
                 effects.shake(8, 10);
                 AudioSys.getInstance().playMineExplosion(); // SP_tank_mine (asset Mariusza)
-                this.aoeExplode(m.x, m.y, MINES_CONFIG.explosionRadius, MINES_CONFIG.explosionDmg);
+                this.aoeExplode(m.x, m.y, MINES_CONFIG.explosionRadius, MINES_CONFIG.explosionDmg, true);
                 continue;
             }
             // Dioda: miga; ostatnie 1.5s — szybciej (sim: freq 26 vs 10). Transform alpha only.
@@ -1333,22 +1412,9 @@ export class PowerSystem {
         for (let i = 0; i < this.wallVisuals.length; i++) {
             if (!this.wallVisuals[i].visible) return i;
         }
-        const g = new PIXI.Graphics();
-        const s = BUILDER_CONFIG.segmentSize / 2; // 15
-        g.beginFill(0xc9a36a);                    // cialo worka
-        g.drawRoundedRect(-s, -s, s * 2, s * 2, 5);
-        g.endFill();
-        g.beginFill(0xb58d55);                    // dwa ciemniejsze pasy (warstwy workow)
-        g.drawRoundedRect(-s, -s, s * 2, 9, 4);
-        g.drawRoundedRect(-s, 6, s * 2, 9, 4);
-        g.endFill();
-        g.lineStyle(2, 0x8a6a3c);
-        g.drawRect(-s, -s, s * 2, s * 2);         // obrys
-        g.moveTo(0, -s); g.lineTo(0, -6);         // fugi cegiel (przesuniete rzedy)
-        g.moveTo(-7, -6); g.lineTo(-7, 6);
-        g.moveTo(7, -6); g.lineTo(7, 6);
-        g.moveTo(0, 6); g.lineTo(0, s);
-        g.lineStyle(0);
+        // v0.233.0: pieczony worek z cieniowaniem + cien na ziemi (raz na gre, wspolna tekstura).
+        const g = new PIXI.Sprite(getSandbagTexture(BUILDER_CONFIG.segmentSize));
+        g.anchor.set(0.5, 0.5);
         this.worldContainer.addChild(g);
         this.wallVisuals.push(g);
         return this.wallVisuals.length - 1;
@@ -1402,11 +1468,14 @@ export class PowerSystem {
                 w.remove(); // NAJPIERW collider (niewidzialna sciana = smiertelny grzech Czytelnosci)
                 g.visible = false;
                 this.wallsActive.splice(i, 1);
-                effects.spawnEnemyHitSparks(w.x, w.y, 0xb58d55); // puff rozsypania
+                effects.spawnSandstoneCrumble(w.x, w.y); // v0.233.0: worek rozsypuje sie w piach
                 continue;
             }
             if (w.age < BUILDER_CONFIG.growFrames) {
-                g.scale.set(Math.min(1, w.age / BUILDER_CONFIG.growFrames));
+                // v0.233.0: wejscie z ODBICIEM (easeOutBack) zamiast liniowego rosniecia
+                const p = Math.min(1, w.age / BUILDER_CONFIG.growFrames);
+                const c1 = 2.2, c3 = c1 + 1;
+                g.scale.set(Math.max(0.1, 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2)));
             } else if (g.scale.x !== 1) {
                 g.scale.set(1);
             }

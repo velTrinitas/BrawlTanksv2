@@ -5666,6 +5666,7 @@ function runLogicStep(delta: number): void {
         // przelatywac przez niego i trafiac gracza stojacego za nim.
         if (ghostAbsorbsAny(eb.x, eb.y)) { // COOP S7
             effects.spawnEnemyHitSparks(eb.x, eb.y, 0xb39ddb);
+            effects.spawnRingFx(eb.x, eb.y, 30, 0xd1b3ff, 10); // v0.233.0: widmo "polyka" pocisk
             eb.deactivate();
             enemyBullets.splice(i, 1);
             enemyBulletPool.push(eb); // POOLING

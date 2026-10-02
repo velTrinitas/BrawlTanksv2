@@ -87,7 +87,7 @@ function getConeTexture(): PIXI.Texture {
     return _coneTexture;
 }
 /** Pierscien 64x64 (cienki, miekki brzeg) — skalowany w gore + fade = fala trafienia. */
-function getRingTexture(): PIXI.Texture {
+export function getRingTexture(): PIXI.Texture {
     if (_ringTexture) return _ringTexture;
     const c = document.createElement('canvas'); c.width = 64; c.height = 64;
     const ctx = c.getContext('2d')!;
@@ -192,6 +192,20 @@ export function getAuraHexTexture(): PIXI.Texture {
     ctx.fillStyle = m; ctx.fillRect(0, 0, 128, 128);
     _auraHexTexture = PIXI.Texture.from(c);
     return _auraHexTexture;
+}
+
+let _plusTexture: PIXI.Texture | null = null;
+/** MOCE JUICY cz.1 (v0.233.0) — gruby plus 32x32 z miekka krawedzia (Naprawa, tint = kolor). */
+export function getPlusTexture(): PIXI.Texture {
+    if (_plusTexture) return _plusTexture;
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+    const ctx = c.getContext('2d')!;
+    ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = 5;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(12, 4, 8, 24);
+    ctx.fillRect(4, 12, 24, 8);
+    _plusTexture = PIXI.Texture.from(c);
+    return _plusTexture;
 }
 
 let _laserBeamTexture: PIXI.Texture | null = null;
@@ -391,6 +405,9 @@ export class EffectsManager {
     private fxMarks: FxSprite[] = [];
     /** LASER v3: rozblyski anihilacji (glow ADD, rosna i gasna). */
     private fxGlows: FxSprite[] = [];
+    /** MOCE JUICY cz.1: plusy leczenia plynace w gore (pula 8). */
+    private fxPluses: FxSprite[] = [];
+    private static readonly MAX_FX_GLOWS = 16;
     private static readonly MAX_BULLET_MARKS = 8;
 
     constructor(worldContainer: PIXI.Container) {
@@ -499,7 +516,7 @@ export class EffectsManager {
      * Koszt: 2 sprite'y z puli + ~22 czastki z istniejacej puli; wolajacy limituje liczbe na tick.
      */
     spawnLaserAnnihilation(x: number, y: number): void {
-        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, 8);
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
         g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xffd0ee; g.sprite.alpha = 1;
         g.sprite.scale.set(2.5); g.life = 1; g.max = 16; g.grow = 0.45;
         const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
@@ -527,7 +544,7 @@ export class EffectsManager {
 
     /** AURA v3 — koniec tarczy: banka PEKA w zlote odlamki (blysk + pierscien + odlamki). */
     spawnAuraShatter(x: number, y: number): void {
-        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, 8);
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
         g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xffe680; g.sprite.alpha = 1;
         g.sprite.scale.set(3.5); g.life = 1; g.max = 14; g.grow = 0.35;
         const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
@@ -546,11 +563,69 @@ export class EffectsManager {
 
     /** CZARNA DZIURA v3 — implozja na koniec: fioletowy blysk zapadajacy sie + drobiny. */
     spawnHoleCollapse(x: number, y: number): void {
-        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, 8);
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
         g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xc4b5fd; g.sprite.alpha = 1;
         g.sprite.scale.set(9); g.life = 1; g.max = 18; g.grow = -0.45;
         this.spawnParticles(x, y, 0xa78bfa, 16, { speed: 8, size: 2.6, decay: 0.05, spread: 1.0 });
         this.spawnParticles(x, y, 0xffffff, 6, { speed: 10, size: 1.8, decay: 0.08, spread: 1.0 });
+    }
+
+    // ═══ MOCE JUICY cz.1 (v0.233.0) — wspolne klocki ADD (pule sprite'ow, zero redraw) ═══
+
+    /** Pierscien ADD z puli (tekstura pierscienia rosnie i gasnie) — zamiennik Graphics redraw. */
+    spawnRingFx(x: number, y: number, radius: number, color: number, frames = 16): void {
+        const r = this.acquireFx(this.fxRings, getRingTexture(), this.fxAddLayer, true, 10);
+        r.sprite.anchor.set(0.5); r.sprite.x = x; r.sprite.y = y; r.sprite.rotation = 0;
+        r.sprite.tint = color; r.sprite.alpha = 1;
+        r.sprite.scale.set(0.2); r.life = 1; r.max = frames; r.grow = (radius / 32 - 0.2) / frames;
+    }
+
+    /**
+     * Uniwersalny WYBUCH mocy: bialy blysk + (opcjonalnie) kula ognia z 2 poswiat ADD + pierscien
+     * + iskry w kolorze + kleby dymu. Skala z promienia. Czastek max ~22 na wywolanie (sufit puli 200).
+     */
+    spawnBlastFx(x: number, y: number, radius: number, color: number, fire = true): void {
+        const k = Math.max(0.5, radius / 100);
+        const flash = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
+        flash.sprite.anchor.set(0.5); flash.sprite.x = x; flash.sprite.y = y; flash.sprite.tint = 0xffffff; flash.sprite.alpha = 1;
+        flash.sprite.scale.set(3 * k); flash.life = 1; flash.max = 10; flash.grow = 0.5 * k;
+        if (fire) {
+            const ball = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
+            ball.sprite.anchor.set(0.5); ball.sprite.x = x; ball.sprite.y = y - 6 * k; ball.sprite.tint = 0xff8a1e; ball.sprite.alpha = 1;
+            ball.sprite.scale.set(4 * k); ball.life = 1; ball.max = 26; ball.grow = 0.22 * k;
+            const core = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
+            core.sprite.anchor.set(0.5); core.sprite.x = x; core.sprite.y = y - 10 * k; core.sprite.tint = 0xffe08a; core.sprite.alpha = 1;
+            core.sprite.scale.set(2.4 * k); core.life = 1; core.max = 18; core.grow = 0.16 * k;
+        }
+        this.spawnRingFx(x, y, radius, color, 18);
+        this.spawnParticles(x, y, color, Math.min(14, Math.round(6 + 6 * k)), { speed: 6 * k + 2, size: 2.6, decay: 0.05, scaleDecay: 0.02, spread: 1.0 });
+        this.spawnParticles(x, y, 0xffffff, 4, { speed: 8 * k + 2, size: 1.6, decay: 0.09, spread: 1.0 });
+        if (fire) this.spawnParticles(x, y - 6, 0x5a5550, Math.min(5, Math.round(2 + 2 * k)), { speed: 1.4, size: 5 * k + 2, decay: 0.022, spread: 1.0 });
+    }
+
+    /** NAPRAWA: zielony plus plynacy w gore nad czolgiem (pula 8). */
+    spawnHealPlus(x: number, y: number): void {
+        const p = this.acquireFx(this.fxPluses, getPlusTexture(), this.fxAddLayer, true, 8);
+        p.sprite.anchor.set(0.5);
+        p.sprite.x = x + (Math.random() - 0.5) * 46; p.sprite.y = y - 10 + (Math.random() - 0.5) * 16;
+        p.sprite.tint = Math.random() < 0.3 ? 0xd8ffe4 : 0x3ef08a; p.sprite.alpha = 0;
+        p.sprite.scale.set(0.55 + Math.random() * 0.35); p.life = 1; p.max = 46; p.grow = 0;
+    }
+
+    /** MROZ: fala lodu od gracza (dwa pierscienie ADD + odlamki + blysk). */
+    spawnFrostWave(x: number, y: number): void {
+        const g = this.acquireFx(this.fxGlows, getGlowTexture(), this.fxAddLayer, true, EffectsManager.MAX_FX_GLOWS);
+        g.sprite.anchor.set(0.5); g.sprite.x = x; g.sprite.y = y; g.sprite.tint = 0xbfefff; g.sprite.alpha = 1;
+        g.sprite.scale.set(4); g.life = 1; g.max = 18; g.grow = 0.6;
+        this.spawnRingFx(x, y, 420, 0x66ddff, 26);
+        this.spawnRingFx(x, y, 260, 0xffffff, 18);
+        this.spawnParticles(x, y, 0xdff6ff, 12, { speed: 9, size: 2.2, decay: 0.04, scaleDecay: 0.015, spread: 1.0 });
+        this.spawnParticles(x, y, 0x66ddff, 8, { speed: 6, size: 2.8, decay: 0.035, spread: 1.0 });
+    }
+
+    /** MROZ: lodowy rozblysk na zamrozonym wrogu (start). Bez czastek — 1 sprite. */
+    spawnFrostPop(x: number, y: number): void {
+        this.spawnRingFx(x, y, 34, 0xbfefff, 14);
     }
 
     /** Ogniarz v2: jezyk ognia za pociskiem (1 czastka z puli; wolajacy dba o czestotliwosc). */
@@ -973,46 +1048,15 @@ export class EffectsManager {
         flash.decay = 0.06;
         flash.scaleDecay = 0.45;
 
-        const ring = new PIXI.Graphics();
-        ring.x = x;
-        ring.y = y;
-        ring.zIndex = 499;
-        this.worldContainer.addChild(ring);
-
-        this.spawnParticles(x, y, 0xff4400, 20, {
-            speed: 7, size: 4, decay: 0.05,
-            scaleDecay: 0.02,
-        });
-        this.spawnParticles(x, y, 0xffaa00, 20, {
-            speed: 5, size: 3, decay: 0.07,
-            scaleDecay: 0.03,
-        });
+        // v0.233.0 (MOCE JUICY cz.1): kula ognia ADD + 3 pierscienie z puli sprite'ow
+        // (zamiast 2 Graphics przerysowywanych co klatke) + slup dymu. Wstrzas bez zmian.
+        this.spawnBlastFx(x, y, 275, 0xff4400, true);
+        this.spawnRingFx(x, y, 290, 0xfff0c0, 22);
+        this.spawnRingFx(x, y, 200, 0xffaa00, 30);
+        this.spawnParticles(x, y, 0xff4400, 12, { speed: 7, size: 4, decay: 0.05, scaleDecay: 0.02 });
+        this.spawnParticles(x, y - 20, 0x4a4540, 6, { speed: 1.2, size: 9, decay: 0.016, spread: 0.3, baseAngle: -Math.PI / 2 });
 
         this.shake(22, 32); // v0.192.0: mocniejszy wstrzas — "ma byc soczysty" (Mariusz)
-
-        // v0.155.3 (D2): tick gry zamiast wlasnego rAF — zamiera z hit-stopem.
-        this.addTickAnim(ring, 30, (g, t) => {
-            const radius = 50 + (225 * t); // v0.192.0: za blastRadius 275 (bylo 250)
-            g.clear();
-            g.lineStyle(10 - t * 8, 0xff4400, 1 - t);
-            g.drawCircle(0, 0, radius);
-            g.lineStyle(5 - t * 4, 0xffaa00, 1 - t);
-            g.drawCircle(0, 0, radius - 7);
-        });
-
-        // v0.192.0 — DRUGI pierscien, szybszy i wezszy, startuje od razu ale goni pierwszy.
-        // Dwa pierscienie o roznych krzywych czytaja sie jako "uderzenie + fala", a kosztuja
-        // tyle co nic (Graphics). SWIADOMIE nie dokladam czastek: pula ma cap 200 i przy pelnej
-        // NADPISUJE zywe czastki, wiec wiecej iskier = urwane inne efekty na ekranie.
-        const ring2 = new PIXI.Graphics();
-        ring2.x = x; ring2.y = y; ring2.zIndex = 499;
-        this.worldContainer.addChild(ring2);
-        this.addTickAnim(ring2, 22, (g, t) => {
-            const radius = 20 + (275 * Math.sqrt(t)); // sqrt = szarpniecie na starcie, potem hamuje
-            g.clear();
-            g.lineStyle(4 - t * 3.5, 0xfff0c0, 0.9 - t * 0.9);
-            g.drawCircle(0, 0, radius);
-        });
 
         this.spawnScorch(x, y);
     }
@@ -1101,21 +1145,6 @@ export class EffectsManager {
         });
     }
 
-    spawnFreezeOverlay(durationFrames: number): void {
-        const overlay = new PIXI.Graphics();
-        overlay.beginFill(0x66ddff, 0.18);
-        overlay.drawRect(-2000, -2000, 5000, 5000);
-        overlay.endFill();
-        overlay.zIndex = 9999;
-        this.worldContainer.addChild(overlay);
-
-        // v0.155.3 (D2): tick gry zamiast wlasnego rAF — puls freeze zamiera z hit-stopem.
-        this.addTickAnim(overlay, durationFrames, (g, t, frame) => {
-            const pulse = 0.85 + Math.sin(frame / 10) * 0.15;
-            const fadeOut = t > 0.7 ? 1 - ((t - 0.7) / 0.3) : 1;
-            g.alpha = 0.18 * pulse * fadeOut;
-        });
-    }
 
     // ==========================================
     // v0.18.5 FAZA 5a — SAND KICK PARTICLES (DESERT MAP)
@@ -1278,6 +1307,7 @@ export class EffectsManager {
         this.updateFxPool(this.fxFlashes, delta, (f, t) => { f.sprite.alpha = 1 - t * t; const s = Math.max(0.2, f.sprite.scale.x + f.grow * delta); f.sprite.scale.set(s, s * (1 - t * 0.35)); });
         this.updateFxPool(this.fxRings, delta, (f, t) => { f.sprite.alpha = 1 - t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
         this.updateFxPool(this.fxGlows, delta, (f, t) => { f.sprite.alpha = 1 - t * t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
+        this.updateFxPool(this.fxPluses, delta, (f, t) => { f.sprite.y -= 1.4 * delta; f.sprite.alpha = t < 0.2 ? t * 5 : 1 - (t - 0.2) / 0.8; });
         this.updateFxPool(this.fxMarks, delta, (f, t) => { f.sprite.alpha = 0.6 * (1 - t); });
 
         // === Tick-anims (v0.155.3 D2): pierscienie mega bomby/shockwave/portalu + overlay freeze ===

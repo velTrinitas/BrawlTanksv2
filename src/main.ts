@@ -1910,6 +1910,7 @@ function returnToMenuFromEnd(): void {
     document.getElementById('gameOverScreen')!.classList.remove('active-screen');
     document.body.classList.remove('game-cursor-hidden');
     document.body.classList.remove('bt-in-match'); // v0.186.0: wersja gry znow widoczna w menu
+    abortRunQuests(); // ROZKAZY: wyjscie w trakcie meczu nie gubi postepu (no-op po finalizeRunQuests)
     gameState = 'MENU';
     currentSession = null;
 
@@ -3804,7 +3805,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
 
     // PROG-F3 — ROZKAZY: od tego momentu track() ksieguje postep. Tutorial NIE liczy sie
     // do rozkazow (beginRun nie jest wolane => track() jest no-opem).
-    if (!tutorialMode && currentSession) {
+    // Strzelnica, SigmaTester i szkolenie Krolowej NIE licza sie (po szkoleniu mecz startuje od zera).
+    if (!tutorialMode && currentSession && config.scenario !== 'range' && !SIGMA_BOT && !queenSystem?.inTutorial) {
         const questPid = currentSession.config.profileId;
         questsCompletedThisRun = 0;
         QuestService.beginRun(questPid, ProgressionService.getTrophies(questPid));
@@ -3916,6 +3918,26 @@ function seasonSkinNameOf(r: RunProgressionResult | null): string | undefined {
 function announceSeasonSkin(r: RunProgressionResult | null): void {
     const name = seasonSkinNameOf(r);
     if (name) hud.addNotif(t('hud.seasonSkin', { name }), '#c39bd3');
+}
+
+/**
+ * Wyjscie z meczu bez endcardu (menu pauzy, utrata kontekstu, koop). Ksieguje metryki czasu
+ * i rekordow; trofea i perfect_run TYLKO za ukonczony mecz (finalizeRunQuests).
+ */
+function abortRunQuests(): void {
+    if (!QuestService.isRunActive) return;
+    if (!currentSession) { QuestService.endRun(); return; }
+    try {
+        const secs = currentSession.getElapsedSeconds();
+        QuestService.track('combo', currentSession.maxCombo);
+        QuestService.track('run_seconds', secs);
+        QuestService.track('seconds', secs);
+        QuestService.track('run_gems', spawnSystem?.gemsCollected ?? 0);
+    } catch (e) {
+        console.warn('[Quests] abortRunQuests failed:', (e as Error).stack ?? e);
+    }
+    QuestService.endRun();
+    ProgressionService.syncPush(currentSession.config.profileId);
 }
 
 function finalizeRunQuests(trophiesGained: number, perfectRun: boolean): number {

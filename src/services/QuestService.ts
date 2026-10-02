@@ -225,6 +225,9 @@ class QuestServiceImpl {
         this.lastProgressToastAt = 0;
     }
 
+    /** Czy trwa run ksiegujacy rozkazy (bezpiecznik przed podwojnym domknieciem). */
+    get isRunActive(): boolean { return this.runProfileId !== null; }
+
     /** Koniec meczu — dalsze track() sa ignorowane (bezpiecznik przed liczeniem w menu). */
     endRun(): void {
         this.runProfileId = null;
@@ -354,7 +357,7 @@ class QuestServiceImpl {
 
     private currentOf(st: QuestState, stored: StoredQuest): number {
         const raw = st.progress[stored.key];
-        if (Array.isArray(raw)) return raw.length;
+        if (Array.isArray(raw)) return Math.min(raw.length, stored.target);
         return Math.min(Number(raw) || 0, stored.target);
     }
 

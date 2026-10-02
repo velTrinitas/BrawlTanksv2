@@ -37,7 +37,7 @@ export type QuestMetric =
  * starymi celami zapisanymi w localStorage az do zmiany doby/tygodnia, albo — gorzej —
  * z rozkazem, ktorego definicja juz nie istnieje. Podbijaj przy KAZDEJ zmianie puli/celow.
  */
-export const QUEST_CONFIG_VERSION = 4;   // v0.125.0 — obnizenie celow (patrz QUEST_TARGETS)
+export const QUEST_CONFIG_VERSION = 5;   // v0.229.0 — e_seconds 300, m_runtime 150 (mediana meczu ~20 s)
 
 /**
  * sum = kumuluje sie miedzy meczami · max = liczy NAJLEPSZY pojedynczy mecz
@@ -134,7 +134,7 @@ export const EASY_QUESTS: readonly QuestDef[] = [
     { id: 'e_heart',     tier: 'easy', metric: 'heart',       mode: 'sum', target: 5,   icon: '❤️', labelKey: 'quest.e_heart',     bolts: QUEST_BOLTS.easy },
     { id: 'e_supershot', tier: 'easy', metric: 'super_shot',  mode: 'sum', target: 8,   icon: '🔫', labelKey: 'quest.e_supershot', bolts: QUEST_BOLTS.easy },
     { id: 'e_superpwr',  tier: 'easy', metric: 'super_power', mode: 'sum', target: 7,   icon: '⚡', labelKey: 'quest.e_superpwr',  bolts: QUEST_BOLTS.easy },
-    { id: 'e_seconds',   tier: 'easy', metric: 'seconds',     mode: 'sum', target: 600, icon: '⏱️', labelKey: 'quest.e_seconds',  bolts: QUEST_BOLTS.easy },
+    { id: 'e_seconds',   tier: 'easy', metric: 'seconds',     mode: 'sum', target: 300, icon: '⏱️', labelKey: 'quest.e_seconds',  bolts: QUEST_BOLTS.easy },
     { id: 'e_match',     tier: 'easy', metric: 'match',       mode: 'sum', target: 3,   icon: '🎮', labelKey: 'quest.e_match',     bolts: QUEST_BOLTS.easy },
 ];
 
@@ -149,7 +149,7 @@ export const MEDIUM_QUESTS: readonly QuestDef[] = [
     // vs arctic 264), wiec "150 pkt w meczu" bylo trywialne na Arktyce i prawie nieosiagalne
     // na Pustyni. Trofea sa juz znormalizowane per mapa (F1), wiec rozkaz jest MAPOWO UCZCIWY.
     { id: 'm_trophies', tier: 'medium', metric: 'run_trophies', mode: 'max', target: 30,  icon: '🏆', labelKey: 'quest.m_trophies', bolts: QUEST_BOLTS.medium },
-    { id: 'm_runtime',  tier: 'medium', metric: 'run_seconds',  mode: 'max', target: 240, icon: '⏱️', labelKey: 'quest.m_runtime',  bolts: QUEST_BOLTS.medium },
+    { id: 'm_runtime',  tier: 'medium', metric: 'run_seconds',  mode: 'max', target: 150, icon: '⏱️', labelKey: 'quest.m_runtime',  bolts: QUEST_BOLTS.medium },
     { id: 'm_rungems',  tier: 'medium', metric: 'run_gems',     mode: 'max', target: 45,  icon: 'img:gem', labelKey: 'quest.m_rungems',  bolts: QUEST_BOLTS.medium },
 ];
 

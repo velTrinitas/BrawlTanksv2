@@ -19,12 +19,12 @@ const S = 2; // supersampling tekstur
 const _decor = new Map<DecorKind, PIXI.Texture>();
 const _shadow = new Map<string, PIXI.Texture>();
 
-function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
-    const cv = document.createElement('canvas'); cv.width = w * S; cv.height = h * S;
-    const c = cv.getContext('2d')!; c.scale(S, S); return [cv, c];
+function canvas(w: number, h: number, s = S): [HTMLCanvasElement, CanvasRenderingContext2D] {
+    const cv = document.createElement('canvas'); cv.width = w * s; cv.height = h * s;
+    const c = cv.getContext('2d')!; c.scale(s, s); return [cv, c];
 }
-function tex(cv: HTMLCanvasElement): PIXI.Texture {
-    return PIXI.Texture.from(cv, { resolution: S } as PIXI.IBaseTextureOptions);
+function tex(cv: HTMLCanvasElement, s = S): PIXI.Texture {
+    return PIXI.Texture.from(cv, { resolution: s } as PIXI.IBaseTextureOptions);
 }
 function groundShadow(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number): void {
     c.fillStyle = 'rgba(20,35,10,0.35)'; c.beginPath(); c.ellipse(x + 2, y, rx, ry, 0, 0, Math.PI * 2); c.fill();
@@ -146,7 +146,7 @@ function bakeCastShadow(w: number, h: number, height: number): { tex: PIXI.Textu
     const pad = 16, W = w + sx + pad * 2, H = h + sy + pad * 2;
     let t = _shadow.get(key);
     if (!t) {
-        const [cv, c] = canvas(W, H);
+        const [cv, c] = canvas(W, H, 1); // PERF: miekki gradient — 1x wystarczy (~7,6 -> ~1,9 MB VRAM)
         c.translate(pad, pad);
         const g = c.createLinearGradient(w * 0.5, h * 0.5, w * 0.5 + sx, h * 0.5 + sy);
         g.addColorStop(0, 'rgba(18,40,10,0.5)'); g.addColorStop(1, 'rgba(18,40,10,0.12)');
@@ -158,7 +158,7 @@ function bakeCastShadow(w: number, h: number, height: number): { tex: PIXI.Textu
         const ao = c.createLinearGradient(0, h - 4, 0, h + 12);
         ao.addColorStop(0, 'rgba(10,25,5,0.45)'); ao.addColorStop(1, 'rgba(10,25,5,0)');
         c.fillStyle = ao; c.fillRect(-6, h - 4, w + 12, 16);
-        t = tex(cv); _shadow.set(key, t);
+        t = tex(cv, 1); _shadow.set(key, t);
     }
     return { tex: t, ox: -pad, oy: -pad };
 }

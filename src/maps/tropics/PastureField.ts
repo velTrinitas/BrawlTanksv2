@@ -40,7 +40,7 @@ const COLORS = {
 } as const;
 
 interface GrassBlade {
-    gfx: PIXI.Graphics;
+    gfx: PIXI.Sprite; // PERF: pieczona kepa (sprite)
     baseX: number;
     baseY: number;
     phaseOffset: number;
@@ -668,34 +668,19 @@ export class PastureField implements IFarmField {
     // ═══════════════════════════════════════════════════════════
     private spawnGrassBlades(rng: () => number): void {
         // Density: ~500 blades per 100000 px²
+        // PERF (A54 2026-10-06): kepy jako SPRITE'Y z 8 pieczonych wariantow zamiast ~700 osobnych Graphics
+        // (kazda linia Graphics = dziesiatki wierzcholkow przeliczanych przy kazdej zmianie skew co klatke).
         const BLADE_COUNT = Math.floor((this.w * this.h) / 200);
         const inset = 8;
+        const tex = grassTuftTextures();
 
         for (let i = 0; i < BLADE_COUNT; i++) {
             const px = this.x + inset + rng() * (this.w - inset * 2);
             const py = this.y + inset + rng() * (this.h - inset * 2);
 
-            const g = new PIXI.Graphics();
-            const bladeCount = 3 + Math.floor(rng() * 3);  // 3-5 blades per tuft
-            for (let b = 0; b < bladeCount; b++) {
-                const bx = (rng() - 0.5) * 5;
-                const h = 4 + rng() * 5;
-                const tilt = (rng() - 0.5) * 0.5;
-                const col = rng() < 0.3 ? COLORS.grassBright : (rng() < 0.6 ? COLORS.grassLight : COLORS.grassMid);
-                g.lineStyle(1.3, col, 0.92);
-                g.moveTo(bx, 0);
-                g.lineTo(bx + Math.sin(tilt) * h, -Math.cos(tilt) * h);
-            }
-            // Tip highlight (jaśniejszy mid-tip)
-            g.lineStyle(0.7, COLORS.grassBright, 0.6);
-            for (let b = 0; b < bladeCount; b++) {
-                const bx = (rng() - 0.5) * 5;
-                const h = 4 + rng() * 3;
-                g.moveTo(bx, -h * 0.4);
-                g.lineTo(bx + 0.5, -h);
-            }
-            g.lineStyle(0);
-
+            const g = new PIXI.Sprite(tex[Math.floor(rng() * tex.length)]);
+            g.anchor.set(0.5, TUFT_ANCHOR_Y);
+            if (rng() < 0.5) g.scale.x = -1;
             g.x = px;
             g.y = py;
             g.zIndex = Math.floor(py);
@@ -720,27 +705,13 @@ export class PastureField implements IFarmField {
     // ═══════════════════════════════════════════════════════════
     private spawnWildflowers(rng: () => number): void {
         const FLOWER_COUNT = Math.floor((this.w * this.h) / 3500);
+        const tex = flowerTextures(); // PERF: 3 pieczone warianty zamiast Graphics na kwiat
         for (let i = 0; i < FLOWER_COUNT; i++) {
             const px = this.x + 12 + rng() * (this.w - 24);
             const py = this.y + 12 + rng() * (this.h - 24);
-
-            const g = new PIXI.Graphics();
             const colorChoice = rng();
-            const flowerColor = colorChoice < 0.45 ? COLORS.flowerWhite
-                              : colorChoice < 0.8 ? COLORS.flowerYellow
-                              : COLORS.flowerPink;
-
-            // 5 petals
-            for (let p = 0; p < 5; p++) {
-                const a = (p / 5) * Math.PI * 2;
-                g.beginFill(flowerColor, 0.95);
-                g.drawEllipse(Math.cos(a) * 1.5, Math.sin(a) * 1.5, 1.4, 0.9);
-                g.endFill();
-            }
-            // Center
-            g.beginFill(COLORS.flowerCenter, 1);
-            g.drawCircle(0, 0, 0.9);
-            g.endFill();
+            const g = new PIXI.Sprite(tex[colorChoice < 0.45 ? 0 : colorChoice < 0.8 ? 1 : 2]);
+            g.anchor.set(0.5);
             g.x = px;
             g.y = py;
             g.zIndex = Math.floor(py) - 1;
@@ -849,4 +820,47 @@ export class PastureField implements IFarmField {
     public onTankEnter(_tankX: number, _tankY: number): void {
         // No interaction (player przejeżdza bez kolizji + no stealth)
     }
+}
+
+// PERF (A54 2026-10-06): pieczone warianty kep trawy i kwiatow (wspolne dla wszystkich pastwisk).
+const TUFT_W = 16, TUFT_H = 14, TUFT_RES = 2;
+const TUFT_ANCHOR_Y = 12 / TUFT_H; // podstawa kepy
+const _tuftTex: PIXI.Texture[] = [];
+const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
+function grassTuftTextures(): PIXI.Texture[] {
+    if (_tuftTex.length && !_tuftTex[0].destroyed) return _tuftTex;
+    _tuftTex.length = 0;
+    const rng = makeRng(4242);
+    for (let v = 0; v < 8; v++) {
+        const cv = document.createElement('canvas'); cv.width = TUFT_W * TUFT_RES; cv.height = TUFT_H * TUFT_RES;
+        const c = cv.getContext('2d')!; c.scale(TUFT_RES, TUFT_RES); c.translate(TUFT_W / 2, 12); c.lineCap = 'round';
+        const n = 3 + Math.floor(rng() * 3);
+        for (let b = 0; b < n; b++) {
+            const bx = (rng() - 0.5) * 5, h = 4 + rng() * 5, tilt = (rng() - 0.5) * 0.5;
+            const col = rng() < 0.3 ? COLORS.grassBright : (rng() < 0.6 ? COLORS.grassLight : COLORS.grassMid);
+            c.strokeStyle = hex(col); c.globalAlpha = 0.92; c.lineWidth = 1.3;
+            c.beginPath(); c.moveTo(bx, 0); c.lineTo(bx + Math.sin(tilt) * h, -Math.cos(tilt) * h); c.stroke();
+        }
+        c.strokeStyle = hex(COLORS.grassBright); c.globalAlpha = 0.6; c.lineWidth = 0.7;
+        for (let b = 0; b < n; b++) {
+            const bx = (rng() - 0.5) * 5, h = 4 + rng() * 3;
+            c.beginPath(); c.moveTo(bx, -h * 0.4); c.lineTo(bx + 0.5, -h); c.stroke();
+        }
+        _tuftTex.push(PIXI.Texture.from(cv, { resolution: TUFT_RES } as PIXI.IBaseTextureOptions));
+    }
+    return _tuftTex;
+}
+const _flowerTex: PIXI.Texture[] = [];
+function flowerTextures(): PIXI.Texture[] {
+    if (_flowerTex.length && !_flowerTex[0].destroyed) return _flowerTex;
+    _flowerTex.length = 0;
+    for (const col of [COLORS.flowerWhite, COLORS.flowerYellow, COLORS.flowerPink]) {
+        const cv = document.createElement('canvas'); cv.width = 16; cv.height = 16;
+        const c = cv.getContext('2d')!; c.scale(2, 2); c.translate(4, 4);
+        c.fillStyle = hex(col); c.globalAlpha = 0.95;
+        for (let p = 0; p < 5; p++) { const a = (p / 5) * Math.PI * 2; c.beginPath(); c.ellipse(Math.cos(a) * 1.5, Math.sin(a) * 1.5, 1.4, 0.9, 0, 0, Math.PI * 2); c.fill(); }
+        c.globalAlpha = 1; c.fillStyle = hex(COLORS.flowerCenter); c.beginPath(); c.arc(0, 0, 0.9, 0, Math.PI * 2); c.fill();
+        _flowerTex.push(PIXI.Texture.from(cv, { resolution: 2 } as PIXI.IBaseTextureOptions));
+    }
+    return _flowerTex;
 }

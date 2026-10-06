@@ -163,6 +163,7 @@ import { isTropicsArtV2 } from './config/tropicsArtFlag'; // TROPICS ART v2
 import { buildTropicsTextureV2 } from './maps/tropics/TropicsGroundV2';
 import { HayBale } from './maps/tropics/HayBale';
 import { AgroBorderTrees } from './maps/tropics/AgroTrees';
+import { warmEventAnimals } from './maps/tropics/EventAnimals';
 import { checkRectCollision } from './systems/Physics';
 import { addFarmDepth } from './maps/tropics/FarmDecor';
 import { FarmAnimals } from './maps/tropics/FarmAnimals';
@@ -2431,7 +2432,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // v0.187.0: `removeChildren()` odpina dzieci, ale NIE zwalnia ich tekstur w GPU. Upieczone propy
     // narastaly wiec z kazdym meczem (+57 tekstur/mecz, pomiar botem) az do ubicia kontekstu WebGL
     // na tablecie. Grunt ma wlasny, jednoelementowy cache (groundTextureCache) i przezywa ten reset.
-    disposePropCache();
+    disposePropCache(config.map === 'tropics' && isTropicsArtV2() ? 'tr_' : undefined); // AGRO PERF: budynki Agro zostaja miedzy meczami
     damageSmoke?.destroy(); damageSmoke = null; // v0.188.0: wlasna Graphics dymu ginie razem z mapa
     smoothNeedsInit = true; logicAccMs = 0; // F5: reset interpolacji na nowy mecz (zero skoku ze starego stanu)
     buildings = [];
@@ -2908,7 +2909,10 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         tropicalBorder = new TropicalBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...tropicalBorder.getCollisionRects());
         solidBuildings.push(...tropicalBorder.getCollisionRects());
-        if (isTropicsArtV2()) agroBorderTrees = new AgroBorderTrees(worldContainer, WORLD_W, WORLD_H);
+        if (isTropicsArtV2()) {
+            agroBorderTrees = new AgroBorderTrees(worldContainer, WORLD_W, WORLD_H);
+            tropicalBorder.setVisualsEnabled(false); // PERF: stary pas (52 pasy alfa + 40 lisci + ripple) zastapiony koronami; kolizje zostaja
+        }
 
         // TROPICS ART v2 (2026-10-05): pady jak na pozostalych mapach (standardowe hover pady); legacy = koniczyna/pien
         mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => isTropicsArtV2() ? new HoverRepairPad(p.x, p.y, worldContainer, 1, true) : new CloverMediPad(p.x, p.y, worldContainer));
@@ -3512,6 +3516,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // TROPICS ART v2 / T6.1: Szalone Kurczaki — budzone TYLKO pociskami gracza (wzorzec klatwy piramidy).
     // Ranienie wrogow = sciezka zabicia mega bomby (punkty + drop, BEZ combo — to nie skill streak).
     if (config.map === 'tropics' && isTropicsArtV2() && tropicsHenhouses.length && config.scenario !== 'range' && !coopNoHazards) {
+        warmEventAnimals(); // AGRO PERF: klatki byka/kur pieczone teraz, nie przy 1. zdarzeniu
         chickenFlock = new ChickenFlock(tropicsHenhouses, worldContainer, effects, audio, CHICKENS_BY_DIFFICULTY[config.difficulty], {
             getEnemies: () => enemies,
             getPlayers: () => players,
@@ -3568,6 +3573,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     if (config.map === 'tropics' && isTropicsArtV2() && patrolTractor) {
         patrolTractor.speedMult = 1.2;
         patrolTractor.container.visible = false;
+        patrolTractor.visualsOff = true; // PERF: ukryty rysunek nie animuje kol/tarcz i nie alokuje dymu
         combineVisual = new CombineVisual(worldContainer, effects);
     }
     if (config.map === 'tropics' && isTropicsArtV2() && patrolTractor && config.scenario !== 'range' && !coopNoHazards) {
@@ -5349,7 +5355,7 @@ function runLogicStep(delta: number): void {
     if (desertJuice) desertJuice.update(localPlayer ? { x: localPlayer.x, y: localPlayer.y, isMoving: localPlayer.isMoving } : null, camera.x, camera.y, viewW, viewH); // E5
     if (waterLife) waterLife.update(camera.x, camera.y, viewW, viewH);
     if (sandstormBorder) sandstormBorder.update(camera.x, camera.y, viewW, viewH);
-    if (tropicalBorder) tropicalBorder.update();
+    if (tropicalBorder && !agroBorderTrees) tropicalBorder.update(); // PERF: pod Agro v2 stary wizual obrzeza wylaczony
     if (agroBorderTrees) agroBorderTrees.update(camera.x, camera.y, viewW, viewH, WORLD_W, WORLD_H);
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     if (arcticBorder) arcticBorder.update(); // ARC-R1 (drobiny + smugi lodowe)
@@ -5410,7 +5416,7 @@ function runLogicStep(delta: number): void {
 
     if (patrolTractor) patrolTractor.update();
     if (stable) {
-        try { stable.update(); } catch (err) { console.error('[T9.0] Stable update:', err); }
+        try { stable.update(camera.x, camera.y, viewW, viewH); } catch (err) { console.error('[T9.0] Stable update:', err); }
     }
     if (paddock) {
         try { paddock.update(); } catch (err) { console.error('[T9.0] Paddock update:', err); }
@@ -5594,6 +5600,13 @@ function runLogicStep(delta: number): void {
     const time = simNowMs() / 1000;
     // COOP S5: pad obsluguje gracza, ktory na nim stoi (pierwszy w players[]); pusty pad
     // dostaje gracza lokalnego (stan "nikt nie stoi" pad liczy sam z pozycji).
+    // AGRO v2 PERF: pady poza kadrem nie sa rysowane (logika leczenia/mocy bez zmian — gracz i tak stoi w kadrze)
+    if (agroBorderTrees) {
+        const M = 120;
+        for (const pad of [...mediPads, ...powerPads] as Array<{ x: number; y: number; container?: PIXI.Container }>) {
+            if (pad.container) pad.container.renderable = pad.x > camera.x - M && pad.x < camera.x + viewW + M && pad.y > camera.y - M && pad.y < camera.y + viewH + M;
+        }
+    }
     for (const pad of mediPads) {
         const pp = padOccupant(pad.x, pad.y);
         const result = pad.update(pp.x, pp.y, pp.isMoving, pp.hp, pp.maxHp, time);

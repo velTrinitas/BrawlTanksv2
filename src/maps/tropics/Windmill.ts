@@ -1,5 +1,7 @@
 import * as PIXI from 'pixi.js';
 import type { ICollidable } from '../../types/MapType';
+import { isTropicsArtV2 } from '../../config/tropicsArtFlag';
+import { bakeStaticGraphics, CullGroup } from './tropicsBake';
 
 /**
  * v0.35.0 FAZA T6 — WINDMILL (wiatrak) AAA PREMIUM
@@ -105,6 +107,8 @@ export class Windmill implements ICollidable {
     private weatherVane: PIXI.Container | null = null;
     private flag: PIXI.Graphics | null = null;
     private sparrow: PIXI.Graphics | null = null;
+    /** AGRO v2 PERF: culling poza kadrem (null = legacy). */
+    private cull: CullGroup | null = null;
 
     constructor(x: number, y: number, seed: number, worldContainer: PIXI.Container) {
         this.x = x;
@@ -146,6 +150,17 @@ export class Windmill implements ICollidable {
         this.drawCap(rng);
         this.drawWeatherVane();
         this.drawBlades(rng);
+
+        // AGRO v2 PERF (A54 2026-10-06): wiatrak byl jedynym budynkiem bez bake i bez cullingu.
+        // Statyka (AO, wieza, czapa) -> 1 sprite na warstwe; lopaty/wiatrowskaz zostaja zywe (transformy).
+        if (isTropicsArtV2()) {
+            const clip = new PIXI.Rectangle(x - 140, y - 200, TOWER_W + 280, TOWER_H + 300);
+            bakeStaticGraphics(this.aoContainer, `tr_mill_ao_${x}_${y}`, clip);
+            bakeStaticGraphics(this.towerContainer, `tr_mill_tw_${x}_${y}`, clip);
+            bakeStaticGraphics(this.capContainer, `tr_mill_cap_${x}_${y}`, clip);
+            this.cull = new CullGroup([this.aoContainer, this.towerContainer, this.capContainer, this.animatedContainer, this.bladesContainer],
+                x - BLADE_LENGTH - 60, y - BLADE_LENGTH - 120, x + TOWER_W + BLADE_LENGTH + 60, y + TOWER_H + 80);
+        }
     }
 
     private makeRng(seed: number): () => number {
@@ -928,7 +943,8 @@ export class Windmill implements ICollidable {
     // ═══════════════════════════════════════════════════════════
     // ANIMATION UPDATE
     // ═══════════════════════════════════════════════════════════
-    public update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
+    public update(camX: number, camY: number, screenW: number, screenH: number): void {
+        if (this.cull && this.cull.update(camX, camY, screenW, screenH)) return; // poza kadrem = bez animacji
         const dt = 1 / 60;
         this.elapsed += dt;
         const t = this.elapsed;

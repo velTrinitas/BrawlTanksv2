@@ -153,6 +153,7 @@ export class HayBale implements ICollidable {
         this.sprite.y = y + LAYOUT_HALF;
         this.sprite.scale.set(seed % 3 === 0 ? -BALE_SCALE : BALE_SCALE, BALE_SCALE); // lustro = mniej powtarzalnosci
         this.sprite.zIndex = Math.floor(this.y + BALE_H);
+        this.sprite.cullable = true; // PERF: poza kadrem PIXI nie rysuje
         worldContainer.addChild(this.sprite);
         // resztki po rozbiciu (rysowane raz, widoczne tylko gdy bela zniszczona)
         this.remains = new PIXI.Graphics();
@@ -164,7 +165,7 @@ export class HayBale implements ICollidable {
             this.remains.moveTo(px, py); this.remains.lineTo(px + Math.cos(a + 1.3) * 6, py + Math.sin(a + 1.3) * 3);
         }
         this.remains.x = x + LAYOUT_HALF; this.remains.y = y + LAYOUT_HALF + 6;
-        this.remains.zIndex = -80; this.remains.visible = false;
+        this.remains.zIndex = -80; this.remains.visible = false; this.remains.cullable = true;
         worldContainer.addChild(this.remains);
     }
 

@@ -239,9 +239,9 @@ export class Cowshed implements ICollidable {
         this.initParticleSystems(rng);
 
         if (isTropicsArtV2()) {
-            bakeStaticGraphics(this.aoContainer, `tr_cow_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
-            bakeStaticGraphics(this.groundContainer, `tr_cow_gr_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
-            bakeStaticGraphics(this.staticContainer, `tr_cow_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            bakeStaticGraphics(this.aoContainer, `tr_cow_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, h + 300));
+            bakeStaticGraphics(this.groundContainer, `tr_cow_gr_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, h + 300));
+            bakeStaticGraphics(this.staticContainer, `tr_cow_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, h + 300));
             this.cull = new CullGroup([this.aoContainer, this.groundContainer, this.interiorContainer, this.staticContainer, this.animatedContainer, this.particleContainer],
                 x - 140, y - 180, x + w + 140, y + h + 100);
         }

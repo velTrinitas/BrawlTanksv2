@@ -161,6 +161,7 @@ export class Henhouse implements ICollidable {
         this.featherContainer.zIndex = Math.floor(y + h) + 1;
         worldContainer.addChild(this.featherContainer);
         this._t1 = { x, y, w, h };
+        this.bakeV2(); // AGRO PERF: bake przy starcie mapy (nie w 1. klatce gry = brak przyciecia w meczu); bezpieczne po fixie generateDetached
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1018,11 +1019,18 @@ export class Henhouse implements ICollidable {
     // UPDATE — 6 Subtle Life animations
     // ═══════════════════════════════════════════════════════════
     public update(camX: number, camY: number, screenW: number, screenH: number): void {
+        if (this.cull && this.cull.update(camX, camY, screenW, screenH)) return; // T1: poza kadrem = bez animacji
+        this.updateAnimated(camX, camY, screenW, screenH);
+    }
+
+    private bakeV2(): void {
         if (this._t1 && isTropicsArtV2()) { const r = this._t1; this._t1 = null;
             bakeStaticGraphics(this.aoContainer, `tr_hen_ao_${r.x}_${r.y}`, new PIXI.Rectangle(r.x - 140, r.y - 200, r.w + 280, r.h + 300));
             bakeStaticGraphics(this.staticContainer, `tr_hen_st_${r.x}_${r.y}`, new PIXI.Rectangle(r.x - 140, r.y - 200, r.w + 280, r.h + 300));
             this.cull = new CullGroup([this.aoContainer, this.staticContainer, this.animatedContainer, this.featherContainer], r.x - 120, r.y - 160, r.x + r.w + 120, r.y + r.h + 90); }
-        if (this.cull && this.cull.update(camX, camY, screenW, screenH)) return; // T1: poza kadrem = bez animacji
+    }
+
+    private updateAnimated(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
         this.time += 1 / 60;
 
         // 1. COCK HEAD BOBBING (peck pattern: fast down + slow recovery)

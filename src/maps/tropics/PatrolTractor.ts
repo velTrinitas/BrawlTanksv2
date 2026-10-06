@@ -78,6 +78,8 @@ export class PatrolTractor {
     /** T6.3 Zniwiarka: mnoznik predkosci i pomijanie postojow (ustawia ReaperTractor). */
     public speedMult = 1;
     public skipPauses = false;
+    /** AGRO v2 (PERF): rysunek ukryty (kombajn fake-3D) — pomijaj animacje kol/tarcz i dym. Ruch bez zmian. */
+    public visualsOff = false;
     /** T6.3c: cel poscigu (szal zniwiarki). Ustawiony = jazda za celem wzdluz heading, trasa wstrzymana. */
     public chaseTarget: { x: number; y: number } | null = null;
 
@@ -186,6 +188,8 @@ export class PatrolTractor {
                 this.state = 'driving';
             }
         }
+
+        if (this.visualsOff) return; // PERF: ponizej sam wizual (pozycja liczona wyzej)
 
         // Wheel rotation (subtle visual — driving only)
         const wheelSpeed = isDriving ? WHEEL_SPEED : 0;

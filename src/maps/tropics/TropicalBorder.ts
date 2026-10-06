@@ -237,6 +237,9 @@ export class TropicalBorder {
         drawGradientBand(W - FOREST_W, 0, FOREST_W, H, 3, 0.0, 0.20, PALETTE.hazeForest);  // RIGHT
     }
 
+    /** AGRO v2: wylacza caly wizual (nakladka, ripple, liscie); kolizje bez zmian. */
+    public setVisualsEnabled(on: boolean): void { this.container.visible = on; }
+
     public update(): void {
         const time = Date.now();
 

@@ -168,9 +168,9 @@ export class BarnBuilding implements ICollidable {
         worldContainer.addChild(this.animatedContainer);
 
         if (isTropicsArtV2()) {
-            bakeStaticGraphics(this.aoContainer, `tr_barn_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
-            bakeStaticGraphics(this.siloContainer, `tr_barn_silo_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
-            bakeStaticGraphics(this.staticContainer, `tr_barn_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            bakeStaticGraphics(this.aoContainer, `tr_barn_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, h + 300));
+            bakeStaticGraphics(this.siloContainer, `tr_barn_silo_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, h + 300));
+            bakeStaticGraphics(this.staticContainer, `tr_barn_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, h + 300));
             this.cull = new CullGroup([this.aoContainer, this.siloContainer, this.staticContainer, this.animatedContainer],
                 x - 140, y - 200, x + this.w + 140, y + h + 100);
         }

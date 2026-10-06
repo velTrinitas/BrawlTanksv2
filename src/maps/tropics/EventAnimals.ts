@@ -169,6 +169,11 @@ export function eventAnimalTexture(kind: EventAnimalKind, pose: EventPose): PIXI
     return t;
 }
 
+/** AGRO PERF: upiecz wszystkie klatki przy starcie mapy (nie przy pierwszym zdarzeniu = brak przyciecia w meczu). */
+export function warmEventAnimals(): void {
+    for (const k of ['bull', 'hen', 'hen_brown', 'rooster'] as const) for (const p of ['stand', 'walkA', 'walkB', 'graze'] as const) eventAnimalTexture(k, p);
+}
+
 /** Eksport dla podgladu dev. */
 export function drawEventAnimal(c: CanvasRenderingContext2D, kind: EventAnimalKind, pose: EventPose): void {
     c.lineJoin = 'round';

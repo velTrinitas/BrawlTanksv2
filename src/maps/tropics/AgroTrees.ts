@@ -155,6 +155,16 @@ export class AgroBorderTrees {
             { len: H, at: (s, j) => [12 + j * 10, s] },
             { len: H, at: (s, j) => [W - 12 - j * 10, s] },
         ];
+        // PERF (pomiar A54 2026-10-06: 1226 dzieci swiata, JS 3 ms, przyciecia w renderze): korony w 4 KONTENERACH
+        // (1 na krawedz) zamiast ~540 dzieci worldContainer — swiat sortuje 4 obiekty, a cala krawedz poza kadrem
+        // odpada jednym testem cullArea. Gora za czolgami, dol i boki przed (korony = zywoplot na wierzchu).
+        const M = 40;
+        const groups = [
+            { z: 30, area: new PIXI.Rectangle(-M, -M, W + 2 * M, 60 + 2 * M) },
+            { z: H + 100, area: new PIXI.Rectangle(-M, H - 60 - M, W + 2 * M, 60 + 2 * M) },
+            { z: H + 100, area: new PIXI.Rectangle(-M, -M, 60 + 2 * M, H + 2 * M) },
+            { z: H + 100, area: new PIXI.Rectangle(W - 60 - M, -M, 60 + 2 * M, H + 2 * M) },
+        ].map(g => { const c = new PIXI.Container(); c.zIndex = g.z; c.cullable = true; c.cullArea = g.area; world.addChild(c); return c; });
         let n = 0;
         sides.forEach((e, ei) => {
             for (let s = 0; s <= e.len; s += STEP) {
@@ -165,10 +175,9 @@ export class AgroBorderTrees {
                 const [x, y] = e.at(s + (hash(n + 77) - 0.5) * 8, hash(n + 9) < 0.5 ? 0 : 1);
                 const spr = new PIXI.Sprite(tex);
                 spr.anchor.set(ax, ay);
-                spr.x = x; spr.y = y; spr.zIndex = y;
-                spr.cullable = true; // poza kadrem PIXI nie rysuje (tanie na mobile)
+                spr.x = x; spr.y = y;
                 if (h > 0.5) spr.scale.x = -1;
-                world.addChild(spr);
+                groups[ei].addChild(spr); // kolejnosc dodawania = kolejnosc rysowania (bez sortowania)
                 this.edges[ei].push({ spr, ph: hash(n + 500) * Math.PI * 2, amp: 0.05 + hash(n + 600) * 0.04 });
             }
         });

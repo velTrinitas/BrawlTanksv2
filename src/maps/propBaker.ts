@@ -65,15 +65,18 @@ function propCacheEnabled(): boolean {
 }
 
 /** Zwalnia wszystkie upieczone propy (wolane przy teardownie meczu). */
-export function disposePropCache(): void {
-    for (const tex of _cache.values()) {
+export function disposePropCache(keepPrefix?: string): void {
+    // AGRO PERF (2026-10-06): kolejny mecz na tej samej mapie nie piecze budynkow od nowa — klucze `tr_*`
+    // sa pozycyjne i stale, wiec cache jest ograniczony (bez narastania jak przed v0.187.0).
+    for (const [key, tex] of [..._cache.entries()]) {
+        if (keepPrefix && key.startsWith(keepPrefix) && !tex.destroyed) continue;
+        _cache.delete(key);
         try {
             if (!tex.destroyed) tex.destroy(true);
         } catch (e) {
             console.error('[propBaker] destroy failed', (e as Error).stack);
         }
     }
-    _cache.clear();
 }
 
 /** Diagnostyka (`?diag=1`): ile propow siedzi w cache. */

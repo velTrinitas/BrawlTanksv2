@@ -59,6 +59,9 @@ export function isMultiplayerSandbox(): boolean {
  * 10 — AGRO ART v2 na produkcji (v0.237.0): nowe kolizje Agro (gaiki, bele 50 + pchanie w solo, bez studni/strachow/
  *      stawu W, bez wsch. kurnika), zdarzenia farmy w kroku logiki (Kurczaki, Szarza Byka, Zniwiarka-kombajn;
  *      TROPICS_EVENTS_RULESET_ID farm-v5; w koopie wylaczone jak inne zagrozenia map).
+ * 11 — ENIGMA na produkcji (v0.239.0): 9. czolg gatling w rosterze (indeks 8, na koncu listy) — rozped luf
+ *      w krokach logiki (spinUpSteps), rozrzut z worldRng (spreadRad), super poza fairSuperProfiles (57 dmg,
+ *      promien x1.6, predkosc x1.1). Dane w BALANCE_V2_STATS.enigma.
  */
 /**
  * COOP LAN-3b: zagrozenia map, ktorych gosc jeszcze NIE widzi (klatwa piramid + Ra, Yeti, UFO),
@@ -67,4 +70,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 10;
+export const SIM_VERSION = 11;

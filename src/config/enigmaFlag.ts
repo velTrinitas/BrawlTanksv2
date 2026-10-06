@@ -5,7 +5,7 @@
  * Flip = ENIGMA_LIVE true + bump SIM_VERSION (gatling zmienia symulacje strzalu) jednym commitem.
  * Dopoki flaga nie jest LIVE: wyniki Enigma NIE ida do rankingu (SupabaseScoreService).
  */
-export const ENIGMA_LIVE = false;
+export const ENIGMA_LIVE = true; // FLIP v0.239.0 (2026-10-06): Enigma = standardowy 9. czolg, rollback ?enigma=0
 
 export function isEnigmaEnabled(): boolean {
     try {

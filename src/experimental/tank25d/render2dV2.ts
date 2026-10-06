@@ -83,6 +83,188 @@ export function withSkin(b, hex) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ENIGMA (ETAP 1 — tylko podglad enigma-preview.html). Wg EnigmaX7.jpg: kadlub 8x8 na kolach,
+// klinowa "twarz" (brwi, swiecace oczy, kratka-zeby, zderzak), kamuflaz zloto/srebro, nity, drzwi,
+// zwoj weza, lopata, napis "Enigma", tlumik z otworami; wieza-kopula "X7" z wizjerami i 2 antenkami;
+// gatling 6 luf z bebnem amunicji i zlota tarcza wylotu. Paleta: zloto #E8B83A/#B8862A, srebro #D9DCE0,
+// obrys #2A2014. Wpis LOKALNY (nie w render2d.BRAWLERS) — nie przecieka do rosteru labu/bakera gry.
+// ─────────────────────────────────────────────────────────────────────────────
+const ENIGMA_GOLD = '#E8B83A', ENIGMA_SILVER = '#D9DCE0', ENIGMA_OL = '#2A2014';
+const ENIGMA_BASE = {
+  id: 'enigma', name: 'Enigma', color: ENIGMA_GOLD, hp: 6, speed: 4, dmg: 0.25, reload: 70, size: 1.0,
+  hullW: 96, hullH: 56, hullShape: 'armored', turretRadius: 21, turretShape: 'round', barrelLen: 34, muzzleDist: 60,
+  barrelType: 'gatling', emblem: 'none', flag: 'PL', asym: 'none',
+  bullet: { type: 'gatling', size: 3, speed: 560 }, super: { type: 'gatling_super', name: 'Zloty grad' },
+  mudguard: 'none', exhaust: { color: '#2a2014', size: 7, rate: 260, count: 2, sideY: 0.36 },
+  wheels: true, hullZ: 11, theme: 'enigma', outline: ENIGMA_OL,
+};
+{
+  const colors = derive(ENIGMA_GOLD); colors.outline = ENIGMA_OL;
+  BRAWLERS_V2.push({ ...ENIGMA_BASE, colors, look: 'v2' });
+}
+
+/** Kadlub Enigmy: prostokat z kanciastym tylem i KLINOWYM przodem (twarz). */
+function enigmaHullPath(ctx, w, h) {
+  const hx = w / 2, hy = h / 2;
+  ctx.moveTo(-hx + 8, -hy); ctx.lineTo(hx - 18, -hy); ctx.lineTo(hx - 2, -hy * 0.52);
+  ctx.lineTo(hx - 2, hy * 0.52); ctx.lineTo(hx - 18, hy); ctx.lineTo(-hx + 8, hy);
+  ctx.lineTo(-hx, hy - 8); ctx.lineTo(-hx, -hy + 8); ctx.closePath();
+}
+
+/** 8 kol (4/strone): opona z bieznikiem przesuwanym z treadShift + zlota felga od zewnatrz. */
+function wheelsV2(ctx, b, c, treadShift) {
+  const hx = b.hullW / 2, hy = b.hullH / 2;
+  const xs = [-hx * 0.66, -hx * 0.26, hx * 0.16, hx * 0.56];
+  const L = 19, W = 13;
+  const ts = treadShift || 0;
+  for (const side of [-1, 1]) {
+    const ty = side * (hy + 1.5);
+    for (const x of xs) {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRectPath(ctx, x - L / 2 + 1, ty - W / 2 + 2.2, L, W, 5); ctx.fill();
+      ctx.fillStyle = '#16131a'; roundRectPath(ctx, x - L / 2, ty - W / 2, L, W, 5); ctx.fill();
+      ctx.save(); roundRectPath(ctx, x - L / 2, ty - W / 2, L, W, 5); ctx.clip();
+      // bieznik w jodelke — przesuwa sie z jazda
+      const shift = ((-ts * 0.8) % 4 + 4) % 4;
+      ctx.strokeStyle = '#3d3742'; ctx.lineWidth = 1.6;
+      for (let k = -L / 2 - 4 + shift; k < L / 2 + 4; k += 4) {
+        ctx.beginPath(); ctx.moveTo(k, ty - W / 2); ctx.lineTo(k + 1.6, ty); ctx.lineTo(k, ty + W / 2); ctx.stroke();
+      }
+      const g = ctx.createLinearGradient(0, ty - W / 2, 0, ty + W / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.18)'); g.addColorStop(0.45, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = g; ctx.fillRect(x - L / 2, ty - W / 2, L, W);
+      ctx.restore();
+      ctx.strokeStyle = '#05040a'; ctx.lineWidth = 1.2; roundRectPath(ctx, x - L / 2, ty - W / 2, L, W, 5); ctx.stroke();
+      // zlota felga (widoczna od zewnatrz kola)
+      const fy = ty + side * (W / 2 - 2.2);
+      ctx.fillStyle = vgrad(ctx, fy, 4.4, c.main); roundRectPath(ctx, x - 5.5, fy - 2.2, 11, 4.4, 2); ctx.fill(); // felga w kolorze skorki
+      ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(x, fy, 1.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+/** Kamuflaz w kanciaste laty (srebro na zlocie) — jak na rysunku. Wspolny dla kadluba i wiezy. */
+function enigmaCamo(ctx, hx, hy, seed, k = 1, patches = 9) {
+  const R = (i) => { const v = Math.sin((i + seed) * 12.9898) * 43758.5453; return v - Math.floor(v); };
+  for (let i = 0; i < patches; i++) {
+    const cx = (R(i) * 2 - 1) * hx, cy = (R(i + 31) * 2 - 1) * hy;
+    const s = (5 + R(i + 77) * 8) * k, rot = R(i + 5) * Math.PI;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+    ctx.beginPath(); ctx.moveTo(-s, -s * 0.4); ctx.lineTo(-s * 0.2, -s * 0.8); ctx.lineTo(s, -s * 0.3); ctx.lineTo(s * 0.6, s * 0.6); ctx.lineTo(-s * 0.5, s * 0.7); ctx.closePath();
+    ctx.fillStyle = ENIGMA_SILVER; ctx.fill();
+    ctx.strokeStyle = 'rgba(120,124,132,0.55)'; ctx.lineWidth = 0.7; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.moveTo(-s * 0.8, -s * 0.38); ctx.lineTo(-s * 0.2, -s * 0.7); ctx.lineTo(s * 0.3, -s * 0.48); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function enigmaHullTop(ctx, b, c, o, path) {
+  const w = b.hullW, h = b.hullH, hx = w / 2, hy = h / 2;
+  const ph = o.phase || 0, live = o.liveCanvas;
+  if (!o.drawSkin) { ctx.save(); path(); ctx.clip(); enigmaCamo(ctx, hx, hy, 3); ctx.restore(); }
+  // blotniki/fartuchy wzdluz burt (ciemniejszy pas) + linie paneli
+  ctx.save(); path(); ctx.clip();
+  ctx.fillStyle = 'rgba(70,50,10,0.32)'; ctx.fillRect(-hx, -hy, w, 5); ctx.fillRect(-hx, hy - 5, w, 5);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(42,32,20,0.55)'; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.moveTo(-hx + 22, -hy + 5); ctx.lineTo(-hx + 22, hy - 5); ctx.moveTo(hx - 30, -hy + 5); ctx.lineTo(hx - 30, hy - 5); ctx.stroke();
+  // TWARZ (przod, klin): brwi, kratka-zeby, zderzak, oczy
+  const fx = hx - 12;
+  ctx.fillStyle = '#2b2722'; roundRectPath(ctx, fx - 4, -hy * 0.42, 9, hy * 0.84, 2); ctx.fill();
+  ctx.fillStyle = '#9aa0a8'; for (let y = -hy * 0.36; y < hy * 0.38; y += 3.2) ctx.fillRect(fx - 3, y, 7, 1.4);
+  ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 1; roundRectPath(ctx, fx - 4, -hy * 0.42, 9, hy * 0.84, 2); ctx.stroke();
+  // zderzak z klami
+  ctx.fillStyle = vgrad(ctx, 0, 4, c.main); roundRectPath(ctx, hx - 4, -hy * 0.5, 5, hy, 1.5); ctx.fill(); ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = '#d9dce0'; [-0.3, 0, 0.3].forEach(k => { roundRectPath(ctx, hx - 1, hy * k - 1.6, 4, 3.2, 1); ctx.fill(); });
+  // brwi: kanciaste, zbiegaja sie ku srodkowi (grozna mina)
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = vgrad(ctx, s * hy * 0.5, 6, c.main);
+    ctx.beginPath(); ctx.moveTo(fx - 8, s * hy * 0.78); ctx.lineTo(fx + 3, s * hy * 0.62); ctx.lineTo(fx + 4, s * hy * 0.18); ctx.lineTo(fx - 3, s * hy * 0.3); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 1.1; ctx.stroke();
+    // OKO: swieci (puls z fazy — deterministycznie; w grze puls overlayem ADD)
+    const pulse = 0.5 + 0.5 * Math.sin(ph * Math.PI * 2);
+    const ey = s * hy * 0.46;
+    glow(ctx, fx - 1, ey, 2.6, '#ffd65a', 0.55 + pulse * 0.45, live);
+    ctx.fillStyle = '#fffbe8'; ctx.beginPath(); ctx.ellipse(fx - 1, ey, 2.4, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // TYL: tlumik z otworami (lewy tyl) + zwoj weza + lopata + drzwi + napis
+  const mx = -hx + 9, my = -hy + 10;
+  ctx.fillStyle = vgrad(ctx, my, 9, '#b8bcc4'); ctx.beginPath(); ctx.arc(mx, my, 4.6, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = '#2a2622'; for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; ctx.beginPath(); ctx.arc(mx + Math.cos(a) * 2.6, my + Math.sin(a) * 2.6, 0.7, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#1a1612'; ctx.beginPath(); ctx.arc(mx, my, 1.2, 0, Math.PI * 2); ctx.fill();
+  const hcx = -hx + 14, hcy = hy - 11;
+  for (let r = 6; r > 1; r -= 1.6) { ctx.strokeStyle = r > 4 ? '#6b5a32' : '#8b7848'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(hcx, hcy, r, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.arc(hcx, hcy, 6.8, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#7a6a4a'; ctx.fillRect(-hx + 24, hy - 6, 14, 1.6); ctx.fillStyle = '#a7adb5'; ctx.beginPath(); ctx.moveTo(-hx + 38, hy - 7.5); ctx.lineTo(-hx + 43, hy - 5.2); ctx.lineTo(-hx + 38, hy - 3); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(42,32,20,0.75)'; ctx.lineWidth = 0.9; roundRectPath(ctx, -4, hy - 13, 13, 9, 2); ctx.stroke();
+  ctx.fillStyle = '#2a2622'; ctx.fillRect(-1, hy - 11, 7, 1.6);
+  // szewrony (emblemat rangi) na boku
+  ctx.strokeStyle = c.dark; ctx.lineWidth = 1.6;
+  [0, 3.2].forEach(d => { ctx.beginPath(); ctx.moveTo(hx - 40 + d, -hy + 6); ctx.lineTo(hx - 36 + d, -hy + 10); ctx.lineTo(hx - 40 + d, -hy + 14); ctx.stroke(); });
+  ctx.save(); ctx.font = 'bold 5.5px sans-serif'; ctx.fillStyle = c.deep; ctx.fillText('Enigma', -hx + 24, -hy + 10.5); ctx.restore();
+  // nity po obwodzie
+  for (let x = -hx + 6; x <= hx - 20; x += 9) { rivet(ctx, x, -hy + 2.6, c, 1.2); rivet(ctx, x, hy - 2.6, c, 1.2); }
+}
+
+function enigmaTurretTop(ctx, b, c, o, r) {
+  // kopula: mocny gradient kuli (fake 3D) + laty srebra
+  ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
+  if (!o.drawSkin) enigmaCamo(ctx, r, r, 11, 0.55, 6); // kopula: mniej srebra (na rysunku dominuje zloto)
+  const g = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r * 1.05);
+  g.addColorStop(0, 'rgba(255,250,220,0.55)'); g.addColorStop(0.45, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(60,40,0,0.35)');
+  ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2);
+  ctx.restore();
+  // pierscien nitow u podstawy
+  for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; rivet(ctx, Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, c, 1.1); }
+  // wizjery z przodu
+  ctx.fillStyle = '#1d1a16'; [-0.42, 0, 0.42].forEach(k => { roundRectPath(ctx, r * 0.42, k * r - 2, 5, 4, 1); ctx.fill(); });
+  ctx.fillStyle = 'rgba(160,220,255,0.55)'; [-0.42, 0, 0.42].forEach(k => ctx.fillRect(r * 0.42 + 0.8, k * r - 1.4, 3.4, 0.9));
+  // "X7" — zloty, wypukly napis na kopule (czytany w kierunku jazdy)
+  ctx.save(); ctx.rotate(Math.PI / 2); ctx.font = '900 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(40,28,8,0.6)'; ctx.fillText('X7', 0.6, r * 0.12 + 0.8);
+  ctx.fillStyle = vgrad(ctx, r * 0.12, 11, c.bright); ctx.fillText('X7', 0, r * 0.12);
+  ctx.strokeStyle = ENIGMA_OL; ctx.lineWidth = 0.6; ctx.strokeText('X7', 0, r * 0.12);
+  ctx.restore();
+  // 2 antenki-bicze (do tylu, z kulka na koncu)
+  for (const s of [-1, 1]) {
+    const ax = -r * 0.55, ay = s * r * 0.55;
+    ctx.fillStyle = '#3a342c'; ctx.beginPath(); ctx.arc(ax, ay, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#1e1a16'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(ax - r * 0.8, ay + s * 3, ax - r * 1.5, ay + s * 7); ctx.stroke();
+    ctx.fillStyle = c.main; ctx.beginPath(); ctx.arc(ax - r * 1.5, ay + s * 7, 1.3, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/** Gatling: 6 luf w pakiecie obracanym przez o.spin (rad), beben amunicji, zlota tarcza wylotu. */
+function enigmaBarrel(ctx, b, c, o) {
+  const sup = o.isSuper;
+  const steel = sup ? '#b061d8' : '#7d838c', steelD = sup ? '#6d2a99' : '#4a4f57', ol = sup ? '#3f0e5c' : ENIGMA_OL;
+  const R = 5.2, x0 = 17, x1 = 50, spin = o.spin || 0;
+  // beben amunicji z tasma (bok, przy nasadzie)
+  ctx.fillStyle = vgrad(ctx, 11, 12, '#8d939c'); ctx.beginPath(); ctx.ellipse(16, 11, 6.5, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = ol; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = c.dark; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.ellipse(16, 11, 4, 3.6, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = c.light; for (let k = 0; k < 4; k++) ctx.fillRect(19 + k * 2.4, 4.5, 1.6, 3);
+  // obudowa mechanizmu
+  block(ctx, 12, -8, 9, 16, 2, '#5d636c', ol);
+  // 6 luf: kolejnosc od najdalszej (glebokosc = sin), y = cos * R
+  const barrels = [];
+  for (let k = 0; k < 6; k++) { const a = spin + k * Math.PI / 3; barrels.push({ y: Math.cos(a) * R, d: Math.sin(a) }); }
+  barrels.sort((p, q) => p.d - q.d);
+  for (const br of barrels) {
+    const shade = 0.55 + 0.45 * (br.d * 0.5 + 0.5);
+    const col = lerpColor(steelD, steel, shade);
+    cylinder(ctx, x0, br.y, x1, br.y, 3.4, col, steel, ol, true);
+  }
+  // obejmy luf
+  [27, 40].forEach(x => ring(ctx, x, R * 2 + 4, 3, '#5d636c', ol));
+  // zlota tarcza wylotu (plaszcz)
+  ctx.fillStyle = vgrad(ctx, 0, R * 2 + 9, sup ? '#f0a0ff' : c.main); // tarcza w kolorze skorki (domyslnie zloto)
+  roundRectPath(ctx, x1 - 1, -R - 4.5, 7, R * 2 + 9, 2.2); ctx.fill(); ctx.strokeStyle = ol; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x1, -R - 3.5, 5, 1.2);
+  // wyloty (6) na czole tarczy
+  for (const br of barrels) if (br.d > -0.2) { ctx.fillStyle = '#120e08'; ctx.beginPath(); ctx.ellipse(x1 + 6.2, br.y, 0.9, 1.3, 0, 0, Math.PI * 2); ctx.fill(); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Prymitywy
 // ─────────────────────────────────────────────────────────────────────────────
 function roundRectPath(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
@@ -96,6 +278,8 @@ function hullPath(ctx, shape, w, h) {
     ctx.moveTo(-hx + c, -hy); ctx.lineTo(hx - c, -hy); ctx.quadraticCurveTo(hx, -hy, hx, -hy + c);
     ctx.lineTo(hx, hy - c); ctx.quadraticCurveTo(hx, hy, hx - c, hy); ctx.lineTo(-hx + c, hy);
     ctx.quadraticCurveTo(-hx, hy, -hx, hy - c); ctx.lineTo(-hx, -hy + c); ctx.quadraticCurveTo(-hx, -hy, -hx + c, -hy); ctx.closePath();
+  } else if (shape === 'enigma') {
+    enigmaHullPath(ctx, w, h);
   } else if (shape === 'wedge') {
     const fr = hy * 0.62;
     ctx.moveTo(-hx + 10, -hy); ctx.lineTo(hx - 22, -hy); ctx.lineTo(hx - 2, -fr);
@@ -313,8 +497,9 @@ function drawFlagOnHull(ctx, b, c, flagId) {
 // ─────────────────────────────────────────────────────────────────────────────
 function dropShadow(ctx, x, y, b, hullAngle) {
   const sz = b.size;
-  ctx.save(); ctx.translate(x + 5 * sz, y + 12 * sz); ctx.scale(1, CAMERA_TILT_Y); ctx.rotate(hullAngle);
-  const w = (b.hullW + 12) * sz * 1.04, h = (b.hullH + 22) * sz * 1.02;
+  ctx.save(); ctx.translate(x + (b.wheels ? 3 : 5) * sz, y + (b.wheels ? 8 : 12) * sz); ctx.scale(1, CAMERA_TILT_Y); ctx.rotate(hullAngle);
+  // ENIGMA (kola): koła rzucaja wlasne cienie — zapas jak dla gasienic dawal cien wyraznie wiekszy niz u reszty.
+  const w = (b.hullW + (b.wheels ? 0 : 12)) * sz * (b.wheels ? 0.94 : 1.04), h = (b.hullH + (b.wheels ? 8 : 22)) * sz * 1.02;
   ctx.fillStyle = 'rgba(20,10,30,0.20)'; roundRectPath(ctx, -w / 2 - 3, -h / 2 - 3, w + 6, h + 6, 16); ctx.fill();
   ctx.fillStyle = 'rgba(20,10,30,0.30)'; roundRectPath(ctx, -w / 2, -h / 2, w, h, 13); ctx.fill();
   ctx.restore();
@@ -435,7 +620,7 @@ function hatch(ctx, x, y, r, c) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PAINTERZY PER CZOLG — HULL TOP
 // ─────────────────────────────────────────────────────────────────────────────
-const HULL_SHAPE_V2 = { twardy: 'standard', heavy: 'armored', scout: 'wedge', sniper: 'slim', plasma: 'tech', pyro: 'wide', shadow: 'faceted', king: 'royal' };
+const HULL_SHAPE_V2 = { twardy: 'standard', heavy: 'armored', scout: 'wedge', sniper: 'slim', plasma: 'tech', pyro: 'wide', shadow: 'faceted', king: 'royal', enigma: 'enigma' };
 
 function hullTopV2(ctx, b, c, o) {
   const id = b.id; const w = b.hullW, h = b.hullH; const hx = w / 2, hy = h / 2;
@@ -445,7 +630,8 @@ function hullTopV2(ctx, b, c, o) {
   hullTopBase(ctx, b, c, shape, o.isSuper);
   if (o.drawSkin) { ctx.save(); path(); ctx.clip(); o.drawSkin(ctx, b, c, 'hull'); ctx.restore(); }
 
-  if (id === 'twardy') {
+  if (id === 'enigma') enigmaHullTop(ctx, b, c, o, path);
+  else if (id === 'twardy') {
     // WETERAN: duze plamy moro, przednia plyta z workami z piaskiem, zapasowe ogniwa, grill silnika
     ctx.save(); path(); ctx.clip();
     ctx.fillStyle = '#1b5a22';
@@ -638,7 +824,7 @@ function hullTopV2(ctx, b, c, o) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PAINTERZY PER CZOLG — WIEZA (top face) i LUFA
 // ─────────────────────────────────────────────────────────────────────────────
-const TURRET_SHAPE_V2 = { twardy: 'chamfered_cube', heavy: 'heavy_octagon', scout: 'scout_rect', sniper: 'tall_rect', plasma: 'chamfered_cube_tech', pyro: 'wide_cylinder', shadow: 'faceted_hex', king: 'crowned_cylinder' };
+const TURRET_SHAPE_V2 = { twardy: 'chamfered_cube', heavy: 'heavy_octagon', scout: 'scout_rect', sniper: 'tall_rect', plasma: 'chamfered_cube_tech', pyro: 'wide_cylinder', shadow: 'faceted_hex', king: 'crowned_cylinder', enigma: 'round' };
 
 function turretTopV2(ctx, b, c, o) {
   const id = b.id; const r = b.turretRadius; const live = o.liveCanvas; const ph = o.phase || 0;
@@ -652,7 +838,8 @@ function turretTopV2(ctx, b, c, o) {
   ctx.restore();
   if (o.drawSkin) { ctx.save(); path(); ctx.clip(); o.drawSkin(ctx, b, c, 'turret'); ctx.restore(); }
 
-  if (id === 'twardy') {
+  if (id === 'enigma') enigmaTurretTop(ctx, b, c, o, r);
+  else if (id === 'twardy') {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([2, 1.5]); ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.55); ctx.lineTo(r * 0.5, -r * 0.55); ctx.moveTo(-r * 0.6, r * 0.55); ctx.lineTo(r * 0.5, r * 0.55); ctx.stroke(); ctx.setLineDash([]);
     hatch(ctx, -r * 0.35, -r * 0.35, 5.5, c);
     ctx.fillStyle = '#0a1a0a'; roundRectPath(ctx, 3, -7, 12, 3.2, 1); ctx.fill(); roundRectPath(ctx, 3, 3.8, 12, 3.2, 1); ctx.fill();
@@ -746,7 +933,8 @@ function barrelV2(ctx, b, c, o) {
   const id = b.id; const live = o.liveCanvas; const ph = o.phase || 0;
   const base = o.isSuper ? '#d946ef' : c.deep; const side = o.isSuper ? '#a020bf' : c.dark; const ol = o.isSuper ? '#7c0eaa' : c.outline;
   const top = o.isSuper ? '#f0a0ff' : lighten(c.deep, 0.25);
-  if (id === 'twardy') {
+  if (id === 'enigma') enigmaBarrel(ctx, b, c, o);
+  else if (id === 'twardy') {
     cylinder(ctx, 16, 0, 52, 0, 12, base, top, ol, true);
     ring(ctx, 30, 15, 6, side, ol);
     block(ctx, 44, -8, 10, 16, 2, side, ol);
@@ -863,7 +1051,7 @@ export function bakeHullLayerV2(ctx, t, opts) {
   const hullZ = b.hullZ || HULL_Z;
   const ex = t.x, ey = t.y - pitchZ;
   dropShadow(ctx, t.x, t.y, b, t.hullAngle);
-  ctx.save(); applyTransform(ctx, ex, ey, 0, t.hullAngle, sz, tiltMul); treadsV2(ctx, b, colors, t.treadShift || 0); ctx.restore();
+  ctx.save(); applyTransform(ctx, ex, ey, 0, t.hullAngle, sz, tiltMul); (b.wheels ? wheelsV2 : treadsV2)(ctx, b, colors, t.treadShift || 0); ctx.restore(); // ENIGMA: kola zamiast gasienic
   const shape = HULL_SHAPE_V2[b.id] || 'standard';
   extrudeV2(ctx, () => hullPath(ctx, shape, b.hullW * 0.985, b.hullH * 0.985), ex, ey, 0, t.hullAngle, sz, tiltMul, colors.dark, colors.deep, colors.outline, hullZ, 1);
   ctx.save(); applyTransform(ctx, ex, ey, hullZ, t.hullAngle, sz, tiltMul); hullTopV2(ctx, b, colors, o); ctx.restore();
@@ -906,7 +1094,7 @@ export function getMuzzlePosV2(t, ang) {
 //   king   = korona z 3 zebami, zolta, glow, fake 3D. Reszta = dotychczasowy drawBulletWithFx.
 // Rysowane w prawo (vx=1); rotacja/spin w Bullet.ts. Efekty runtime (luki, ogien, orbitery) — Bullet.ts.
 // ─────────────────────────────────────────────────────────────────────────────
-export const BULLET_V2_IDS = ['heavy', 'sniper', 'king'];
+export const BULLET_V2_IDS = ['heavy', 'sniper', 'king', 'enigma'];
 
 export function drawBulletV2(ctx, id, b, fallback) {
   const x = b.x, y = b.y, s = b.size, sup = !!b.isSuper;
@@ -926,6 +1114,20 @@ export function drawBulletV2(ctx, id, b, fallback) {
     ctx.fillStyle = 'rgba(255,255,255,0.4)'; roundRectPath(ctx, -L / 2 + 2.5, -R * 0.75, L - 5, R * 0.32, R * 0.15); ctx.fill();
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(L / 2, 0, R * 0.32, R * 0.9, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = sup ? '#f0b0ff' : '#9b30d0'; ctx.beginPath(); ctx.ellipse(L / 2 + 0.3, 0, R * 0.2, R * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (id === 'enigma') {
+    // ENIGMA (gatling): wydluzona zlota kapsula ze smuga i bialym jadrem; super = wieksza + mocniejsza poswiata.
+    // Mariusz 2026-10-06: kapsula +20% szersza (tylko wizual), poswiata +10%.
+    const L = s * 3.4, R = s * 0.85 * 1.2, GL = 1.1 / 1.2; // GL: poswiata liczona od R, wiec +10% netto
+    const g = ctx.createRadialGradient(x, y, 0, x, y, R * GL * (sup ? 4.2 : 3));
+    g.addColorStop(0, sup ? 'rgba(255,200,60,0.6)' : 'rgba(255,214,90,0.42)'); g.addColorStop(1, 'rgba(255,170,30,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R * GL * (sup ? 4.2 : 3), 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.translate(x, y);
+    const tg = ctx.createLinearGradient(-L, 0, L * 0.5, 0); tg.addColorStop(0, 'rgba(255,190,40,0)'); tg.addColorStop(1, 'rgba(255,215,90,0.95)');
+    ctx.fillStyle = tg; roundRectPath(ctx, -L, -R, L * 1.5, R * 2, R); ctx.fill();
+    ctx.fillStyle = '#fff6cc'; ctx.beginPath(); ctx.ellipse(L * 0.25, 0, R * 1.3, R * 0.7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     return;
   }

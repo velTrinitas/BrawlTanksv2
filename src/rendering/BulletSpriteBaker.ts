@@ -55,6 +55,8 @@ const CFG: Record<string, BulletBakeCfg> = {
     pyro:   { type: 'flame',         size: 5,   tex: 76, superType: 'super_flame',   superSize: 6,   superTex: 148, tint: '#FF6A1A', auraScale: 1,    spin: 'dir',  spinRate: 0,     muzzleDist: 38 },
     shadow: { type: 'shadow_bullet', size: 4,   tex: 48, superType: 'shadow_bullet', superSize: 4.5, superTex: 52,  tint: '#C0C6D4', auraScale: 1,    spin: 'spin', spinRate: 0.02,  muzzleDist: 50 },
     king:   { type: 'gold',          size: 7.5, tex: 52, superType: 'gold',          superSize: 12,  superTex: 112, tint: '#FF5A2C', auraScale: 1,    spin: 'spin', spinRate: 0.012, muzzleDist: 54 },
+    // ENIGMA (gatling): zlota smuga v2 (render2dV2 drawBulletV2); 'gold' = fallback v1. Bez tego mecz Enigma nie startuje.
+    enigma: { type: 'gold',          size: 4,   tex: 40, superType: 'gold',          superSize: 6.5, superTex: 72,  tint: '#F5C542', auraScale: 0.8,  spin: 'dir',  spinRate: 0,     muzzleDist: 60 },
 };
 
 // render2d constants (for muzzle geometry mapping render2d-space -> world-space).

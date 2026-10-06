@@ -39,6 +39,9 @@ export interface BalanceStats {
     readonly cubeDmgMult?: number;
     /** Shadow (S3): dash — BEZ klatek nietykalnosci (decyzja Mariusza: i-frames lamia Czytelnosc). */
     readonly dash?: boolean;
+    /** ENIGMA (gatling): rozrzut pocisku w rad (+-, z worldRng) i rozped luf w krokach logiki (60/s). */
+    readonly spreadRad?: number;
+    readonly spinUpSteps?: number;
 }
 
 export type BalanceRulesetId = 'v1' | 'v2';
@@ -119,4 +122,9 @@ export const BALANCE_V2_STATS: Readonly<Record<string, BalanceStats>> = Object.f
     // w KTB to byl artefakt stylu bota). 800 -> 620 = -20% tempa; dmg 220 zostaje (lekki plus na bossie).
     // ITERACJA 3 (KTB: „OK"): zasieg 800 -> 700 (zyczenie); super szerszy w main.v2SuperLayout.
     king:   { hp: 500, dmg: 220, reload: 620, speed: 5.5, maxDist: 700,  bulletRadius: 8 },
+    // ENIGMA (gatling, za flaga ?enigma=1) — analiza balansu w symulatorze enigma-preview.html (2026-10-06):
+    // 38 dmg = DOKLADNIE 8 strzalow na 300 HP (39-42 nic nie zmienia, 43 = prog 7 strzalow = ponad Zwiada);
+    // reload 70 -> realnie 83 ms (krok 16,67) = 12/s, s/zabicie 0,67 (3. miejsce za Ogniarzem i Zwiadem),
+    // ale z rozpedem luf 0,25 s i rozrzutem +-3 st. Kostka polowa (jak Zwiad/Shadow) — 12 pociskow/s.
+    enigma: { hp: 450, dmg: 38,  reload: 70,  speed: 4.5, maxDist: 650,  bulletRadius: 8, cubeDmgMult: 0.5, spreadRad: 3 * Math.PI / 180, spinUpSteps: 15 },
 });

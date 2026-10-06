@@ -39,6 +39,7 @@ const SHOOT_TYPE_MAP: Record<string, string> = {
     sniper: 'sniper',
     plasma: 'plasma',
     pyro:   'plasma',
+    enigma: 'gatling',  // ENIGMA: wyrenderowana synteza (tools/render-gatling-sfx.mjs) + wersja super
 };
 
 /** Volume per layer — BASELINE values. Multipliers (musicVolMult/sfxVolMult) apply on top. */
@@ -95,6 +96,10 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'shoot_sniper',   file: 'shoot_sniper.mp3',   volume: 0.50 }, // v0.196.0 loudness: was VOLUMES.shoot * 0.9; rms400 -16 dB -> eff -22.0 dB (target -22)
     { key: 'shoot_plasma',   file: 'shoot_plasma.mp3',   volume: 0.58 }, // v0.196.0 loudness: was VOLUMES.shoot; rms400 -17.3 dB -> eff -22.0 dB (target -22)
     { key: 'shoot_pancerny', file: 'Pancerny_shot.mp3',  volume: 0.25 }, // v0.196.0 loudness: was VOLUMES.shoot * 1.1; rms400 -7.8 dB -> eff -19.8 dB (target -20) | P5: custom SFX pancerny
+    // ENIGMA gatling (12 strz./s): plik 0,12 s, mean -18,3 dB; seria 12/s => rms400 ~ -16,7 dB -> vol 0.45 = eff ~ -23,6 dB
+    // (celowo ~1,5 dB pod shoot -22: ciagla seria brzmi glosniej niz pojedynczy strzal przy tym samym poziomie).
+    { key: 'shoot_gatling',       file: 'shoot_gatling.mp3',       volume: 0.45 },
+    { key: 'shoot_gatling_super', file: 'shoot_gatling_super.mp3', volume: 0.42 }, // mean -17,6 dB, nizszy i grubszy
     { key: 'shoot_shadow',   file: 'Shadow_shot.mp3',    volume: 0.50 }, // v0.196.0 loudness: was VOLUMES.shoot; rms400 -16 dB -> eff -22.0 dB (target -22) | P5: custom SFX shadow
 
     { key: 'hit_enemy',  file: 'hit_enemy.mp3',  volume: 0.79 }, // v0.196.0 loudness: was VOLUMES.hit; rms400 -23.9 dB -> eff -25.9 dB (target -26)
@@ -754,8 +759,17 @@ export class AudioSys {
     // PUBLIC API — SFX playback (unchanged)
     // ==========================================
 
-    playShoot(brawlerId: string): void {
+    private gatlingT = 0;
+    playShoot(brawlerId: string, isSuper = false): void {
         const type = SHOOT_TYPE_MAP[brawlerId] ?? 'standard';
+        if (type === 'gatling') {
+            // ENIGMA: throttle 80 ms (max ~12/s) — gatling nie moze zatkac puli Howlera; super = osobny plik
+            const now = performance.now();
+            if (now - this.gatlingT < 80) return;
+            this.gatlingT = now;
+            this.safePlayVaried(isSuper ? 'shoot_gatling_super' : 'shoot_gatling', 0.06);
+            return;
+        }
         this.safePlayVaried(`shoot_${type}`); // anti-fatigue jitter (v0.114.1)
     }
 

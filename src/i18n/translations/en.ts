@@ -625,6 +625,7 @@ export const en: typeof pl = {
     'hub.roster.trait.volley': 'VOLLEY x{n}',
     'hub.roster.trait.pierce': 'PIERCE x{n}',
     'hub.roster.trait.dash': 'DASH',
+    'hub.roster.trait.gatling': 'GATLING ×{n}/s',
     // BALANCE_V2 (S5): tank stat labels - hardcoded in UI code until v0.199.0.
     'stat.hp': 'HP',
     'stat.dmg': 'DMG',
@@ -649,6 +650,7 @@ export const en: typeof pl = {
     'brawler.pyro.desc': 'A flamethrower on tracks. It sprays a wide fan of fire that melts entire groups at close range, but barely reaches anything far away. Its element is the close-quarters brawl.',
     'brawler.shadow.desc': 'An agile assassin that drives in, finishes the target and disappears. It has a dash — one move pulls it out of the line of fire or lands it next to a wounded enemy. Its thin armour forgives very little.',
     'brawler.king.desc': 'A heavy tank wearing a crown. Every single shot hurts the most, and thick armour lets it push forward where others have to fall back. In exchange, it reloads the slowest in the garage.',
+    'brawler.enigma.desc': 'A golden gatling on eight wheels. The barrels need a moment to spin up, then they pour out a hail of bullets — twelve shots per second. Keep the target in your sights and nothing stands.',
 
     'hub.quests.daily': 'DAILY ORDERS',
     'hub.quests.weekly': 'WEEKLY ORDERS',
@@ -913,6 +915,7 @@ export const en: typeof pl = {
     'brawler.pyro.name': 'BURNER',
     'brawler.shadow.name': 'SHADOW',
     'brawler.king.name': 'KING',
+    'brawler.enigma.name': 'ENIGMA',
 
     // ============================================================
     // Settings

@@ -47,6 +47,8 @@ export const SHOT_FX: Record<string, ShotFx> = {
     pyro:   { ...DEF, color: 0xff7a2a, flashScale: 1.0, smoke: 2, sparks: 3, trailLen: 26, trailWidth: 8, ringRadius: 18, hitSparks: 5 },
     shadow: { ...DEF, color: 0xb48cff, flashScale: 0.8, smoke: 1, sparks: 3, trailLen: 48, trailWidth: 4, ringRadius: 20 },
     king:   { ...DEF, color: 0xffb340, flashScale: 1.25, smoke: 3, sparks: 5, trailLen: 44, trailWidth: 7, ringRadius: 26, hitSparks: 7, hitStopFrames: 1, nudgePx: 1 },
+    // ENIGMA (12 strz./s): maly blysk, bez dymu, 1 iskra, krotka smuga, bez hit-stopu — limit 200 czastek przy serii.
+    enigma: { ...DEF, color: 0xf5c542, flashScale: 0.6, smoke: 0, sparks: 1, trailLen: 30, trailWidth: 3.6, ringRadius: 12, hitSparks: 2 }, // smuga +20% (Mariusz)
 };
 
 export function shotFxFor(brawlerId: string): ShotFx {

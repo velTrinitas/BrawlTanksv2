@@ -1,4 +1,5 @@
 import { t, type TranslationKey } from '../../../i18n/i18n';
+import { isEnigmaEnabled } from '../../../config/enigmaFlag'; // ENIGMA: z flaga teaser znika (czolg jest w BRAWLERS)
 import type { HubSection, HubSelection } from './HubSection';
 import { SCENARIO_CONFIGS, type ScenarioId } from '../../../types/Scenario';
 import { isQueenMode } from '../../../config/queenFlag'; // SAVE THE QUEEN Q1
@@ -229,7 +230,7 @@ export class BattleSection implements HubSection {
             </span>`;
             tanks = `
             <div class="bt-hub0-subhead">${t('hub.battle.pickTank')}</div>
-            <div class="bt-hub0-cards bt-hub0-cards--tanks">${tankCards}${enigma}</div>`;
+            <div class="bt-hub0-cards bt-hub0-cards--tanks">${tankCards}${isEnigmaEnabled() ? '' : enigma}</div>`;
         }
 
         // ── SCENARIUSZE 3x1 (ktb/ctf/castle; save_king wyciety) ─────────────

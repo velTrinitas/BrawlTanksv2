@@ -34,4 +34,7 @@ export interface Brawler {
     cubeDmgMult?: number;
     /** Shadow: dash bez klatek nietykalnosci (S3). */
     dash?: boolean;
+    /** ENIGMA: gatling — rozrzut kazdego pocisku (rad, losowany z worldRng) i rozped luf w krokach logiki. */
+    spreadRad?: number;
+    spinUpSteps?: number;
 }

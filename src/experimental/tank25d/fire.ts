@@ -26,6 +26,7 @@ const SUPER_TINTS: Record<string, string> = {
   pyro: '#FF6A1A',   // fire orange
   shadow: '#C0C6D4', // silver-grey (metallic super shurikens)
   king: '#FF5A2C',   // red-orange
+  enigma: '#FFB020', // ENIGMA: zloty grad
 };
 export function getSuperTint(id: string): string {
   return SUPER_TINTS[id] || '#d946ef';

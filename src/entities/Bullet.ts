@@ -25,16 +25,19 @@ import { nextNetId } from '../systems/NetId'; // COOP S5b
 const SPEED_MAP: Record<string, number> = {
     twardy: 17, heavy: 13, scout: 27, sniper: 29,
     plasma: 17, pyro: 14, shadow: 19, king: 14,
+    enigma: 18, // ENIGMA gatling: szybki, krotki pocisk
 };
 
 const RADIUS_MAP: Record<string, number> = {
     twardy: 6, heavy: 11, scout: 4, sniper: 4,
     plasma: 9, pyro: 10, shadow: 8, king: 10,
+    enigma: 4, // (v1; w v2 trafienie = bulletRadius 8 jak wszyscy)
 };
 
 const TRAIL_LEN_MAP: Record<string, number> = {
     twardy: 10, heavy: 7, scout: 16, sniper: 0,
     plasma: 5, pyro: 10, shadow: 7, king: 5,
+    enigma: 8, // zlota smuga
 };
 
 const COLOR_MAP: Record<string, number> = {
@@ -46,12 +49,16 @@ const COLOR_MAP: Record<string, number> = {
     pyro:   0xe74c3c,
     shadow: 0x6c3483,
     king:   0xd35400,
+    enigma: 0xf5c542, // zloto
 };
 
 // Super-shot multipliers (v4.48 wierność)
 const SUPER_DMG_MULT = 3;
 const SUPER_RADIUS_MULT = 1.5;
 const SUPER_TRAIL_MULT = 1.5;
+/** ENIGMA: wlasne mnozniki supera (analiza w enigma-preview.html): pocisk x1.6 wiekszy i x1.1 szybszy. */
+const SUPER_RADIUS_BY_ID: Record<string, number> = { enigma: 1.6 };
+const SUPER_SPEED_BY_ID: Record<string, number> = { enigma: 1.1 };
 
 // Fioletowy tint (Q2🅲️ user choice) — flat path only.
 const SUPER_TINT = 0xc850ff;
@@ -182,8 +189,8 @@ export class Bullet {
         const baseTrail = TRAIL_LEN_MAP[b.id] ?? 0;
 
         this.dmg = superDmgOverride != null ? superDmgOverride : b.dmg * (isSuper ? SUPER_DMG_MULT : 1);
-        this.speed = baseSpeed;
-        this.radius = baseRadius * (isSuper ? SUPER_RADIUS_MULT : 1);
+        this.speed = baseSpeed * (isSuper ? (SUPER_SPEED_BY_ID[b.id] ?? 1) : 1);
+        this.radius = baseRadius * (isSuper ? (SUPER_RADIUS_BY_ID[b.id] ?? SUPER_RADIUS_MULT) : 1);
         this.trailLen = Math.ceil(baseTrail * (isSuper ? SUPER_TRAIL_MULT : 1));
 
         this.vx = Math.cos(angle) * this.speed;

@@ -44,6 +44,9 @@ export const BAKE_ANGLES = 36;
 export const BAKE_TEX_SIZE = 160;
 /** V2: tread phases baked for the hull (2 = classic sprite trick: links alternate half a link). */
 export const TREAD_PHASES = 2;
+/** ENIGMA: fazy obrotu pakietu 6 luf (symetria co 60 st. => 3 fazy co 20 st. daja plynny obrot). */
+export const GATLING_SPIN_PHASES = 3;
+const GATLING_IDS = new Set(['enigma']);
 /** V2: atlas side limit in CSS px (x resolution = device px; 1024*2 = 2048 = safe GPU limit). */
 const ATLAS_MAX_CSS = 1024;
 /** V2: frames baked per chunk before yielding to the event loop (loading screen keeps moving). */
@@ -60,6 +63,8 @@ interface BakedBrawler {
     /** hull[phase][angleIndex]; legacy path has exactly one phase. */
     hull: PIXI.Texture[][];
     turret: PIXI.Texture[];   // length BAKE_ANGLES, indexed by turretAngle quantum
+    /** ENIGMA (gatling): turretSpin[phase][angleIndex] — pakiet 6 luf w GATLING_SPIN_PHASES polozeniach (faza 0 = `turret`). */
+    turretSpin?: PIXI.Texture[][];
     /** Cache key (tankLookKey + art version) — rebake on change. */
     key: string;
     /** V2: atlas base textures to destroy on dispose (legacy: empty, textures own their bases). */
@@ -116,7 +121,8 @@ class TankSpriteBakerImpl {
      * @throws if the brawler id is unknown in the renderer config.
      */
     async bakeBrawler(app: PIXI.Application, brawlerId: string, look: TankLook): Promise<BakedBrawler> {
-        const v2 = isTankArtV2();
+        // ENIGMA istnieje tylko w artach v2 (render2dV2) — przy ?tankart=0 nadal pieczemy ja sciezka v2 (inaczej wyjatek).
+        const v2 = isTankArtV2() || GATLING_IDS.has(brawlerId);
         const key = (v2 ? 'v2|' : 'v1|') + tankLookKey(look);
         const cached = this.cache.get(brawlerId);
         if (cached && cached.key === key) return cached;
@@ -249,12 +255,17 @@ class TankSpriteBakerImpl {
                 await yieldFrame();
             }
         }
-        for (let i = 0; i < BAKE_ANGLES; i++) {
-            const { canvas, ctx } = this.makeBakeCanvas(resolution);
-            const tank = this.makeTank(brawler, 'turret', i * ANGLE_STEP, 0);
-            r2dV2.bakeTurretLayerV2(ctx, tank, opts);
-            frames.push({ canvas, kind: 'turret', phase: 0, index: i, ...this.scanAlpha(canvas, resolution) });
-            await yieldFrame();
+        // ENIGMA: gatling piecze wieze w GATLING_SPIN_PHASES fazach obrotu luf (opts.spin); reszta czolgow = 1 faza (bit-for-bit).
+        const spinPhases = GATLING_IDS.has(brawlerId) ? GATLING_SPIN_PHASES : 1;
+        for (let sp = 0; sp < spinPhases; sp++) {
+            const spinOpts = sp === 0 ? opts : { ...opts, spin: sp * (Math.PI / 3) / GATLING_SPIN_PHASES };
+            for (let i = 0; i < BAKE_ANGLES; i++) {
+                const { canvas, ctx } = this.makeBakeCanvas(resolution);
+                const tank = this.makeTank(brawler, 'turret', i * ANGLE_STEP, 0);
+                r2dV2.bakeTurretLayerV2(ctx, tank, spinOpts);
+                frames.push({ canvas, kind: 'turret', phase: sp, index: i, ...this.scanAlpha(canvas, resolution) });
+                await yieldFrame();
+            }
         }
 
         // 2) AABB measurement (dev): max extent + margin to the box. This IS the math-verify.
@@ -267,6 +278,8 @@ class TankSpriteBakerImpl {
         const hull: PIXI.Texture[][] = [];
         for (let p = 0; p < TREAD_PHASES; p++) hull.push(new Array(BAKE_ANGLES));
         const turret: PIXI.Texture[] = new Array(BAKE_ANGLES);
+        const turretSpin: PIXI.Texture[][] = [];
+        for (let p = 0; p < spinPhases; p++) turretSpin.push(new Array(BAKE_ANGLES));
         const bases = atlases.map((c) => new PIXI.BaseTexture(c, { resolution } as PIXI.IBaseTextureOptions));
         for (const pl of placed) {
             const tex = new PIXI.Texture(
@@ -276,7 +289,7 @@ class TankSpriteBakerImpl {
                 new PIXI.Rectangle(pl.f.x, pl.f.y, pl.f.w, pl.f.h),
             );
             if (pl.f.kind === 'hull') hull[pl.f.phase][pl.f.index] = tex;
-            else turret[pl.f.index] = tex;
+            else { turretSpin[pl.f.phase][pl.f.index] = tex; if (pl.f.phase === 0) turret[pl.f.index] = tex; }
         }
         // Scratch canvases are garbage now — release their bitmaps eagerly (mobile memory).
         for (const f of frames) { f.canvas.width = 0; f.canvas.height = 0; }
@@ -287,7 +300,7 @@ class TankSpriteBakerImpl {
                 + `${(px * 4 / 1048576).toFixed(1)} MB VRAM (legacy: ${(frames.length * (BAKE_TEX_SIZE * resolution) ** 2 * 4 / 1048576).toFixed(1)} MB for the same frame count)`);
         }
 
-        return { hull, turret, key, atlases: bases };
+        return { hull, turret, key, atlases: bases, turretSpin: spinPhases > 1 ? turretSpin : undefined };
     }
 
     /** Alpha scan of a bake canvas (device px) -> content rect in CSS px (with safety margin). */
@@ -430,8 +443,12 @@ class TankSpriteBakerImpl {
     }
 
     /** Nearest baked TURRET texture for a continuous turretAngle (radians). */
-    getTurretTexture(brawlerId: string, turretAngle: number): PIXI.Texture {
+    getTurretTexture(brawlerId: string, turretAngle: number, spinPhase: number = 0): PIXI.Texture {
         const baked = this.requireBaked(brawlerId);
+        if (baked.turretSpin && spinPhase) {
+            const n = baked.turretSpin.length;
+            return baked.turretSpin[((spinPhase % n) + n) % n][this.angleToIndex(turretAngle)];
+        }
         return baked.turret[this.angleToIndex(turretAngle)];
     }
 

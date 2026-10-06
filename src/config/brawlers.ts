@@ -1,6 +1,7 @@
 import type { Brawler } from '../types/Brawler';
 import { isBalanceV2Enabled } from './balanceFlag';     // BALANCE_V2 (v0.200.0)
 import { BALANCE_V2_STATS } from './balanceRules';
+import { isEnigmaEnabled } from './enigmaFlag';
 
     const BASE = import.meta.env.BASE_URL;
 
@@ -31,9 +32,16 @@ import { BALANCE_V2_STATS } from './balanceRules';
      *
      * Nadpisywane sa WYLACZNIE pola z rulesetu; `id/emoji/icon/name/colorMain/type/flag` zostaja.
      */
+    /**
+     * ENIGMA (9. czolg, gatling) — tylko przy ?enigma=1 i ZAWSZE NA KONCU listy: indeksy 0-7 musza zostac
+     * (Enemy.ts uzywa BRAWLERS[1], koop wysyla brawlerIdx jako u8). Liczby v1 = v2 (czolg powstal po rebalansie).
+     */
+    const ENIGMA_V1: Brawler = { id: 'enigma', emoji: '⚙️', icon: BASE + 'assets/tanks/EnigmaX7.jpg', name: 'Enigma', colorMain: '#E8B83A', hp: 450, speed: 4.5, dmg: 38, reload: 70, type: 'standard', flag: 'PL', spreadRad: 3 * Math.PI / 180, spinUpSteps: 15, cubeDmgMult: 0.5 };
+    const ROSTER_V1: Brawler[] = isEnigmaEnabled() ? [...BRAWLERS_V1, ENIGMA_V1] : BRAWLERS_V1;
+
     function buildRoster(): Brawler[] {
-        if (!isBalanceV2Enabled()) return BRAWLERS_V1;
-        return BRAWLERS_V1.map(b => {
+        if (!isBalanceV2Enabled()) return ROSTER_V1;
+        return ROSTER_V1.map(b => {
             const s = BALANCE_V2_STATS[b.id];
             if (!s) return b;   // nieznany czolg = zostaje na v1 (nigdy nie gubimy brawlera przez balans)
             return {
@@ -43,6 +51,7 @@ import { BALANCE_V2_STATS } from './balanceRules';
                 volley: s.volley ? { count: s.volley.count, spread: s.volley.spread } : undefined,
                 pierce: s.pierce, dash: s.dash,
                 pierceDmgAfter: s.pierceDmgAfter, cubeDmgMult: s.cubeDmgMult, // v0.211.0
+                spreadRad: s.spreadRad, spinUpSteps: s.spinUpSteps, // ENIGMA (gatling)
             };
         });
     }

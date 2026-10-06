@@ -1,6 +1,7 @@
 import { t } from '../../../i18n/i18n';
 import { BRAWLERS } from '../../../config/brawlers';
 import { isBalanceV2Enabled } from '../../../config/balanceFlag';
+import { isEnigmaEnabled } from '../../../config/enigmaFlag'; // ENIGMA: z flaga czolg jest w BRAWLERS — karta "wkrotce" znika
 import { tankName, statRowHtml, STAT_MAX, tempoOf } from '../sections/BattleSection';
 import { reducedMotion } from '../juice';
 import { playUiClick, playUiSelect, playUiBack } from '../../uiSounds';
@@ -30,6 +31,8 @@ function traitsHtml(b: Brawler): string {
     if (b.volley && b.volley.count > 1) chips.push(`💥 ${t('hub.roster.trait.volley', { n: b.volley.count })}`);
     if (b.pierce && b.pierce > 1) chips.push(`➹ ${t('hub.roster.trait.pierce', { n: b.pierce })}`);
     if (b.dash) chips.push(`💨 ${t('hub.roster.trait.dash')}`);
+    // ENIGMA: realna kadencja (reload zaokraglony w gore do kroku logiki 16,67 ms) — pasek TEMPO jest przyciety do 5/s.
+    if (b.spinUpSteps) chips.push(`🔫 ${t('hub.roster.trait.gatling', { n: Math.round(1000 / (Math.ceil(b.reload / (1000 / 60)) * (1000 / 60))) })}`);
     return chips.length ? `<div class="rs-traits">${chips.map(c => `<span>${c}</span>`).join('')}</div>` : '';
 }
 
@@ -87,7 +90,7 @@ export class TankRosterOverlay {
                         aria-label="${t('common.close')}">✕</button>
                 <h3 class="bt-hub0-modal-title bt-rs-title">${t('hub.roster.title')}
                     <small>${t('hub.roster.hint')}</small></h3>
-                <div class="bt-rs-grid">${cards}${enigma}</div>
+                <div class="bt-rs-grid">${cards}${isEnigmaEnabled() ? '' : enigma}</div>
             </div>`;
         parent.appendChild(this.el);
         playUiSelect();

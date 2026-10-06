@@ -405,6 +405,8 @@ const SUPER_PROFILES: Record<string, SuperProfile> = {
     sniper: { offsets: [-0.06, 0.06], dmg: 450 },                  // 2 x 450 = 900  (bylo 1 x 900)
     pyro:   { offsets: [-0.42, -0.21, 0, 0.21, 0.42], dmg: 160 },  // 5 x 160 = 800  (bylo 5 x 150 = 750)
     shadow: { offsets: [-0.2, 0, 0.2], dmg: 300 },                 // 3 x 300 = 900  (bylo 5 x 450 = 2250)
+    // ENIGMA (gatling): 1 pocisk x1.5 dmg (38 -> 57 = 6 strzalow na 300 HP); promien x1.6 i predkosc x1.1 w Bullet.ts
+    enigma: { offsets: [0], dmg: 57 },
 };
 /**
  * BALANCE_V2 (S4, v0.200.0) — SPRAWIEDLIWY SUPER: dmg per pocisk LICZONY Z RELOADU.
@@ -434,6 +436,9 @@ function fairSuperProfiles(src: Record<string, SuperProfile> = SUPER_PROFILES): 
     for (const [id, p] of Object.entries(src)) {
         const brawler = BRAWLERS.find(b => b.id === id);
         if (!brawler) { out[id] = p; continue; }
+        // ENIGMA: poza formula — przy reloadzie 70 ms dalaby 140 dmg/pocisk (72 salwy w 5 s). Super gatlinga
+        // to swiadomie +50% obrazen pocisku (analiza balansu, enigma-preview.html), nie wyrownana pula.
+        if (id === 'enigma') { out[id] = p; continue; }
         const volleys = Math.floor(SUPER_SHOT_DURATION_MS / brawler.reload) + 1;
         const mechFactor = p.behavior === 'boomerang' ? 2 : 1;
         const dmg = Math.round(SUPER_FAIR_TARGET / (volleys * p.offsets.length * mechFactor) / 5) * 5;
@@ -711,6 +716,8 @@ interface PlayerSimState {
     lowHpVoiceFired: boolean;
     lastShotTime: number; // COOP S6: przeladowanie per gracz (sim clock)
     respawnAt: number;    // COOP LAN-2a: gosc lezy do tej chwili (0 = zyje)
+    spinSteps: number;    // ENIGMA: rozped luf gatlinga w KROKACH logiki (0..spinUpSteps)
+    gatlingShots: number; // ENIGMA: licznik strzalow — ktora z 6 luf blyska (tylko wizual)
 }
 const playerSim = new Map<Player, PlayerSimState>();
 function simOf(p: Player): PlayerSimState {
@@ -718,7 +725,7 @@ function simOf(p: Player): PlayerSimState {
     if (!st) {
         st = { stealthEndTime: 0, wasInOasis: false, wasInFarm: false, wasInNeon: false,
             wasInRuinsBush: false, wasInHydro: false, wasInWheat: false,
-            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false, lastShotTime: 0, respawnAt: 0 };
+            wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false, lastShotTime: 0, respawnAt: 0, spinSteps: 0, gatlingShots: 0 };
         playerSim.set(p, st);
     }
     return st;
@@ -4949,7 +4956,17 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
     if (!effects || !currentSession) return;
     const isLocal = p === localPlayer;
     const pst = simOf(p);
-    if (input.fire && now - pst.lastShotTime > p.brawler.reload) {
+    // ENIGMA (gatling): rozped luf liczony w KROKACH logiki (ta funkcja = 1 wywolanie na krok) —
+    // deterministycznie, bez zegara systemowego. Pierwsze strzaly wolniej, pelna kadencja po spinUpSteps.
+    const spinMax = p.brawler.spinUpSteps || 0;
+    let reloadNow = p.brawler.reload;
+    if (spinMax > 0) {
+        pst.spinSteps = input.fire ? Math.min(spinMax, pst.spinSteps + 1) : Math.max(0, pst.spinSteps - 1);
+        const spinK = pst.spinSteps / spinMax;
+        if (spinK <= 0.15) return;
+        reloadNow = p.brawler.reload / Math.max(0.35, spinK);
+    }
+    if (input.fire && now - pst.lastShotTime > reloadNow) {
         // v0.50.1 anti-cheese fix: strzal ze strefy stealth = natychmiastowe wykrycie.
         // Zerujemy timer; next-frame branch "ZOSTALES ZAUWAZONY" pokaze odmienny komunikat
         // dzieki flagi stealthBrokenByShot (informuje gracza POWODU wykrycia).
@@ -4972,10 +4989,14 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
         if (TANK_ART_V2_ACTIVE) {
             // TANK ART v2: stozek w kolorze czolgu + dym + iskry; Pancerny = 2 lufy = 2 rozblyski.
             const fx = shotFxFor(p.brawler.id);
+            // ENIGMA: blysk z KOLEJNEJ z 6 luf (pakiet R=5.2 obraca sie) — tylko wizual, pocisk startuje ze srodka wylotu.
             const muzzles = p.brawler.id === 'heavy'
                 ? [BulletSpriteBaker.getMuzzlePos(p.brawler.id, p.x, p.y, angle, -8),
                    BulletSpriteBaker.getMuzzlePos(p.brawler.id, p.x, p.y, angle, 8)]
-                : [muzzle];
+                : spinMax > 0
+                    ? [BulletSpriteBaker.getMuzzlePos(p.brawler.id, p.x, p.y, angle, Math.cos(pst.gatlingShots * Math.PI / 3) * 5.2)]
+                    : [muzzle];
+            pst.gatlingShots++;
             for (const m of muzzles) effects.spawnMuzzleFlashV2(m.x, m.y, angle, fx);
             p.triggerBarrelFlash();
         } else {
@@ -4992,7 +5013,7 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
             if (isLocal) QuestService.track('super_shot'); // PROG-F3
         }
 
-        if (isLocal) audio.playShoot(p.brawler.id);
+        if (isLocal) audio.playShoot(p.brawler.id, isSuperShot);
 
         const dmgMultiplier = 1 + currentSession.dmgBonus;
 
@@ -5005,7 +5026,9 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
         const shotProfile = superProfile || normalProfile;
         const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(p.brawler, isSuperShot);
         for (const off of volleyOffsets) {
-            const b = acquireBullet(sX, sY, angle + off, isSuperShot, shotProfile?.dmg, p); // POOLING, COOP S6: wlasciciel
+            // ENIGMA: rozrzut gatlinga z worldRng — raz na pocisk, tylko u symulujacego (determinizm koopa)
+            const spread = p.brawler.spreadRad ? (worldRng.next() * 2 - 1) * p.brawler.spreadRad : 0;
+            const b = acquireBullet(sX, sY, angle + off + spread, isSuperShot, shotProfile?.dmg, p); // POOLING, COOP S6: wlasciciel
             b.dmg = Math.round(b.dmg * dmgMultiplier);
             if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
             bullets.push(b);
@@ -5015,7 +5038,8 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
         // nie przekracza 100% — inaczej L2b nie mialby na czym postawic reguly.
         currentSession.shotsFired += volleyOffsets.length;
         
-        p.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
+        // ENIGMA: maly, kumulowany odrzut (przy 12/s pelny odrzut przykleilby wieze do tylu)
+        if (spinMax > 0) p.triggerRecoil(isSuperShot ? 0.35 : 0.22); else p.triggerRecoil(); // FAZA P3 — recoil + chassis kick + pitch bump (no-op w flat)
         pst.lastShotTime = now;
         neonDidShootLastFrame = true; // v0.60.0 TIER 3 — sygnal dla drona (panika)
     }

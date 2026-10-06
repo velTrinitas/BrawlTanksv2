@@ -39,6 +39,7 @@ import type {
     BoardDefinition, ILeaderboardService, LeaderboardEntry, LeaderboardQuery, MyRank,
 } from './leaderboard';
 import { sanitizeDisplayName } from './leaderboard';
+import { ENIGMA_LIVE } from '../config/enigmaFlag'; // ENIGMA: wyniki poza rankingiem do flipu
 
 /** Staty ida do bazy jako nieujemne inty — zabezpieczenie przed NaN/float/ujemnym. */
 function nonNegInt(v: number | undefined): number {
@@ -201,6 +202,9 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
         // w localStorage i nigdy nie zostala oprozniona. Zwracamy wpis prowizoryczny,
         // czyli dokladnie to, co sciezka bledu — ekran konca meczu dziala normalnie.
         if (!isCloudEnabled()) return this.provisionalEntry(score, config);
+        // ENIGMA: dopoki czolg jest za flaga (testy), jego wyniki NIE ida do publicznego rankingu
+        // (serwer nie ma listy czolgow — przyjalby je). Bez deployu zaplecza.
+        if (config.brawlerId === 'enigma' && !ENIGMA_LIVE) return this.provisionalEntry(score, config);
         const insert: ScoreInsert = {
             profile_id: config.profileId,
             score,

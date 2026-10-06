@@ -224,6 +224,9 @@ export class Player {
     private _prevNow: number = performance.now();
     /** Ustawiane przez main.ts co klatke — supresja tauntu podczas strzelania (lab: !pointer.down). */
     public firing: boolean = false;
+    /** ENIGMA (gatling): faza obrotu pakietu luf (tylko wizual — licznik klatek, gdy strzela). */
+    private gatlingSpinT = 0;
+    private gatlingSpinPhase = 0;
 
     /**
      * Constructor signature (FAZA 7c):
@@ -657,12 +660,15 @@ export class Player {
         this.barrelFlash.visible = true;
     }
 
-    triggerRecoil(): void {
+    /** `add` (ENIGMA/gatling): odrzut KUMULOWANY o ulamek zamiast pelnego — przy 12 strz./s pelny odrzut
+     *  przykleilby wieze do tylu. Brak `add` = dotychczasowe zachowanie (bit-for-bit). */
+    triggerRecoil(add?: number): void {
         if (!this.bakerActive) return;
-        this.recoil = 1;
-        this.kickX = -Math.cos(this._turretAngle) * JUICE_KICK_MAG;
-        this.kickY = -Math.sin(this._turretAngle) * JUICE_KICK_MAG;
-        this.pitch = Math.min(JUICE_PITCH_CLAMP, this.pitch + JUICE_FIRE_PITCH_BUMP);
+        const k = add === undefined ? 1 : add;
+        this.recoil = add === undefined ? 1 : Math.min(1, this.recoil + add);
+        this.kickX = -Math.cos(this._turretAngle) * JUICE_KICK_MAG * k;
+        this.kickY = -Math.sin(this._turretAngle) * JUICE_KICK_MAG * k;
+        this.pitch = Math.min(JUICE_PITCH_CLAMP, this.pitch + JUICE_FIRE_PITCH_BUMP * k);
     }
 
     /**
@@ -854,7 +860,12 @@ export class Player {
             }
             // rotacja wpieczona: sprite.rotation=0, podmien teksture na najblizszy z 36 katow
             this.hull.texture = TankSpriteBaker.getHullTexture(this.brawler.id, this.lastMoveAngle, this.treadPhase);
-            this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle);
+            // ENIGMA: lufy kreca sie, gdy gatling strzela (faza co 2 klatki; 3 fazy x 20 st. = plynny obrot)
+            if (this.brawler.spinUpSteps && this.firing) {
+                this.gatlingSpinT += delta;
+                if (this.gatlingSpinT >= 2) { this.gatlingSpinT = 0; this.gatlingSpinPhase++; }
+            }
+            this.turret.texture = TankSpriteBaker.getTurretTexture(this.brawler.id, this._turretAngle, this.gatlingSpinPhase);
             if (this.barrelFlash && this.barrelFlash.visible) {
                 this.barrelFlashT -= delta;
                 if (this.barrelFlashT <= 0) { this.barrelFlash.visible = false; }

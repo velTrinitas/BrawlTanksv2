@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>ENIGMA — symulator (dev)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Titan+One&display=swap" rel="stylesheet">
+    <style>
+        html, body { margin: 0; background: #1a2230; color: #e8eef4; font-family: 'Titan One', sans-serif; }
+        .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 10px 14px; background: rgba(12,18,26,0.95); border-bottom: 2px solid #33415a; font-size: 13px; }
+        .bar label { display: flex; align-items: center; gap: 6px; }
+        .bar select, .bar button { font-family: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; border: 1px solid #55688a; background: #2a3a55; color: #fff; cursor: pointer; }
+        .bar .val { min-width: 54px; color: #ffd54a; }
+        h2 { margin: 12px 14px 6px; font-size: 16px; color: #ffd54a; }
+        canvas { display: block; margin: 0 14px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        #range { cursor: none; }
+        #stats { margin: 8px 14px; font-family: sans-serif; font-size: 13px; line-height: 1.6; color: #cfe0f0; }
+        #statPanel { margin: 0 14px; width: 560px; font-family: sans-serif; }
+        .st { display: grid; grid-template-columns: 70px 260px 50px 1fr; gap: 8px; align-items: center; margin: 4px 0; font-size: 13px; }
+        .st em { font-style: normal; color: #9fb3c8; font-family: 'Titan One', sans-serif; }
+        .st .bar { height: 10px; background: #2a3448; border-radius: 6px; overflow: hidden; }
+        .st .bar b { display: block; height: 100%; background: linear-gradient(90deg, #b8862a, #ffd54a); }
+        .st u { text-decoration: none; font-weight: bold; }
+        .st i { color: #ff9a6a; font-size: 11px; }
+        #balance { margin: 0 14px 10px; font-family: sans-serif; font-size: 12px; }
+        #balance table { border-collapse: collapse; }
+        #balance th, #balance td { padding: 4px 8px; border-bottom: 1px solid #2c3850; text-align: right; }
+        #balance th { color: #9fb3c8; font-weight: normal; }
+        #balance td:first-child, #balance th:first-child, #balance td:last-child { text-align: left; }
+        #balance tr.me td { background: rgba(255,213,74,0.14); color: #ffd54a; font-weight: bold; }
+        #balance .tip { color: #cfe0f0; max-width: 1060px; line-height: 1.5; }
+        .hint { padding: 4px 14px 16px; font-family: sans-serif; font-size: 11px; color: #8ea0b5; }
+    </style>
+</head>
+<body>
+    <div class="bar">
+        <strong>ENIGMA — obrotnica</strong>
+        <label><input type="checkbox" id="auto" checked> obrot (36 katow)</label>
+        <label>kat <input type="range" id="angle" min="0" max="35" value="31" style="width:160px"></label>
+        <label>skorka (jak w sklepie) <select id="palette"></select></label>
+        <label><input type="checkbox" id="mobile"> skala mobile (0.6)</label>
+    </div>
+    <h2>Obrotnica + skala meczu</h2>
+    <canvas id="turn"></canvas>
+    <div class="bar" style="margin-top:12px">
+        <strong>STRZELNICA</strong>
+        <label><input type="checkbox" id="super"> SUPER (spacja)</label>
+        <label>przeladowanie <input type="range" id="reload" min="30" max="250" value="70"><span class="val" id="reloadV"></span></label>
+        <label>obrazenia <input type="range" id="dmg" min="5" max="120" value="38"><span class="val" id="dmgV"></span></label>
+        <label>rozrzut <input type="range" id="spread" min="0" max="8" step="0.5" value="3"><span class="val" id="spreadV"></span></label>
+        <label><input type="checkbox" id="sound" checked> dzwiek</label>
+        <label><select id="sfxMode"><option value="file">plik MP3 (wyrenderowany)</option><option value="synth">synteza na zywo</option></select></label>
+        <button id="resetStats">reset licznikow</button>
+    </div>
+    <h2>Strzelnica — cele 300 HP (wrog V2)</h2>
+    <canvas id="range"></canvas>
+    <div id="stats"></div>
+    <h2>Statystyki Enigmy (jak w Garazu)</h2>
+    <div class="bar" style="border:none;background:none">
+        <label>HP <input type="number" id="eHp" value="450" step="25" style="width:64px"></label>
+        <label>SPEED <input type="number" id="eSpeed" value="4.5" step="0.1" style="width:64px"></label>
+        <label>ZASIEG <input type="number" id="eRange" value="650" step="50" style="width:64px"></label>
+        <span class="hint" style="padding:0">DMG i TEMPO = suwaki strzelnicy</span>
+    </div>
+    <div id="statPanel"></div>
+    <h2>Balans — 9 czolgow vs zwykly wrog 300 HP (BALANCE_V2)</h2>
+    <div id="balance"></div>
+    <div class="hint">WASD = jazda · mysz = celowanie · trzymaj LPM = ogien (lufy rozpedzaja sie ~0,25 s) · spacja = super.
+        Dzwiek startuje po pierwszym kliknieciu (polityka przegladarki). Strona dev-only — nie wchodzi do buildu gry.</div>
+    <script type="module" src="/src/experimental/tank25d/previewEnigma.ts"></script>
+</body>
+</html>

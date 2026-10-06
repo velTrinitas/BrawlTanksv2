@@ -648,6 +648,7 @@ export const pl = {
     'hub.roster.trait.volley': 'SALWA ×{n}',
     'hub.roster.trait.pierce': 'PRZEBICIE ×{n}',
     'hub.roster.trait.dash': 'DASH',
+    'hub.roster.trait.gatling': 'GATLING ×{n}/s',
     // BALANCE_V2 (S5): etykiety statow czolgu — do v0.199.0 byly HARDKODOWANE w kodzie UI.
     'stat.hp': 'HP',
     'stat.dmg': 'DMG',
@@ -672,6 +673,7 @@ export const pl = {
     'brawler.pyro.desc': 'Miotacz ognia na gąsienicach. Sypie szeroką wachlarzową salwą, która z bliska roztapia całe grupy wrogów, ale na dystansie prawie nie sięga. Jego żywioł to zwarcie.',
     'brawler.shadow.desc': 'Zwinny zabójca, który wjeżdża, kończy cel i znika. Ma doskok — jednym ruchem wyrywa się z linii ognia albo dopada rannego przeciwnika. Cienki pancerz wybacza niewiele.',
     'brawler.king.desc': 'Ciężki czołg z koroną. Każdy jego strzał boli najmocniej, a gruby pancerz pozwala iść naprzód tam, gdzie inni muszą się cofać. W zamian strzela najwolniej w garażu.',
+    'brawler.enigma.desc': 'Złoty gatling na ośmiu kołach. Lufy rozkręcają się chwilę, a potem sypią gradem kul — dwanaście strzałów na sekundę. Trzymaj cel na muszce, a nic nie ustoi.',
 
     'hub.quests.daily': 'ROZKAZY DNIA',
     'hub.quests.weekly': 'ROZKAZY TYGODNIA',
@@ -942,6 +944,7 @@ export const pl = {
     'brawler.pyro.name': 'OGNIARZ',
     'brawler.shadow.name': 'CIEŃ',
     'brawler.king.name': 'KRÓL',
+    'brawler.enigma.name': 'ENIGMA',
 
     // ============================================================
     // Settings (v0.42.0 FAZA 8a finalize + v0.43.0 FAZA 8b: profile section)

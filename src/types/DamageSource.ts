@@ -32,7 +32,10 @@ export type DamageSourceKind =
     // -> wrogowie
     | 'player_bullet'  // pocisk gracza (takze super shot)
     | 'power'          // super moc (mega bomba, miny, rakiety, Dziura, Laser, wieza...)
-    | 'shockwave';     // shockwave-on-hit Pancernego (perk brawlera, nie moc)
+    | 'shockwave'      // shockwave-on-hit Pancernego (perk brawlera, nie moc)
+    | 'chicken_peck'   // TROPICS v2 / T6: dzioby Szalonych Kurczakow (zdarzenie farmy) -> wrogowie
+    | 'bull_charge'    // TROPICS v2 / T6.2: szarza byka -> wrogowie I gracz (z telegrafem)
+    | 'reaper';        // TROPICS v2 / T6.3: Zniwiarka-Potwor -> wrogowie I gracz (z telegrafem)
 
 export interface DamageSource {
     readonly kind: DamageSourceKind;
@@ -58,6 +61,9 @@ export const SRC_RA_FIRE: DamageSource = Object.freeze({ kind: 'ra_fire' as cons
 export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bullet' as const, playerIndex: 0 });
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });
+export const SRC_REAPER: DamageSource = Object.freeze({ kind: 'reaper' as const }); // TROPICS v2 / T6.3
+export const SRC_BULL_CHARGE: DamageSource = Object.freeze({ kind: 'bull_charge' as const }); // TROPICS v2 / T6.2
+export const SRC_CHICKEN_PECK: DamageSource = Object.freeze({ kind: 'chicken_peck' as const, playerIndex: 0 }); // TROPICS v2 / T6
 export const SRC_POWER_MEGA_BOMB: DamageSource = Object.freeze({ kind: 'power' as const, powerId: 'megaBomb', playerIndex: 0 });
 
 // COOP S5b: zrodla z indeksem gracza (koop). Cache per indeks => zero alokacji w petli kolizji.

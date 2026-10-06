@@ -81,14 +81,14 @@ export function getPropCacheSize(): number {
     return _cache.size;
 }
 
-export function bakeToSprite(source: PIXI.Container, cacheKey?: string): PIXI.Sprite | null {
+export function bakeToSprite(source: PIXI.Container, cacheKey?: string, clip?: PIXI.Rectangle): PIXI.Sprite | null {
     if (!_renderer) return null;
     if (cacheKey && propCacheEnabled()) {
         const hit = _cache.get(cacheKey);
         if (hit && !hit.destroyed) {
             const spr = new PIXI.Sprite(hit);
             // anchor jest czescia kadru, wiec musi byc odtworzony tak samo jak przy pieczeniu
-            const b = source.getLocalBounds();
+            const b = clipBounds(source.getLocalBounds().clone(), clip);
             if (b.width > 0 && b.height > 0) spr.anchor.set(-b.x / b.width, -b.y / b.height);
             return spr;
         }
@@ -96,13 +96,16 @@ export function bakeToSprite(source: PIXI.Container, cacheKey?: string): PIXI.Sp
     try {
         // `getLocalBounds` daje realny kadr artu WRAZ z tym, co wychodzi poza (0,0) —
         // cienie i poswiaty sa rysowane z offsetem, wiec kadr liczony od zera ucinalby je.
-        const b = source.getLocalBounds().clone();
+        const b = clipBounds(source.getLocalBounds().clone(), clip);
         if (b.width <= 0 || b.height <= 0) return null;
+        // TROPICS v2 (2026-10-03): bezpiecznik limitu tekstury GPU. Zabłąkany punkt (0,0) w rysunku
+        // rozciągał kadr kurnika na pół mapy => tekstura > 4096 px = pusty sprite (znikniety budynek).
+        if (b.width * PROP_BAKE_SCALE > 4000 || b.height * PROP_BAKE_SCALE > 4000) {
+            console.warn('[propBaker] kadr za duzy, zostaje zywe Graphics', { cacheKey, w: b.width, h: b.height });
+            return null;
+        }
 
-        const tex = _renderer.generateTexture(source, {
-            resolution: PROP_BAKE_SCALE,
-            region: b,
-        });
+        const tex = generateDetached(source, b);
         if (cacheKey && propCacheEnabled()) _cache.set(cacheKey, tex);
         const sprite = new PIXI.Sprite(tex);
         // Anchor liczony z pozycji kadru wzgledem srodka ukladu propu: dzieki temu
@@ -114,4 +117,38 @@ export function bakeToSprite(source: PIXI.Container, cacheKey?: string): PIXI.Sp
         console.warn('[propBaker] bake failed, zostaje zywe Graphics:', e);
         return null;
     }
+}
+
+/**
+ * 2026-10-05 FIX (niewidzialne kurniki): PIXI v7 `generateTexture` dla obiektu Z RODZICEM ustawia
+ * `skipUpdateTransform` i renderuje z jego BIEZACYM worldTransform — czyli z przesunieciem i zoomem
+ * kamery, jesli obiekt byl juz raz wyrenderowany. Kadr (`region`) jest w ukladzie lokalnym, wiec
+ * zawartosc ladowala poza nim => pusta tekstura. Pieczenie w konstruktorze dzialalo przypadkiem
+ * (swiezy obiekt ma worldTransform = identity); pieczenie leniwe (Henhouse.update) — zalezalo od kamery.
+ * Teraz pieczenie jest niezalezne od momentu: na czas generateTexture obiekt jest odpiety od rodzica
+ * z neutralna transformacja (= dokladnie dawne zachowanie "swiezego" obiektu), potem wraca na miejsce.
+ */
+function generateDetached(source: PIXI.Container, region: PIXI.Rectangle): PIXI.RenderTexture {
+    const parent = source.parent;
+    if (!parent) return _renderer!.generateTexture(source, { resolution: PROP_BAKE_SCALE, region });
+    const idx = parent.getChildIndex(source);
+    const t = source.transform;
+    const saved = { px: t.position.x, py: t.position.y, sx: t.scale.x, sy: t.scale.y, rot: t.rotation, pvx: t.pivot.x, pvy: t.pivot.y, kx: t.skew.x, ky: t.skew.y };
+    parent.removeChild(source);
+    t.position.set(0, 0); t.scale.set(1, 1); t.rotation = 0; t.pivot.set(0, 0); t.skew.set(0, 0);
+    try {
+        return _renderer!.generateTexture(source, { resolution: PROP_BAKE_SCALE, region });
+    } finally {
+        t.position.set(saved.px, saved.py); t.scale.set(saved.sx, saved.sy); t.rotation = saved.rot;
+        t.pivot.set(saved.pvx, saved.pvy); t.skew.set(saved.kx, saved.ky);
+        parent.addChildAt(source, Math.min(idx, parent.children.length));
+    }
+}
+
+/** Przyciecie kadru do prostokata (opcjonalne). */
+function clipBounds(b: PIXI.Rectangle, clip?: PIXI.Rectangle): PIXI.Rectangle {
+    if (!clip) return b;
+    const x0 = Math.max(b.x, clip.x), y0 = Math.max(b.y, clip.y);
+    const x1 = Math.min(b.x + b.width, clip.x + clip.width), y1 = Math.min(b.y + b.height, clip.y + clip.height);
+    return new PIXI.Rectangle(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
 }

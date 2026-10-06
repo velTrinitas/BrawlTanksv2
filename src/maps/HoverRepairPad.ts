@@ -125,7 +125,11 @@ export class HoverRepairPad {
      *  100x100) bez zmian, a zasieg aktywacji maleje razem z wizualem (hitbox = wizual). */
     private readonly padScale: number;
 
-    constructor(x: number, y: number, worldContainer: PIXI.Container, scale = 1) {
+    /** TROPICS v2: na jasnej trawie SCREEN-glow ginie — ADD + pulsowanie (inne mapy bez zmian). */
+    private readonly glowBoost: boolean;
+
+    constructor(x: number, y: number, worldContainer: PIXI.Container, scale = 1, glowBoost = false) {
+        this.glowBoost = glowBoost;
         this.padScale = scale;
         this.x = x;
         this.y = y;
@@ -147,7 +151,7 @@ export class HoverRepairPad {
         this.glowSprite.anchor.set(0.5);
         this.glowSprite.x = PAD_SIZE / 2;
         this.glowSprite.y = PAD_SIZE / 2;
-        this.glowSprite.blendMode = PIXI.BLEND_MODES.SCREEN;
+        this.glowSprite.blendMode = glowBoost ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.SCREEN;
         this.container.addChild(this.glowSprite);
         
         this.platformBase = new PIXI.Container();
@@ -241,6 +245,10 @@ export class HoverRepairPad {
         if (isActive) {
             this.glowSprite.visible = true;
             this.glowSprite.alpha = isRepairing ? 0.5 + Math.random() * 0.3 : 0.6;
+            if (this.glowBoost) {
+                this.glowSprite.alpha = isRepairing ? 0.8 + Math.random() * 0.2 : 0.6 + Math.sin(time * 2.2) * 0.2;
+                this.glowSprite.scale.set(isRepairing ? 1.25 + Math.random() * 0.1 : 1.1 + Math.sin(time * 2.2) * 0.08);
+            }
         } else {
             this.glowSprite.visible = false;
         }

@@ -87,7 +87,7 @@ export const pl = {
     'leaderboard.map.all': 'Wszystkie',
     'leaderboard.map.city': 'Miasto',
     'leaderboard.map.desert': 'Pustynia',
-    'leaderboard.map.tropics': 'Tropiki',
+    'leaderboard.map.tropics': 'Agro',
     'leaderboard.map.arctic': 'Arktyka',
     'leaderboard.map.mars': 'Mars',
     'leaderboard.you': 'TY',
@@ -635,6 +635,10 @@ export const pl = {
     'hub.garage.slotsHint': 'Dotknij slot, aby zmienić moc',
     // GALERIA CZOLGOW (v0.230.0)
     'hub.roster.button': 'WSZYSTKIE CZOŁGI',
+    'hud.chickensWake': 'SZALONE KURCZAKI!', // TROPICS v2 / T6
+    'hud.goldenEgg': 'ZŁOTE JAJO!',
+    'hud.bullCharge': 'SZARŻA BYKA!',
+    'hud.reaper': 'ŻNIWIARKA-POTWÓR!',
     'hub.roster.title': 'WSZYSTKIE CZOŁGI',
     'hub.roster.hint': 'Porównaj i dotknij czołg, aby go wybrać',
     'hub.roster.mine': 'TWÓJ',
@@ -783,8 +787,8 @@ export const pl = {
     'map.city.name': 'CYBERPUNK',
     'map.city.tagline': 'Neonowe miasto przyszłości',
 
-    'map.tropics.name': 'TROPIKI',
-    'map.tropics.tagline': 'Karaibskie gospodarstwo',
+    'map.tropics.name': 'AGRO',
+    'map.tropics.tagline': 'Wiejskie gospodarstwo',
 
     'map.arctic.name': 'ARKTYKA',
     'map.arctic.tagline': 'Lodowa pustynia',

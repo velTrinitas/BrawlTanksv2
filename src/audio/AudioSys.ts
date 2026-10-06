@@ -789,6 +789,149 @@ export class AudioSys {
     /**
      * v0.34.0 T7: Procedural crate break sound.
      */
+    /**
+     * TROPICS v2 — ROZBICIE BELI SIANA (generowane). Warstwy:
+     *  1) gluche "pfff" — szum dolnoprzepustowy ~400 Hz (masa siana rozpadajaca sie),
+     *  2) SZELEST — szum pasmowy 3-6 kHz z gesta, losowa obwiednia trzaskow (tysiace zdzbel),
+     *  3) miekkie "tump" — sinus 95 -> 55 Hz (bela uderza o ziemie),
+     *  4) ogon "osypywania" — cichnace, rzadsze trzaski przez ~0.5 s.
+     */
+    playHayBreak(): void {
+        // 2026-10-05 (Mariusz: lagodniejszy): miekkie "pfff" + cichy szelest, bez trzaskow i tumpniecia
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t = ctx.currentTime;
+            const vol = 0.6 * this.sfxVolMult;
+            const noise = (dur: number, shape: (i: number, n: number) => number) => {
+                const n = Math.floor(ctx.sampleRate * dur);
+                const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+                const d = buf.getChannelData(0);
+                for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * shape(i, n);
+                const src = ctx.createBufferSource(); src.buffer = buf; return src;
+            };
+            // 1) miekkie pfff (lagodny atak, bez kliku)
+            const s1 = noise(0.38, (i, n) => Math.min(1, i / (n * 0.06)) * Math.exp(-i / (n * 0.3)));
+            const f1 = ctx.createBiquadFilter(); f1.type = 'lowpass'; f1.frequency.value = 520;
+            const g1 = ctx.createGain(); g1.gain.value = 0.5 * vol;
+            s1.connect(f1).connect(g1).connect(ctx.destination); s1.start(t);
+            // 2) szelest — gladki (bez ziaren), nizsze pasmo
+            const s2 = noise(0.45, (i, n) => Math.min(1, i / (n * 0.1)) * Math.exp(-i / (n * 0.32)));
+            const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 2200; f2.Q.value = 0.6;
+            const f2b = ctx.createBiquadFilter(); f2b.type = 'lowpass'; f2b.frequency.value = 3800;
+            const g2 = ctx.createGain(); g2.gain.value = 0.32 * vol;
+            s2.connect(f2).connect(f2b).connect(g2).connect(ctx.destination); s2.start(t + 0.02);
+        } catch (e) {
+            console.warn('[AudioSys] playHayBreak failed', (e as Error).stack);
+        }
+    }
+
+    /**
+     * TROPICS v2 / T6 — GDAKANIE (generowane). Kazde "ko" = krotki ton z szybkim spadkiem wysokosci
+     * przez filtr pasmowy (nosowy, kurzy tembr). `big` = wybuch stada: 5 nakladajacych sie "ko".
+     */
+    /** TROPICS v2 / T6.3 — SYRENA Zniwiarki (generowana): dwa tony 620/880 Hz, 0.3 s. Throttle 300 ms. */
+    private sirenT = 0;
+    playSiren(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.sirenT < 300) return;
+        this.sirenT = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t = ctx.currentTime;
+            // v2 (Mariusz: "dokuczliwy"): zamiast syreny — niski, miekki klakson maszyny rolniczej (2x "tuut")
+            for (const [st, f] of [[0, 196], [0.24, 165]] as const) {
+                const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+                const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2;
+                const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+                const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + st); g.gain.exponentialRampToValueAtTime(0.22 * this.sfxVolMult, t + st + 0.04);
+                g.gain.setValueAtTime(0.22 * this.sfxVolMult, t + st + 0.16); g.gain.exponentialRampToValueAtTime(0.001, t + st + 0.22);
+                o.connect(lp); o2.connect(lp); lp.connect(g).connect(ctx.destination);
+                o.start(t + st); o2.start(t + st); o.stop(t + st + 0.23); o2.stop(t + st + 0.23);
+            }
+        } catch (e) {
+            console.warn('[AudioSys] playSiren failed', (e as Error).stack);
+        }
+    }
+
+    /** TROPICS v2 / T6.2 — PARSKNIECIE BYKA (generowane): nosowy szum + niski pomruk 70 Hz. Throttle 250 ms. */
+    private snortT = 0;
+    playBullSnort(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.snortT < 250) return;
+        this.snortT = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t = ctx.currentTime;
+            const n = Math.floor(ctx.sampleRate * 0.45);
+            const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) { const p = i / n; d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * Math.min(1, p * 3)) * (1 - p); }
+            const src = ctx.createBufferSource(); src.buffer = buf;
+            const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(380, t + 0.4); f.Q.value = 1.4;
+            const g = ctx.createGain(); g.gain.value = 0.8 * this.sfxVolMult;
+            src.connect(f).connect(g).connect(ctx.destination); src.start(t);
+            const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(78, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.4);
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
+            const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.0001, t); g2.gain.exponentialRampToValueAtTime(0.45 * this.sfxVolMult, t + 0.05); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+            o.connect(lp).connect(g2).connect(ctx.destination); o.start(t); o.stop(t + 0.46);
+        } catch (e) {
+            console.warn('[AudioSys] playBullSnort failed', (e as Error).stack);
+        }
+    }
+
+    playCluck(big: boolean): void {
+        if (this.muted) return;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t0 = ctx.currentTime;
+            const n = big ? 5 : 2;
+            for (let i = 0; i < n; i++) {
+                const t = t0 + i * (big ? 0.07 : 0.16) + (big ? Math.random() * 0.04 : 0);
+                const f0 = (big ? 820 : 700) + Math.random() * 260;
+                const o = ctx.createOscillator(); o.type = 'square';
+                o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.09);
+                const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 3;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32 * this.sfxVolMult, t + 0.012);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+                o.connect(bp).connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.12);
+            }
+        } catch (e) {
+            console.warn('[AudioSys] playCluck failed', (e as Error).stack);
+        }
+    }
+
+    /** TROPICS v2 — trafienie w bele: krotki, suchy szelest (80 ms). Throttle 60 ms. */
+    private hayHitT = 0;
+    playHayHit(): void {
+        if (this.muted) return;
+        const now = Date.now();
+        if (now - this.hayHitT < 60) return;
+        this.hayHitT = now;
+        const ctx = Howler.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        try {
+            const t = ctx.currentTime;
+            const n = Math.floor(ctx.sampleRate * 0.09);
+            const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (n * 0.25)) * (Math.random() < 0.6 ? 1 : 0.2);
+            const src = ctx.createBufferSource(); src.buffer = buf;
+            const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 0.8; // 2026-10-05: lagodniej
+            const g = ctx.createGain(); g.gain.value = 0.35 * this.sfxVolMult;
+            src.connect(f).connect(g).connect(ctx.destination); src.start(t);
+        } catch (e) {
+            console.warn('[AudioSys] playHayHit failed', (e as Error).stack);
+        }
+    }
+
     playCrateBreak(): void {
         if (this.muted) return;
         const ctx = Howler.ctx;

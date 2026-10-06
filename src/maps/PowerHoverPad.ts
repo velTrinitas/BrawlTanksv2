@@ -99,7 +99,11 @@ export class PowerHoverPad {
      *  100x100) bez zmian, a zasieg aktywacji maleje razem z wizualem (hitbox = wizual). */
     private readonly padScale: number;
 
-    constructor(x: number, y: number, worldContainer: PIXI.Container, scale = 1) {
+    /** TROPICS v2: ADD + pulsowanie glow (na jasnej trawie SCREEN niewidoczny). */
+    private readonly glowBoost: boolean;
+
+    constructor(x: number, y: number, worldContainer: PIXI.Container, scale = 1, glowBoost = false) {
+        this.glowBoost = glowBoost;
         this.padScale = scale;
         this.x = x;
         this.y = y;
@@ -121,7 +125,7 @@ export class PowerHoverPad {
         this.glowSprite.anchor.set(0.5);
         this.glowSprite.x = PAD_SIZE / 2;
         this.glowSprite.y = PAD_SIZE / 2;
-        this.glowSprite.blendMode = PIXI.BLEND_MODES.SCREEN;
+        this.glowSprite.blendMode = glowBoost ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.SCREEN;
         this.container.addChild(this.glowSprite);
         
         this.platformBase = new PIXI.Container();
@@ -194,6 +198,10 @@ export class PowerHoverPad {
         if (isActive) {
             this.glowSprite.visible = true;
             this.glowSprite.alpha = 0.7;
+            if (this.glowBoost) {
+                this.glowSprite.alpha = 0.65 + Math.sin(time * 3) * 0.2;
+                this.glowSprite.scale.set(1.1 + Math.sin(time * 3) * 0.08);
+            }
         } else {
             this.glowSprite.visible = false;
         }

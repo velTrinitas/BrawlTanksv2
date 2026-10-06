@@ -78,7 +78,7 @@ export const en: typeof pl = {
     'leaderboard.map.all': 'All',
     'leaderboard.map.city': 'City',
     'leaderboard.map.desert': 'Desert',
-    'leaderboard.map.tropics': 'Tropics',
+    'leaderboard.map.tropics': 'Agro',
     'leaderboard.map.arctic': 'Arctic',
     'leaderboard.map.mars': 'Mars',
     'leaderboard.you': 'YOU',
@@ -612,6 +612,10 @@ export const en: typeof pl = {
     'hub.garage.slotsHint': 'Tap a slot to change a power',
     // TANK GALLERY (v0.230.0)
     'hub.roster.button': 'ALL TANKS',
+    'hud.chickensWake': 'CRAZY CHICKENS!', // TROPICS v2 / T6
+    'hud.goldenEgg': 'GOLDEN EGG!',
+    'hud.bullCharge': 'BULL CHARGE!',
+    'hud.reaper': 'MONSTER REAPER!',
     'hub.roster.title': 'ALL TANKS',
     'hub.roster.hint': 'Compare and tap a tank to pick it',
     'hub.roster.mine': 'YOURS',
@@ -757,8 +761,8 @@ export const en: typeof pl = {
     'map.city.name': 'CYBERPUNK',
     'map.city.tagline': 'Neon megacity',
 
-    'map.tropics.name': 'TROPICS',
-    'map.tropics.tagline': 'Caribbean Farmstead',
+    'map.tropics.name': 'AGRO',
+    'map.tropics.tagline': 'Countryside Farm',
 
     'map.arctic.name': 'ARCTIC',
     'map.arctic.tagline': 'Frozen wasteland',

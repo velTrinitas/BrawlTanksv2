@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+import { isTropicsArtV2 } from '../../config/tropicsArtFlag'; // TROPICS ART v2 / T1
+import { bakeStaticGraphics, CullGroup } from './tropicsBake';
 import type { ICollidable } from '../../types/MapType';
 import { fillGradientPolygon, makeRng, type Pt } from './FarmBuildingTextures';
 
@@ -157,6 +159,8 @@ export class Cowshed implements ICollidable {
     private staticContainer: PIXI.Container;
     private animatedContainer: PIXI.Container;
     private particleContainer: PIXI.Container;
+    /** TROPICS ART v2 / T1: culling budynku poza kadrem (null = legacy). */
+    private cull: CullGroup | null = null;
     private worldContainer: PIXI.Container;
 
     // Animation state
@@ -233,6 +237,14 @@ export class Cowshed implements ICollidable {
         this.drawStaticParts(rng);
         this.drawAnimatedParts(rng);
         this.initParticleSystems(rng);
+
+        if (isTropicsArtV2()) {
+            bakeStaticGraphics(this.aoContainer, `tr_cow_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            bakeStaticGraphics(this.groundContainer, `tr_cow_gr_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            bakeStaticGraphics(this.staticContainer, `tr_cow_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            this.cull = new CullGroup([this.aoContainer, this.groundContainer, this.interiorContainer, this.staticContainer, this.animatedContainer, this.particleContainer],
+                x - 140, y - 180, x + w + 140, y + h + 100);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1902,7 +1914,8 @@ export class Cowshed implements ICollidable {
     // ═══════════════════════════════════════════════════════════
     // 8) UPDATE — per-frame 8 Subtle Life animations
     // ═══════════════════════════════════════════════════════════
-    public update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
+    public update(camX: number, camY: number, screenW: number, screenH: number): void {
+        if (this.cull && this.cull.update(camX, camY, screenW, screenH)) return; // T1: poza kadrem = bez animacji
         const dt = 1 / 60;
         this.elapsed += dt;
         const t = this.elapsed;

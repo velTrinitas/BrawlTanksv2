@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+import { isTropicsArtV2 } from '../../config/tropicsArtFlag'; // TROPICS ART v2 / T1
+import { bakeStaticGraphics, CullGroup } from './tropicsBake';
 import type { ICollidable } from '../../types/MapType';
 
 /**
@@ -107,7 +109,9 @@ export class BarnBuilding implements ICollidable {
     private aoContainer: PIXI.Container;
     private staticContainer: PIXI.Container;
     private animatedContainer: PIXI.Container;
-    private siloContainer: PIXI.Container;  // v0.32.3: silos za barn
+    private siloContainer: PIXI.Container;
+    /** TROPICS ART v2 / T1: culling budynku poza kadrem (null = legacy). */
+    private cull: CullGroup | null = null;  // v0.32.3: silos za barn
     private _frontW: number;  // v0.32.8: original front wall width (this.w = hitbox extended)
 
     private vaneGfx!: PIXI.Container;
@@ -162,6 +166,14 @@ export class BarnBuilding implements ICollidable {
         this.animatedContainer.zIndex = Math.floor(y + h);
         this.drawAnimatedParts(rng);
         worldContainer.addChild(this.animatedContainer);
+
+        if (isTropicsArtV2()) {
+            bakeStaticGraphics(this.aoContainer, `tr_barn_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            bakeStaticGraphics(this.siloContainer, `tr_barn_silo_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            bakeStaticGraphics(this.staticContainer, `tr_barn_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + w + 280, h + 300));
+            this.cull = new CullGroup([this.aoContainer, this.siloContainer, this.staticContainer, this.animatedContainer],
+                x - 140, y - 200, x + this.w + 140, y + h + 100);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1141,7 +1153,8 @@ export class BarnBuilding implements ICollidable {
     // ═══════════════════════════════════════════════════════════
     // UPDATE — Subtle Life animations (vane, glows, hay, rope)
     // ═══════════════════════════════════════════════════════════
-    public update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
+    public update(camX: number, camY: number, screenW: number, screenH: number): void {
+        if (this.cull && this.cull.update(camX, camY, screenW, screenH)) return; // T1: poza kadrem = bez animacji
         this.time += 1 / 60;
 
         // v0.32.1: 2x amplitudy dla widoczności animacji (Mariusz feedback)

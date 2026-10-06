@@ -42,12 +42,12 @@ import {
 } from './maps/DesertMap';
 import {
     buildTropicsTexture,
-    TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS,
+    TROPICS_MEDI_PAD_POSITIONS, TROPICS_POWER_PAD_POSITIONS, TROPICS_HAY_LAYOUT_V2,
     TROPICS_PATROL_WAYPOINTS,
     TROPICS_STABLE_LAYOUT,
     TROPICS_CORN_LAYOUT,
     TROPICS_DIRT_ROAD_PATHS,
-    TROPICS_FARM_BUILDINGS_LAYOUT,
+    TROPICS_FARM_BUILDINGS_LAYOUT, TROPICS_FARM_BUILDINGS_V2,
     TROPICS_HOUSES_LAYOUT,
     TROPICS_CRATES_LAYOUT,
     TROPICS_WINDMILL_POSITION,
@@ -159,6 +159,20 @@ import { Stable } from './maps/tropics/Stable';
 import { Paddock } from './maps/tropics/Paddock';
 import { Horse, type HorsePaletteType } from './maps/tropics/Horse';
 import { TropicalBorder } from './maps/tropics/TropicalBorder';
+import { isTropicsArtV2 } from './config/tropicsArtFlag'; // TROPICS ART v2
+import { buildTropicsTextureV2 } from './maps/tropics/TropicsGroundV2';
+import { HayBale } from './maps/tropics/HayBale';
+import { AgroBorderTrees } from './maps/tropics/AgroTrees';
+import { checkRectCollision } from './systems/Physics';
+import { addFarmDepth } from './maps/tropics/FarmDecor';
+import { FarmAnimals } from './maps/tropics/FarmAnimals';
+import { FarmProps } from './maps/tropics/FarmProps';
+import { ChickenFlock } from './maps/tropics/ChickenFlock';
+import { BullCharge } from './maps/tropics/BullCharge';
+import { ReaperTractor } from './maps/tropics/ReaperTractor';
+import { CombineVisual } from './maps/tropics/Combine';
+import { CHICKENS, CHICKENS_BY_DIFFICULTY, BULL_BY_DIFFICULTY, REAPER_BY_DIFFICULTY } from './config/tropicsEvents';
+import { SRC_CHICKEN_PECK, SRC_BULL_CHARGE, SRC_REAPER } from './types/DamageSource';
 import { CyberpunkBorder } from './maps/city/CyberpunkBorder'; // v0.52.0 fix #21
 import { SludgeReactor } from './maps/city/SludgeReactor'; // v0.52.0 phase 2
 import { AntiGravScrap } from './maps/city/AntiGravScrap'; // v0.53.0
@@ -485,6 +499,7 @@ let waterLife: WaterLife | null = null;
 let smallRocks: Rock[] = [];
 let sandstormBorder: SandstormBorder | null = null;
 let tropicalBorder: TropicalBorder | null = null;
+let agroBorderTrees: AgroBorderTrees | null = null; // AGRO 2026-10-06: kolyszace sie drzewka na obrzezu
 let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
 let arcticBorder: ArcticBorder | null = null; // ARC-R1 (Arctic)
 let marsBorder: DuststormBorder | null = null; // FAZA MARS M2
@@ -579,6 +594,22 @@ let patrolTractor: PatrolTractor | null = null;
 let stable: Stable | null = null;
 let paddock: Paddock | null = null;
 let horses: Horse[] = [];
+/** TROPICS ART v2 / T4: zwierzeta farmy 3/4 (tylko wizual, poza symulacja). */
+let farmAnimals: FarmAnimals | null = null;
+/** TROPICS ART v2 / T5: stawy z kaczkami, szklarnia, studnia, silos, palmy, strachy na wroble. */
+let farmProps: FarmProps | null = null;
+/** TROPICS ART v2 / T6.1: Szalone Kurczaki (SYMULACJA — staly krok logiki). */
+let chickenFlock: ChickenFlock | null = null;
+let tropicsHenhouses: Henhouse[] = [];
+/** TROPICS ART v2 / T6.2: Szarza Byka z obory (SYMULACJA). */
+let bullCharge: BullCharge | null = null;
+let tropicsCowshed: Cowshed | null = null;
+/** TROPICS ART v2 / T6.3: Zniwiarka-Potwor (traktor patrolowy, SYMULACJA). */
+let reaperTractor: ReaperTractor | null = null;
+/** TROPICS ART v2 / T6.3b: kombajn fake-3D (wizual traktora patrolowego). */
+let combineVisual: CombineVisual | null = null;
+let tropicsBarn: BarnBuilding | null = null;
+const farmThreats: Array<{ x: number; y: number }> = [];
 let quicksands: Quicksand[] = [];
 let oases: Oasis[] = [];
 // FAZA CTF F1 — Fortified Ruins (jeziorka NIE maja globala: update via buildings.forEach)
@@ -727,7 +758,47 @@ const TANK_ART_V2_ACTIVE: boolean = isTankArtV2() && BAKER_ENABLED;
 
 let buildings: ICollidable[] = [];
 let solidBuildings: ICollidable[] = [];
-let crates: Crate[] = [];
+let crates: Array<Crate | HayBale> = [];
+/**
+ * TROPICS v2 (2026-10-05, Mariusz): czolg gracza PCHA bele siana (oslony do ustawienia). Bela jedzie
+ * wolniej niz czolg (ciezka) i staje na budynkach / innych belach; strzal nadal ja rozbija.
+ * Tylko solo: pozycja beli nie jest jeszcze w migawce koopa (netState = tylko rozbita/cala).
+ */
+const HAY_PUSH_SPEED_MULT = 0.6;
+function pushHayBales(p: Player, delta: number): void {
+    if (!p.isMoving || netRole() !== 'solo' || crates.length === 0) return;
+    const ux = Math.cos(p.moveAngle), uy = Math.sin(p.moveAngle);
+    const step = p.currentSpeed * HAY_PUSH_SPEED_MULT * delta;
+    // wszystkie bele, ktorych czolg dotyka od strony jazdy (np. styk dwoch bel = pcha obie)
+    const touched: HayBale[] = [];
+    for (const c of crates) {
+        if (!(c instanceof HayBale)) continue;
+        const r = c.pushRect;
+        if (!r) continue;
+        if (!checkRectCollision(r.x, r.y, r.w, r.h, p.x + ux * 3, p.y + uy * 3, 20)) continue;
+        const toX = r.x + r.w / 2 - p.x, toY = r.y + r.h / 2 - p.y;
+        if (toX * ux + toY * uy <= 0) continue; // bela za/obok czolgu - nie ciagniemy jej
+        touched.push(c);
+    }
+    if (touched.length === 0) return;
+    const group = new Set(touched);
+    // os dominujaca jako zapas: bela "slizga sie" po scianie zamiast stanac
+    const tries: Array<[number, number]> = [[ux * step, uy * step], Math.abs(ux) > Math.abs(uy) ? [ux * step, 0] : [0, uy * step]];
+    for (const [mx, my] of tries) {
+        if (mx === 0 && my === 0) continue;
+        const moved: HayBale[] = [];
+        for (const c of touched) if (c.tryPush(mx, my, buildings, group)) moved.push(c);
+        if (moved.length === touched.length) {
+            // czolg jedzie RAZEM z belami ich tempem (bez tego ruszalby skokami co druga klatke)
+            let free = true;
+            for (const b of buildings) if (checkRectCollision(b.x, b.y, b.w, b.h, p.x + mx, p.y + my, 20)) { free = false; break; }
+            if (free) { p.x += mx; p.y += my; }
+            return;
+        }
+        for (const c of moved) c.undoPush(mx, my); // wszystkie albo zadna (stos stoi razem)
+    }
+}
+ // TROPICS v2: bele siana dziela kontrakt skrzyni
 let effects: EffectsManager | null = null;
 // v0.188.0 FAZA 2 — dym uszkodzenia gracza. WLASNA warstwa nad czolgami (zIndex 15000) i wlasna
 // tablica klebow: pula czasteczek ma cap 200 i przy pelnej puli NADPISUJE zywe czastki, przez co dym
@@ -1637,6 +1708,8 @@ function runGuestStep(delta: number): void {
     for (const qs of quicksands) qs.update(camera.x, camera.y, viewW, viewH);
     for (const oasis of oases) oasis.update(camera.x, camera.y, viewW, viewH);
     for (const ff of farmFields) ff.update(camera.x, camera.y, viewW, viewH);
+    if (farmAnimals) { farmThreats.length = 0; for (const pl of players) farmThreats.push(pl); farmAnimals.update(1, farmThreats, camera.x, camera.y, viewW, viewH); }
+    if (farmProps) farmProps.update(1, camera.x, camera.y, viewW, viewH);
     for (const ns of neonStations) ns.update(camera.x, camera.y, guestWorld.focusX, guestWorld.focusY, false, bullets);
     for (const rb of ruinsBushes) rb.update();
     for (const hg of hydroGardens) hg.update();
@@ -1850,6 +1923,8 @@ menu.onProfileEditRequested = () => {
 })();
 
 if (import.meta.env.DEV) {
+    // TROPICS ART v2 (dev): przeniesienie czolgu do weryfikacji zrzutami (tools/tropics-shot.mjs)
+    (window as unknown as { __devTp: (x: number, y: number) => void }).__devTp = (x, y) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } };
     (window as unknown as { BT_DEV: unknown }).BT_DEV = {
         ProfileService,
         ProfileSpriteCache,
@@ -2368,6 +2443,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     smallRocks = [];
     sandstormBorder = null;
     tropicalBorder = null;
+    agroBorderTrees = null;
     cyberpunkBorder = null; // v0.52.0 fix #21
     arcticBorder = null; // ARC-R1 (Arctic)
     marsBorder = null; // FAZA MARS M2
@@ -2417,6 +2493,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     stable = null;
     paddock = null;
     horses = [];
+    farmAnimals = null;
+    farmProps = null;
+    chickenFlock = null;
+    tropicsHenhouses = [];
+    bullCharge = null;
+    tropicsCowshed = null;
+    reaperTractor = null;
+    combineVisual = null;
+    tropicsBarn = null;
     quicksands = [];
     oases = [];
     ruinsBorder = null;   // FAZA CTF F1
@@ -2748,12 +2833,15 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         mediPads = DESERT_MEDI_PAD_POSITIONS.map(p => new DesertHeartPad(p.x, p.y, worldContainer));
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     } else if (config.map === 'tropics') {
-        const tropicsTex = getGroundTexture('tropics', buildTropicsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
+        const tropicsV2 = isTropicsArtV2(); // TROPICS ART v2 / T2: grunt z wpieczonymi drogami
+        const tropicsTex = tropicsV2
+            ? getGroundTexture('tropics_v2', buildTropicsTextureV2)
+            : getGroundTexture('tropics', buildTropicsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const tropicsSprite = new PIXI.Sprite(tropicsTex);
         tropicsSprite.zIndex = -100;
         worldContainer.addChild(tropicsSprite);
 
-        TROPICS_DIRT_ROAD_PATHS.forEach((waypoints, i) => {
+        if (!tropicsV2) TROPICS_DIRT_ROAD_PATHS.forEach((waypoints, i) => {
             new DirtRoad(waypoints, worldContainer, 17 + i * 7);
         });
 
@@ -2766,19 +2854,29 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             }
         });
 
-        for (const fb of TROPICS_FARM_BUILDINGS_LAYOUT) {
+        for (const fb of tropicsV2 ? TROPICS_FARM_BUILDINGS_V2 : TROPICS_FARM_BUILDINGS_LAYOUT) {
             let building: BarnBuilding | Henhouse | Cowshed | null = null;
             if (fb.type === 'barn') {
                 building = new BarnBuilding(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
+                tropicsBarn = building; // T6.2 v2: stodola budzi Szarze Byka
             } else if (fb.type === 'henhouse') {
                 building = new Henhouse(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
+                tropicsHenhouses.push(building); // T6.1: kurniki budza Szalone Kurczaki
             } else if (fb.type === 'cowshed') {
                 building = new Cowshed(fb.x, fb.y, fb.w, fb.h, fb.seed, worldContainer);
+                tropicsCowshed = building; // T6.2: obora budzi Szarze Byka
             }
             if (building) {
                 buildings.push(building);
                 solidBuildings.push(building);
                 for (const extra of building.getExtraCollidables()) {
+                    // T6 fix: pocisk trafia NAJPIERW w obwodke (PAD 10 px) i ginal bez zgloszenia —
+                    // hooki zdarzen (kurnik/stodola) prawie nie dostawaly trafien. Obwodka przekazuje
+                    // trafienie budynkowi (getter: hooki sa podpinane pozniej; brak hooka = zwykla sciana).
+                    const owner = building as unknown as Record<string, unknown>;
+                    for (const k of ['takeDamage', 'takeEnemyDamage']) {
+                        Object.defineProperty(extra, k, { get: () => owner[k], enumerable: true });
+                    }
                     buildings.push(extra);
                     solidBuildings.push(extra);
                 }
@@ -2810,9 +2908,11 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         tropicalBorder = new TropicalBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...tropicalBorder.getCollisionRects());
         solidBuildings.push(...tropicalBorder.getCollisionRects());
+        if (isTropicsArtV2()) agroBorderTrees = new AgroBorderTrees(worldContainer, WORLD_W, WORLD_H);
 
-        mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => new CloverMediPad(p.x, p.y, worldContainer));
-        powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => new StumpPowerPad(p.x, p.y, worldContainer));
+        // TROPICS ART v2 (2026-10-05): pady jak na pozostalych mapach (standardowe hover pady); legacy = koniczyna/pien
+        mediPads = TROPICS_MEDI_PAD_POSITIONS.map(p => isTropicsArtV2() ? new HoverRepairPad(p.x, p.y, worldContainer, 1, true) : new CloverMediPad(p.x, p.y, worldContainer));
+        powerPads = TROPICS_POWER_PAD_POSITIONS.map(p => isTropicsArtV2() ? new PowerHoverPad(p.x, p.y, worldContainer, 1, true) : new StumpPowerPad(p.x, p.y, worldContainer));
 
         patrolTractor = new PatrolTractor(TROPICS_PATROL_WAYPOINTS, worldContainer);
 
@@ -2825,6 +2925,38 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
             const paddockRects = paddock.getCollisionRects();
             buildings.push(...paddockRects);
             solidBuildings.push(...paddockRects);
+
+            // TROPICS ART v2 / T5: nowe elementy gospodarstwa NA OBRZEZACH (kolizje: czolg + pocisk, staw tylko czolg)
+            if (isTropicsArtV2()) {
+                farmProps = new FarmProps(worldContainer);
+                buildings.push(...farmProps.tankColliders);
+                solidBuildings.push(...farmProps.bulletColliders);
+            }
+            // TROPICS ART v2 / T4: zwierzeta 3/4 (konie w zagrodzie, krowy na pastwisku, kury, swinie)
+            if (isTropicsArtV2()) {
+                farmAnimals = new FarmAnimals(worldContainer, [
+                    { kinds: ['horse_chestnut', 'horse_gray', 'horse_black'], area: { x: paddock.x + 50, y: paddock.y + 85, w: paddock.w - 100, h: paddock.h - 110, zMin: paddock.y + paddock.h - 79 } },
+                    { kinds: ['cow', 'cow', 'cow'], area: { x: 2140, y: 1700, w: 620, h: 130 } },
+                    { kinds: ['pig', 'pig'], area: { x: 2000, y: 2200, w: 95, h: 120 } }, // wlasne bajorko (przy oborze zaslaniala je jej bryla)
+                    { kinds: ['hen', 'hen_brown', 'hen', 'rooster'], area: { x: 425, y: 1375, w: 65, h: 85 } },
+                    { kinds: ['hen_brown', 'hen', 'hen_brown', 'rooster'], area: { x: 640, y: 1915, w: 55, h: 85 } },
+                ]);
+            }
+            // TROPICS ART v2 / T3: dlugie cienie SE + kontakt z ziemia + detale gospodarskie (pieczone, tylko wizual)
+            if (isTropicsArtV2()) {
+                const H: Record<string, number> = { barn: 150, henhouse: 80, cowshed: 120 };
+                const D: Record<string, Array<{ kind: 'barrel' | 'milk' | 'sacks' | 'cart' | 'trough' | 'flowers' | 'logs' | 'pitchfork'; fx: number }>> = {
+                    barn: [{ kind: 'barrel', fx: 0.06 }, { kind: 'milk', fx: 0.14 }, { kind: 'cart', fx: 0.86 }],
+                    henhouse: [], // 2026-10-05: worki + widly przy kurnikach usuniete (szum)
+                    cowshed: [{ kind: 'milk', fx: 0.07 }, { kind: 'milk', fx: 0.12 }, { kind: 'trough', fx: 0.88 }],
+                };
+                addFarmDepth(worldContainer, [
+                    ...TROPICS_FARM_BUILDINGS_V2.map(b => ({ x: b.x, y: b.y, w: b.type === 'barn' ? b.w + 32 : b.w, h: b.h, height: H[b.type], decor: D[b.type] })),
+                    ...TROPICS_HOUSES_LAYOUT.map(hs => ({ x: hs.x, y: hs.y, w: hs.w, h: hs.h, height: 110, decor: [{ kind: 'flowers' as const, fx: 0.14 }, { kind: 'logs' as const, fx: 0.87 }] })),
+                    { x: stable.x, y: stable.y, w: stable.w, h: stable.h, height: 130, decor: [{ kind: 'trough', fx: 0.1 }, { kind: 'cart', fx: 0.82 }] },
+                    ...(TROPICS_WINDMILL_POSITION ? [{ x: TROPICS_WINDMILL_POSITION.x, y: TROPICS_WINDMILL_POSITION.y, w: 80, h: 132, height: 240, decor: [] }] : []),
+                ]);
+            }
 
             try {
                 const stableDoor = {
@@ -2843,7 +2975,7 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
                     { x: paddock.x + paddock.w * 0.65, y: paddock.y + paddock.h * 0.55 },
                     { x: paddock.x + paddock.w * 0.45, y: paddock.y + paddock.h * 0.75 },
                 ];
-                for (let i = 0; i < 3; i++) {
+                for (let i = 0; i < (isTropicsArtV2() ? 0 : 3); i++) { // T4: v2 = nowe konie 3/4 (FarmAnimals)
                     try {
                         const horse = new Horse(
                             horseSpawnPositions[i].x,
@@ -3330,8 +3462,11 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     }
 
     if (config.map === 'tropics') {
-        for (const cl of TROPICS_CRATES_LAYOUT) {
-            const crate = new Crate(cl.x, cl.y, cl.seed, worldContainer, effects, audio);
+        for (const cl of isTropicsArtV2() ? TROPICS_HAY_LAYOUT_V2 : TROPICS_CRATES_LAYOUT) {
+            // TROPICS ART v2 / T2: bele siana zamiast skrzyn (ten sam kontrakt i pozycje)
+            const crate = isTropicsArtV2()
+                ? new HayBale(cl.x, cl.y, cl.seed, worldContainer, effects, audio)
+                : new Crate(cl.x, cl.y, cl.seed, worldContainer, effects, audio);
             crates.push(crate);
             solidBuildings.push(crate);
             for (const extra of crate.getExtraCollidables()) {
@@ -3374,6 +3509,92 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
     // DESERT ART v2 / E4: klatwa piramidy (wzorzec IglooYeti — obrazenia rozstrzyga TEN closure,
     // spojnie z pociskami wrogow: nietykalnosc / tutorial / perfect-run). Tylko strzelnica bez.
     const coopNoHazards = config.mode === 'coop' && !COOP_HAZARDS_ENABLED; // COOP LAN-3b
+    // TROPICS ART v2 / T6.1: Szalone Kurczaki — budzone TYLKO pociskami gracza (wzorzec klatwy piramidy).
+    // Ranienie wrogow = sciezka zabicia mega bomby (punkty + drop, BEZ combo — to nie skill streak).
+    if (config.map === 'tropics' && isTropicsArtV2() && tropicsHenhouses.length && config.scenario !== 'range' && !coopNoHazards) {
+        chickenFlock = new ChickenFlock(tropicsHenhouses, worldContainer, effects, audio, CHICKENS_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            damageEnemy: (e, dmg) => {
+                if (!effects || !spawnSystem || !currentSession || !e.active) return false;
+                const killed = e.takeDamage(dmg, e.x, e.y, worldContainer, effects, SRC_CHICKEN_PECK);
+                if (killed) { spawnSystem.registerKill(e); currentSession.addKillScore(e.scoreValue); handleEnemyDrop(e); }
+                return killed;
+            },
+            goldenEgg: (x, y) => {
+                dropGems(x, y, CHICKENS.eggGems);
+                currentSession?.addKillScore(CHICKENS.eggScore);
+                effects?.spawnFloatingText(x, y - 30, '+' + CHICKENS.eggScore, 0xffd23a);
+            },
+            notify: (key) => {
+                if (key === 'wake') hud.addNotif(t('hud.chickensWake'), '#ffd23a');
+                else hud.addNotif(t('hud.goldenEgg'), '#ffd23a');
+            },
+        });
+    }
+    // TROPICS ART v2 / T6.2: Szarza Byka — budzona TYLKO pociskami gracza, z telegrafem na ziemi.
+    if (config.map === 'tropics' && isTropicsArtV2() && tropicsBarn && config.scenario !== 'range' && !coopNoHazards) {
+        bullCharge = new BullCharge(tropicsBarn, worldContainer, effects, audio, BULL_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            getObstacles: () => buildings,
+            getBreakables: () => crates,
+            damageEnemy: (e, dmg) => {
+                if (!effects || !spawnSystem || !currentSession || !e.active) return false;
+                const killed = e.takeDamage(dmg, e.x, e.y, worldContainer, effects, SRC_BULL_CHARGE);
+                if (killed) { spawnSystem.registerKill(e); currentSession.addKillScore(e.scoreValue); handleEnemyDrop(e); }
+                return killed;
+            },
+            damagePlayer: (index, amount) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive;
+                const died = cp.takeDamage(amount, protectedNow, SRC_BULL_CHARGE);
+                if (!protectedNow) {
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, `-${Math.round(amount)}`, 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); }
+            },
+            notify: (key, x, y) => {
+                if (key === 'bull') hud.addNotif(t('hud.bullCharge'), '#ff7a5a');
+                else effects?.spawnFloatingText(x, y - 28, 'BUM!', 0xffb070);
+            },
+        });
+    }
+    // TROPICS ART v2 / T6.3: Zniwiarka-Potwor — traktor patrolowy budzony pociskami gracza.
+    // T6.3b: kombajn fake-3D zamiast plaskiego traktora (+20% predkosci); stary rysunek ukryty.
+    if (config.map === 'tropics' && isTropicsArtV2() && patrolTractor) {
+        patrolTractor.speedMult = 1.2;
+        patrolTractor.container.visible = false;
+        combineVisual = new CombineVisual(worldContainer, effects);
+    }
+    if (config.map === 'tropics' && isTropicsArtV2() && patrolTractor && config.scenario !== 'range' && !coopNoHazards) {
+        reaperTractor = new ReaperTractor(patrolTractor, effects, audio, REAPER_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            damageEnemy: (e, dmg) => {
+                if (!effects || !spawnSystem || !currentSession || !e.active) return false;
+                const killed = e.takeDamage(dmg, e.x, e.y, worldContainer, effects, SRC_REAPER);
+                if (killed) { spawnSystem.registerKill(e); currentSession.addKillScore(e.scoreValue); handleEnemyDrop(e); }
+                return killed;
+            },
+            damagePlayer: (index, amount) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive;
+                const died = cp.takeDamage(amount, protectedNow, SRC_REAPER);
+                if (!protectedNow) {
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, `-${Math.round(amount)}`, 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); }
+            },
+            notify: () => { hud.addNotif(t('hud.reaper'), '#ff8a3a'); },
+        });
+    }
     if (desertPyramidsV2.length && config.scenario !== 'range' && !coopNoHazards) {
         pyramidCurse = new PyramidCurse(desertPyramidsV2, worldContainer, effects, audio, {
             getPlayers: () => players, // COOP S5: Player spelnia CursePlayer (x/y/isDashing/hp)
@@ -4980,6 +5201,7 @@ function runLogicStep(delta: number): void {
         }
         if (!enemyInSlow && queenSystem && queenSystem.isLavaAt(enemy.x, enemy.y)) enemyInSlow = true; // SAVE THE QUEEN Q4 — lawa spowalnia obie strony
         enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
+        if (chickenFlock && chickenFlock.isPecked(enemy)) enemy.speedModifier *= CHICKENS.slowMult; // T6.1: oblepiony kurami
     }
 
     // COOP S5: update stref stealth = WIDOK (culling, parallax, mgla z gasienic gracza lokalnego) —
@@ -4993,6 +5215,17 @@ function runLogicStep(delta: number): void {
     }
     for (const rb of ruinsBushes) rb.update();   // FAZA CTF F1 — zarosla (stealth kola, wzorzec oasis)
     for (const hg of hydroGardens) hg.update();  // FAZA MARS M4 — ogrody hydroponiczne (jedyna zielen na Marsie)
+    if (farmAnimals) { // T4: zwierzeta uciekaja przed czolgami (gracze + wrogowie)
+        farmThreats.length = 0;
+        for (const pl of players) farmThreats.push(pl);
+        for (const e of enemies) if (e.active) farmThreats.push(e);
+        farmAnimals.update(delta, farmThreats, camera.x, camera.y, viewW, viewH);
+    }
+    if (farmProps) farmProps.update(delta, camera.x, camera.y, viewW, viewH);
+    if (combineVisual && patrolTractor) {
+        const vis = patrolTractor.x > camera.x - 200 && patrolTractor.x < camera.x + viewW + 200 && patrolTractor.y > camera.y - 200 && patrolTractor.y < camera.y + viewH + 200;
+        combineVisual.update(patrolTractor.x, patrolTractor.y, patrolTractor.heading, reaperTractor?.phaseName ?? 'idle', patrolTractor.speedMult > 0, vis);
+    }
     for (const ff of farmFields) {
         ff.update(camera.x, camera.y, viewW, viewH);
         ff.onTankEnter(localPlayer.x, localPlayer.y);
@@ -5117,6 +5350,7 @@ function runLogicStep(delta: number): void {
     if (waterLife) waterLife.update(camera.x, camera.y, viewW, viewH);
     if (sandstormBorder) sandstormBorder.update(camera.x, camera.y, viewW, viewH);
     if (tropicalBorder) tropicalBorder.update();
+    if (agroBorderTrees) agroBorderTrees.update(camera.x, camera.y, viewW, viewH, WORLD_W, WORLD_H);
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     if (arcticBorder) arcticBorder.update(); // ARC-R1 (drobiny + smugi lodowe)
     if (marsBorder) marsBorder.update(); // FAZA MARS M2 (drobiny + smugi pylu)
@@ -5281,6 +5515,9 @@ function runLogicStep(delta: number): void {
     for (const ih of iceHoles) ih.update();
     if (iglooYeti && localPlayer) iglooYeti.update(delta, localPlayer.x, localPlayer.y);
     if (pyramidCurse) pyramidCurse.update(); // DESERT ART v2 / E4 — staly krok logiki
+    if (chickenFlock) chickenFlock.update();   // TROPICS v2 / T6.1 — staly krok logiki
+    if (bullCharge) bullCharge.update();       // TROPICS v2 / T6.2 — staly krok logiki
+    if (reaperTractor) reaperTractor.update(); // TROPICS v2 / T6.3 — staly krok logiki
     for (const colony of penguinColonies) {
         const drop = colony.update(delta);
         if (drop) {
@@ -5333,6 +5570,7 @@ function runLogicStep(delta: number): void {
         localPlayer.oneHitFromDeath = localPlayer.hp > 0 && localPlayer.hp <= lethalAt;
 
         localPlayer.update(delta, localInput, buildings, effects, damageSmoke); // COOP S6
+        pushHayBales(localPlayer, delta);
     }
     // COOP LAN-2a: pozostali gracze (gosc u hosta) — ta sama sciezka z ICH wejscia.
     for (const [ip, inp] of playerInputs) {
@@ -5612,6 +5850,8 @@ function runLogicStep(delta: number): void {
         b.update(delta, solidBuildings, effects, bulletCtx);
         // DESERT ART v2 / E4: pociski gracza vs mumia i skarabeusze klatwy
         if (b.active && pyramidCurse && pyramidCurse.hitTestBullet(b.x, b.y, b.radius, b.dmg)) b.deactivate();
+        if (b.active && chickenFlock && chickenFlock.hitTestBullet(b.x, b.y, b.radius)) b.deactivate(); // T6.1: kogut = zlote jajo
+        if (b.active && reaperTractor && reaperTractor.hitTestBullet(b.x, b.y, b.radius)) b.deactivate(); // T6.3: traktor lapie pociski
         if (!b.active) { bullets.splice(i, 1); bulletPool.push(b); } // POOLING: zwrot do puli
     }
 

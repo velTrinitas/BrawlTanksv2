@@ -420,6 +420,21 @@ export const TROPICS_CRATES_LAYOUT: Array<{ x: number, y: number, seed: number }
     { x: 1750, y: 2842, seed: 389 }, { x: 1750, y: 2884, seed: 390 },
 ];
 
+/**
+ * TROPICS ART v2 (2026-10-05, Mariusz: za duzo bel) — z kazdej grupy skrzyn zostaja 2 bele
+ * (grupy 5-elementowe: 3). 90 -> 50, te same pozycje i seedy (koop/netState bez zmian ksztaltu).
+ */
+const CRATE_GROUP_SIZES = [4, 5, 4, 5, 4, 5, 4, 4, 5, 5, 4, 5, 4, 5, 4, 4, 5, 4, 5, 5];
+export const TROPICS_HAY_LAYOUT_V2: Array<{ x: number, y: number, seed: number }> = (() => {
+    const out: Array<{ x: number, y: number, seed: number }> = [];
+    let i = 0;
+    for (const n of CRATE_GROUP_SIZES) { out.push(...TROPICS_CRATES_LAYOUT.slice(i, i + (n === 5 ? 3 : 2))); i += n; }
+    return out;
+})();
+
+/** TROPICS ART v2 (2026-10-05, Mariusz): bez wschodniego kurnika (2700,1355) — "resztki kurnika" przy zoltym domu. */
+export const TROPICS_FARM_BUILDINGS_V2 = TROPICS_FARM_BUILDINGS_LAYOUT.filter(b => !(b.type === 'henhouse' && b.x === 2700 && b.y === 1355));
+
 /** FAZA T8 — Drzewa (skupiska). Pusty w T1. */
 export const TROPICS_TREE_CLUSTERS_LAYOUT: Array<{ x: number, y: number, count: number, types: Array<'birch' | 'lime' | 'pine'>, seed: number }> = [];
 

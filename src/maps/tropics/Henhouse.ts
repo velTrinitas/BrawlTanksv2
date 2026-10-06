@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+import { isTropicsArtV2 } from '../../config/tropicsArtFlag'; // TROPICS ART v2 / T1
+import { bakeStaticGraphics, CullGroup } from './tropicsBake';
 import type { ICollidable } from '../../types/MapType';
 import { fillGradientPolygon, makeRng, type Pt } from './FarmBuildingTextures';
 
@@ -111,6 +113,9 @@ export class Henhouse implements ICollidable {
     private staticContainer: PIXI.Container;
     private animatedContainer: PIXI.Container;
     private featherContainer: PIXI.Container;
+    /** TROPICS ART v2 / T1: culling budynku poza kadrem (null = legacy). */
+    private cull: CullGroup | null = null;
+    private _t1: { x: number; y: number; w: number; h: number } | null = null;
     private worldContainer: PIXI.Container;
 
     private cockGfx!: PIXI.Container;
@@ -155,6 +160,7 @@ export class Henhouse implements ICollidable {
         this.featherContainer = new PIXI.Container();
         this.featherContainer.zIndex = Math.floor(y + h) + 1;
         worldContainer.addChild(this.featherContainer);
+        this._t1 = { x, y, w, h };
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1011,7 +1017,12 @@ export class Henhouse implements ICollidable {
     // ═══════════════════════════════════════════════════════════
     // UPDATE — 6 Subtle Life animations
     // ═══════════════════════════════════════════════════════════
-    public update(_camX: number, _camY: number, _screenW: number, _screenH: number): void {
+    public update(camX: number, camY: number, screenW: number, screenH: number): void {
+        if (this._t1 && isTropicsArtV2()) { const r = this._t1; this._t1 = null;
+            bakeStaticGraphics(this.aoContainer, `tr_hen_ao_${r.x}_${r.y}`, new PIXI.Rectangle(r.x - 140, r.y - 200, r.w + 280, r.h + 300));
+            bakeStaticGraphics(this.staticContainer, `tr_hen_st_${r.x}_${r.y}`, new PIXI.Rectangle(r.x - 140, r.y - 200, r.w + 280, r.h + 300));
+            this.cull = new CullGroup([this.aoContainer, this.staticContainer, this.animatedContainer, this.featherContainer], r.x - 120, r.y - 160, r.x + r.w + 120, r.y + r.h + 90); }
+        if (this.cull && this.cull.update(camX, camY, screenW, screenH)) return; // T1: poza kadrem = bez animacji
         this.time += 1 / 60;
 
         // 1. COCK HEAD BOBBING (peck pattern: fast down + slow recovery)

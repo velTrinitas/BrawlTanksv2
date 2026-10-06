@@ -23,7 +23,8 @@ import * as PIXI from 'pixi.js';
 
 const PATROL_SPEED = 0.65;        // px/frame — wolniej niż Pasture (1.0)
 const ARRIVAL_THRESHOLD = 4;       // px od waypoint dla "arrived"
-const HEADING_LERP = 0.06;         // smooth rotation per frame
+const HEADING_LERP = 0.06;
+const CHASE_TURN = 0.035;          // rad/krok — maks. skret w poscigu (da sie uskoczyc w bok)         // smooth rotation per frame
 const SMOKE_INTERVAL_DRIVE = 0.20; // s — częstotliwość smoke gdy jedzie
 const SMOKE_INTERVAL_IDLE = 0.6;   // s — wolniej gdy pause
 const WHEEL_SPEED = 0.18;           // wheel rotation per frame (driving)
@@ -74,6 +75,11 @@ export class PatrolTractor {
     public x: number;
     public y: number;
     public heading: number = 0;
+    /** T6.3 Zniwiarka: mnoznik predkosci i pomijanie postojow (ustawia ReaperTractor). */
+    public speedMult = 1;
+    public skipPauses = false;
+    /** T6.3c: cel poscigu (szal zniwiarki). Ustawiony = jazda za celem wzdluz heading, trasa wstrzymana. */
+    public chaseTarget: { x: number; y: number } | null = null;
 
     private waypoints: Waypoint[];
     private currentWaypointIdx: number = 0;
@@ -157,7 +163,7 @@ export class PatrolTractor {
                 this.x = target.x;
                 this.y = target.y;
 
-                if (target.pause && target.pause > 0) {
+                if (target.pause && target.pause > 0 && !this.skipPauses) {
                     this.state = 'pausing';
                     this.pauseTimer = target.pause;
                 } else {
@@ -166,8 +172,8 @@ export class PatrolTractor {
             } else {
                 // Move toward target
                 const moveAngle = Math.atan2(dy, dx);
-                this.x += Math.cos(moveAngle) * PATROL_SPEED;
-                this.y += Math.sin(moveAngle) * PATROL_SPEED;
+                this.x += Math.cos(moveAngle) * PATROL_SPEED * this.speedMult;
+                this.y += Math.sin(moveAngle) * PATROL_SPEED * this.speedMult;
 
                 // Smooth heading rotation (sprite "up" = N, so add PI/2)
                 const targetHeading = moveAngle + Math.PI / 2;
@@ -231,6 +237,14 @@ export class PatrolTractor {
         while (dRot > Math.PI) dRot -= Math.PI * 2;
         while (dRot < -Math.PI) dRot += Math.PI * 2;
         this.heading += dRot * HEADING_LERP;
+    }
+
+    /** T6.3c: po szale wroc na trase — cel = NAJBLIZSZY punkt trasy, potem normalna petla. */
+    public rejoinNearest(): void {
+        let best = 0, bestD = Infinity;
+        this.waypoints.forEach((w, i) => { const d = (w.x - this.x) ** 2 + (w.y - this.y) ** 2; if (d < bestD) { bestD = d; best = i; } });
+        this.currentWaypointIdx = best;
+        this.state = 'driving';
     }
 
     private advanceWaypoint(): void {

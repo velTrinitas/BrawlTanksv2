@@ -1,4 +1,6 @@
 import * as PIXI from 'pixi.js';
+import { isTropicsArtV2 } from '../../config/tropicsArtFlag'; // TROPICS ART v2 / T1
+import { bakeStaticGraphics, CullGroup } from './tropicsBake';
 import type { ICollidable } from '../../types/MapType';
 
 /**
@@ -141,6 +143,8 @@ export class Stable implements ICollidable {
 
     // Animated parts
     private animatedContainer: PIXI.Container;
+    /** TROPICS ART v2 / T1: culling budynku poza kadrem (null = legacy). */
+    private cull: CullGroup | null = null;
     private windowGlowGfx: PIXI.Graphics;
     private flameContainer: PIXI.Container;
     private flameMainGfx: PIXI.Graphics;
@@ -191,6 +195,12 @@ export class Stable implements ICollidable {
 
         this.flameMainGfx = new PIXI.Graphics();
         this.flameContainer.addChild(this.flameMainGfx);
+
+        if (isTropicsArtV2()) {
+            bakeStaticGraphics(aoContainer, `tr_stable_ao_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, this.h + 300));
+            bakeStaticGraphics(staticContainer, `tr_stable_st_${x}_${y}`, new PIXI.Rectangle(x - 140, y - 200, this.w + 280, this.h + 300));
+            this.cull = new CullGroup([this.container], x - 140, y - 180, x + this.w + 140, y + this.h + 100);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -960,7 +970,8 @@ export class Stable implements ICollidable {
     // ═══════════════════════════════════════════════════════════
     // UPDATE — animated parts (window glow pulse, lantern flame, hay sway, vane)
     // ═══════════════════════════════════════════════════════════
-    public update(): void {
+    public update(camX?: number, camY?: number, screenW?: number, screenH?: number): void {
+        if (this.cull && camX !== undefined && this.cull.update(camX, camY!, screenW!, screenH!)) return; // T1
         this.time += 1 / 60;
 
         // 1. Window glow pulse (3 okien)

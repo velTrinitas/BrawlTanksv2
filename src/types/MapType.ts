@@ -39,7 +39,7 @@ export interface MapConfig {
 export const MAP_CONFIGS: Record<MapId, MapConfig> = {
     city:    { id: 'city',    name: 'CYBERPUNK', bg: '#0d0d14', musicTrack: 'miasto.mp3',    badge: '#5d3580' },
     desert:  { id: 'desert',  name: 'PUSTYNIA',  bg: '#e8d4a2', musicTrack: 'pustynia.mp3',  badge: '#b8720a' },
-    tropics: { id: 'tropics', name: 'TROPIKI',   bg: '#6dba4a', musicTrack: 'tropiki.mp3',   badge: '#1a7a40' },
+    tropics: { id: 'tropics', name: 'AGRO',      bg: '#6dba4a', musicTrack: 'tropiki.mp3',   badge: '#1a7a40' },
     arctic:  { id: 'arctic',  name: 'ARKTYKA',   bg: '#bcdfec', musicTrack: 'arktyka1.ogg',  badge: '#1a6ea8' },
     fortified_ruins: { id: 'fortified_ruins', name: 'FORTIFIED RUINS', bg: '#a08a64', musicTrack: 'ctf.ogg', badge: '#b8956a' },
     mars:    { id: 'mars',    name: 'MARS',      bg: '#c97b62', musicTrack: 'mars1.ogg',     badge: '#a34a3a' },

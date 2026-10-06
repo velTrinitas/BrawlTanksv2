@@ -194,6 +194,21 @@ export function getAuraHexTexture(): PIXI.Texture {
     return _auraHexTexture;
 }
 
+let _strawTexture: PIXI.Texture | null = null;
+/** TROPICS v2 / bela siana: zdzblo 14x3 (jasny grzbiet, ciemny spod) — pieczone raz. */
+function getStrawTexture(): PIXI.Texture {
+    if (_strawTexture) return _strawTexture;
+    const c = document.createElement('canvas'); c.width = 28; c.height = 6;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 0, 6);
+    g.addColorStop(0, '#fff3b8'); g.addColorStop(0.5, '#e8c05a'); g.addColorStop(1, '#a8782a');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(0, 1, 28, 4, 2); ctx.fill();
+    _strawTexture = PIXI.Texture.from(c, { resolution: 2 } as PIXI.IBaseTextureOptions);
+    return _strawTexture;
+}
+/** Telefon (dotyk) = lzejsze efekty siana. Liczone raz. */
+const HAY_LITE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 let _plusTexture: PIXI.Texture | null = null;
 /** MOCE JUICY cz.1 (v0.233.0) — gruby plus 32x32 z miekka krawedzia (Naprawa, tint = kolor). */
 export function getPlusTexture(): PIXI.Texture {
@@ -408,6 +423,9 @@ export class EffectsManager {
     /** MOCE JUICY cz.1: plusy leczenia plynace w gore (pula 8). */
     private fxPluses: FxSprite[] = [];
     private static readonly MAX_FX_GLOWS = 16;
+    /** Bela siana: zdzbla z fizyka (luk + opadanie + obrot), pula max 48, normalny blend. */
+    private hayBits: Array<{ sprite: PIXI.Sprite; vx: number; vy: number; vr: number; life: number; ground: number; active: boolean }> = [];
+    private hayLayer: PIXI.Container | null = null;
     private static readonly MAX_BULLET_MARKS = 8;
 
     constructor(worldContainer: PIXI.Container) {
@@ -627,6 +645,59 @@ export class EffectsManager {
         r.sprite.scale.set(8 / 32); r.life = 1; r.max = 17; r.grow = ((30 - 8) / 32) / 17;
         this.spawnParticles(x, y, 0xfff3b0, 3, { speed: 3.7, size: 2, decay: 0.05, spread: 1.0 });
         this.spawnParticles(x, y, 0xff7a2a, 3, { speed: 3.7, size: 2, decay: 0.05, spread: 1.0 });
+    }
+
+    /**
+     * TROPICS v2 — BELA SIANA: zdzbla wylatuja lukiem, wiruja i opadaja na ziemie (leza chwile),
+     * do tego kleby kurzu siana. `big` = rozbicie (duzo), inaczej trafienie (kilka).
+     * Koszt: sprite'y z puli (max 48), telefon ~60% sztuk; zero alokacji po rozgrzaniu puli.
+     */
+    spawnHayBits(x: number, y: number, count: number, big: boolean): void {
+        if (!this.hayLayer) {
+            this.hayLayer = new PIXI.Container();
+            this.hayLayer.zIndex = 650;
+            this.worldContainer.addChild(this.hayLayer);
+        }
+        const n = Math.round(count * (HAY_LITE ? 0.6 : 1));
+        for (let i = 0; i < n; i++) {
+            let b = this.hayBits.find(h => !h.active);
+            if (!b) {
+                if (this.hayBits.length >= 48) b = this.hayBits.reduce((m, h) => (h.life < m.life ? h : m));
+                else {
+                    const sprite = new PIXI.Sprite(getStrawTexture());
+                    sprite.anchor.set(0.5);
+                    this.hayLayer.addChild(sprite);
+                    b = { sprite, vx: 0, vy: 0, vr: 0, life: 0, ground: 0, active: false };
+                    this.hayBits.push(b);
+                }
+            }
+            const a = -Math.PI / 2 + (Math.random() - 0.5) * (big ? 2.6 : 1.6);
+            const sp = (big ? 3.5 : 2) + Math.random() * (big ? 4 : 2.2);
+            b.active = true;
+            b.sprite.visible = true;
+            b.sprite.x = x + (Math.random() - 0.5) * (big ? 20 : 6);
+            b.sprite.y = y + (Math.random() - 0.5) * (big ? 14 : 6);
+            b.sprite.rotation = Math.random() * Math.PI;
+            b.sprite.scale.set(0.7 + Math.random() * 0.6);
+            b.sprite.tint = Math.random() < 0.25 ? 0xd9a84a : 0xffffff;
+            b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+            b.vr = (Math.random() - 0.5) * 0.5;
+            b.ground = y + 6 + Math.random() * (big ? 22 : 10);
+            b.life = big ? 70 + Math.random() * 50 : 30 + Math.random() * 15;
+        }
+        // kleby kurzu siana (miekkie, zlote) — z istniejacej puli czastek
+        this.spawnParticles(x, y, 0xe8c87a, big ? (HAY_LITE ? 5 : 8) : 2, { speed: big ? 2.6 : 1.4, size: big ? 6 : 3.5, decay: 0.03, spread: 1.0 });
+        if (big) {
+            this.spawnRingFx(x, y, 46, 0xf5d77a, 14);
+            this.shake(2, 4);
+        }
+    }
+
+    /** TROPICS v2 / T6: piora (biale + kremowe, wolno opadajace) — z istniejacej puli czastek. */
+    spawnFeathers(x: number, y: number, count: number): void {
+        const n = Math.max(1, Math.round(count * (HAY_LITE ? 0.6 : 1)));
+        this.spawnParticles(x, y, 0xffffff, Math.ceil(n * 0.6), { speed: 2.4, size: 2.6, decay: 0.022, spread: 1.0 });
+        this.spawnParticles(x, y, 0xf3e6c8, Math.floor(n * 0.4), { speed: 1.8, size: 2.2, decay: 0.026, spread: 1.0 });
     }
 
     /** NAPRAWA: zielony plus plynacy w gore nad czolgiem (pula 8). */
@@ -1337,6 +1408,19 @@ export class EffectsManager {
         this.updateFxPool(this.fxRings, delta, (f, t) => { f.sprite.alpha = 1 - t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
         this.updateFxPool(this.fxGlows, delta, (f, t) => { f.sprite.alpha = 1 - t * t; const s = f.sprite.scale.x + f.grow * delta; f.sprite.scale.set(s); });
         this.updateFxPool(this.fxPluses, delta, (f, t) => { f.sprite.y -= 1.4 * delta; f.sprite.alpha = t < 0.2 ? t * 5 : 1 - (t - 0.2) / 0.8; });
+        for (const b of this.hayBits) {
+            if (!b.active) continue;
+            b.life -= delta;
+            if (b.life <= 0) { b.active = false; b.sprite.visible = false; continue; }
+            if (b.sprite.y < b.ground) {           // w powietrzu: luk + obrot
+                b.vy += 0.32 * delta;
+                b.sprite.x += b.vx * delta; b.sprite.y += b.vy * delta;
+                b.sprite.rotation += b.vr * delta;
+            } else {                                // na ziemi: lezy, gasnie pod koniec
+                b.sprite.y = b.ground;
+            }
+            b.sprite.alpha = Math.min(1, b.life / 25);
+        }
         this.updateFxPool(this.fxMarks, delta, (f, t) => { f.sprite.alpha = 0.6 * (1 - t); });
 
         // === Tick-anims (v0.155.3 D2): pierscienie mega bomby/shockwave/portalu + overlay freeze ===

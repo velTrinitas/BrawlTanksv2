@@ -56,6 +56,9 @@ export function isMultiplayerSandbox(): boolean {
  *  8 — COOP LAN-2a (v0.227.0): host symuluje drugiego gracza (gosc) z wejscia sieciowego; smierc goscia
  *      = odrodzenie po 5 s przy hoscie (nie konczy meczu); lezacy gracz nie zbiera/nie obrywa.
  *  9 — COOP LAN-3b (v0.228.0): w meczu koopowym bez klatwy piramid/Ra, Yeti i UFO (COOP_HAZARDS_ENABLED).
+ * 10 — AGRO ART v2 na produkcji (v0.237.0): nowe kolizje Agro (gaiki, bele 50 + pchanie w solo, bez studni/strachow/
+ *      stawu W, bez wsch. kurnika), zdarzenia farmy w kroku logiki (Kurczaki, Szarza Byka, Zniwiarka-kombajn;
+ *      TROPICS_EVENTS_RULESET_ID farm-v5; w koopie wylaczone jak inne zagrozenia map).
  */
 /**
  * COOP LAN-3b: zagrozenia map, ktorych gosc jeszcze NIE widzi (klatwa piramid + Ra, Yeti, UFO),
@@ -64,4 +67,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 9;
+export const SIM_VERSION = 10;

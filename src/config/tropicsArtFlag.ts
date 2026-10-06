@@ -5,7 +5,7 @@
  * `?tropicsart=1` wlacza przed flipem, `?tropicsart=0` ZAWSZE wylacza (rollback bez deployu).
  * Flip = TROPICS_ART_V2 true + bump SIM_VERSION (gdy wejda zdarzenia T6) jednym commitem.
  */
-export const TROPICS_ART_V2 = false;
+export const TROPICS_ART_V2 = true; // FLIP v0.237.0 (2026-10-06): Agro v2 na produkcji, rollback ?tropicsart=0
 
 export function isTropicsArtV2(): boolean {
     try {

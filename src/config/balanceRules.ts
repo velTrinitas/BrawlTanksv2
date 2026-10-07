@@ -126,5 +126,7 @@ export const BALANCE_V2_STATS: Readonly<Record<string, BalanceStats>> = Object.f
     // 38 dmg = DOKLADNIE 8 strzalow na 300 HP (39-42 nic nie zmienia, 43 = prog 7 strzalow = ponad Zwiada);
     // reload 70 -> realnie 83 ms (krok 16,67) = 12/s, s/zabicie 0,67 (3. miejsce za Ogniarzem i Zwiadem),
     // ale z rozpedem luf 0,25 s i rozrzutem +-3 st. Kostka polowa (jak Zwiad/Shadow) — 12 pociskow/s.
-    enigma: { hp: 450, dmg: 38,  reload: 70,  speed: 4.5, maxDist: 650,  bulletRadius: 8, cubeDmgMult: 0.5, spreadRad: 3 * Math.PI / 180, spinUpSteps: 15 },
+    // PLAYTEST 2026-10-07 (Mariusz, 1 h gry): dmg 40 (dalej 8 strz./300 HP), 15 strz./s (reload 60 -> 4 kroki = 66,7 ms),
+    // speed +0,2. DPS ~600 = Ogniarz, s/zabicie 0,53 (2. miejsce). Super 60 (proporcja 57*40/38) = 5 strzalow.
+    enigma: { hp: 450, dmg: 40,  reload: 60,  speed: 4.7, maxDist: 650,  bulletRadius: 8, cubeDmgMult: 0.5, spreadRad: 3 * Math.PI / 180, spinUpSteps: 15 },
 });

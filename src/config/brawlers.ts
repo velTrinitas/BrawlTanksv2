@@ -36,7 +36,7 @@ import { isEnigmaEnabled } from './enigmaFlag';
      * ENIGMA (9. czolg, gatling) — tylko przy ?enigma=1 i ZAWSZE NA KONCU listy: indeksy 0-7 musza zostac
      * (Enemy.ts uzywa BRAWLERS[1], koop wysyla brawlerIdx jako u8). Liczby v1 = v2 (czolg powstal po rebalansie).
      */
-    const ENIGMA_V1: Brawler = { id: 'enigma', emoji: '⚙️', icon: BASE + 'assets/tanks/EnigmaX7.jpg', name: 'Enigma', colorMain: '#E8B83A', hp: 450, speed: 4.5, dmg: 38, reload: 70, type: 'standard', flag: 'PL', spreadRad: 3 * Math.PI / 180, spinUpSteps: 15, cubeDmgMult: 0.5 };
+    const ENIGMA_V1: Brawler = { id: 'enigma', emoji: '⚙️', icon: BASE + 'assets/tanks/EnigmaX7.jpg', name: 'Enigma', colorMain: '#E8B83A', hp: 450, speed: 4.7, dmg: 40, reload: 60, type: 'standard', flag: 'PL', spreadRad: 3 * Math.PI / 180, spinUpSteps: 15, cubeDmgMult: 0.5 };
     const ROSTER_V1: Brawler[] = isEnigmaEnabled() ? [...BRAWLERS_V1, ENIGMA_V1] : BRAWLERS_V1;
 
     function buildRoster(): Brawler[] {

@@ -269,6 +269,10 @@ export class CombineVisual {
             const h = new PIXI.Sprite(getGlowTexture()); h.anchor.set(0.5); h.blendMode = PIXI.BLEND_MODES.ADD; h.tint = 0xfff2b0; h.scale.set(1.4, 0.9);
             world.addChild(h); this.heads.push(h);
         }
+        // FIX 2026-10-07 (Mariusz, mobile): sprite'y powstaja w (0,0) swiata, a update() wola dopiero runLogicStep —
+        // w odliczaniu / samouczku / pauzie / pionowym telefonie kombajn wisial w lewym gornym rogu mapy.
+        this.sprite.visible = this.beacon.visible = false;
+        for (const h of this.heads) h.visible = false;
     }
 
     /** heading z PatrolTractor (sprite "gora" = N => kierunek jazdy = heading - PI/2). */

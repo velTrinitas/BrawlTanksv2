@@ -406,7 +406,7 @@ const SUPER_PROFILES: Record<string, SuperProfile> = {
     pyro:   { offsets: [-0.42, -0.21, 0, 0.21, 0.42], dmg: 160 },  // 5 x 160 = 800  (bylo 5 x 150 = 750)
     shadow: { offsets: [-0.2, 0, 0.2], dmg: 300 },                 // 3 x 300 = 900  (bylo 5 x 450 = 2250)
     // ENIGMA (gatling): 1 pocisk x1.5 dmg (38 -> 57 = 6 strzalow na 300 HP); promien x1.6 i predkosc x1.1 w Bullet.ts
-    enigma: { offsets: [0], dmg: 57 },
+    enigma: { offsets: [0], dmg: 60 }, // playtest 2026-10-07: 40 dmg x1.5 = 60 (5 strzalow na 300 HP)
 };
 /**
  * BALANCE_V2 (S4, v0.200.0) — SPRAWIEDLIWY SUPER: dmg per pocisk LICZONY Z RELOADU.
@@ -3582,6 +3582,8 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         patrolTractor.container.visible = false;
         patrolTractor.visualsOff = true; // PERF: ukryty rysunek nie animuje kol/tarcz i nie alokuje dymu
         combineVisual = new CombineVisual(worldContainer, effects);
+        // od razu na traktorze (nie czekamy na pierwszy krok logiki — patrz Combine.ts)
+        combineVisual.update(patrolTractor.x, patrolTractor.y, patrolTractor.heading, 'idle', false, true);
     }
     if (config.map === 'tropics' && isTropicsArtV2() && patrolTractor && config.scenario !== 'range' && !coopNoHazards) {
         reaperTractor = new ReaperTractor(patrolTractor, effects, audio, REAPER_BY_DIFFICULTY[config.difficulty], {
@@ -6034,6 +6036,9 @@ function runLogicStep(delta: number): void {
         // petla (takeDamage -> container.destroy) — KAZDY dostep do enemy.container
         // na trupie = wywrotka. Trup wypada TUTAJ, zanim czegokolwiek dotkniemy.
         if (!enemy.active) { enemies.splice(i, 1); continue; }
+        // SPAWN GRACE (2026-10-07): efekt pojawienia sie — RAZ, przy pierwszej klatce kazdego wroga (wszystkie scenariusze
+        // i mapy przechodza przez te petle). Tylko wizual (pule pierscieni/czastek), logika laski siedzi w Enemy.update.
+        if (!enemy.spawnFxDone) { enemy.spawnFxDone = true; effects.spawnEnemyArrival(enemy.x, enemy.y, enemy.isMegaBoss ? 2 : enemy.isBoss ? 1 : 0); }
         // TIER 3 DISCO: wrogowie TANCZA — wiruja w miejscu, zero update (ruch/strzal/AI).
         // Pozostaja wrazliwi na pociski/moce (dalsza czesc petli dziala normalnie).
         let shotInfo: ReturnType<typeof enemy.update> = null;
@@ -6061,6 +6066,7 @@ function runLogicStep(delta: number): void {
         let ramP: Player | null = null;
         for (const p of players) {
             if (p.hp <= 0 || simOf(p).stealthActive) continue;
+            if (simNowMs() < enemy.graceUntil) break; // SPAWN GRACE: wrog w gotowosci nie taranuje
             if ((p.x - enemy.x) ** 2 + (p.y - enemy.y) ** 2 < collisionDist * collisionDist) { ramP = p; break; }
         }
         const ramSanct = ramP === localPlayer && ctfSanctuary; // sanktuaria trybow poza MVP = gracz lokalny

@@ -735,7 +735,7 @@ export class CastleSystem {
     private contactDamage(now: number): void {
         for (const e of this.opts.enemies) {
             if (!e.active || !e.castleArrived || !e.castleTargetPart) continue;
-            if (simNowMs() < e.frozenUntil) continue; // P0.3: mroz = zero kontaktu
+            if (simNowMs() < e.frozenUntil || simNowMs() < e.graceUntil) continue; // P0.3: mroz = zero kontaktu; SPAWN GRACE tez
             const p = e.castleTargetPart;
             if (p.isDestroyed) { e.castleArrived = false; e.castleTargetPart = null; e.castleRouteId = ''; continue; }
             const cd = e.isBoss || e.isMegaBoss ? T.bossContactCooldownMs : T.contactCooldownMs;
@@ -807,7 +807,7 @@ export class CastleSystem {
     private updateMachines(now: number): void {
         for (const e of this.opts.enemies) {
             if (!e.active || !CastleSystem.isMachine(e.castleRole)) continue;
-            if (simNowMs() < e.frozenUntil) continue; // P0.3: zamrozona maszyna nie strzela i nie taranuje
+            if (simNowMs() < e.frozenUntil || simNowMs() < e.graceUntil) continue; // P0.3 + SPAWN GRACE: nie strzela i nie taranuje
             if (e.castleRole === 'taran') this.updateTaran(e, now);
             else this.updateLobber(e, now);
         }

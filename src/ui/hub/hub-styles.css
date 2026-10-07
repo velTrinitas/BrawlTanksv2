@@ -210,7 +210,8 @@ body.bt-desktop .bt-hub0-navbtn small { white-space: nowrap; }
     width: 7px; height: 7px; border-radius: 50%; background: var(--hub-danger);
     box-shadow: 0 0 0 1.5px var(--hub-steel-900); pointer-events: none;
     font-size: 0; color: transparent;
-    animation: bt-dot-pop 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) both, bt-dot-pulse 2.4s ease-in-out 0.5s infinite;
+    /* v0.240.0 (Mariusz): kropka swieci STALYM kolorem — bez pulsowania (tylko jednorazowe wejscie) */
+    animation: bt-dot-pop 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 @keyframes bt-dot-pop { from { transform: scale(0); } 60% { transform: scale(1.3); } to { transform: scale(1); } }
 @keyframes bt-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
@@ -4304,4 +4305,63 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
 }
 @media (prefers-reduced-motion: reduce) {
     .bt-gr2-cratechip.is-ready, .bt-gr2-cratechip.is-ready::after { animation: none; }
+}
+
+/* ═══ v0.240.0 (Mariusz 2026-10-07, mobile) — GARAZ + SIATKA CZOLGOW ═══════════════════════════════════════
+   Garaz: obrotnica +20 px w prawo / +5 px w dol; panel statow wyjustowany do PRAWEJ krawedzi przycisku skrzynek
+   (= prawy padding wrapa); przycisk "Wszystkie czolgi" W panelu statow (zamiast w pasku tytulu).
+   Siatka czolgow: 3x3 (9 czolgow z Enigma), karty POZIOME — obrazek po lewej, staty po prawej. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-gr2-wrap > .bt-gr2-hero { width: 100%; }
+    .bt-gr2-hero .bt-gr2-stage2 { width: 100%; justify-content: space-between; }
+    .bt-gr2-stage2 .bt-gr2-stagerow { left: 20px; top: 5px; }
+    .bt-gr2-stage2 .bt-gr2-side { margin-left: auto; }
+    .bt-gr2-side .bt-gr2-rosterbtn { display: inline-flex; align-self: stretch; justify-content: center;
+        margin-top: 4px; min-height: 30px; padding: 3px 10px; font-size: 12px; gap: 6px; }
+    .bt-gr2-side .bt-gr2-rosterbtn .ic { font-size: 14px; }
+    .bt-gr2-side .bt-gr2-rosterbtn .ch { font-size: 15px; }
+    .bt-gr2-rosterbtn.is-compact { display: none; }
+
+    .bt-rs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .bt-rs-card { display: grid; grid-template-columns: 74px minmax(0, 1fr); column-gap: 8px; row-gap: 2px;
+        align-items: start; padding: 6px 8px 6px 6px; text-align: left; }
+    .bt-rs-card .rs-media { grid-column: 1; grid-row: 1 / span 4; height: 100%; min-height: 74px; align-self: stretch; }
+    .bt-rs-card .rs-media img { width: 100%; height: 100%; object-fit: contain; }
+    .bt-rs-card .rs-name { grid-column: 2; font-size: 14px; line-height: 1.1; margin: 0; }
+    .bt-rs-card .rs-stats { grid-column: 2; gap: 1px; }
+    .bt-rs-card .rs-traits { grid-column: 2; margin: 0; }
+    .bt-rs-card .rs-traits span { font-size: 9px; padding: 1px 5px; }
+    .bt-rs-card .cd-stat em { width: 34px; font-size: 8.5px; }
+    .bt-rs-card .cd-stat u { font-size: 10px; width: 28px; }
+    .bt-rs-card .cd-stat .bar { height: 5px; }
+    .bt-rs-card .rs-cta { display: none; }   /* cala karta jest przyciskiem wyboru */
+    .bt-rs-card .rs-mine { top: 2px; right: 4px; }
+}
+/* v0.240.0: kontener z otwartym wyborem mocy nie przewija sie (patrz LoadoutOverlay.open) */
+.bt-ld-locked { overflow: hidden !important; }
+/* v0.240.0 poprawka (Mariusz: "obrotnica poszla w lewo"): space-between przykleil obrotnice do lewej krawedzi.
+   Obrotnica zajmuje cala wolna przestrzen obok panelu i jest w niej wysrodkowana, dopiero potem +20 px / +5 px. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-gr2-stage2 .bt-gr2-stagerow { flex: 1 1 auto; display: flex; justify-content: center; align-items: center; }
+}
+/* v0.240.0 (Mariusz): pill czolgu tuz ZA nazwa gracza w mini-rankingu, wynik przy prawej krawedzi */
+.bt-hub0-rankrow .who { flex: 0 1 auto; min-width: 0; }
+.bt-hub0-rankrow .bt-tank-pill { margin-left: 6px; margin-right: 0; }
+.bt-hub0-rankrow .pts { margin-left: auto; }
+/* v0.240.0 (Mariusz): obrotnica jeszcze +15 px w prawo (lacznie +35); w siatce 3x3 KWADRATOWE okienka zdjec
+   (prostokat obcinal czesci czolgu) — zdjecie wpisane w calosci (contain), bez powiekszenia. */
+@media (orientation: landscape) and (max-height: 560px) {
+    .bt-gr2-stage2 .bt-gr2-stagerow { left: 35px; }
+    .bt-rs-card .rs-media { width: 74px; height: 74px; min-height: 0; aspect-ratio: 1 / 1; align-self: center; overflow: hidden; }
+    .bt-rs-card .rs-media img { width: 100%; height: 100%; object-fit: contain; transform: none; }
+    .bt-rs-card:hover .rs-media img { transform: none; }
+}
+/* v0.240.0 (Mariusz): wybrany czolg w siatce = ZLOTY ✓ w rogu, 1:1 jak wybor mapy (.bt-mp-card.is-selected::after) */
+.bt-rs-card.is-mine::after {
+    content: '✓';
+    position: absolute; top: -7px; right: -7px; z-index: 3;
+    display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--hub-accent); color: #1a2530; font-size: 13px; font-weight: 800;
+    border: 2px solid var(--hub-steel-950);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }

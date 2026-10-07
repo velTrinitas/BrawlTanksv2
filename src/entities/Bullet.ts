@@ -313,6 +313,19 @@ export class Bullet {
         if (this.behavior === 'boomerang') {
             // FAZA P5 Batch 2 — boomerang: out -> powrot do gracza (pomija sciany).
             this.stepBoomerang(delta, ctx);
+            // FIX 2026-10-07 (Mariusz: super Zwiada nie niszczy muru Krolowej): bumerang dalej OMIJA zwykle sciany,
+            // ale trafia obiekty ZNISZCZALNE (cegly/Zwornik, skrzynie, bele, lod) — raz na obiekt na kierunek
+            // (dedup jak przy wrogach, czyszczony na zawrocie) i leci dalej.
+            if (this.active) {
+                for (const b of buildings) {
+                    if (b.w <= 0 || this.hitEnemies.has(b)) continue;
+                    if (!(this.x > b.x && this.x < b.x + b.w && this.y > b.y && this.y < b.y + b.h)) continue;
+                    const d = b as ICollidable & { takeDamage?: (dmg: number, hitX: number, hitY: number, heavy?: boolean) => void };
+                    if (typeof d.takeDamage !== 'function') continue;
+                    this.hitEnemies.add(b);
+                    d.takeDamage(this.dmg, this.x, this.y, this.isSuper);
+                }
+            }
         } else {
             this.x += this.vx * delta;
             this.y += this.vy * delta;

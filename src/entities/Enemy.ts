@@ -16,6 +16,8 @@ import type { CastleRole } from '../systems/castle/castleWaves'; // OBRON ZAMEK 
 import type { CastleLaneId } from '../maps/CastleMap'; // OBRON ZAMEK F3
 import type { CastlePart } from '../maps/castle/CastlePart'; // OBRON ZAMEK F3
 import { simNowMs } from '../systems/SimClock'; // COOP S1
+/** SPAWN GRACE (2026-10-07): czas gotowosci bojowej po spawnie (ms zegara symulacji). */
+export const ENEMY_SPAWN_GRACE_MS = 2000;
 import { nextNetId } from '../systems/NetId'; // COOP S5b
 
 /**
@@ -212,6 +214,12 @@ export class Enemy {
 
     /** v0.5 Etap 1: freeze timer */
     public frozenUntil: number = 0;
+    /** SPAWN GRACE (2026-10-07, Mariusz): do tej chwili (zegar symulacji) wrog po spawnie stoi — celuje, ale nie jedzie
+     *  i nie strzela. Obrazenia przyjmuje normalnie. Wspolne dla WSZYSTKICH scenariuszy (kazdy spawn = new Enemy). */
+    public graceUntil: number = 0;
+    private graceDone = false;
+    /** SPAWN GRACE: efekt pojawienia sie juz odpalony (main.ts, petla wrogow). Tylko wizual. */
+    public spawnFxDone = false;
 
     // FAZA P4 Sprite Baker — archetyp do bake (null => flat path: pursuit ZAWSZE flat, albo flaga OFF).
     private bakerArch: EnemyArchetype | null = null;
@@ -292,6 +300,9 @@ export class Enemy {
         }
 
         this.lastShotTime = simNowMs() + worldRng.next() * 1000 - this.shootIntervalMs; // Z0.1: seeded
+        // SPAWN GRACE: 2 s gotowosci bojowej bez ruchu/strzalu; pierwszy strzal przesuniety o laske (bez salwy w 1. klatce po niej)
+        this.graceUntil = simNowMs() + ENEMY_SPAWN_GRACE_MS;
+        this.lastShotTime += ENEMY_SPAWN_GRACE_MS;
 
         if (isMegaBoss) {
             this.megaShieldNextTime = simNowMs() + 12000;
@@ -895,6 +906,23 @@ export class Enemy {
                     this.turret.tint = this.tintHex;
                 }
             }
+        }
+
+        // SPAWN GRACE: po freeze (mroz ma pierwszenstwo), PRZED guardem/stealth/ruchem. Wrog obraca sie do celu,
+        // stoi i nie strzela; czolg pulsuje alfa (0 alokacji) — czytelny sygnal "jeszcze nie walczy".
+        if (!this.graceDone) {
+            const nowG = simNowMs();
+            if (nowG < this.graceUntil) {
+                const a = Math.atan2(targetY - this.y, targetX - this.x);
+                if (this.bakerArch) this.applyBakedAngle(a);
+                else { this.hull.rotation = a; this.turret.rotation = a; }
+                this.container.x = this.x; this.container.y = this.y;
+                this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : (this.isPursuit ? 24 : 19));
+                this.container.alpha = 0.55 + 0.45 * Math.abs(Math.sin(nowG / 140));
+                return null;
+            }
+            this.graceDone = true;
+            this.container.alpha = 1;
         }
 
         // FAZA CTF F2 — guard branch PRZED stealth: straznik zawsze wykonuje swoj

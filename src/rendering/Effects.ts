@@ -600,6 +600,20 @@ export class EffectsManager {
         if (delay > 0) r.sprite.visible = false;
     }
 
+    /**
+     * SPAWN GRACE (2026-10-07): znacznik pojawienia sie wroga na ~2 s gotowosci — 3 pierscienie ADD z puli z opoznieniem
+     * (fala co ~0,6 s) + iskry z puli. Zero alokacji (w odroznieniu od spawnPortal, ktory tworzy Graphics), tani na mobile.
+     * tier: 0 = zwykly, 1 = boss, 2 = mega boss (wiekszy, czerwony).
+     */
+    spawnEnemyArrival(x: number, y: number, tier: 0 | 1 | 2): void {
+        const c = tier > 0 ? 0xff4d4d : 0xffb347;
+        const r = tier === 2 ? 95 : tier === 1 ? 72 : 52;
+        this.spawnRingFx(x, y, r, c, 24, 0);
+        this.spawnRingFx(x, y, r * 0.85, c, 24, 36);
+        this.spawnRingFx(x, y, r * 0.7, 0xffffff, 20, 72);
+        this.spawnParticles(x, y, c, tier > 0 ? 14 : 8, { speed: 4.5, size: 2.6, decay: 0.045, spread: 1.0 });
+    }
+
     /** v0.234.0 — KONFETTI (Paczkomat): 3 kolory, max 15 czastek z puli. */
     spawnConfetti(x: number, y: number): void {
         for (const c of [0xff5fa2, 0x4fd2ff, 0xffd84a]) {

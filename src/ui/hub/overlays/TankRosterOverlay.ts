@@ -57,7 +57,7 @@ export class TankRosterOverlay {
             return `
             <button class="bt-rs-card${mine ? ' is-mine' : ''}" type="button" data-pick="${b.id}"
                     style="--tank:${b.colorMain}; --i:${i}" aria-pressed="${mine}">
-                ${mine ? `<i class="rs-mine">★ ${t('hub.roster.mine')}</i>` : ''}
+                ${/* v0.240.0 (Mariusz): pasek "TWOJ" usuniety (zbyt dominujacy) — wybor = zloty ✓ w rogu jak przy mapie (CSS .is-mine::after) */''}
                 <span class="rs-media">
                     <img src="${portraitOf(b)}" alt="" loading="lazy" draggable="false">
                 </span>

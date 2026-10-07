@@ -3,6 +3,10 @@ import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { leaderboardService } from '../../../services/ScoreService';
 import { LEADERBOARD_BOARDS, type LeaderboardEntry, type MyRank } from '../../../services/leaderboard';
+import { tankPillHtml } from '../../tankPill'; // v0.240.0: czolg obok nazwy gracza
+
+/** v0.240.0: nick z rankingu escapowany (jak w LeaderboardScreen) — wczesniej szedl surowo do innerHTML. */
+const escHtml = (s: string): string => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 
 /**
  * RankSection (RANKING) — HUB-6. Mini-board reuse istniejacego backendu leaderboardu
@@ -63,7 +67,8 @@ export class RankSection implements HubSection {
             : top.map(e => `
                 <div class="bt-hub0-rankrow${pid && e.profileId === pid ? ' is-me' : ''}">
                     <span class="pos">${medal(e.rank)}</span>
-                    <span class="who">${e.displayName}</span>
+                    <span class="who">${escHtml(e.displayName)}</span>
+                    ${tankPillHtml(e.brawlerId, true)}
                     <span class="pts">${e.score}</span>
                 </div>`).join('');
 

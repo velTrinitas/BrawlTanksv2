@@ -75,6 +75,8 @@ export function loadoutSlotTileHtml(
 
 export class LoadoutOverlay {
     private el: HTMLElement | null = null;
+    /** v0.240.0 (Mariusz, mobile): kontener, ktoremu blokujemy scroll na czas wyboru (patrz open/close). */
+    private host: HTMLElement | null = null;
     private pid = 'default';
     private armedSlot: 0 | 1 | 2 = 0;
     private onDone: (() => void) | null = null;
@@ -100,6 +102,13 @@ export class LoadoutOverlay {
             </div>
             <div class="bt-ld-scroll" data-ld-grid>${this.gridHtml()}</div>`;
         parent.appendChild(this.el);
+        // v0.240.0 FIX (Mariusz 2026-10-07, zrzut 20261007_garaz): overlay jest `absolute; inset:0` w PRZEWIJANYM
+        // `.bt-hub0-main` — na niskim telefonie Garaz jest wyzszy niz ekran, wiec po przewinieciu spod overlaya
+        // wychodzil pasek wybranych mocy z Garazu i zaslanial liste. Na czas wyboru: kontener na gore + bez scrolla
+        // (przewija sie tylko lista mocy wewnatrz overlaya).
+        this.host = parent;
+        parent.scrollTop = 0;
+        parent.classList.add('bt-ld-locked');
 
         // Delegacja na roocie overlaya (przezywa repaint kontenerow wewnatrz).
         this.el.addEventListener('click', (e) => {
@@ -175,6 +184,8 @@ export class LoadoutOverlay {
     close(): void {
         this.el?.remove();
         this.el = null;
+        this.host?.classList.remove('bt-ld-locked');
+        this.host = null;
     }
 
     get isOpen(): boolean { return this.el !== null; }

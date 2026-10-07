@@ -62,6 +62,8 @@ export function isMultiplayerSandbox(): boolean {
  * 11 — ENIGMA na produkcji (v0.239.0): 9. czolg gatling w rosterze (indeks 8, na koncu listy) — rozped luf
  *      w krokach logiki (spinUpSteps), rozrzut z worldRng (spreadRad), super poza fairSuperProfiles (57 dmg,
  *      promien x1.6, predkosc x1.1). Dane w BALANCE_V2_STATS.enigma.
+ * 12 — v0.240.0: SPAWN GRACE (kazdy wrog 2 s po spawnie stoi i nie strzela — Enemy.graceUntil, zegar symulacji),
+ *      bumerang (super Zwiada) trafia obiekty zniszczalne, Enigma 40 dmg / 15 strz./s / speed 4.7 / super 60.
  */
 /**
  * COOP LAN-3b: zagrozenia map, ktorych gosc jeszcze NIE widzi (klatwa piramid + Ra, Yeti, UFO),
@@ -70,4 +72,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 11;
+export const SIM_VERSION = 12;

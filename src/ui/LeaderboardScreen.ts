@@ -18,6 +18,7 @@ import { AVATARS, AVATAR_IDS } from '../config/avatars';
 import type { AvatarId } from '../types/Profile';
 import type { MapId } from '../types/MapType';
 import { backArrowIcon } from './hub/gameIcons';
+import { tankPillHtml } from './tankPill'; // v0.240.0: czolg obok nazwy gracza
 
 const WINDOWS: readonly TimeWindow[] = ['all', 'week', 'day'];
 const DEFAULT_AVATAR: AvatarId = AVATAR_IDS[0];
@@ -220,6 +221,7 @@ export class LeaderboardScreen implements IScreen {
                     <span class="bt-lb-rank">${e.rank}</span>
                     ${this.avatarImg(e.avatarId)}
                     <span class="bt-lb-name">${this.esc(e.displayName)}</span>
+                    ${tankPillHtml(e.brawlerId)}
                     <span class="bt-lb-score">${e.score.toLocaleString('pl-PL')}</span>
                 </div>`;
     }

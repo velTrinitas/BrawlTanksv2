@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../../entities/Enemy';
 import { worldRng } from '../Rng';
+import { simNowMs } from '../SimClock';
 import { ENEMY_NORMAL, ENEMY_BOSS, type EnemyConfig } from '../../config/enemies';
 import type { DifficultyModifiers } from '../../config/difficulty';
 import { DUNGEON_SPAWN_SPOTS, DUNGEON_START_RANK, type DungeonPoint } from '../../maps/DungeonMap';
@@ -127,7 +128,7 @@ export class QueenDirector {
         if (!this.startRankDone) {
             this.startRankDone = true;
             // Q4.6: laska startowa — szpaler CZEKA (freeze) przez spawnInvulMs, gracz ma czas sie przygotowac
-            DUNGEON_START_RANK.forEach((p, i) => { const boss = T.startRankBoss && i === DUNGEON_START_RANK.length - 1; if (boss || i < T.startRankRaiders) { const e = this.spawnAt(p.x, p.y, boss); if (e) e.freeze(Date.now() + T.spawnInvulMs); } });
+            DUNGEON_START_RANK.forEach((p, i) => { const boss = T.startRankBoss && i === DUNGEON_START_RANK.length - 1; if (boss || i < T.startRankRaiders) { const e = this.spawnAt(p.x, p.y, boss); if (e) e.freeze(simNowMs() + T.spawnInvulMs); } }); // fix 2026-10-07: zegar symulacji (pauza nie zjada laski)
         }
 
         // ── flara po spawnie (dogasa) ──

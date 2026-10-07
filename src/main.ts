@@ -270,6 +270,7 @@ import { getDifficultyModifiers } from './config/difficulty';
 // === FAZA 6.5.2b: MainMenu jako bootstrap entry point ===
 import { MainMenu } from './ui/MainMenu';
 import { showToast } from './ui/toast';
+import { showLoadingScreen } from './ui/LoadingScreen';
 
 // === FAZA 7a: Profile system foundation ===
 import { ProfileSpriteCache } from './rendering/profile/ProfileSpriteCache';
@@ -1836,7 +1837,7 @@ menu.onHowToPlayRequested = () => {
             .setScenario(ls?.scenario ?? 'ktb')
             .setMap(ls?.map ?? 'city')
             .setBrawlerId(ls?.brawlerId ?? BRAWLERS[0].id)
-            .setDifficulty(ls?.difficulty ?? 'normal')
+            .setDifficulty(ls?.difficulty ?? 'easy')
             .setProfileId(ProfileService.getActiveProfile()?.id ?? 'default')
             .build();
     }
@@ -2398,6 +2399,21 @@ function spawnCtfMatchForces(): void {
 }
 
 async function startGame(config: GameConfig, tutorialMode = false): Promise<void> {
+    // v0.241.0: ekran ladowania — overlay musi sie NARYSOWAC przed synchronicznym budowaniem mapy
+    // (inaczej 2-3 s zamrozonego ekranu na mobile). Chowany po pierwszej klatce meczu.
+    const loading = showLoadingScreen();
+    await loading.painted;
+    try {
+        await startGameInner(config, tutorialMode);
+    } catch (e) {
+        console.error('[startGame] failed', (e as Error).stack, { map: config.map, scenario: config.scenario, brawler: config.brawlerId });
+        throw e;
+    } finally {
+        loading.hide();
+    }
+}
+
+async function startGameInner(config: GameConfig, tutorialMode = false): Promise<void> {
     // FAZA A: tutorialMode = sandbox nauki na realnej mapie tego czolgu, spawn wrogow OFF.
     tutorialActive = tutorialMode;
     lastGameConfig = config;

@@ -611,7 +611,7 @@ export class EffectsManager {
         this.spawnRingFx(x, y, r, c, 24, 0);
         this.spawnRingFx(x, y, r * 0.85, c, 24, 36);
         this.spawnRingFx(x, y, r * 0.7, 0xffffff, 20, 72);
-        this.spawnParticles(x, y, c, tier > 0 ? 14 : 8, { speed: 4.5, size: 2.6, decay: 0.045, spread: 1.0 });
+        this.spawnParticles(x, y, c, tier > 0 ? 7 : 4, { speed: 4.5, size: 2.6, decay: 0.045, spread: 1.0 }); // 2026-10-08: 8 -> 4 iskry (limit 200 czastek na mobile)
     }
 
     /** v0.234.0 — KONFETTI (Paczkomat): 3 kolory, max 15 czastek z puli. */

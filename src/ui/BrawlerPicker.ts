@@ -95,7 +95,7 @@ export class BrawlerPicker implements IScreen {
     private readonly map: MapId;
 
     selectedBrawlerId: string | null = null;
-    selectedDifficulty: DifficultyId = 'normal';
+    selectedDifficulty: DifficultyId = 'easy'; // v0.241.0 D1
 
     // === Callbacks ===
     onBack: (() => void) | null = null;

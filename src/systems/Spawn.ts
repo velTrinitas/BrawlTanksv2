@@ -8,6 +8,7 @@ import { PICKUP_CONFIG } from '../config/powers';
 import { WORLD_W, WORLD_H } from '../config/constants';
 import type { ICollidable } from '../types/MapType';
 import type { DifficultyModifiers } from '../config/difficulty';
+import { SPAWN_START_RAMP_S } from '../config/difficulty';
 import { QuestService } from '../services/QuestService'; // PROG-F3 — metryki rozkazow
 import { sigmaEmit } from '../testing/sigmaFlag'; // SigmaTester: 'kill' w jedynym punkcie zabicia (no-op poza ?bot=1)
 
@@ -58,6 +59,9 @@ const MIN_SPAWN_FRAMES = 30;
 export class SpawnSystem {
     private frameCounter: number = 0;
     private gameTimeSeconds: number = 0;
+    /** v0.241.0 (D1): akumulator spawnu wrogow (zamiast frameCounter % spawnRate, ktore przy zmiennym
+     *  interwale rampy gubi/dubluje spawny). Startuje "pelny" = pierwszy wrog od razu, jak dotad. */
+    private spawnAccum: number = Number.POSITIVE_INFINITY;
     private heartFrameCounter: number = 0;
     private magnetFrameCounter: number = 0;
 
@@ -113,6 +117,7 @@ export class SpawnSystem {
             hp: Math.round(base.hp * this.modifiers.enemyHpMult),
             dmg: Math.round(base.dmg * this.modifiers.enemyDmgMult),
             bulletDmg: Math.round(base.bulletDmg * this.modifiers.enemyDmgMult),
+            bulletSpeed: base.bulletSpeed * this.modifiers.enemyBulletSpeedMult,
             speedMin: base.speedMin * this.modifiers.enemySpeedMult,
             speedMax: base.speedMax * this.modifiers.enemySpeedMult,
         };
@@ -146,6 +151,12 @@ export class SpawnSystem {
             MIN_SPAWN_FRAMES,
             this.modifiers.spawnIntervalFrames - Math.floor(this.gameTimeSeconds * this.modifiers.timeScaling)
         );
+        // v0.241.0 (D1): lagodny start — przez pierwsze SPAWN_START_RAMP_S s interwal dluzszy (x1.6 -> x1.0 liniowo).
+        const rampLeft = Math.max(0, 1 - this.gameTimeSeconds / SPAWN_START_RAMP_S);
+        const effRate = spawnRate * (1 + (this.modifiers.startSpawnRampMult - 1) * rampLeft);
+        this.spawnAccum += delta;
+        const spawnTick = this.spawnAccum >= effRate;
+        if (spawnTick) this.spawnAccum = Number.isFinite(this.spawnAccum) ? Math.min(this.spawnAccum - effRate, effRate) : 0;
 
         // FAZA CTF F2 (D7): tryb CTF — top-up roamerow do capa (legacy 4700-4701).
         // Bossy z killi / mega boss / magnesy wylaczone. F3 (playtest): SERCA WLACZONE
@@ -171,7 +182,7 @@ export class SpawnSystem {
         if (this.ctfMode) {
             let roamerCount = 0; // v0.73.7 PERF: licznik zamiast filter().length (bez domkniecia+tablicy)
             for (let i = 0; i < currentEnemies.length; i++) { const e = currentEnemies[i]; if (!e.isBoss && !e.guard) roamerCount++; }
-            if (this.frameCounter % spawnRate < delta && roamerCount < this.ctfMode.roamerCap) {
+            if (spawnTick && roamerCount < this.ctfMode.roamerCap) {
                 const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 300, extraBlocked);
                 if (pos) {
                     newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_NORMAL), false, worldContainer));
@@ -195,7 +206,7 @@ export class SpawnSystem {
         }
 
         // v0.50.0: maxEnemiesOnMap z modifiers (15/20/25/30 per difficulty).
-        if (this.frameCounter % spawnRate < delta && currentEnemies.length < this.modifiers.maxEnemiesOnMap) {
+        if (spawnTick && currentEnemies.length < this.modifiers.maxEnemiesOnMap) {
             const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 300, extraBlocked);
             if (pos) {
                 newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_NORMAL), false, worldContainer));
@@ -358,6 +369,7 @@ export class SpawnSystem {
 
     reset(): void {
         this.frameCounter = 0;
+        this.spawnAccum = Number.POSITIVE_INFINITY;
         this.gameTimeSeconds = 0;
         this.heartFrameCounter = 0;
         this.magnetFrameCounter = 0;

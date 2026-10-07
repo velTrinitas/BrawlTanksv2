@@ -88,7 +88,7 @@ export class MainMenu {
     private lastScenarioSelection: ScenarioId | null = null;
     private lastMapSelection: MapId | null = null;
     private lastBrawlerSelection: string | null = null;
-    private lastDifficultySelection: DifficultyId = 'normal';
+    private lastDifficultySelection: DifficultyId = 'easy'; // v0.241.0 D1
 
     // === Public callbacks (cross-cutting events tylko) ===
 
@@ -191,7 +191,7 @@ export class MainMenu {
         this.lastScenarioSelection = null;
         this.lastMapSelection = null;
         this.lastBrawlerSelection = null;
-        this.lastDifficultySelection = 'normal';
+        this.lastDifficultySelection = 'easy';
     }
 
     // === Internal: screen factory ===

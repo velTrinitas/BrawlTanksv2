@@ -219,6 +219,7 @@ export class RangeDirector {
             hp: Math.round(base.hp * m.enemyHpMult),
             dmg: Math.round(base.dmg * m.enemyDmgMult),
             bulletDmg: Math.round(base.bulletDmg * m.enemyDmgMult),
+            bulletSpeed: base.bulletSpeed * m.enemyBulletSpeedMult,
             speedMin: base.speedMin * m.enemySpeedMult,
             speedMax: base.speedMax * m.enemySpeedMult,
         };

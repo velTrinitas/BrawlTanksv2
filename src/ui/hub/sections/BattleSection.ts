@@ -131,7 +131,7 @@ export class BattleSection implements HubSection {
         // normal. "GRAJ" gra tym, czym gralem ostatnio (zero pickera).
         const last = sessionService.getLastSession();
         this.selectedDifficulty = last && (DIFFICULTY_ORDER as string[]).includes(last.difficulty)
-            ? last.difficulty as DifficultyId : 'normal';
+            ? last.difficulty as DifficultyId : 'easy'; // v0.241.0 D1: nowy gracz startuje na Latwym
     }
 
     /**

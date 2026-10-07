@@ -106,7 +106,7 @@ export function getDifficultyMultiplier(difficulty: DifficultyId): number {
 export class GameConfigBuilder {
     private _scenario?: ScenarioId;
     private _map?: MapId;
-    private _difficulty: DifficultyId = 'normal';
+    private _difficulty: DifficultyId = 'easy'; // v0.241.0 D1
     private _brawlerId?: string;
     private _profileId: string = 'default';
     private _mode: GameMode = 'solo';

@@ -22,6 +22,7 @@
  * - shootIntervalMs (rate of fire wrogow — celowo nieskalowane, zbyt agresywne
  *   skalowanie ROF na Nightmare prowadziłoby do "bullet hell" niedostosowanego
  *   do audience 9-12)
+ * - [v0.241.0 D1: bulletSpeed JEST juz skalowane — enemyBulletSpeedMult, tylko w dol (Easy/Normal)]
  * - bulletSpeed (predkosc pociskow — celowo nieskalowane, szybsze pociski =
  *   trudne do unikniecia, niezamierzona kara dla mniej refleksowych graczy)
  * - HEART_CONFIG / PICKUP_CONFIG (pickup spawn rate — nieskalowane w v1, jezeli
@@ -41,6 +42,13 @@ export interface DifficultyModifiers {
 
     /** Mnoznik speed (speedMin + speedMax). */
     enemySpeedMult: number;
+
+    /** v0.241.0 (D1): mnoznik predkosci pociskow wroga. Easy/Normal wolniej = czas na unik (czytelnosc). */
+    enemyBulletSpeedMult: number;
+
+    /** v0.241.0 (D1): lagodny start — mnoznik interwalu spawnu na starcie meczu, liniowo do 1.0
+     *  w ciagu SPAWN_START_RAMP_S sekund. 1.0 = bez rampy. */
+    startSpawnRampMult: number;
 
     // ── Spawn config overrides (SpawnSystem zastepuje SPAWN_CONFIG defaults) ──
 
@@ -77,8 +85,10 @@ export interface DifficultyModifiers {
  * | Atrybut               | Easy  | Normal | Hard  | Nightmare |
  * |-----------------------|-------|--------|-------|-----------|
  * | enemyHpMult           | 0.85  | 1.0    | 1.10  | 1.20      |
- * | enemyDmgMult          | 0.85  | 1.0    | 1.10  | 1.20      |
+ * | enemyDmgMult          | 0.80  | 0.90   | 1.10  | 1.20      |
  * | enemySpeedMult        | 1.0   | 1.0    | 1.0   | 1.0       |  <- v0.73.7: STALE (fairness wolnych czolgow)
+ * | enemyBulletSpeedMult  | 0.90  | 0.95   | 1.0   | 1.0       |  <- v0.241.0 D1
+ * | startSpawnRampMult    | 1.6   | 1.6    | 1.0   | 1.0       |  <- v0.241.0 D1 (pierwsze 30 s)
  * | spawnIntervalFrames   | 175   | 150    | 125   | 100       |
  * | timeScaling           | 0.7   | 1.0    | 1.3   | 1.6       |
  * | maxEnemiesOnMap       | 15    | 20     | 25    | 30        |
@@ -100,11 +110,16 @@ export interface DifficultyModifiers {
  * +5 megaBossKillThreshold na Nightmare zapobiega kuriozalnemu "mega boss po 2min
  * bo spawny non-stop". Stabilizuje pacing mimo szybszego spawn rate.
  */
+/** v0.241.0 (D1): dlugosc lagodnego startu (s czasu meczu). */
+export const SPAWN_START_RAMP_S = 30;
+
 export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
     easy: {
         enemyHpMult: 0.85,
-        enemyDmgMult: 0.85,
+        enemyDmgMult: 0.80,
         enemySpeedMult: 1.0,
+        enemyBulletSpeedMult: 0.90,
+        startSpawnRampMult: 1.6,
         spawnIntervalFrames: 175,
         timeScaling: 0.7,
         maxEnemiesOnMap: 15,
@@ -115,8 +130,10 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
     },
     normal: {
         enemyHpMult: 1.0,
-        enemyDmgMult: 1.0,
+        enemyDmgMult: 0.90,
         enemySpeedMult: 1.0,
+        enemyBulletSpeedMult: 0.95,
+        startSpawnRampMult: 1.6,
         spawnIntervalFrames: 150,
         timeScaling: 1.0,
         maxEnemiesOnMap: 20,
@@ -129,6 +146,8 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         enemyHpMult: 1.10,
         enemyDmgMult: 1.10,
         enemySpeedMult: 1.0, // v0.73.7: zdjete ze skalowania (fairness wolnych czolgow)
+        enemyBulletSpeedMult: 1.0,
+        startSpawnRampMult: 1.0,
         spawnIntervalFrames: 125,
         timeScaling: 1.3,
         maxEnemiesOnMap: 25,
@@ -141,6 +160,8 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         enemyHpMult: 1.20,
         enemyDmgMult: 1.20,
         enemySpeedMult: 1.0, // v0.73.7: zdjete ze skalowania (fairness wolnych czolgow)
+        enemyBulletSpeedMult: 1.0,
+        startSpawnRampMult: 1.0,
         spawnIntervalFrames: 100,
         timeScaling: 1.6,
         maxEnemiesOnMap: 30,

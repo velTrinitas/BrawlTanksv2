@@ -68,6 +68,25 @@ import {
     MARS_ROVER_ROUTE, MARS_ROVER_ROUTE_SE,
 } from './maps/MarsMap'; // FAZA MARS M2/M3/M4
 import { DuststormBorder } from './maps/mars/DuststormBorder'; // FAZA MARS M2
+import { buildJunkyardTexture, JUNKYARD_LAYOUT, JUNKYARD_STACK_CLUSTER } from './maps/JunkyardMap'; // ZLOMOWISKO J1
+import { GreatPress } from './maps/junkyard/GreatPress'; // ZLOMOWISKO J3 (Wielka Prasa)
+import { Crane } from './maps/junkyard/Crane'; // ZLOMOWISKO J4 (Dzwig z elektromagnesem)
+import { ConveyorBelt } from './maps/junkyard/ConveyorBelt'; // ZLOMOWISKO J5 (Tasmociag + Kruszarka)
+import { JunkyardEventDirector } from './maps/junkyard/JunkyardEventDirector'; // ZLOMOWISKO J6a (Lawina kolpakow, Wyprzedaz czesci)
+import { TowTruck } from './maps/junkyard/TowTruck'; // ZLOMOWISKO J6a (Laweta)
+import { JunkyardJump } from './systems/junkyard/JunkyardJump'; // ZLOMOWISKO J6b (opona-trampolina nad prasa)
+import { JunkyardAmbient } from './maps/junkyard/JunkyardAmbient'; // ZLOMOWISKO J6b (golebie, pies Srubek, kot)
+import { PRESS_BY_DIFFICULTY, CRANE_BY_DIFFICULTY, BELT_BY_DIFFICULTY, EVENTS_BY_DIFFICULTY, TOW_TRUCK } from './config/junkyardRules'; // ZLOMOWISKO J3-J6a
+import { SRC_PRESS, SRC_CRANE_DROP, SRC_CRUSHER, SRC_HUBCAP } from './types/DamageSource'; // ZLOMOWISKO J3-J6a
+import { JunkyardBorder } from './maps/junkyard/JunkyardBorder'; // ZLOMOWISKO J1
+import { WreckStack } from './maps/junkyard/WreckStack'; // ZLOMOWISKO J1
+import { TireWall } from './maps/junkyard/TireWall'; // ZLOMOWISKO J1
+import { ScrapContainer } from './maps/junkyard/ScrapContainer'; // ZLOMOWISKO J1
+import { ScrapOffice } from './maps/junkyard/ScrapOffice'; // ZLOMOWISKO J1
+import { FoamStation } from './maps/junkyard/FoamStation'; // ZLOMOWISKO REV 8 (Myjnia Piany — wiata na slupach, wzor Neon Oasis)
+import { JunkyardHideout } from './maps/junkyard/JunkyardHideout'; // ZLOMOWISKO J2 (stealth: myjnia / opony / kontenery)
+import { disposeJunkyardBakes } from './maps/junkyard/junkyardBake'; // ZLOMOWISKO: tekstury Canvas 2D propow
+import { isJunkyardEnabled } from './config/junkyardFlag'; // ZLOMOWISKO: mapa za flaga
 import {
     buildCastleTexture, CASTLE_PLAYER_SPAWN, CASTLE_ROCK_PALETTE, CASTLE_ROCKS,
     CASTLE_MEDI_PAD_POSITIONS, CASTLE_POWER_PAD_POSITIONS,
@@ -510,6 +529,18 @@ let agroBorderTrees: AgroBorderTrees | null = null; // AGRO 2026-10-06: kolyszac
 let cyberpunkBorder: CyberpunkBorder | null = null; // v0.52.0 fix #21
 let arcticBorder: ArcticBorder | null = null; // ARC-R1 (Arctic)
 let marsBorder: DuststormBorder | null = null; // FAZA MARS M2
+let junkyardBorder: JunkyardBorder | null = null; // ZLOMOWISKO J1 (plot z blachy)
+let foamStation: FoamStation | null = null; // ZLOMOWISKO REV 8: Myjnia Piany (art + widok; stealth w junkyardHideouts)
+let junkyardHideouts: JunkyardHideout[] = []; // ZLOMOWISKO J2 (stealth: myjnia piany, labirynty opon, kontenery)
+let greatPress: GreatPress | null = null; // ZLOMOWISKO J3 (Wielka Prasa — cykl na zegarze symulacji)
+let crane: Crane | null = null; // ZLOMOWISKO J4 (Dzwig — zrzuca wraki = nowe oslony)
+let conveyorBelt: ConveyorBelt | null = null; // ZLOMOWISKO J5 (Tasmociag niesie na E do Kruszarki)
+let junkyardEvents: JunkyardEventDirector | null = null; // ZLOMOWISKO J6a (zdarzenia na worldRng)
+let towTruck: TowTruck | null = null; // ZLOMOWISKO J6a (Laweta na obwodnicy)
+let junkyardStacks: WreckStack[] = []; // ZLOMOWISKO J6a: stosy (do trzesienia w telegrafie lawiny)
+let junkyardJump: JunkyardJump | null = null; // ZLOMOWISKO J6b: 2 opony-trampoliny, skok NAD prasa
+let junkyardAmbient: JunkyardAmbient | null = null; // ZLOMOWISKO J6b: ambient (tylko widok)
+const junkyardThreats: Array<{ x: number; y: number }> = []; // J6b: pies ucieka przed czolgami (bufor bez alokacji)
 let castleBorder: CastleBorder | null = null; // OBRON ZAMEK F1
 // OBRON ZAMEK F2 — czesci zamku (mur/wieze/brama/donzon), fosa, las/kaplica, pola, proporce.
 let castleParts: CastlePart[] = [];
@@ -711,6 +742,7 @@ interface PlayerSimState {
     stealthEndTime: number;
     wasInOasis: boolean; wasInFarm: boolean; wasInNeon: boolean;
     wasInRuinsBush: boolean; wasInHydro: boolean; wasInWheat: boolean;
+    wasInJunkyard: boolean; // ZLOMOWISKO J2
     wasStealthActive: boolean;
     stealthActive: boolean;
     stealthBrokenByShot: boolean;
@@ -726,6 +758,7 @@ function simOf(p: Player): PlayerSimState {
     if (!st) {
         st = { stealthEndTime: 0, wasInOasis: false, wasInFarm: false, wasInNeon: false,
             wasInRuinsBush: false, wasInHydro: false, wasInWheat: false,
+            wasInJunkyard: false,
             wasStealthActive: false, stealthActive: false, stealthBrokenByShot: false, lowHpVoiceFired: false, lastShotTime: 0, respawnAt: 0, spinSteps: 0, gatlingShots: 0 };
         playerSim.set(p, st);
     }
@@ -1200,6 +1233,9 @@ const spawnBlocked = (x: number, y: number): boolean => {
     // roamer potrafil zmaterializowac sie w garazu. Wrog ma do bazy WJECHAC, gdy tarcza
     // opadnie, a nie pojawic sie w srodku.
     if (ctfSystem && ctfSystem.isInHangarRect(x, y)) return true;
+    for (const jh of junkyardHideouts) if (jh.isPointInside(x, y)) return true; // ZLOMOWISKO J2: nie w kryjowkach
+    if (greatPress && greatPress.isPointInBed(x, y)) return true; // ZLOMOWISKO J3: nie w lozu prasy
+    if (conveyorBelt && conveyorBelt.isOnBelt(x, y)) return true; // ZLOMOWISKO J5: nie na tasmie
     return false;
 };
 
@@ -1416,6 +1452,12 @@ menu.onGameRequested = (config: GameConfig) => {
     if (config.scenario === 'save_queen' && !isQueenMode()) {
         showToast(t('settings.comingSoon'), 2500);
         console.log('[Menu] Game start blocked - scenario not yet implemented:', config.scenario);
+        return;
+    }
+    // ZLOMOWISKO: mapa za flaga ?junkyard=1 (karta w hubie jest LOCKED, ale ?map=/stara sesja moga ja niesc).
+    if (config.map === 'junkyard' && !isJunkyardEnabled()) {
+        showToast(t('settings.comingSoon'), 2500);
+        console.log('[Menu] Game start blocked - map behind flag:', config.map);
         return;
     }
     if (config.scenario === 'range' && !isRangeMode()) { // STRZELNICA: dev-only (?range=1)
@@ -1722,6 +1764,12 @@ function runGuestStep(delta: number): void {
     for (const ns of neonStations) ns.update(camera.x, camera.y, guestWorld.focusX, guestWorld.focusY, false, bullets);
     for (const rb of ruinsBushes) rb.update();
     for (const hg of hydroGardens) hg.update();
+    for (const jh of junkyardHideouts) jh.update(camera.x, camera.y, viewW, viewH); // ZLOMOWISKO J2
+    if (foamStation) foamStation.update(camera.x, camera.y, viewW, viewH, { x: guestWorld.focusX, y: guestWorld.focusY }); // ZLOMOWISKO REV 8
+    if (greatPress) greatPress.updateView(camera.x, camera.y, viewW, viewH); // ZLOMOWISKO J6a: paralaksa
+    if (crane) crane.updateView(camera.x, camera.y, viewW, viewH);
+    if (conveyorBelt) conveyorBelt.updateView(camera.x, camera.y, viewW, viewH);
+    if (junkyardAmbient) { junkyardThreats.length = 0; for (const pl of players) junkyardThreats.push(pl); for (const e of enemies) if (e.active) junkyardThreats.push(e); junkyardAmbient.update(camera.x, camera.y, viewW, viewH, junkyardThreats, localPlayer); }
     for (const rf of regolithFields) rf.update();
     for (const sp of sludgePools) sp.update(guestWorld.focusX, guestWorld.focusY, false);
     // COOP LAN-3b: stan swiata z migawki hosta — niszczalne (rozpad/odrodzenie z efektem) i cooldowny padow.
@@ -1806,6 +1854,7 @@ menu.onContinueRequested = (lastSession: LastSession) => {
         return;
     }
     if (lastSession.scenario === 'save_queen' && lastSession.map !== 'dungeon') lastSession.map = 'dungeon'; // SAVE THE QUEEN Q1: stale sesje sprzed odblokowania
+    if (lastSession.map === 'junkyard' && !isJunkyardEnabled()) lastSession.map = 'desert'; // ZLOMOWISKO: sesja z testow za flaga -> domyslna mapa
     // OBRON ZAMEK F1: stale sesje castle sprzed odblokowania moga niesc mape KTB.
     if (lastSession.scenario === 'castle' && lastSession.map !== 'castle_grounds') {
         lastSession.map = 'castle_grounds';
@@ -1929,6 +1978,7 @@ menu.onProfileEditRequested = () => {
     }
 
     menu.start();
+    prewarmBakers(); // PERF: piekarnie sprite'ow w tle, zanim gracz kliknie GRAJ
 })();
 
 if (import.meta.env.DEV) {
@@ -2006,6 +2056,7 @@ function returnToMenuFromEnd(): void {
 
     menu.reshow();
     menu.showHub(); // HUB-0: respektuje flage ?hub=1 (domyslnie stary 'hub')
+    prewarmBakers(); // PERF: po zmianie czolgu/skina w garazu nastepny start znow placi tylko za mape
 }
 
 // TYPO-P1-7: te dwa nasluchy montowaly sie na przyciskach ze STATYCZNEGO markupu
@@ -2398,11 +2449,56 @@ function spawnCtfMatchForces(): void {
     for (const e of enemies) attachEnemyCubeStolenCallback(e);
 }
 
+/** TANK ART v2: one customisation contract (flag + number + skin) baked into the player tank textures. */
+function tankLookFor(activeProfile: ReturnType<typeof ProfileService.getActiveProfile>): TankLook {
+    // SKIN-1: zalozone barwy czolgu wpieczone w bake (paleta z derive(hex)). Flaga OFF => null => bit-identyczny bake.
+    const skinId = isSkinsEnabled()
+        ? ProgressionService.getCosmeticState(activeProfile?.id ?? 'default').equipped['tankSkin']
+        : undefined;
+    const skinDef = skinId ? getCosmetic(skinId) : undefined;
+    return {
+        flagId: activeProfile?.flagId ?? null,
+        number: activeProfile ? resolveTankNumber(activeProfile) : null,
+        skinHex: skinDef?.hex ?? null,
+        skinPattern: skinDef?.pattern ?? null, // SKIN-2: wzor wpieczony w bake
+    };
+}
+
+/**
+ * PERF (2026-10-09, pomiar A54 + CPU x6): pierwszy start meczu w sesji = ~7 s hitchy, z czego ~85% to piekarnie
+ * sprite'ow 2.5D (czolg gracza 108 klatek + wrogowie 3 x 36 katow), a nie budowa mapy. Piekarnie sa cache'owane
+ * na cala sesje i NIE zaleza od mapy, wiec rozgrzewamy je w HUBIE, w czasie bezczynnosci (requestIdleCallback),
+ * porcjami (BAKE_CHUNK w piekarniach) — start meczu placi wtedy tylko za mape. Czolg: ostatnio grany (albo domyslny)
+ * z aktualnym wygladem; inny wybor w garazu = zwykly bake przy starcie, jak dotad. Idempotentne, bledy tylko logowane.
+ */
+let prewarmInFlight = false;
+function prewarmBakers(): void {
+    if (!BAKER_ENABLED || prewarmInFlight || gameState !== 'MENU') return;
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o: { timeout: number }) => void };
+    const idle = (cb: () => void): void => { if (w.requestIdleCallback) w.requestIdleCallback(cb, { timeout: 1500 }); else setTimeout(cb, 400); };
+    idle(() => {
+        if (gameState !== 'MENU' || prewarmInFlight) return;
+        prewarmInFlight = true;
+        const t0 = performance.now();
+        (async () => {
+            await EnemySpriteBaker.bakeAll(app);
+            await EnemyBulletSpriteBaker.bakeAll(app);
+            if (gameState !== 'MENU') return;
+            const brawlerId = lastGameConfig?.brawlerId ?? BRAWLERS[0].id;
+            await TankSpriteBaker.bakeBrawler(app, brawlerId, tankLookFor(ProfileService.getActiveProfile()));
+            await BulletSpriteBaker.bakeBrawler(app, brawlerId);
+            if (import.meta.env.DEV) console.log(`[prewarm] bakers warm (${brawlerId}) in ${(performance.now() - t0).toFixed(0)} ms`);
+        })().catch((e: Error) => console.warn('[prewarm] failed', e.stack)).finally(() => { prewarmInFlight = false; });
+    });
+}
+
 async function startGame(config: GameConfig, tutorialMode = false): Promise<void> {
     // v0.241.0: ekran ladowania — overlay musi sie NARYSOWAC przed synchronicznym budowaniem mapy
     // (inaczej 2-3 s zamrozonego ekranu na mobile). Chowany po pierwszej klatce meczu.
+    performance.mark("bt:start:begin");
     const loading = showLoadingScreen();
     await loading.painted;
+    performance.mark("bt:start:painted");
     try {
         await startGameInner(config, tutorialMode);
     } catch (e) {
@@ -2412,6 +2508,9 @@ async function startGame(config: GameConfig, tutorialMode = false): Promise<void
         loading.hide();
     }
 }
+
+/** Yield to the event loop between heavy synchronous build phases (loading screen keeps animating). */
+const breathe = (): Promise<void> => new Promise<void>((r) => setTimeout(r, 0));
 
 async function startGameInner(config: GameConfig, tutorialMode = false): Promise<void> {
     // FAZA A: tutorialMode = sandbox nauki na realnej mapie tego czolgu, spawn wrogow OFF.
@@ -2455,7 +2554,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     // v0.187.0: `removeChildren()` odpina dzieci, ale NIE zwalnia ich tekstur w GPU. Upieczone propy
     // narastaly wiec z kazdym meczem (+57 tekstur/mecz, pomiar botem) az do ubicia kontekstu WebGL
     // na tablecie. Grunt ma wlasny, jednoelementowy cache (groundTextureCache) i przezywa ten reset.
-    disposePropCache(config.map === 'tropics' && isTropicsArtV2() ? 'tr_' : undefined); // AGRO PERF: budynki Agro zostaja miedzy meczami
+    disposePropCache(config.map === 'tropics' && isTropicsArtV2() ? 'tr_' : config.map === 'junkyard' ? 'jy_' : undefined); // AGRO PERF: budynki Agro zostaja miedzy meczami; ZLOMOWISKO: tak samo `jy_`
     damageSmoke?.destroy(); damageSmoke = null; // v0.188.0: wlasna Graphics dymu ginie razem z mapa
     smoothNeedsInit = true; logicAccMs = 0; // F5: reset interpolacji na nowy mecz (zero skoku ze starego stanu)
     buildings = [];
@@ -2471,6 +2570,8 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     cyberpunkBorder = null; // v0.52.0 fix #21
     arcticBorder = null; // ARC-R1 (Arctic)
     marsBorder = null; // FAZA MARS M2
+    junkyardBorder = null; foamStation?.destroy(); foamStation = null; junkyardHideouts = []; greatPress = null; crane = null; conveyorBelt = null; junkyardEvents = null; towTruck = null; junkyardStacks = []; // ZLOMOWISKO J1-J6a
+    if (config.map !== 'junkyard') disposeJunkyardBakes(); // ZLOMOWISKO: bake'i Canvas 2D zyja miedzy meczami TYLKO na tej mapie
     castleBorder = null; // OBRON ZAMEK F1
     for (const p of castleParts) p.destroy(); // OBRON ZAMEK F2
     castleParts = [];
@@ -2485,6 +2586,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     castleEnemyBulletSolids = null;
     castleSystem?.destroy(); castleSystem = null; // OBRON ZAMEK F3
     castleJump?.destroy(); castleJump = null; // GRUPA E
+    junkyardJump?.destroy(); junkyardJump = null; junkyardAmbient?.destroy(); junkyardAmbient = null; // ZLOMOWISKO J6b
     queenSystem?.destroy(); queenSystem = null; // SAVE THE QUEEN Q2
     queenDirector?.destroy(); queenDirector = null; // SAVE THE QUEEN Q3
     if (castleNextBtn) castleNextBtn.style.display = 'none'; // F5
@@ -2578,6 +2680,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     const worldZoom = touchManager.isActive ? MOBILE_WORLD_ZOOM : DESKTOP_WORLD_ZOOM;
     worldContainer.scale.set(worldZoom);
 
+    performance.mark("bt:start:map");
     if (config.map === 'city') {
         const cityTex = getGroundTexture('city', buildCityTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
         const citySprite = new PIXI.Sprite(cityTex);
@@ -3236,6 +3339,43 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // 3000x3000 gracz ich po prostu nie spotykal.
         mediPads = MARS_MEDI_PAD_POSITIONS.map(p => new MarsMediPad(p.x, p.y, worldContainer));
         powerPads = MARS_POWER_PAD_POSITIONS.map(p => new MarsPowerPad(p.x, p.y, worldContainer));
+    } else if (config.map === 'junkyard') {
+        // ── ZLOMOWISKO J0+J1 (2026-10-08) — mapa KTB za ?junkyard=1 (junkyardFlag.ts) ──
+        // Layout FROZEN + AABB-verified: tools/junkyard_j0_layout.mjs (PASS, 0 bledow).
+        // J1 = grunt + plot + stosy wrakow + opony + kontenery + biuro + kupki + pady + STAND-INY maszyn
+        // (kolizja finalna, zero zachowan). J2 stealth, J3 prasa, J4 dzwig, J5 tasma/kruszarka, J6 zdarzenia.
+        const jyTex = getGroundTexture('junkyard', buildJunkyardTexture); // 34 MB VRAM — cache jak kazda mapa
+        const jySprite = new PIXI.Sprite(jyTex);
+        jySprite.zIndex = -100;
+        worldContainer.addChild(jySprite);
+        await breathe(); // PERF: grunt 3000x3000 + bake'i propow w osobnych zadaniach (ekran ladowania nie zamarza)
+
+        junkyardBorder = new JunkyardBorder(WORLD_W, WORLD_H, worldContainer);
+        buildings.push(...junkyardBorder.getCollisionRects());
+        solidBuildings.push(...junkyardBorder.getCollisionRects());
+
+        const L = JUNKYARD_LAYOUT;
+        const addSolid = (o: ICollidable) => { buildings.push(o); solidBuildings.push(o); };
+        for (const st of L.stacks) for (const k of JUNKYARD_STACK_CLUSTER) { const ws = new WreckStack(st.x + k.dx, st.y + k.dy, k.tiers, worldContainer); addSolid(ws); junkyardStacks.push(ws); } // REV 3: klaster 3 malych stosow w slocie; J6a: referencje do trzesienia
+        for (const m of L.mazes) for (const w of m.walls) addSolid(new TireWall(w.x, w.y, w.w, w.h, worldContainer));
+        await breathe();
+        // J2: kontener = 3 sciany + kryjowka w srodku (wejscie od S); labirynty i tunel myjni = kryjowki bez scian wlasnych.
+        L.containers.forEach((c, i) => {
+            const cont = new ScrapContainer(c.x, c.y, c.w, c.h, i === 0 ? 'red' : 'blue', worldContainer);
+            for (const r of cont.getCollisionRects()) addSolid(r);
+            junkyardHideouts.push(new JunkyardHideout('container', cont.interior.x, cont.interior.y, cont.interior.w, cont.interior.h, worldContainer));
+        });
+        for (const m of L.mazes) junkyardHideouts.push(new JunkyardHideout('tires', m.inner.x, m.inner.y, m.inner.w, m.inner.h, worldContainer));
+        junkyardHideouts.push(new JunkyardHideout('wash', L.washTunnel.x, L.washTunnel.y, L.washTunnel.w, L.washTunnel.h, worldContainer));
+        addSolid(new ScrapOffice(L.office.x, L.office.y, L.office.w, L.office.h, worldContainer));
+
+        await breathe();
+        foamStation = new FoamStation(worldContainer);
+        for (const r of foamStation.getCollisionRects()) addSolid(r);
+
+        // Pady: standardowe (wariant z poswiata jak Agro v2) — tematyczne pady to J6/polish.
+        mediPads = L.mediPads.map(pp => new HoverRepairPad(pp.x, pp.y, worldContainer, 1, true));
+        powerPads = L.powerPads.map(pp => new PowerHoverPad(pp.x, pp.y, worldContainer, 1, true));
     } else if (config.map === 'castle_grounds') {
         // ── OBRON ZAMEK F1 "ZIELONA DOLINA" — szkielet mapy za ?castle=1 ──
         // Layout FROZEN + AABB-verified: tools/castle_c1_layout.mjs (V1-V9 PASS).
@@ -3356,6 +3496,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         powerPads = DUNGEON_POWER_PAD_POSITIONS.map(p => new PowerHoverPad(p.x, p.y, worldContainer));
     }
 
+    performance.mark("bt:start:mapDone");
     effects = new EffectsManager(worldContainer);
     installFxMirror(effects); // COOP LAN-3b: lustro efektow do goscia (no-op poza hostem koopa)
     hostEvents = [];
@@ -3536,6 +3677,186 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     // DESERT ART v2 / E4: klatwa piramidy (wzorzec IglooYeti — obrazenia rozstrzyga TEN closure,
     // spojnie z pociskami wrogow: nietykalnosc / tutorial / perfect-run). Tylko strzelnica bez.
     const coopNoHazards = config.mode === 'coop' && !COOP_HAZARDS_ENABLED; // COOP LAN-3b
+    // ZLOMOWISKO J3: Wielka Prasa — centrum mapy, PO effects/audio. Zabicia prasa = bez punktow (wynik mierzy gracza),
+    // dropy zostaja; boss 15% + stun z sufitem 45%; gracz 45% + odrzut. Koop bez hazardow: prasa stoi (makieta).
+    if (config.map === 'junkyard') await breathe(); // PERF: kazda maszyna w osobnym zadaniu (bake'i Canvas 2D)
+    if (config.map === 'junkyard' && config.scenario !== 'range' && !coopNoHazards) {
+        greatPress = new GreatPress(worldContainer, effects, audio, PRESS_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            crushEnemy: (e) => {
+                if (!effects || !spawnSystem || !e.active) return false;
+                const killed = e.takeDamage(e.hp + 1, e.x, e.y, worldContainer, effects, SRC_PRESS);
+                if (killed) { spawnSystem.registerKill(e); handleEnemyDrop(e); }
+                return killed;
+            },
+            hitBoss: (e, amount) => {
+                if (!effects || !spawnSystem || !e.active) return;
+                const hpBefore = e.hp;
+                const killed = e.takeDamage(amount, e.x, e.y, worldContainer, effects, SRC_PRESS);
+                if (!killed && e.hp === hpBefore) e.hp = Math.max(1, e.hp - amount); // tarcza nie chroni przed 40 tonami stali
+                if (killed) { spawnSystem.registerKill(e); handleEnemyDrop(e); }
+                effects.spawnFloatingText(e.x, e.y - 40, '-' + Math.round(amount), 0xf2c230);
+            },
+            crushPlayer: (index, amount, dirX, dirY, distance) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive;
+                const died = cp.takeDamage(amount, protectedNow, SRC_PRESS);
+                cp.applyKnockback(dirX, dirY, distance, buildings);
+                if (!protectedNow) {
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, '-' + Math.round(amount), 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); }
+            },
+            isAirborne: (p) => p === localPlayer && (junkyardJump?.isAirborne() ?? false), // J6b
+            notify: (key, count) => {
+                if (key === 'telegraph') hud.addNotif(t('hud.pressTelegraph'), '#f2c230');
+                else if (key === 'bossCrushed') hud.addNotif(t('hud.bossCrushed') + ' ×' + count, '#f2c230');
+                else hud.addNotif(t('hud.pressCrushedYou'), '#ff7a5a');
+            },
+        });
+        for (const r of greatPress.getCollisionRects()) { buildings.push(r); solidBuildings.push(r); }
+        // debug: stan prasy z konsoli F12 -> prasa()
+        (window as any).prasa = () => greatPress;
+    }
+    // ZLOMOWISKO J4: Dzwig — zrzuty co ~17 s w 5 zweryfikowanych punktach (nigdy na przejezdzie), wrak zostaje jako
+    // oslona (3 trafienia, maks. 6), Pulpit dzwigu celuje w skupisko wrogow. Zabicia bez punktow (jak prasa).
+    if (config.map === 'junkyard') await breathe(); // PERF: kazda maszyna w osobnym zadaniu (bake'i Canvas 2D)
+    if (config.map === 'junkyard' && config.scenario !== 'range' && !coopNoHazards) {
+        crane = new Crane(worldContainer, effects, audio, CRANE_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            damageEnemy: (e, dmg) => {
+                if (!effects || !spawnSystem || !e.active) return false;
+                const killed = e.takeDamage(dmg, e.x, e.y, worldContainer, effects, SRC_CRANE_DROP);
+                if (killed) { spawnSystem.registerKill(e); handleEnemyDrop(e); }
+                return killed;
+            },
+            damagePlayer: (index, amount) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive;
+                const died = cp.takeDamage(amount, protectedNow, SRC_CRANE_DROP);
+                if (!protectedNow) {
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, '-' + Math.round(amount), 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); }
+            },
+            pushPlayer: (index, dirX, dirY, dist) => { players[index]?.applyKnockback(dirX, dirY, dist, buildings); },
+            addSolid: (o) => { buildings.push(o); solidBuildings.push(o); },
+            removeSolid: (o) => {
+                const i = buildings.indexOf(o); if (i >= 0) buildings.splice(i, 1);
+                const j = solidBuildings.indexOf(o); if (j >= 0) solidBuildings.splice(j, 1);
+            },
+            notify: (key) => {
+                if (key === 'armed') hud.addNotif(t('hud.craneArmed'), '#f2c230');
+                else hud.addNotif(t('hud.craneDrop'), '#e63b2e');
+            },
+        });
+        for (const r of crane.getCollisionRects()) { buildings.push(r); solidBuildings.push(r); }
+        (window as any).dzwig = () => crane;
+    }
+    // ZLOMOWISKO J5: Tasmociag + Kruszarka — ZAWSZE zbudowane (art + kolizja kruszarki); ruch/pozeranie tylko z hazardami.
+    // Tasma niesie czolgi, zwyklych wrogow i pickupy na E (boss za ciezki); kruszarka: wrog pozarty bez punktow,
+    // gracz 25% HP + wypluty na W; pickupy zatrzymuja sie przed paszcza (ryzyko = nagroda).
+    if (config.map === 'junkyard') await breathe(); // PERF: kazda maszyna w osobnym zadaniu (bake'i Canvas 2D)
+    if (config.map === 'junkyard') {
+        const hazardsOn = config.scenario !== 'range' && !coopNoHazards;
+        conveyorBelt = new ConveyorBelt(worldContainer, effects, audio, BELT_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            forEachPickup: (fn) => {
+                for (const g of gems) fn(g, (x) => { g.x = x; g.sprite.x = x; });
+                for (const h of hearts) fn(h, (x) => { h.x = x; h.sprite.x = x; });
+                for (const mg of magnets) fn(mg, (x) => { mg.x = x; mg.sprite.x = x; });
+                for (const pc of powerCubes) fn(pc, (x) => { pc.x = x; pc.container.x = x; });
+            },
+            crushEnemy: (e) => {
+                if (!effects || !spawnSystem || !e.active) return false;
+                const killed = e.takeDamage(e.hp + 1, e.x, e.y, worldContainer, effects, SRC_CRUSHER);
+                if (killed) { spawnSystem.registerKill(e); handleEnemyDrop(e); }
+                return killed;
+            },
+            spitPlayer: (index, amount, dirX, dirY, distance) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive;
+                const died = cp.takeDamage(amount, protectedNow, SRC_CRUSHER);
+                cp.applyKnockback(dirX, dirY, distance, buildings);
+                if (!protectedNow) {
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, '-' + Math.round(amount), 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); }
+            },
+            notify: (key) => {
+                if (key === 'ate') hud.addNotif(t('hud.crusherAte'), '#e63b2e');
+                else hud.addNotif(t('hud.crusherSpatYou'), '#ff7a5a');
+            },
+        }, hazardsOn);
+        for (const r of conveyorBelt.getCollisionRects()) { buildings.push(r); solidBuildings.push(r); }
+        (window as any).tasma = () => conveyorBelt;
+    }
+    // ZLOMOWISKO J6a: zdarzenia (Lawina kolpakow, Wyprzedaz czesci) + Laweta. Director losuje z worldRng w krokach logiki.
+    if (config.map === 'junkyard' && config.scenario !== 'range' && !coopNoHazards) {
+        junkyardEvents = new JunkyardEventDirector(worldContainer, effects, audio, EVENTS_BY_DIFFICULTY[config.difficulty], {
+            getEnemies: () => enemies,
+            getPlayers: () => players,
+            getSolids: () => buildings,
+            damageEnemy: (e, dmg) => {
+                if (!effects || !spawnSystem || !e.active) return false;
+                const killed = e.takeDamage(dmg, e.x, e.y, worldContainer, effects, SRC_HUBCAP);
+                if (killed) { spawnSystem.registerKill(e); handleEnemyDrop(e); }
+                return killed;
+            },
+            damagePlayer: (index, amount) => {
+                const cp = players[index];
+                if (!cp || !currentSession || gameState !== 'PLAYING') return;
+                const protectedNow = psOf(cp).isInvulnerable || tutorialActive;
+                if (cp === localPlayer && (junkyardJump?.isAirborne() ?? false)) return; // J6b: w locie kolpaki przelatuja pod czolgiem
+                const died = cp.takeDamage(amount, protectedNow, SRC_HUBCAP);
+                if (!protectedNow) {
+                    effects!.spawnFloatingText(cp.x, cp.y - 30, '-' + Math.round(amount), 0xff6b6b);
+                    if (cp === localPlayer) audio.playHit('player');
+                    currentSession.markDamageTaken();
+                }
+                if (died && !coopHandleDeath(cp)) { void triggerGameOver(); }
+            },
+            spawnPickup: (kind, x, y) => {
+                if (kind === 'gem') spawnGem(x, y);
+                else if (kind === 'heart') hearts.push(new Heart(x, y, worldContainer));
+                else powerCubes.push(new PowerCube(x, y, worldContainer));
+            },
+            shakeStack: (ringIdx, on) => {
+                // 3 stacks per slot (JUNKYARD_STACK_CLUSTER); the inner ring = slots 0..3
+                for (let k = 0; k < JUNKYARD_STACK_CLUSTER.length; k++) {
+                    const ws = junkyardStacks[ringIdx * JUNKYARD_STACK_CLUSTER.length + k];
+                    if (ws) ws.shaking = on;
+                }
+            },
+            notify: (key) => {
+                if (key === 'hubcapsTelegraph') hud.addNotif(t('hud.hubcapsTelegraph'), '#f2c230');
+                else if (key === 'hubcaps') hud.addNotif(t('hud.hubcaps'), '#e63b2e');
+                else hud.addNotif(t('hud.partsSale'), '#f2c230');
+            },
+        });
+        (window as any).zlom = () => junkyardEvents;
+    }
+    if (config.map === 'junkyard') await breathe(); // PERF: kazda maszyna w osobnym zadaniu (bake'i Canvas 2D)
+    if (config.map === 'junkyard' && config.scenario !== 'range') {
+        towTruck = new TowTruck(worldContainer, TOW_TRUCK.speedPxPerStep, TOW_TRUCK.dropIntervalMs);
+        (window as any).laweta = () => towTruck;
+        // J6b: opona-trampolina (zawsze, jak trampoliny Zamku) + ambient (golebie / pies / kot — czysty widok)
+        junkyardJump = new JunkyardJump(worldContainer);
+        junkyardAmbient = new JunkyardAmbient(worldContainer, audio);
+        (window as any).opona = () => junkyardJump;
+    }
     // TROPICS ART v2 / T6.1: Szalone Kurczaki — budzone TYLKO pociskami gracza (wzorzec klatwy piramidy).
     // Ranienie wrogow = sciezka zabicia mega bomby (punkty + drop, BEZ combo — to nie skill streak).
     if (config.map === 'tropics' && isTropicsArtV2() && tropicsHenhouses.length && config.scenario !== 'range' && !coopNoHazards) {
@@ -3716,21 +4037,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     // FAZA P1 Sprite Baker — bake 2.5D gracza PRZED stworzeniem Player (czolg nie mignie pusty).
     // Flaga gracza wpieczona w teksture hull (per-profil). Tylko gdy ?baker=1. Idempotentny (cache).
     if (BAKER_ENABLED) {
-        // SKIN-1: zalozone barwy czolgu wpieczone w bake (paleta z derive(hex)).
-        // Flaga OFF => null => bit-identyczny bake jak dotad.
-        const skinId = isSkinsEnabled()
-            ? ProgressionService.getCosmeticState(activeProfile?.id ?? 'default').equipped['tankSkin']
-            : undefined;
-        const skinDef = skinId ? getCosmetic(skinId) : undefined;
-        const skinHex = skinDef?.hex ?? null;
-        const skinPattern = skinDef?.pattern ?? null; // SKIN-2: wzor wpieczony w bake
-        // TANK ART v2: jeden kontrakt customizacji (flaga + numer + skin) zamiast parametrow pozycyjnych.
-        const look: TankLook = {
-            flagId: activeProfile?.flagId ?? null,
-            number: activeProfile ? resolveTankNumber(activeProfile) : null,
-            skinHex, skinPattern,
-        };
+        const look = tankLookFor(activeProfile);
+        performance.mark("bt:start:bakers");
         await TankSpriteBaker.bakeBrawler(app, brawler.id, look);
+        performance.mark("bt:start:tankBaked");
         await BulletSpriteBaker.bakeBrawler(app, brawler.id); // FAZA P2 — pociski 2.5D (normal+super)
         // COOP LAN-3b (playtest 2026-10-01: "stary Ogniarz"): czolg i pociski KOLEGI tez musza byc wypieczone,
         // inaczej Player wpada w stary plaski rysunek. Cache per brawler: ten sam czolg u obu = wspolny bake
@@ -3740,8 +4050,11 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
             await TankSpriteBaker.bakeBrawler(app, partner.brawlerId, { flagId: (partner.flagId ?? null) as FlagId | null, number: null, skinHex: null, skinPattern: null });
             await BulletSpriteBaker.bakeBrawler(app, partner.brawlerId);
         }
+        performance.mark("bt:start:enemyBake");
         await EnemySpriteBaker.bakeAll(app);        // FAZA P4 — wrogowie 2.5D (grunt/boss/mega)
+        performance.mark("bt:start:enemyBaked");
         await EnemyBulletSpriteBaker.bakeAll(app);  // FAZA P4 — pociski wrogow 2.5D
+        performance.mark("bt:start:bakersDone");
     }
 
     // SKIN-2: zalozony ANIMOWANY skin => Player dostaje dane pulsu (ADD overlay).
@@ -3783,6 +4096,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // STRZELNICA v0.209.0: centrum strefy CENTER_CLEAR arctic — stanowiska liczone od tego punktu.
         localPlayer.x = RANGE_TUNING.center.x;
         localPlayer.y = RANGE_TUNING.center.y;
+    } else if (config.map === 'junkyard') {
+        // ZLOMOWISKO J1: start na poludniu (brama wjazdowa), strefa 240 px wolna (V4 w layoucie).
+        localPlayer.x = JUNKYARD_LAYOUT.playerStart.x;
+        localPlayer.y = JUNKYARD_LAYOUT.playerStart.y;
     }
 
     enemies = [];
@@ -3829,7 +4146,15 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // pierwszy spawn po pelnym odstepie — inaczej znajdzka lezy juz w sekundzie zero
         seasonNextSpawnAt = simNowMs() + (seasonContentCache?.spawn.everyMs ?? 0);
     }
+    // PERF (2026-10-09): wgraj tekstury swiata na GPU PORCJAMI (plugin prepare: kilka na klatke) jeszcze pod ekranem
+    // ladowania — bez tego pierwsza klatka meczu wgrywala grunt + wszystkie bake'i naraz (1.9 s zamrozenia na CPU x6).
+    try {
+        const prep = (app.renderer as unknown as { prepare?: { upload: (o: PIXI.DisplayObject) => Promise<void> } }).prepare;
+        if (prep) await prep.upload(worldContainer);
+    } catch (e) { console.warn('[startGame] prepare.upload failed', (e as Error).stack); }
+    performance.mark("bt:start:uploaded");
     isMouseDown = false;
+    performance.mark("bt:start:playing"); // perf timeline (tools/junkyard-bake-times.mjs)
     gameState = 'PLAYING';
 
     // Reset szczytow perf-overlay na nowy mecz (?perf=1).
@@ -5263,6 +5588,12 @@ function runLogicStep(delta: number): void {
     }
     for (const rb of ruinsBushes) rb.update();   // FAZA CTF F1 — zarosla (stealth kola, wzorzec oasis)
     for (const hg of hydroGardens) hg.update();  // FAZA MARS M4 — ogrody hydroponiczne (jedyna zielen na Marsie)
+    for (const jh of junkyardHideouts) jh.update(camera.x, camera.y, viewW, viewH); // ZLOMOWISKO J2 (obrysy tylko w kadrze)
+    if (foamStation) foamStation.update(camera.x, camera.y, viewW, viewH, localPlayer); // ZLOMOWISKO REV 8: paralaksa wiaty, szczotki, piana z gasienic
+    if (greatPress) greatPress.updateView(camera.x, camera.y, viewW, viewH); // ZLOMOWISKO J6a: paralaksa (widok, nie krok logiki)
+    if (crane) crane.updateView(camera.x, camera.y, viewW, viewH);
+    if (conveyorBelt) conveyorBelt.updateView(camera.x, camera.y, viewW, viewH);
+    if (junkyardAmbient) { junkyardThreats.length = 0; for (const pl of players) junkyardThreats.push(pl); for (const e of enemies) if (e.active) junkyardThreats.push(e); junkyardAmbient.update(camera.x, camera.y, viewW, viewH, junkyardThreats, localPlayer); }
     if (farmAnimals) { // T4: zwierzeta uciekaja przed czolgami (gracze + wrogowie)
         farmThreats.length = 0;
         for (const pl of players) farmThreats.push(pl);
@@ -5302,9 +5633,13 @@ function runLogicStep(delta: number): void {
         // OBRON ZAMEK F2 — pola zboza (stealth; wzorzec hydroponika)
         let playerInWheat = false;
         for (const wf of castleWheat) if (wf.isPointInside(p.x, p.y)) { playerInWheat = true; break; }
+        // ZLOMOWISKO J2 — kryjowki (myjnia piany / labirynt opon / kontener); rodzaj tylko dla komunikatu HUD
+        let junkyardKind: 'wash' | 'tires' | 'container' | null = null;
+        for (const jh of junkyardHideouts) if (jh.isPointInside(p.x, p.y)) { junkyardKind = jh.kind; break; }
+        const playerInJunkyard = junkyardKind !== null;
 
-        const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden || playerInWheat;
-        const wasInAnyStealthLastFrame = st.wasInOasis || st.wasInFarm || st.wasInNeon || st.wasInRuinsBush || st.wasInHydro || st.wasInWheat;
+        const playerInAnyStealth = playerInOasis || playerInFarmStealth || playerInNeonStation || playerInRuinsBush || playerInHydroGarden || playerInWheat || playerInJunkyard;
+        const wasInAnyStealthLastFrame = st.wasInOasis || st.wasInFarm || st.wasInNeon || st.wasInRuinsBush || st.wasInHydro || st.wasInWheat || st.wasInJunkyard;
 
         if (playerInAnyStealth && !wasInAnyStealthLastFrame) {
             st.stealthEndTime = nowMs + OASIS_STEALTH_DURATION_MS;
@@ -5328,6 +5663,12 @@ function runLogicStep(delta: number): void {
                     hud.addNotif(t('hud.stealthHydro'), '#5fd489'); // FAZA MARS M4
                 } else if (playerInWheat) {
                     hud.addNotif(t('hud.stealthWheat'), '#d8b855'); // OBRON ZAMEK F2
+                } else if (junkyardKind === 'wash') {
+                    hud.addNotif(t('hud.stealthWash'), '#5fd3d9'); // ZLOMOWISKO J2
+                } else if (junkyardKind === 'tires') {
+                    hud.addNotif(t('hud.stealthTires'), '#d8d8d8');
+                } else if (junkyardKind === 'container') {
+                    hud.addNotif(t('hud.stealthContainer'), '#a9b4c2');
                 } else {
                     hud.addNotif(t('hud.stealthOasis'), '#a8c878');
                 }
@@ -5347,6 +5688,7 @@ function runLogicStep(delta: number): void {
         st.wasInRuinsBush = playerInRuinsBush; // FAZA CTF F1
         st.wasInHydro = playerInHydroGarden; // FAZA MARS M4
         st.wasInWheat = playerInWheat; // OBRON ZAMEK F2
+        st.wasInJunkyard = playerInJunkyard; // ZLOMOWISKO J2
         st.wasStealthActive = isStealthActive;
         // v0.50.1: catch-all reset flagi stealthBrokenByShot gdy stealth nieaktywne (edge case:
         // strzal ze strefy i natychmiastowe wyjscie -> bledny komunikat przy nastepnym wejsciu).
@@ -5402,6 +5744,7 @@ function runLogicStep(delta: number): void {
     if (cyberpunkBorder) cyberpunkBorder.update(); // v0.52.0 fix #21
     if (arcticBorder) arcticBorder.update(); // ARC-R1 (drobiny + smugi lodowe)
     if (marsBorder) marsBorder.update(); // FAZA MARS M2 (drobiny + smugi pylu)
+    if (junkyardBorder) junkyardBorder.update(); // ZLOMOWISKO J1 (statyczny — no-op)
     if (ruinsBorder) ruinsBorder.update();     // FAZA CTF F1 (no-op, spojnosc interfejsu)
     // FAZA CTF F3 — beacon dostawy: dramatyczny tryb gdy gracz niesie flage
     if (ruinsHangar) {
@@ -5566,6 +5909,18 @@ function runLogicStep(delta: number): void {
     if (chickenFlock) chickenFlock.update();   // TROPICS v2 / T6.1 — staly krok logiki
     if (bullCharge) bullCharge.update();       // TROPICS v2 / T6.2 — staly krok logiki
     if (reaperTractor) reaperTractor.update(); // TROPICS v2 / T6.3 — staly krok logiki
+    // ZLOMOWISKO J3/J4: maszyny w stalym kroku logiki. try/catch: jeden blad maszyny nie moze zabic calej petli meczu (log ze stackiem).
+    if (greatPress) { try { greatPress.update(); } catch (e) { console.error("[GreatPress] update failed", (e as Error).stack, { phase: greatPress.phaseName }); } }
+    if (crane) { try { crane.update(); } catch (e) { console.error("[Crane] update failed", (e as Error).stack, { phase: crane.phaseName }); } }
+    if (conveyorBelt) { try { conveyorBelt.update(); } catch (e) { console.error("[ConveyorBelt] update failed", (e as Error).stack, { eaten: conveyorBelt.eatenCount }); } }
+    if (junkyardEvents) { try { junkyardEvents.update(); } catch (e) { console.error("[JunkyardEvents] update failed", (e as Error).stack, { phase: junkyardEvents.phaseName }); } }
+    if (towTruck) {
+        try {
+            const drop = towTruck.update(camera.x, camera.y, viewW, viewH);
+            if (drop && !spawnBlocked(drop.x, drop.y)) { spawnGem(drop.x, drop.y); hud.addNotif(t('hud.towTruckGem'), '#ffb347'); audio.playTowTruckHorn(); }
+        } catch (e) { console.error("[TowTruck] update failed", (e as Error).stack, towTruck.pos); }
+    }
+    for (const ws of junkyardStacks) if (ws.shaking) ws.update(); // J6a: tylko trzesace sie stosy (reszta statyczna)
     for (const colony of penguinColonies) {
         const drop = colony.update(delta);
         if (drop) {
@@ -5593,7 +5948,9 @@ function runLogicStep(delta: number): void {
     // GRUPA E: wyskok z zamku — w locie CastleJump sam prowadzi pozycje/wizual czolgu, zero inputu.
     const castleAirborne = castleJump
         ? castleJump.update(delta, localPlayer, buildings, effects, !castlePlayerDead && gameState === 'PLAYING', (tx, c) => hud.addNotif(tx, c))
-        : false;
+        : junkyardJump
+            ? junkyardJump.update(delta, localPlayer, buildings, effects, gameState === 'PLAYING' && !tutorialActive, (tx, c) => hud.addNotif(tx, c)) // ZLOMOWISKO J6b
+            : false;
     if (castlePlayerDead) { isMouseDown = false; localInput.fire = false; localPlayer.firing = false; }
     else if (castleAirborne) { localPlayer.firing = false; } // isMouseDown zostaje: po ladowaniu trzymany strzal dziala dalej
     else {
@@ -5894,7 +6251,7 @@ function runLogicStep(delta: number): void {
     // COOP S6: strzelanie kazdego gracza z jego wejscia (dzis: lokalny).
     const now = simNowMs();
     for (const [sp, sin] of playerInputs) {
-        if (sp === localPlayer && (castleJump?.isAirborne() ?? false)) continue; // GRUPA E: w locie bez strzalu
+        if (sp === localPlayer && ((castleJump?.isAirborne() ?? false) || (junkyardJump?.isAirborne() ?? false))) continue; // GRUPA E / J6b: w locie bez strzalu
         stepPlayerShooting(sp, sin, now);
     }
 
@@ -5919,6 +6276,7 @@ function runLogicStep(delta: number): void {
     const ctfSanctuary = ctfSystem ? ctfSystem.isInHomeSanctuary(localPlayer.x, localPlayer.y)
         : castleSystem ? (castleSystem.isInSanctuary(localPlayer.x, localPlayer.y) || castleSystem.isSpawnInvul() || castleSystem.isPlayerDead() || (castleJump?.isAirborne() ?? false)) // GRUPA E: nietykalny w locie
         : queenSystem ? queenSystem.isPlayerProtected() // SAVE THE QUEEN Q4.5/Q6: laska startowa 3 s + flourish OCALONA = realna nietykalnosc
+        : junkyardJump ? junkyardJump.isAirborne() // ZLOMOWISKO J6b: nietykalny w locie nad prasa
         : false;
 
     for (let i = enemyBullets.length - 1; i >= 0; i--) {

@@ -28,6 +28,7 @@ function tips(): string[] {
         t('loading.tip16'), t('loading.tip17'), t('loading.tip18'), t('loading.tip19'), t('loading.tip20'),
         t('loading.tip21'), t('loading.tip22'), t('loading.tip23'), t('loading.tip24'), t('loading.tip25'),
         t('loading.tip26'), t('loading.tip27'), t('loading.tip28'), t('loading.tip29'), t('loading.tip30'),
+        t('loading.tip31'), t('loading.tip32'), t('loading.tip33'), t('loading.tip34'),
     ];
 }
 
@@ -43,10 +44,12 @@ const CSS = `
   background:linear-gradient(to top,rgba(5,8,20,.85) 0%,rgba(5,8,20,.25) 32%,rgba(5,8,20,0) 50%)}
 #bt-loading .bt-ld-box{position:relative;width:min(520px,calc(100vw - 32px));margin:0 16px max(52px,12vh);
   text-align:center;color:#fff}
-#bt-loading .bt-ld-tip{font-size:clamp(12px,1.9vw,15px);font-weight:600;line-height:1.35;color:rgba(255,255,255,.92);
-  text-shadow:0 1px 3px rgba(0,0,0,.8);position:absolute;left:16px;bottom:max(12px,2.5vh);
-  max-width:min(60vw,520px);text-align:left;animation:btLdIn .5s ease-out both}
-#bt-loading .bt-ld-tip b{color:#f5c542;font-weight:700;margin-right:4px}
+/* v0.242.0 (playtest): one line, no wrapping, game font (Titan One) instead of the formal system UI font */
+#bt-loading .bt-ld-tip{font-family:'Titan One',cursive,sans-serif;font-weight:400;font-size:clamp(12px,1.7vw,16px);letter-spacing:.4px;
+  line-height:1.3;color:rgba(255,255,255,.95);text-shadow:0 2px 0 rgba(0,0,0,.7),0 0 10px rgba(0,0,0,.6);
+  position:absolute;left:16px;right:16px;bottom:max(12px,2.5vh);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-align:left;animation:btLdIn .5s ease-out both}
+#bt-loading .bt-ld-tip b{color:#f5c542;font-weight:400;margin-right:6px}
 #bt-loading .bt-ld-row{display:flex;flex-direction:column;align-items:stretch;gap:6px}
 #bt-loading .bt-ld-label{font-family:'Titan One',cursive,sans-serif;font-weight:400;font-size:14px;letter-spacing:2px;
   color:#f5c542;text-shadow:0 2px 0 rgba(0,0,0,.6)}

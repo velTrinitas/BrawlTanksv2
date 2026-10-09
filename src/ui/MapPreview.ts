@@ -18,7 +18,7 @@
  * - prefers-reduced-motion respected (w menu-styles.css)
  */
 
-export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range'
+export type PreviewType = 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'junkyard'
     // v0.143.0 — kafle wyboru mapy dla CTF: mapa grywalna + dwie zapowiedzi.
     | 'ruins' | 'destroyed_city' | 'moon';
 
@@ -32,7 +32,7 @@ export const MapPreviews: Record<PreviewType, () => string> = {
     tropics:   renderTropics,
     arctic:    renderArctic,
     mars:      renderMars,
-    range:     renderRange,
+    junkyard:  renderJunkyard,
     ruins:          renderRuins,
     destroyed_city: renderDestroyedCity,
     moon:           renderMoon,
@@ -592,80 +592,135 @@ function renderMars(): string {
 </svg>`.trim();
 }
 // =============================================================
-// RANGE — Poligon wojskowy (LOCKED zapowiedz, M5d)
+// JUNKYARD — Zlomowisko (mapa KTB, J1 2026-10-08; zastapil zapowiedz POLIGON)
 // =============================================================
-// Skladniki: khaki teren + tory przeszkod + tarcze strzelnicze (obracaja sie),
-// flagi na wietrze, kurz + KLODKA z pulsem "wkrotce".
-// Reuse istniejacych keyframes: .mpd-particle (kurz), .mpc-antenna-light (puls
-// klodki), .mpt-palm (kolysanie flag) — zero nowych regul CSS.
+// Skladniki (paleta 1:1 z JunkyardMap): slonce w zenicie, plot z blachy, stosy
+// spłowialych wrakow, WIELKA PRASA z zolto-czarnymi pasami (plyta opada w petli —
+// bt-press-drop), dzwig z magnesem (wahadlo — bt-crane-swing), czerwone koguty
+// (reuse .mpc-antenna-light), kurz (reuse .mpd-particle), 2 blyski chromu.
 // =============================================================
-function renderRange(): string {
+function renderJunkyard(): string {
     return `
-<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-range" aria-hidden="true">
+<svg viewBox="0 0 240 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" class="bt-map-preview-svg bt-mp-junkyard" aria-hidden="true">
   <defs>
-    <linearGradient id="bt-r-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#c8d4a8"/>
-      <stop offset="55%"  stop-color="#9aad74"/>
-      <stop offset="100%" stop-color="#6d7d4c"/>
+    <linearGradient id="bt-j-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#9ed3ef"/>
+      <stop offset="60%"  stop-color="#dbe7d9"/>
+      <stop offset="100%" stop-color="#e9d8b4"/>
     </linearGradient>
-    <linearGradient id="bt-r-ground" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#8a9a5b"/>
-      <stop offset="100%" stop-color="#5d6b3c"/>
+    <linearGradient id="bt-j-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#a98a63"/>
+      <stop offset="100%" stop-color="#7d6548"/>
     </linearGradient>
+    <pattern id="bt-j-stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#1d1b1a"/>
+      <rect width="4" height="8" fill="#f2c230"/>
+    </pattern>
   </defs>
 
-  <rect x="0" y="0" width="240" height="140" fill="url(#bt-r-sky)"/>
-  <path d="M0,78 L40,66 L80,74 L120,60 L160,72 L200,62 L240,70 L240,140 L0,140 Z" fill="#7a8a55" opacity="0.9"/>
-  <path d="M0,92 Q60,86 120,92 T240,90 L240,140 L0,140 Z" fill="url(#bt-r-ground)"/>
+  <!-- Niebo w poludnie + slonce -->
+  <rect x="0" y="0" width="240" height="140" fill="url(#bt-j-sky)"/>
+  <circle cx="196" cy="22" r="9" fill="#fff6d6" opacity="0.95"/>
+  <circle cx="196" cy="22" r="15" fill="#fff6d6" opacity="0.25"/>
 
-  <!-- tory przeszkod: opony + belki -->
-  <g opacity="0.85">
-    <ellipse cx="40" cy="112" rx="9" ry="4" fill="#3a3a32"/>
-    <ellipse cx="58" cy="116" rx="9" ry="4" fill="#3a3a32"/>
-    <ellipse cx="76" cy="112" rx="9" ry="4" fill="#3a3a32"/>
-    <rect x="150" y="104" width="52" height="5" rx="2" fill="#6b5a3c"/>
-    <rect x="156" y="109" width="5" height="12" fill="#5a4a30"/>
-    <rect x="191" y="109" width="5" height="12" fill="#5a4a30"/>
+  <!-- Plot z blachy falistej w tle -->
+  <rect x="0" y="62" width="240" height="22" fill="#8a9099"/>
+  <g fill="#555b63" opacity="0.5">
+    <rect x="6" y="63" width="2" height="20"/><rect x="18" y="63" width="2" height="20"/><rect x="30" y="63" width="2" height="20"/>
+    <rect x="42" y="63" width="2" height="20"/><rect x="54" y="63" width="2" height="20"/><rect x="66" y="63" width="2" height="20"/>
+    <rect x="150" y="63" width="2" height="20"/><rect x="162" y="63" width="2" height="20"/><rect x="174" y="63" width="2" height="20"/>
+    <rect x="186" y="63" width="2" height="20"/><rect x="198" y="63" width="2" height="20"/><rect x="210" y="63" width="2" height="20"/><rect x="222" y="63" width="2" height="20"/>
   </g>
+  <rect x="78" y="62" width="24" height="22" fill="#9fb3a6"/>
+  <rect x="126" y="62" width="22" height="22" fill="#c7b56f"/>
+  <rect x="0" y="61" width="240" height="2" fill="#c3c9cf"/>
+  <rect x="40" y="64" width="4" height="12" fill="#9a4f2a" opacity="0.7"/>
+  <rect x="170" y="64" width="3" height="16" fill="#9a4f2a" opacity="0.7"/>
 
-  <!-- tarcze strzelnicze (obracaja sie jak dron) -->
-  <g class="mpc-drone">
-    <circle cx="0" cy="0" r="11" fill="#efe6d2"/>
-    <circle cx="0" cy="0" r="7.5" fill="#d94a3d"/>
-    <circle cx="0" cy="0" r="4" fill="#efe6d2"/>
-    <circle cx="0" cy="0" r="1.6" fill="#d94a3d"/>
-  </g>
-  <g transform="translate(196,66)">
-    <rect x="-1.5" y="0" width="3" height="22" fill="#5a4a30"/>
-    <circle cx="0" cy="-4" r="10" fill="#efe6d2"/>
-    <circle cx="0" cy="-4" r="6.5" fill="#d94a3d"/>
-    <circle cx="0" cy="-4" r="3" fill="#efe6d2"/>
-  </g>
+  <!-- Plac: ubita ziemia + asfaltowy pas -->
+  <rect x="0" y="84" width="240" height="56" fill="url(#bt-j-ground)"/>
+  <path d="M0,112 L240,108 L240,122 L0,126 Z" fill="#5e5a54" opacity="0.75"/>
+  <path d="M0,119 L240,115" stroke="#b9b1a2" stroke-width="1" stroke-dasharray="6 5" opacity="0.6"/>
+  <ellipse cx="56" cy="132" rx="16" ry="4" fill="#2d2a2e" opacity="0.35"/>
+  <ellipse cx="200" cy="130" rx="12" ry="3" fill="#2d2a2e" opacity="0.3"/>
 
-  <!-- flagi kierunkowe (kolysza sie) -->
-  <g class="mpt-palm mpt-palm-1" transform="translate(30,52)">
-    <rect x="0" y="0" width="2" height="30" fill="#4a4a3a"/>
-    <path d="M2,2 L18,7 L2,12 Z" fill="#d94a3d"/>
-  </g>
-  <g class="mpt-palm mpt-palm-2" transform="translate(112,44)">
-    <rect x="0" y="0" width="2" height="34" fill="#4a4a3a"/>
-    <path d="M2,2 L17,7 L2,12 Z" fill="#e8b53d"/>
-  </g>
-
-  <!-- kurz -->
-  <g fill="#d8dcc0" opacity="0.7">
-    <circle class="mpd-particle mpd-p1" cx="52"  cy="126" r="1"/>
-    <circle class="mpd-particle mpd-p2" cx="130" cy="122" r="0.9"/>
-    <circle class="mpd-particle mpd-p3" cx="205" cy="128" r="1.1"/>
+  <!-- Stos wrakow (lewy): 3 pietra spłowialych aut, cien SE -->
+  <g transform="translate(14,78)">
+    <rect x="6" y="10" width="48" height="26" fill="#3b3129" opacity="0.3"/>
+    <rect x="0" y="22" width="46" height="12" rx="4" fill="#8a7a62"/>
+    <rect x="0" y="18" width="46" height="12" rx="4" fill="#c9a98a"/>
+    <rect x="3" y="12" width="42" height="11" rx="4" fill="#7f8d84"/>
+    <rect x="3" y="8"  width="42" height="11" rx="4" fill="#9fb3a6"/>
+    <rect x="6" y="2"  width="38" height="10" rx="4" fill="#8e7a86"/>
+    <rect x="6" y="-2" width="38" height="10" rx="4" fill="#b59aa8"/>
+    <rect x="10" y="0" width="7" height="5" rx="1" fill="#2f3a44"/><rect x="33" y="0" width="7" height="5" rx="1" fill="#2f3a44"/>
+    <rect x="8" y="10" width="7" height="5" rx="1" fill="#2f3a44"/><rect x="34" y="10" width="7" height="5" rx="1" fill="#2f3a44"/>
+    <rect x="4" y="20" width="8" height="5" rx="1" fill="#2f3a44"/><rect x="36" y="20" width="8" height="5" rx="1" fill="#2f3a44"/>
+    <circle cx="10" cy="34" r="3" fill="#2b2b2b"/><circle cx="36" cy="34" r="3" fill="#2b2b2b"/>
+    <circle class="mpc-antenna-light" cx="42" cy="1" r="1.6" fill="#ffffff"/>
   </g>
 
-  <!-- KLODKA: to jest zapowiedz, nie mapa do grania -->
-  <g transform="translate(120,70)">
-    <ellipse cx="0" cy="2" rx="30" ry="26" fill="#12160f" opacity="0.45"/>
-    <path d="M-9,-4 a9,10 0 0 1 18,0 v6 h-5 v-6 a4,5 0 0 0 -8,0 v6 h-5 Z" fill="#e8d9a8"/>
-    <rect class="mpc-antenna-light" x="-13" y="2" width="26" height="20" rx="4" fill="#e8d9a8"/>
-    <circle cx="0" cy="11" r="3" fill="#5a4a30"/>
-    <rect x="-1.4" y="11" width="2.8" height="6" fill="#5a4a30"/>
+  <!-- Stos wrakow (prawy): 2 pietra -->
+  <g transform="translate(176,90)">
+    <rect x="6" y="8" width="46" height="22" fill="#3b3129" opacity="0.3"/>
+    <rect x="0" y="14" width="44" height="12" rx="4" fill="#8a8a5a"/>
+    <rect x="0" y="10" width="44" height="12" rx="4" fill="#c7b56f"/>
+    <rect x="3" y="2"  width="40" height="11" rx="4" fill="#7e8893"/>
+    <rect x="3" y="-2" width="40" height="11" rx="4" fill="#a9b4c2"/>
+    <rect x="7" y="0" width="7" height="5" rx="1" fill="#2f3a44"/><rect x="32" y="0" width="7" height="5" rx="1" fill="#2f3a44"/>
+    <rect x="4" y="12" width="8" height="5" rx="1" fill="#2f3a44"/><rect x="33" y="12" width="8" height="5" rx="1" fill="#2f3a44"/>
+    <circle cx="9" cy="26" r="3" fill="#2b2b2b"/><circle cx="35" cy="26" r="3" fill="#2b2b2b"/>
+    <circle class="mpc-antenna-light" cx="40" cy="-1" r="1.6" fill="#ffffff"/>
+  </g>
+
+  <!-- Opony (dekor) -->
+  <g fill="#2b2b2b">
+    <ellipse cx="150" cy="128" rx="9" ry="4"/><ellipse cx="150" cy="123" rx="9" ry="4"/>
+    <ellipse cx="166" cy="130" rx="9" ry="4"/>
+  </g>
+  <g fill="none" stroke="#4a4a4a" stroke-width="1.2">
+    <ellipse cx="150" cy="123" rx="6" ry="2.6"/><ellipse cx="166" cy="130" rx="6" ry="2.6"/>
+  </g>
+
+  <!-- WIELKA PRASA (centrum): loze z pasami, 2 tloki, plyta opada -->
+  <g transform="translate(120,118)">
+    <rect x="-34" y="-4" width="68" height="4" fill="url(#bt-j-stripes)"/>
+    <rect x="-30" y="0" width="60" height="10" fill="#555b63"/>
+    <rect x="-28" y="1" width="56" height="7" fill="#8a9099"/>
+    <rect x="-36" y="-44" width="6" height="52" fill="#555b63"/><rect x="-35" y="-44" width="2" height="52" fill="#c3c9cf"/>
+    <rect x="30"  y="-44" width="6" height="52" fill="#555b63"/><rect x="31"  y="-44" width="2" height="52" fill="#c3c9cf"/>
+    <rect x="-40" y="-48" width="80" height="6" fill="#6e7580"/>
+    <g class="mpj-plate">
+      <rect x="-30" y="-40" width="60" height="12" fill="#8a9099"/>
+      <rect x="-30" y="-40" width="60" height="3" fill="url(#bt-j-stripes)"/>
+      <rect x="-30" y="-31" width="60" height="3" fill="url(#bt-j-stripes)"/>
+      <rect x="-30" y="-28" width="60" height="3" fill="#555b63"/>
+    </g>
+    <circle class="mpc-antenna-light" cx="0" cy="-51" r="3" fill="#e63b2e"/>
+  </g>
+
+  <!-- DZWIG: wieza + ramie wahadlowe z magnesem -->
+  <g transform="translate(66,110)">
+    <rect x="-7" y="-36" width="14" height="36" fill="#8a9099"/>
+    <rect x="-7" y="-36" width="3" height="36" fill="#c3c9cf"/>
+    <rect x="-9" y="-2" width="18" height="3" fill="url(#bt-j-stripes)"/>
+    <rect x="-8" y="-46" width="16" height="10" rx="2" fill="#d9c75a"/>
+    <rect x="-6" y="-44" width="12" height="4" fill="#2f3a44"/>
+    <g class="mpj-arm">
+      <rect x="0" y="-52" width="60" height="4" fill="#555b63"/>
+      <rect x="0" y="-52" width="60" height="1.5" fill="#c3c9cf"/>
+      <rect x="-14" y="-54" width="14" height="8" fill="#7f7b73"/>
+      <line x1="52" y1="-48" x2="52" y2="-24" stroke="#222" stroke-width="1"/>
+      <ellipse cx="52" cy="-22" rx="7" ry="2.5" fill="#555b63"/>
+      <ellipse cx="52" cy="-24" rx="7" ry="2.5" fill="#e63b2e"/>
+    </g>
+  </g>
+
+  <!-- Kurz -->
+  <g fill="#e7d9bf" opacity="0.75">
+    <circle class="mpd-particle mpd-p1" cx="40"  cy="128" r="1"/>
+    <circle class="mpd-particle mpd-p2" cx="128" cy="124" r="0.9"/>
+    <circle class="mpd-particle mpd-p3" cx="214" cy="126" r="1.1"/>
   </g>
 </svg>`.trim();
 }

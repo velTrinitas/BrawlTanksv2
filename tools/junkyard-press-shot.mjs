@@ -1,0 +1,32 @@
+// ZLOMOWISKO J3: cykl prasy z czolgiem w lozu + nowe stosy. Uzycie: node tools/junkyard-press-shot.mjs
+import { chromium } from 'playwright';
+const BASE = 'http://localhost:5175/BrawlTanksv2/';
+const b = await chromium.launch({ channel: 'chrome' });
+const ctx = await b.newContext({ viewport: { width: 1366, height: 768 } });
+const p = await ctx.newPage(); const errs = [];
+p.on('pageerror', e => errs.push('PAGEERROR ' + e.message));
+p.on('console', m => { if (m.type() === 'error' || /junkyardBake|GreatPress/.test(m.text())) errs.push(m.text()); });
+await p.goto(BASE + '?junkyard=1&bot=1&diag=1'); await p.waitForTimeout(2200);
+await p.evaluate(async () => { localStorage.clear(); const m = await import('/BrawlTanksv2/src/services/ProfileService.ts'); const pr = m.ProfileService.createProfile({ avatarId: 'ash', flagId: 'pl', nickname: 'TestPilot' }); m.ProfileService.setActiveProfile(pr.id); localStorage.setItem('bt2:tutorialCoreDone', '1'); });
+await p.reload(); await p.waitForTimeout(2200);
+await p.evaluate(() => (document.querySelector('.bt-intro-start') ?? document.querySelector('.brawl-btn'))?.click());
+await p.waitForTimeout(3000); await p.evaluate(() => document.querySelector('.brawl-btn')?.click()); await p.waitForTimeout(1500);
+await p.evaluate(async () => { await window.__sigmaTest.control.start({ map: 'junkyard', brawler: 'pancerny', difficulty: 'normal' }); });
+await p.waitForTimeout(2500);
+const t0 = Date.now();
+await p.evaluate(() => window.__sigmaTest.control.teleport(1150, 1150)); await p.waitForTimeout(600);
+await p.screenshot({ path: 'reports/jy3-stacks.png' });
+await p.evaluate(() => window.__sigmaTest.control.teleport(1500, 1500)); await p.waitForTimeout(400);
+await p.screenshot({ path: 'reports/jy3-press-idle.png' });
+const hp = async () => p.evaluate(() => { const s = window.__sigmaTest.snapshot(); return s && s.player ? s.player.hp : (s?.hp ?? null); });
+const hp0 = await hp();
+// telegraph starts at 12 s sim after match start; we started ~3.5 s ago
+await p.waitForTimeout(Math.max(0, 12000 + 1200 - (Date.now() - t0) - 2500));
+await p.screenshot({ path: 'reports/jy3-press-telegraph.png' });
+await p.waitForTimeout(1700); await p.screenshot({ path: 'reports/jy3-press-slam.png' });
+await p.waitForTimeout(500); await p.screenshot({ path: 'reports/jy3-press-after.png' });
+const hp1 = await hp();
+const pos = await p.evaluate(() => { const s = window.__sigmaTest.snapshot(); return s && s.player ? [s.player.x, s.player.y] : null; });
+const diag = await p.evaluate(() => document.querySelector('.bt-diag-rows')?.textContent?.split('\n').filter(l => /tex/.test(l)).join(''));
+console.log(JSON.stringify({ hp0, hp1, pos, diag, errs }));
+await b.close();

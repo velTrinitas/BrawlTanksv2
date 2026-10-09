@@ -19,6 +19,8 @@
  */
 
 import * as PIXI from 'pixi.js';
+// Real wall clock captured at import: SigmaTest (bot) replaces performance.now with a virtual clock for determinism tests.
+const REAL_NOW: () => number = performance.now.bind(performance);
 
 let cachedKey: string | null = null;
 let cachedTex: PIXI.Texture | null = null;
@@ -37,10 +39,16 @@ export function getGroundTexture(key: string, build: () => PIXI.Texture): PIXI.T
     if (cachedKey === key && cachedTex && !cachedTex.destroyed) return cachedTex;
 
     disposeGroundTexture(); // inna mapa => najpierw oddaj VRAM, potem alokuj
+    const t0 = REAL_NOW();
     cachedTex = build();
+    lastBuildMs = REAL_NOW() - t0;
     cachedKey = key;
     return cachedTex;
 }
+
+let lastBuildMs = 0;
+/** Diagnostyka: ile trwalo ostatnie zbudowanie gruntu (ms, tylko gdy cache nie trafil). */
+export function getGroundBuildMs(): number { return lastBuildMs; }
 
 /** Zwalnia teksture gruntu wraz z jej BaseTexture (bez tego VRAM zostaje zajety). */
 export function disposeGroundTexture(): void {
@@ -59,3 +67,6 @@ export function disposeGroundTexture(): void {
 export function getGroundCacheKey(): string | null {
     return cachedKey;
 }
+
+// dev diagnostics hook (tools/junkyard-bake-times.mjs)
+(window as any).__groundBuildMs = getGroundBuildMs;

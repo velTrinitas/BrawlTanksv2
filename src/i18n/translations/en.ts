@@ -57,6 +57,10 @@ export const en: typeof pl = {
     'loading.tip28': '🧊 Ice cubes can be smashed with shots, and they grow back after a minute.',
     'loading.tip29': '🎲 Turn on Crazy Powers and the dice rolls one of 6 wild powers!',
     'loading.tip30': '👻 Shadow dashes every 4 seconds. Perfect for dodging!',
+    'loading.tip31': '🔩 Junkyard: the Great Press crushes EVERYTHING on its bed. Lure the boss there!',
+    'loading.tip32': '🏗️ Stand on the crane console and the next wreck drops on the biggest enemy pack!',
+    'loading.tip33': '🦷 The conveyor belt runs straight into the crusher. Get off before it is too late!',
+    'loading.tip34': '🫧 Foam wash, tires and containers are hideouts. Enemies cannot see you there!',
     'common.yes': 'Yes',
     'common.no': 'No',
 
@@ -113,6 +117,7 @@ export const en: typeof pl = {
     'leaderboard.map.tropics': 'Agro',
     'leaderboard.map.arctic': 'Arctic',
     'leaderboard.map.mars': 'Mars',
+    'leaderboard.map.junkyard': 'Junkyard',
     'leaderboard.you': 'YOU',
     'leaderboard.noRank': 'Play a match to get ranked!',
     'leaderboard.empty': 'No scores yet — be the first!',
@@ -769,6 +774,7 @@ export const en: typeof pl = {
     'scenario.ktb.cta.city': 'PLAY !',
     'scenario.ktb.cta.tropics': 'PLAY !',
     'scenario.ktb.cta.arctic': 'PLAY !',
+    'scenario.ktb.cta.junkyard': 'PLAY !',
 
     'scenario.ctf.name': 'Capture the Flag',
     'scenario.ctf.desc': 'Capture 3 flags',
@@ -804,8 +810,8 @@ export const en: typeof pl = {
     'map.mars.name': 'MARS',
     'map.mars.tagline': 'Abandoned base and UFO',
 
-    'map.range.name': 'FIRING RANGE',
-    'map.range.tagline': 'Military obstacle course',
+    'map.junkyard.name': 'JUNKYARD',
+    'map.junkyard.tagline': 'Press, crane and crusher',
 
     // CTF maps (v0.143.0)
     'map.fortifiedRuins.name': 'FORTIFIED RUINS',
@@ -1120,6 +1126,20 @@ export const en: typeof pl = {
     'hud.stealthBush':      '🌿 HIDDEN IN THE BUSHES (10s)!',
     'hud.stealthHydro':     '🌱 HIDDEN IN THE HYDROPONICS (10s)!',
     'hud.stealthWheat':     '🌾 HIDDEN IN THE WHEAT (10s)!',
+    'hud.stealthWash':      '🫧 HIDDEN IN FOAM (10s)!',
+    'hud.stealthTires':     '🛞 HIDDEN IN TIRES (10s)!',
+    'hud.stealthContainer': '📦 HIDDEN IN A CONTAINER (10s)!',
+    'hud.pressTelegraph':   '⚠️ PRESS COMING DOWN!',
+    'hud.bossCrushed':      '🔩 BOSS CRUSHED',
+    'hud.pressCrushedYou':  '💥 THE PRESS GOT YOU!',
+    'hud.craneDrop':        '🏗️ CRANE DROP!',
+    'hud.craneArmed':       '🎯 CRANE AIMING AT ENEMIES!',
+    'hud.crusherAte':       '🦷 THE CRUSHER ATE AN ENEMY!',
+    'hud.crusherSpatYou':   '🦷 THE CRUSHER SPAT YOU OUT!',
+    'hud.hubcapsTelegraph': '⚠️ THE STACK IS SHAKING!',
+    'hud.hubcaps':          '🛞 HUBCAP AVALANCHE!',
+    'hud.partsSale':        '📣 PARTS SALE! Grab them!',
+    'hud.towTruckGem':      '🚚 The tow truck dropped a 💎',
 
     // CTF (FAZA CTF F2)
     'ctf.flagPickup':     '🚩 FLAG {name} TAKEN! RETURN TO BASE!',

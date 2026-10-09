@@ -33,6 +33,7 @@ export const MAP_TROPHY_DIVISOR: Record<MapId, number> = {
     // v0.212.0: NADAL prowizoryczne — ranking Zamku/Krolowej zbiera dane dopiero od v0.204.0 (24.09),
     // a bump score_version 4->5 zaczyna zbiorke od zera. Kalibracja po ~2 tygodniach wynikow na v5.
     castle_grounds: 1.8, // OBRON ZAMEK F1: provisional — ranking Zamku wlaczany po 23.09
+    junkyard: 1.8, // ZLOMOWISKO J1: provisional (jak mars) — kalibrowac po flipie
     dungeon: 1.8, // SAVE THE QUEEN Q1: provisional — ranking Krolowej wlaczany po 23.09 (Q7)
 };
 const DEFAULT_DIVISOR = 1.8; // mapa bez wpisu (nie powinno sie zdarzyc — MapId jest zamkniety)

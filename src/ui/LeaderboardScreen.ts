@@ -272,6 +272,7 @@ export class LeaderboardScreen implements IScreen {
             case 'tropics': return t('leaderboard.map.tropics');
             case 'arctic':  return t('leaderboard.map.arctic');
             case 'mars':    return t('leaderboard.map.mars');
+            case 'junkyard': return t('leaderboard.map.junkyard');
             default:        return m;
         }
     }

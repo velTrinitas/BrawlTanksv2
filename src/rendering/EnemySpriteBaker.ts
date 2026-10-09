@@ -59,6 +59,7 @@ const R2D_CONFIG_KEY: Record<EnemyArchetype, 'GRUNT' | 'REGULAR_BOSS' | 'MEGA_BO
 };
 
 const ANGLE_STEP = (Math.PI * 2) / ENEMY_BAKE_ANGLES;
+const BAKE_CHUNK = 6; // angles drawn per task before yielding to the event loop
 
 // ── Atlas layout ─────────────────────────────────────────────────────────────
 /** Kolumny siatki atlasu. 6 => 36 katow w 6x6. Max wymiar canvas = COLS*(texSize+GUTTER):
@@ -177,6 +178,8 @@ class EnemySpriteBakerImpl {
             };
             r2d.drawTank(ctx as unknown as CanvasRenderingContext2D, tank, false);
             ctx.restore();
+            // chunked: 36 angles x 3 archetypes in one task froze the hub/loading screen for ~2 s on A54 (PERF 2026-10-09)
+            if (i % BAKE_CHUNK === BAKE_CHUNK - 1) await new Promise<void>((r) => setTimeout(r, 0));
         }
 
         const base = new PIXI.BaseTexture(canvas, { resolution } as PIXI.IBaseTextureOptions);

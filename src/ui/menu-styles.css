@@ -442,6 +442,26 @@
     animation: bt-drone-fly 9s linear infinite;
 }
 
+/* ZLOMOWISKO (J1): plyta prasy opada z telegrafem i hukiem, ramie dzwigu wachluje. */
+.bt-map-preview-svg .mpj-plate {
+    animation: bt-press-drop 4s ease-in infinite;
+}
+.bt-map-preview-svg .mpj-arm {
+    animation: bt-crane-swing 7s ease-in-out infinite;
+    transform-origin: 0px -50px;
+}
+@keyframes bt-press-drop {
+    0%, 55%  { transform: translateY(0); }
+    62%      { transform: translateY(-3px); }
+    70%      { transform: translateY(28px); }
+    73%      { transform: translateY(26px); }
+    85%, 100% { transform: translateY(0); }
+}
+@keyframes bt-crane-swing {
+    0%, 100% { transform: rotate(-14deg); }
+    50%      { transform: rotate(16deg); }
+}
+
 @keyframes bt-drone-fly {
     0%   { transform: translate(-12px, 32px); }
     50%  { transform: translate(120px, 22px); }
@@ -698,6 +718,8 @@
     .bt-map-preview-svg .mpc-window,
     .bt-map-preview-svg .mpc-drone,
     .bt-map-preview-svg .mpc-antenna-light,
+    .bt-map-preview-svg .mpj-plate,
+    .bt-map-preview-svg .mpj-arm,
     .bt-sp-ktb .mpd-particle,
     .bt-sp-ktb .mpk-boss,
     .bt-sp-ktb .mpk-flash,

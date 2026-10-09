@@ -1031,6 +1031,27 @@ export class EffectsManager {
         this.spawnParticles(x, y, 0xfff4b0, 8, { speed: 4, size: 2, decay: 0.04, scaleDecay: 0.01, spread: 1.0 });
     }
 
+    /** ZLOMOWISKO J3: huk prasy — srubki/nakretki (stal + chrom), odlamki rdzy i chmura pylu. Pooled, bez glow. */
+    spawnPressDebris(x: number, y: number): void {
+        this.spawnParticles(x, y, 0xc3c9cf, 7, { speed: 7, size: 2.2, decay: 0.04, scaleDecay: 0.01, spread: 1.0 });
+        this.spawnParticles(x, y, 0x8a9099, 6, { speed: 6, size: 2.6, decay: 0.045, scaleDecay: 0.012, spread: 1.0 });
+        this.spawnParticles(x, y, 0x3a3f45, 5, { speed: 8, size: 1.8, decay: 0.05, scaleDecay: 0.015, spread: 1.0 });
+        this.spawnParticles(x, y, 0x9a4f2a, 4, { speed: 5, size: 2, decay: 0.05, scaleDecay: 0.02, spread: 1.0 });
+        this.spawnParticles(x, y, 0xffe08a, 3, { speed: 9, size: 1.4, decay: 0.12, spread: 1.0 });
+        this.spawnParticles(x, y, 0xb3a08c, 4, { speed: 1.2, size: 5, decay: 0.02, scaleDecay: 0.003 });
+    }
+
+    /** ZLOMOWISKO J6a: jeden klebek dymu z komina (wolno w gore, rosnie, gasnie). Wolac z throttlingiem, tylko w kadrze. */
+    spawnChimneySmoke(x: number, y: number): void {
+        this.spawnParticles(x, y, 0x9aa0a6, 1, { speed: 0.8, size: 4.5, decay: 0.012, scaleDecay: 0, spread: 0.14, baseAngle: -Math.PI / 2 - 0.35 });
+    }
+
+    /** ZLOMOWISKO J3: pyl wypchniety spod plyty — wzdluz krawedzi loza (kazde wywolanie = jeden punkt krawedzi). */
+    spawnPressDustPuff(x: number, y: number, angle: number): void {
+        this.spawnParticles(x, y, 0xcdb894, 3, { speed: 3.5, size: 4, decay: 0.03, scaleDecay: 0.004, spread: 0.25, baseAngle: angle });
+        this.spawnParticles(x, y, 0xa98a63, 2, { speed: 2, size: 5, decay: 0.025, scaleDecay: 0.003, spread: 0.3, baseAngle: angle });
+    }
+
     spawnWoodSplinters(x: number, y: number, count: number = 14): void {
         this.spawnParticles(x, y, 0xd4a878, Math.max(1, Math.floor(count * 0.4)), {
             speed: 5, size: 2, decay: 0.05, scaleDecay: 0.015, spread: 1.0,

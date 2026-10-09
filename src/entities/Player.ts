@@ -630,6 +630,25 @@ export class Player {
      * Kolizje sprawdzane NA KAZDYM KROKU (20 px), nie tylko w punkcie koncowym — inaczej skok
      * o 180 px przenikalby cienkie sciany. Uderzenie = dash sie konczy w miejscu kontaktu.
      */
+    /**
+     * ZLOMOWISKO J3: odrzut (prasa wypycha gracza z loza). Krokowy push z kolizja jak dash: sciana zatrzymuje,
+     * zero przenikania. Zwraca przebyty dystans. Czysty stan symulacji (wolane z kroku logiki).
+     */
+    applyKnockback(dirX: number, dirY: number, distance: number, buildings: ICollidable[]): number {
+        const len = Math.hypot(dirX, dirY) || 1;
+        const ux = dirX / len, uy = dirY / len;
+        const STEP = 6;
+        let moved = 0;
+        while (moved < distance) {
+            const nx = this.x + ux * STEP, ny = this.y + uy * STEP;
+            let blocked = false;
+            for (const b of buildings) if (checkRectCollision(b.x, b.y, b.w, b.h, nx, ny, 20)) { blocked = true; break; }
+            if (blocked) break;
+            this.x = nx; this.y = ny; moved += STEP;
+        }
+        return moved;
+    }
+
     private stepDash(buildings: ICollidable[], effects: EffectsManager): void {
         this.dashStepsLeft--;
         const nx = this.x + this.dashDirX * DASH_CONFIG.stepPx;

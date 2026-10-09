@@ -51,6 +51,7 @@ const SCENARIOS = new Set(['ktb', 'ctf', 'castle', 'save_queen']);
 const MAPS = new Set([
     'city', 'desert', 'tropics', 'arctic', 'fortified_ruins', 'mars',
     'castle_grounds', 'dungeon',
+    'junkyard', // ZLOMOWISKO (v0.243.0) — bez tego wpisu kazdy wynik ze Zlomowiska dostaje 400 bad_map
 ]);
 const DIFFICULTIES = new Set(['easy', 'normal', 'hard', 'nightmare']);
 // Z0.7b — slownik trybow, wzorem SCENARIOS. Do dzis pole `mode` bylo IGNOROWANE

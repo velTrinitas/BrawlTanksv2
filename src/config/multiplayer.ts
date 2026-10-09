@@ -66,6 +66,8 @@ export function isMultiplayerSandbox(): boolean {
  *      bumerang (super Zwiada) trafia obiekty zniszczalne, Enigma 40 dmg / 15 strz./s / speed 4.7 / super 60.
  * 13 — v0.241.0 (D1 pierwsza sesja): Easy dmg 0.80 / Normal 0.90, pociski wroga x0.90 / x0.95, lagodny start
  *      spawnu (interwal x1.6 -> x1.0 w 30 s, akumulator zamiast frameCounter % rate), domyslnie Latwy.
+ * 14 — v0.243.0: ZLOMOWISKO na produkcji (JUNKYARD_LIVE): nowa mapa KTB z maszynami w kroku logiki (prasa,
+ *      dzwig, tasma + kruszarka, zdarzenia, skok na oponie; ruleset junkyard-v2) — gosc bez tej mapy odpada.
  */
 /**
  * COOP LAN-3b: zagrozenia map, ktorych gosc jeszcze NIE widzi (klatwa piramid + Ra, Yeti, UFO),
@@ -74,4 +76,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 13;
+export const SIM_VERSION = 14; // v0.243.0: ZLOMOWISKO live (new map + machines in the sim)

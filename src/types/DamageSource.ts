@@ -35,7 +35,11 @@ export type DamageSourceKind =
     | 'shockwave'      // shockwave-on-hit Pancernego (perk brawlera, nie moc)
     | 'chicken_peck'   // TROPICS v2 / T6: dzioby Szalonych Kurczakow (zdarzenie farmy) -> wrogowie
     | 'bull_charge'    // TROPICS v2 / T6.2: szarza byka -> wrogowie I gracz (z telegrafem)
-    | 'reaper';        // TROPICS v2 / T6.3: Zniwiarka-Potwor -> wrogowie I gracz (z telegrafem)
+    | 'reaper'         // TROPICS v2 / T6.3: Zniwiarka-Potwor -> wrogowie I gracz (z telegrafem)
+    | 'press'          // ZLOMOWISKO J3: Wielka Prasa -> wrogowie (zmiazdzeni), boss (15% + stun) I gracz (45% + odrzut)
+    | 'crane_drop'     // ZLOMOWISKO J4: wrak zrzucony dzwigiem (AoE r=100) -> wrogowie I gracz
+    | 'crusher'        // ZLOMOWISKO J5: Kruszarka na koncu tasmociagu -> wrogowie (pozarci) I gracz (25% + wypluty)
+    | 'hubcap';        // ZLOMOWISKO J6a: Lawina kolpakow -> wrogowie I gracz (40 dmg, jedno odbicie)
 
 export interface DamageSource {
     readonly kind: DamageSourceKind;
@@ -62,6 +66,10 @@ export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bul
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });
 export const SRC_REAPER: DamageSource = Object.freeze({ kind: 'reaper' as const }); // TROPICS v2 / T6.3
+export const SRC_PRESS: DamageSource = Object.freeze({ kind: 'press' as const }); // ZLOMOWISKO J3
+export const SRC_CRANE_DROP: DamageSource = Object.freeze({ kind: 'crane_drop' as const }); // ZLOMOWISKO J4
+export const SRC_CRUSHER: DamageSource = Object.freeze({ kind: 'crusher' as const }); // ZLOMOWISKO J5
+export const SRC_HUBCAP: DamageSource = Object.freeze({ kind: 'hubcap' as const }); // ZLOMOWISKO J6a
 export const SRC_BULL_CHARGE: DamageSource = Object.freeze({ kind: 'bull_charge' as const }); // TROPICS v2 / T6.2
 export const SRC_CHICKEN_PECK: DamageSource = Object.freeze({ kind: 'chicken_peck' as const, playerIndex: 0 }); // TROPICS v2 / T6
 export const SRC_POWER_MEGA_BOMB: DamageSource = Object.freeze({ kind: 'power' as const, powerId: 'megaBomb', playerIndex: 0 });

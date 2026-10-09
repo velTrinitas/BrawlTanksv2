@@ -19,12 +19,14 @@
  */
 
 import type { TranslationKey } from '../i18n/i18n';
+import { isJunkyardEnabled } from '../config/junkyardFlag';
 
 // PLAYABLE maps — uzywane przez game logic (main.ts, AudioSys, Spawn, etc.)
 // FAZA CTF F1: 'fortified_ruins' — mapa scenariusza CTF (bez karty w MENU_MAP_CARDS,
 // wybierana wylacznie przez scenario.fixedMapId).
 // OBRON ZAMEK F1: 'castle_grounds' — mapa scenariusza Castle (bez karty; scenario.fixedMapId).
-export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars' | 'castle_grounds' | 'dungeon';
+export type MapId = 'city' | 'desert' | 'tropics' | 'arctic' | 'fortified_ruins' | 'mars' | 'castle_grounds' | 'dungeon' | 'junkyard';
+// ZLOMOWISKO J1: 'junkyard' — mapa KTB za flaga (junkyardFlag.ts); karta zastapila kafel POLIGON ('range').
 // SAVE THE QUEEN Q1: 'dungeon' — mapa scenariusza Krolowej (bez karty; scenario.fixedMapId).
 // Swiat 3000x3000 jak wszedzie; pole gry 2400x2000 wyciete gruba skalna granica (DungeonBorder).
 
@@ -45,6 +47,7 @@ export const MAP_CONFIGS: Record<MapId, MapConfig> = {
     mars:    { id: 'mars',    name: 'MARS',      bg: '#c97b62', musicTrack: 'mars1.ogg',     badge: '#a34a3a' },
     castle_grounds: { id: 'castle_grounds', name: 'CASTLE GROUNDS', bg: '#7cbf58', musicTrack: 'castle.ogg', badge: '#2d5016' },
     dungeon: { id: 'dungeon', name: 'LOCHY', bg: '#1e1729', musicTrack: 'queen.ogg', badge: '#8e44ad' },
+    junkyard: { id: 'junkyard', name: 'ZŁOMOWISKO', bg: '#9a7f5c', musicTrack: 'music_main1.ogg', badge: '#c8742e' },
 };
 
 /**
@@ -62,6 +65,7 @@ export function getMapIdFromUrl(): MapId {
     if (m === 'mars') return 'mars';
     if (m === 'castle_grounds') return 'castle_grounds';
     if (m === 'dungeon') return 'dungeon';
+    if (m === 'junkyard') return 'junkyard';
     return 'city';
 }
 
@@ -94,7 +98,7 @@ export interface ICollidable {
 // 'range' = LOCKED zapowiedz KTB (M5d); 'destroyed_city'/'conquer_moon' = LOCKED
 // zapowiedzi CTF (v0.143.0). Zadne z nich NIE jest MapId, wiec kompilator pilnuje,
 // ze nie trafia do GameConfig — kliknac da sie wylacznie mape grywalna.
-export type MenuMapCardId = MapId | 'range' | 'destroyed_city' | 'conquer_moon';
+export type MenuMapCardId = MapId | 'destroyed_city' | 'conquer_moon'; // ZLOMOWISKO J1: 'range' (POLIGON) usuniety — zastapiony grywalna 'junkyard'
 
 export interface MenuMapCard {
     id: MenuMapCardId;
@@ -115,7 +119,7 @@ export interface MenuMapCard {
     /** Translation key dla badge gdy locked (np. 'common.soon'). */
     comingSoonKey?: TranslationKey;
     /** Typ MapPreview component (FAZA 6b). */
-    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'range'
+    previewType: 'desert' | 'cyberpunk' | 'tropics' | 'arctic' | 'mars' | 'junkyard'
         | 'ruins' | 'destroyed_city' | 'moon';
 }
 
@@ -180,19 +184,19 @@ export const MENU_MAP_CARDS: MenuMapCard[] = [
         previewType: 'mars',
     },
     {
-        // M5d: 6. kafel = LOCKED zapowiedz. Zastapil generyczny slot "???",
-        // zeby siatka 3-kolumnowa dawala rowne 2 rzedy i zeby gracz widzial,
-        // co jest w drodze (a nie pusty znak zapytania).
-        id: 'range',
-        nameKey: 'map.range.name',
-        taglineKey: 'map.range.tagline',
-        emoji: '🎯',
-        accentColor: '#8a9a5b',
-        accentDarker: '#4a5530',
-        bgGradient: 'linear-gradient(160deg, #b3bf8a 0%, #8a9a5b 50%, #4a5530 100%)',
-        available: false,
+        // ZLOMOWISKO J1 (2026-10-08): 6. kafel = ZLOMOWISKO. Zastapil zapowiedz POLIGON (M5d).
+        // Do flipu JUNKYARD_LIVE kafel jest LOCKED (WKROTCE) z prawdziwym podgladem mapy;
+        // ?junkyard=1 odblokowuje do testow (pierwsza MAPA ukrywana flaga — scenariusze juz tak robia).
+        id: 'junkyard',
+        nameKey: 'map.junkyard.name',
+        taglineKey: 'map.junkyard.tagline',
+        emoji: '🔩',
+        accentColor: '#c8742e',
+        accentDarker: '#6b3a1e',
+        bgGradient: 'linear-gradient(160deg, #d9b27a 0%, #c8742e 50%, #4a3a2e 100%)',
+        available: isJunkyardEnabled(),
         comingSoonKey: 'common.soon',
-        previewType: 'range',
+        previewType: 'junkyard',
     },
 ];
 
@@ -250,7 +254,7 @@ export const CTF_MAP_CARDS: MenuMapCard[] = [
  */
 export function isPlayableMapId(id: MenuMapCardId): id is MapId {
     return id === 'city' || id === 'desert' || id === 'tropics' || id === 'arctic'
-        || id === 'fortified_ruins' || id === 'mars' || id === 'castle_grounds' || id === 'dungeon';
+        || id === 'fortified_ruins' || id === 'mars' || id === 'castle_grounds' || id === 'dungeon' || id === 'junkyard';
 }
 
 /**

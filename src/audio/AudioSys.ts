@@ -72,6 +72,7 @@ const MUSIC_TRACKS_PER_MAP: Record<MapId, string[]> = {
     fortified_ruins: ['ctf.ogg'],  // FAZA CTF F1 — track eksploracji. Carry-state (ctf_flag_captured.ogg) jest osobnym Howlem (patrz ctfCarryMusic), F4.
     mars:    ['mars1.ogg', 'mars2.ogg'],  // FAZA MARS — 2-track pool (smart-random), jak arctic
     castle_grounds: ['castle/Castle1.ogg', 'castle/Castle2.ogg', 'castle/Castle3.mp3'],  // OBRON ZAMEK — 3-track pool (smart-random), assety Mariusza 2026-09-11
+    junkyard: ['mars1.ogg', 'mars2.ogg'],  // ZLOMOWISKO (Mariusz 2026-10-08): muzyka z Marsa na ten moment
     dungeon: ['castle/Castle1.ogg'],  // SAVE THE QUEEN Q1 — PLACEHOLDER do czasu assetow q_calm/q_siege/q_panic (public/sfx/queen/). Warstwy faz = QueenSystem (wzorzec ctfCarryMusic), Q3.
 };
 
@@ -100,6 +101,27 @@ const SOUND_LIST: SoundDef[] = [
     // (celowo ~1,5 dB pod shoot -22: ciagla seria brzmi glosniej niz pojedynczy strzal przy tym samym poziomie).
     { key: 'shoot_gatling',       file: 'shoot_gatling.mp3',       volume: 0.45 },
     { key: 'shoot_gatling_super', file: 'shoot_gatling_super.mp3', volume: 0.42 }, // mean -17,6 dB, nizszy i grubszy
+    // ZLOMOWISKO J3 (tools/render-junkyard-sfx.mjs, ffmpeg): prasa — pip telegrafu x2, huk, syk hydrauliki, zgniecenie, ogluszenie
+    { key: 'press_beep',    file: 'junkyard/press_beep.mp3',    volume: 0.5 },  // mean -15,3 dB
+    { key: 'press_beep_hi', file: 'junkyard/press_beep_hi.mp3', volume: 0.5 },
+    { key: 'press_slam',    file: 'junkyard/press_slam.mp3',    volume: 0.95 }, // mean -20,7 dB, max -2,3 dB (huk = najglosniejszy SFX mapy)
+    { key: 'press_rise',    file: 'junkyard/press_rise.mp3',    volume: 0.45 },
+    { key: 'press_crush',   file: 'junkyard/press_crush.mp3',   volume: 0.7 },
+    { key: 'stun_ring',     file: 'junkyard/stun_ring.mp3',     volume: 0.6 },
+    // ZLOMOWISKO J4: dzwig — silnik obrotu, brzek magnesu, gwizd spadania, lomot wraku, pulpit uzbrojony
+    { key: 'crane_motor',   file: 'junkyard/crane_motor.mp3',   volume: 0.4 },
+    { key: 'magnet_clank',  file: 'junkyard/magnet_clank.mp3',  volume: 0.6 },
+    { key: 'crane_whistle', file: 'junkyard/crane_whistle.mp3', volume: 0.45 },
+    { key: 'crane_thud',    file: 'junkyard/crane_thud.mp3',    volume: 0.9 },
+    { key: 'console_armed', file: 'junkyard/console_armed.mp3', volume: 0.55 },
+    // ZLOMOWISKO J5: kruszarka — klap zebow (pozarcie / wypluty) + wyplucie gracza
+    { key: 'crusher_chomp', file: 'junkyard/crusher_chomp.mp3', volume: 0.8 },
+    { key: 'crusher_spit',  file: 'junkyard/crusher_spit.mp3',  volume: 0.55 },
+    // ZLOMOWISKO J6a: kolpak (brzek), megafon (PROMOCJA), klakson lawety
+    { key: 'hubcap_clang',   file: 'junkyard/hubcap_clang.mp3',   volume: 0.5 },
+    { key: 'megaphone_promo', file: 'junkyard/megaphone_promo.mp3', volume: 0.4 },
+    { key: 'towtruck_horn',  file: 'junkyard/towtruck_horn.mp3',  volume: 0.45 },
+    { key: 'dog_bark',       file: 'junkyard/dog_bark.mp3',       volume: 0.45 }, // J6b: Srubek
     { key: 'shoot_shadow',   file: 'Shadow_shot.mp3',    volume: 0.50 }, // v0.196.0 loudness: was VOLUMES.shoot; rms400 -16 dB -> eff -22.0 dB (target -22) | P5: custom SFX shadow
 
     { key: 'hit_enemy',  file: 'hit_enemy.mp3',  volume: 0.79 }, // v0.196.0 loudness: was VOLUMES.hit; rms400 -23.9 dB -> eff -25.9 dB (target -26)
@@ -191,9 +213,9 @@ export class AudioSys {
     private ownedSounds: Map<string, Howl> = new Map();
 
     // Music: per-map pool z Howl instancjami
-    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [], fortified_ruins: [], mars: [], castle_grounds: [], dungeon: [] };
+    private musicHowlsPerMap: Record<MapId, Howl[]> = { city: [], desert: [], tropics: [], arctic: [], fortified_ruins: [], mars: [], castle_grounds: [], dungeon: [], junkyard: [] };
     private currentMusicTrack: Howl | null = null;
-    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1, arctic: -1, fortified_ruins: -1, mars: -1, castle_grounds: -1, dungeon: -1 };
+    private lastTrackIdxPerMap: Record<MapId, number> = { city: -1, desert: -1, tropics: -1, arctic: -1, fortified_ruins: -1, mars: -1, castle_grounds: -1, dungeon: -1, junkyard: -1 };
 
     // FAZA CTF F4: dedykowany track carry-state (ctf_flag_captured.ogg) — gra gdy gracz
     // NIESIE flage; track mapy (ctf.ogg) jest wtedy zapauzowany i wznawiany po dostawie.
@@ -780,6 +802,25 @@ export class AudioSys {
     playExplosion(): void {
         this.safePlay('explosion');
     }
+
+    // ZLOMOWISKO J3 — prasa (pliki MP3, patrz SOUND_DEFS)
+    playPressBeep(urgent: boolean): void { this.safePlay(urgent ? 'press_beep_hi' : 'press_beep'); }
+    playPressSlam(): void { this.safePlay('press_slam'); }
+    playPressRise(): void { this.safePlay('press_rise'); }
+    playPressCrush(): void { this.safePlayVaried('press_crush', 0.1, 0.2); }
+    playStunRing(): void { this.safePlay('stun_ring'); }
+    // ZLOMOWISKO J4 — dzwig
+    playCraneMotor(): void { this.safePlay('crane_motor'); }
+    playMagnetClank(): void { this.safePlay('magnet_clank'); }
+    playCraneDropWhistle(): void { this.safePlay('crane_whistle'); }
+    playCraneThud(): void { this.safePlay('crane_thud'); }
+    playConsoleArmed(): void { this.safePlay('console_armed'); }
+    playCrusherChomp(): void { this.safePlayVaried('crusher_chomp', 0.08, 0.15); } // ZLOMOWISKO J5
+    playCrusherSpit(): void { this.safePlay('crusher_spit'); }
+    playHubcapClang(): void { this.safePlayVaried('hubcap_clang', 0.12, 0.2); } // ZLOMOWISKO J6a
+    playMegaphonePromo(): void { this.safePlay('megaphone_promo'); }
+    playTowTruckHorn(): void { this.safePlay('towtruck_horn'); }
+    playDogBark(): void { this.safePlayVaried('dog_bark', 0.1, 0.15); } // ZLOMOWISKO J6b
 
     playShockwave(): void {
         this.safePlay('shockwave');

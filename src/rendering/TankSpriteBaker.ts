@@ -35,6 +35,8 @@
 import * as PIXI from 'pixi.js';
 import { isTankArtV2 } from '../config/tankArtFlag';
 import { tankLookKey, type TankLook } from './tankLook';
+// Real wall clock captured at import: SigmaTest (bot) replaces performance.now with a virtual clock for determinism tests.
+const REAL_NOW: () => number = performance.now.bind(performance);
 
 // ── Bake parameters (single source of truth; tune here) ──────────────────────
 /** Number of baked angles per layer. 36 => 10deg quantization. */
@@ -50,7 +52,7 @@ const GATLING_IDS = new Set(['enigma']);
 /** V2: atlas side limit in CSS px (x resolution = device px; 1024*2 = 2048 = safe GPU limit). */
 const ATLAS_MAX_CSS = 1024;
 /** V2: frames baked per chunk before yielding to the event loop (loading screen keeps moving). */
-const BAKE_CHUNK = 12;
+const BAKE_CHUNK = 6; // PERF 2026-10-09: smaller tasks (prewarm runs in the hub while the player reads/scrolls)
 /** V2: alpha-scan stride (px) and safety margin added around the found content rect. */
 const TRIM_STRIDE = 2;
 const TRIM_MARGIN = 2;
@@ -165,7 +167,7 @@ class TankSpriteBakerImpl {
         // consistency rule for every brawler spread that feeds render2d.
         const derive = r2d.derive as (hex: string) => unknown;
         // SKIN-2: _skinPhase: 0 ZAWSZE — 36 katow piecze sie w JEDNEJ zamrozonej
-        // fazie (determinizm bake; painterzy wzorow nie znaja performance.now()).
+        // fazie (determinizm bake; painterzy wzorow nie znaja REAL_NOW()).
         const brawler = {
             ...srcBrawler,
             flag: fId,
@@ -240,7 +242,7 @@ class TankSpriteBakerImpl {
 
         // 1) Bake every frame to its own 160x160 canvas + alpha-scan its content rect.
         const frames: TrimmedFrame[] = [];
-        let baked = 0;
+        let baked = 0; let tDraw = 0, tScan = 0; const tAll0 = REAL_NOW();
         const yieldFrame = async (): Promise<void> => {
             baked++;
             if (baked % BAKE_CHUNK === 0) await new Promise<void>((r) => setTimeout(r, 0));
@@ -248,10 +250,10 @@ class TankSpriteBakerImpl {
         for (let phase = 0; phase < TREAD_PHASES; phase++) {
             const treadShift = (treadLink / TREAD_PHASES) * phase;
             for (let i = 0; i < BAKE_ANGLES; i++) {
-                const { canvas, ctx } = this.makeBakeCanvas(resolution);
+                const t0 = REAL_NOW(); const { canvas, ctx } = this.makeBakeCanvas(resolution);
                 const tank = this.makeTank(brawler, 'hull', i * ANGLE_STEP, treadShift);
-                r2dV2.bakeHullLayerV2(ctx, tank, opts);
-                frames.push({ canvas, kind: 'hull', phase, index: i, ...this.scanAlpha(canvas, resolution) });
+                r2dV2.bakeHullLayerV2(ctx, tank, opts); const t1 = REAL_NOW();
+                frames.push({ canvas, kind: 'hull', phase, index: i, ...this.scanAlpha(canvas, resolution) }); tDraw += t1 - t0; tScan += REAL_NOW() - t1;
                 await yieldFrame();
             }
         }
@@ -260,14 +262,15 @@ class TankSpriteBakerImpl {
         for (let sp = 0; sp < spinPhases; sp++) {
             const spinOpts = sp === 0 ? opts : { ...opts, spin: sp * (Math.PI / 3) / GATLING_SPIN_PHASES };
             for (let i = 0; i < BAKE_ANGLES; i++) {
-                const { canvas, ctx } = this.makeBakeCanvas(resolution);
+                const t0 = REAL_NOW(); const { canvas, ctx } = this.makeBakeCanvas(resolution);
                 const tank = this.makeTank(brawler, 'turret', i * ANGLE_STEP, 0);
-                r2dV2.bakeTurretLayerV2(ctx, tank, spinOpts);
-                frames.push({ canvas, kind: 'turret', phase: sp, index: i, ...this.scanAlpha(canvas, resolution) });
+                r2dV2.bakeTurretLayerV2(ctx, tank, spinOpts); const t1 = REAL_NOW();
+                frames.push({ canvas, kind: 'turret', phase: sp, index: i, ...this.scanAlpha(canvas, resolution) }); tDraw += t1 - t0; tScan += REAL_NOW() - t1;
                 await yieldFrame();
             }
         }
 
+        const tPack0 = REAL_NOW();
         // 2) AABB measurement (dev): max extent + margin to the box. This IS the math-verify.
         this.reportAabb(brawlerId, frames);
 
@@ -294,6 +297,7 @@ class TankSpriteBakerImpl {
         // Scratch canvases are garbage now — release their bitmaps eagerly (mobile memory).
         for (const f of frames) { f.canvas.width = 0; f.canvas.height = 0; }
 
+        if (DIAG) console.log(`[TankSpriteBaker] timing ${brawlerId}: draw ${tDraw.toFixed(0)} ms, alpha-scan ${tScan.toFixed(0)} ms, pack+upload ${(REAL_NOW() - tPack0).toFixed(0)} ms, total ${(REAL_NOW() - tAll0).toFixed(0)} ms (${frames.length} frames, res ${resolution})`);
         if (DIAG) {
             const px = atlases.reduce((s, c) => s + c.width * c.height, 0);
             console.log(`[TankSpriteBaker] v2 ${brawlerId}: ${frames.length} frames -> ${atlases.length} atlas(es), `
@@ -407,7 +411,9 @@ class TankSpriteBakerImpl {
         const canvas = document.createElement('canvas');
         canvas.width = BAKE_TEX_SIZE * resolution;
         canvas.height = BAKE_TEX_SIZE * resolution;
-        const ctx = canvas.getContext('2d');
+        // willReadFrequently: the frame is alpha-scanned right after drawing (getImageData). Without the hint Chrome keeps
+        // the canvas on the GPU and every readback is a full pipeline sync — 108 of them per brawler (PERF 2026-10-09).
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) {
             throw new Error('[TankSpriteBaker] failed to get 2D context for bake canvas');
         }

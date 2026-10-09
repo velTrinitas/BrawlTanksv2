@@ -66,6 +66,10 @@ export const pl = {
     'loading.tip28': '🧊 Kostki lodu da się rozbić strzałami, a po minucie odrastają.',
     'loading.tip29': '🎲 Włącz Szalone Moce, a kostka wylosuje jedną z 6 zwariowanych mocy!',
     'loading.tip30': '👻 Shadow robi zryw co 4 sekundy. Idealny na unik!',
+    'loading.tip31': '🔩 Złomowisko: Wielka Prasa miażdży WSZYSTKO w łożu. Zwab tam bossa!',
+    'loading.tip32': '🏗️ Stań na pulpicie dźwigu, a następny wrak spadnie na największą grupę wrogów!',
+    'loading.tip33': '🦷 Taśmociąg wiezie prosto do kruszarki. Zjedź z niego, zanim będzie za późno!',
+    'loading.tip34': '🫧 Myjnia piany, opony i kontenery to kryjówki. Wrogowie Cię tam nie widzą!',
     'common.yes': 'Tak',
     'common.no': 'Nie',
 
@@ -122,6 +126,7 @@ export const pl = {
     'leaderboard.map.tropics': 'Agro',
     'leaderboard.map.arctic': 'Arktyka',
     'leaderboard.map.mars': 'Mars',
+    'leaderboard.map.junkyard': 'Złomowisko',
     'leaderboard.you': 'TY',
     'leaderboard.noRank': 'Zagraj mecz, żeby trafić do rankingu!',
     'leaderboard.empty': 'Brak wyników — bądź pierwszy!',
@@ -794,6 +799,7 @@ export const pl = {
     'scenario.ktb.cta.city': 'GRAJ !',
     'scenario.ktb.cta.tropics': 'GRAJ !',
     'scenario.ktb.cta.arctic': 'GRAJ !',
+    'scenario.ktb.cta.junkyard': 'GRAJ !',
 
     'scenario.ctf.name': 'Zabierz flagę',
     'scenario.ctf.desc': 'Dowieź 3 flagi do bazy',
@@ -830,8 +836,8 @@ export const pl = {
     'map.mars.name': 'MARS',
     'map.mars.tagline': 'Opuszczona baza i UFO',
 
-    'map.range.name': 'POLIGON',
-    'map.range.tagline': 'Wojskowy tor przeszkód',
+    'map.junkyard.name': 'ZŁOMOWISKO',
+    'map.junkyard.tagline': 'Prasa, dźwig i kruszarka',
 
     // Mapy CTF (v0.143.0). Do teraz nazwa mapy CTF byla wpisana na sztywno w
     // BattleSection jako 'FORTIFIED RUINS' — bez i18n, wiec po angielsku takze w PL.
@@ -1154,6 +1160,20 @@ export const pl = {
     'hud.stealthBush':      '🌿 UKRYTY W ZAROŚLACH (10s)!',
     'hud.stealthHydro':     '🌱 UKRYTY W HYDROPONICE (10s)!',
     'hud.stealthWheat':     '🌾 UKRYTY W ZBOŻU (10s)!',
+    'hud.stealthWash':      '🫧 UKRYTY W PIANIE (10s)!',
+    'hud.stealthTires':     '🛞 UKRYTY W OPONACH (10s)!',
+    'hud.stealthContainer': '📦 UKRYTY W KONTENERZE (10s)!',
+    'hud.pressTelegraph':   '⚠️ PRASA OPADA!',
+    'hud.bossCrushed':      '🔩 BOSS ZGNIECIONY',
+    'hud.pressCrushedYou':  '💥 ZGNIOTŁA CIĘ PRASA!',
+    'hud.craneDrop':        '🏗️ ZRZUT DŹWIGU!',
+    'hud.craneArmed':       '🎯 DŹWIG CELUJE W WROGÓW!',
+    'hud.crusherAte':       '🦷 KRUSZARKA POŻARŁA WROGA!',
+    'hud.crusherSpatYou':   '🦷 KRUSZARKA CIĘ WYPLUŁA!',
+    'hud.hubcapsTelegraph': '⚠️ STOS SIĘ TRZĘSIE!',
+    'hud.hubcaps':          '🛞 LAWINA KOŁPAKÓW!',
+    'hud.partsSale':        '📣 WYPRZEDAŻ CZĘŚCI! Zbieraj!',
+    'hud.towTruckGem':      '🚚 Laweta zgubiła 💎',
 
     // CTF (FAZA CTF F2)
     'ctf.flagPickup':     '🚩 FLAGA {name} POBRANA! WRACAJ DO BAZY!',

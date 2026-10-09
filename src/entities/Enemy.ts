@@ -217,6 +217,8 @@ export class Enemy {
     /** SPAWN GRACE (2026-10-07, Mariusz): do tej chwili (zegar symulacji) wrog po spawnie stoi — celuje, ale nie jedzie
      *  i nie strzela. Obrazenia przyjmuje normalnie. Wspolne dla WSZYSTKICH scenariuszy (kazdy spawn = new Enemy). */
     public graceUntil: number = 0;
+    /** ZLOMOWISKO J3: ogluszenie (prasa) — wrog stoi i nie strzela, BEZ tintu mrozu i bez bonusu frozen-kill. Zegar symulacji. */
+    public stunUntil: number = 0;
     private graceDone = false;
     /** SPAWN GRACE: efekt pojawienia sie juz odpalony (main.ts, petla wrogow). Tylko wizual. */
     public spawnFxDone = false;
@@ -894,6 +896,17 @@ export class Enemy {
             const base = this.bakerArch ? 0xffffff : this.tintHex;
             this.hull.tint = base;
             this.turret.tint = base;
+        }
+
+        // ZLOMOWISKO J3: STUN (po mrozie, przed grace/stealth/ruchem) — czolg dygocze w miejscu, zero ruchu i strzalu.
+        if (simNowMs() < this.stunUntil) {
+            const wob = Math.sin(simNowMs() / 35) * 0.06;
+            if (this.bakerArch) this.applyBakedAngle(this.hull.rotation + wob);
+            else { this.hull.rotation += wob; this.turret.rotation += wob * 0.5; }
+            this.container.x = this.x + Math.sin(simNowMs() / 23) * 1.5;
+            this.container.y = this.y;
+            this.container.zIndex = this.y + (this.isMegaBoss ? 35 : this.isBoss ? 28 : (this.isPursuit ? 24 : 19));
+            return null;
         }
 
         if (this.flashTimer > 0) {

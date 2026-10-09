@@ -40,6 +40,7 @@ import type {
 } from './leaderboard';
 import { sanitizeDisplayName } from './leaderboard';
 import { ENIGMA_LIVE } from '../config/enigmaFlag'; // ENIGMA: wyniki poza rankingiem do flipu
+import { JUNKYARD_LIVE } from '../config/junkyardFlag'; // ZLOMOWISKO: wyniki poza rankingiem do flipu
 
 /** Staty ida do bazy jako nieujemne inty — zabezpieczenie przed NaN/float/ujemnym. */
 function nonNegInt(v: number | undefined): number {
@@ -205,6 +206,8 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
         // ENIGMA: dopoki czolg jest za flaga (testy), jego wyniki NIE ida do publicznego rankingu
         // (serwer nie ma listy czolgow — przyjalby je). Bez deployu zaplecza.
         if (config.brawlerId === 'enigma' && !ENIGMA_LIVE) return this.provisionalEntry(score, config);
+        // ZLOMOWISKO: do flipu wyniki z mapy za flaga NIE ida do rankingu (Edge whitelist map odrzucilby je jako bad_map).
+        if (config.map === 'junkyard' && !JUNKYARD_LIVE) return this.provisionalEntry(score, config);
         const insert: ScoreInsert = {
             profile_id: config.profileId,
             score,

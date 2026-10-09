@@ -45,7 +45,7 @@ export const LEADERBOARD_BOARDS: readonly BoardDefinition[] = [
         id: 'ktb',
         scenario: 'ktb',
         icon: '🎯',
-        mapChips: ['city', 'desert', 'tropics', 'arctic', 'mars'],
+        mapChips: ['city', 'desert', 'tropics', 'arctic', 'mars', 'junkyard'], // v0.243.0: ZLOMOWISKO
         metric: 'score',
         sortDir: 'desc',
         enabled: true,

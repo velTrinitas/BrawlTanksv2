@@ -116,7 +116,7 @@ export function getQuestScale(trophies: number): number {
 }
 
 /** Mapy KTB dopuszczone jako "mapa dnia" (fortified_ruins to CTF — ma wlasny rozkaz flagowy). */
-export const QUEST_MAP_POOL: readonly MapId[] = ['city', 'desert', 'tropics', 'arctic', 'mars'];
+export const QUEST_MAP_POOL: readonly MapId[] = ['city', 'desert', 'tropics', 'arctic', 'mars', 'junkyard']; // v0.243.0: ZLOMOWISKO
 
 /** Etykiety map — literalne klucze (dynamiczne t(var) nie kompiluje sie w tym projekcie). */
 export const MAP_LABEL_KEY: Record<string, TranslationKey> = {
@@ -125,6 +125,7 @@ export const MAP_LABEL_KEY: Record<string, TranslationKey> = {
     tropics: 'leaderboard.map.tropics',
     arctic: 'leaderboard.map.arctic',
     mars: 'leaderboard.map.mars',
+    junkyard: 'leaderboard.map.junkyard', // ZLOMOWISKO
 };
 
 // ── PULA ŁATWA (domyka sie sama przy normalnej grze) ────────────────────────

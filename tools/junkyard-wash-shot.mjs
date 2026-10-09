@@ -1,0 +1,25 @@
+// ZLOMOWISKO REV 8: zrzuty Myjni Piany (wiata, szczotki, piana, wjazd) + psa Srubka. Z katalogu projektu, dev server 5173.
+import { chromium } from 'playwright';
+const PORT = process.argv[2] || '5173';
+const b = await chromium.launch({ channel: 'chrome' });
+const ctx = await b.newContext({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 2 });
+const p = await ctx.newPage(); const logs = [];
+p.on('pageerror', e => logs.push('PAGEERROR ' + e.message));
+p.on('console', m => { if (m.type() === 'error') logs.push('error: ' + m.text().slice(0, 300)); });
+await p.goto(`http://localhost:${PORT}/BrawlTanksv2/?junkyard=1&bot=1`); await p.waitForTimeout(2200);
+await p.evaluate(async () => { localStorage.clear(); const m = await import('/BrawlTanksv2/src/services/ProfileService.ts'); const pr = m.ProfileService.createProfile({ avatarId: 'ash', flagId: 'pl', nickname: 'TestPilot' }); m.ProfileService.setActiveProfile(pr.id); localStorage.setItem('bt2:tutorialCoreDone', '1'); });
+await p.reload(); await p.waitForTimeout(2200);
+await p.evaluate(() => (document.querySelector('.bt-intro-start') ?? document.querySelector('.brawl-btn'))?.click());
+await p.waitForTimeout(3000); await p.evaluate(() => document.querySelector('.brawl-btn')?.click()); await p.waitForTimeout(1500);
+await p.evaluate(async () => { await window.__sigmaTest.control.start({ map: 'junkyard', brawler: 'pancerny', difficulty: 'normal' }); });
+await p.waitForTimeout(1500); await p.evaluate(() => { window.__sigmaTest.control.god(true); });
+await p.waitForTimeout(4500);
+const step = (n) => p.evaluate((n) => window.__sigmaTest.control.step(n), n);
+const clip = { x: 683 - 330, y: 384 - 260, width: 660, height: 480 };
+await p.evaluate(() => window.__sigmaTest.control.teleport(690, 1760)); await step(20); await p.waitForTimeout(300); await p.screenshot({ path: 'reports/jy8-wash-outside.png', clip });
+await p.evaluate(() => window.__sigmaTest.control.teleport(600, 1500)); await step(12); await p.waitForTimeout(250); await p.screenshot({ path: 'reports/jy8-wash-enter.png', clip });
+await step(60); await p.waitForTimeout(250); await p.screenshot({ path: 'reports/jy8-wash-inside.png', clip });
+await p.evaluate(() => window.__sigmaTest.control.teleport(760, 2250)); await step(40); await p.waitForTimeout(250); await p.screenshot({ path: 'reports/jy8-dog-0.png', clip: { x: 683 - 200, y: 384 - 200, width: 400, height: 300 } });
+await step(60); await p.waitForTimeout(250); await p.screenshot({ path: 'reports/jy8-dog-1.png', clip: { x: 683 - 200, y: 384 - 200, width: 400, height: 300 } });
+console.log(logs.join('\n') || 'no errors');
+await b.close();

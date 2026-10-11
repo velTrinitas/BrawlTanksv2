@@ -3,6 +3,7 @@ import { sigmaEmit } from '../../testing/sigmaFlag';
 import type { EffectsManager } from '../../rendering/Effects';
 import { simNowMs } from '../../systems/SimClock'; // COOP S1
 import { nextNetId } from '../../systems/NetId'; // COOP S5b
+import { heartLifetimeMs } from '../../config/playability'; // v0.245.0 GRYWALNOSC: 15 -> 20 s
 
 /**
  * Heart pickup — leczy gracza po dotknięciu.
@@ -83,7 +84,7 @@ export class Heart {
     public healAmount: number = 100;
     private bornAt: number;
     private tornDown = false; // COOP S4: widok zdjety (teardown) — osobno od active (stan symulacji)
-    private static readonly LIFETIME_MS = 15000;
+    private static get LIFETIME_MS(): number { return heartLifetimeMs(); }
     
     constructor(x: number, y: number, worldContainer: PIXI.Container) {
         sigmaEmit({ t: 'spawn', kind: 'heart', x: x - 16, y: y - 16, w: 32, h: 32 }); // SigmaTester (no-op poza ?bot=1)

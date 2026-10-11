@@ -87,7 +87,7 @@ interface MyRankRow { rank: number | null; my_score: number | null; total: numbe
  *
  * NASTEPNY BUMP: przy kolejnym duzym balance refactor albo zmianie formuly wyniku.
  */
-export const CURRENT_SCORE_VERSION = 5;
+export const CURRENT_SCORE_VERSION = 6; // v0.245.0 GRYWALNOSC: nowe mnozniki trudnosci 1.1/1.2 + premia za wygrana + punkty za medi pad (nowa formula wyniku)
 
 const QUEUE_KEY = 'brawltanks.scores.queue.v1';
 

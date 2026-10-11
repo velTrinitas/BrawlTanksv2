@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * FortifiedRuinsMap — mapa scenariusza CTF (FAZA CTF F1).
@@ -100,6 +101,8 @@ export const FORTIFIED_PLAYER_SPAWN = { x: 200, y: 1500 };
 export const FORTIFIED_MEDI_PAD_POSITIONS = [
     { x: 1450, y: 900 },   // centralny polnoc (ALFA/BRAVO)
     { x: 850,  y: 1750 },  // poludnie (CHARLIE)
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 2450, y: 2450 }] : []),
 ];
 export const FORTIFIED_POWER_PAD_POSITIONS = [
     { x: 2150, y: 1100 },  // sprint lane trasy BRAVO

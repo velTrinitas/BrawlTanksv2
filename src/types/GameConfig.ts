@@ -18,6 +18,8 @@
  * Profile-ready: profileId (FAZA 7 wypelni prawdziwym ID).
  */
 
+import { difficultyScoreMult } from '../config/playability';
+
 import type { MapId } from './MapType';
 import type { ScenarioId } from './Scenario';
 import type { TranslationKey } from '../i18n/i18n';
@@ -88,7 +90,7 @@ export const DIFFICULTY_SCORE_MULTIPLIERS: Record<DifficultyId, number> = {
  * Uzywany w GameSession.recomputeScore() i getScoreBreakdown().
  */
 export function getDifficultyMultiplier(difficulty: DifficultyId): number {
-    return DIFFICULTY_SCORE_MULTIPLIERS[difficulty];
+    return difficultyScoreMult(difficulty); // v0.245.0 GRYWALNOSC: 1.1/1.2 (rollback ?bal3=0 -> tabela wyzej)
 }
 
 /**

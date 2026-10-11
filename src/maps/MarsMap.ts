@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * MarsMap.ts — map definitions for MARS ("Rdzawy Swit" / Rusty Dawn).
@@ -625,6 +626,8 @@ export const MARS_STEALTH_ZONES_LAYOUT: ReadonlyArray<{ x: number; y: number; w:
  */
 export const MARS_MEDI_PAD_POSITIONS: ReadonlyArray<{ x: number; y: number }> = [
     { x: 560, y: 780 }, { x: 2260, y: 2420 }, { x: 1420, y: 2380 },
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 1600, y: 450 }] : []),
 ];
 export const MARS_POWER_PAD_POSITIONS: ReadonlyArray<{ x: number; y: number }> = [
     { x: 2560, y: 900 }, { x: 760, y: 1560 },

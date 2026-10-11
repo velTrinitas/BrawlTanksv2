@@ -48,6 +48,9 @@ export interface SigmaBridge {
     get powerCubes(): { x: number; y: number }[];
     get buildings(): ICollidable[];
     get solidBuildings(): ICollidable[];
+    /** v0.245.0: pozycje power padow + test stref niedrivalnych — dla tools/pad-placement.mjs */
+    get powerPadsPos(): { x: number; y: number }[];
+    isBlocked(x: number, y: number): boolean;
     get camera(): { x: number; y: number };
     get session(): { score: number; config: GameConfig; getElapsedSeconds(): number; shotsFired: number; shotsHit: number; damageDealt: number; damageTaken: number } | null;
     /** v0.209.0 STRZELNICA: raport stanowisk (null poza scenariuszem range) */
@@ -264,6 +267,7 @@ export function installSigmaTest(bridge: SigmaBridge): void {
     (window as unknown as { __sigmaTest: unknown }).__sigmaTest = {
         version: 1, build: BUILD,
         snapshot, events, control, input, bot: botApi, oracles, layout,
+        padProbe: () => ({ power: bridge.powerPadsPos, blocked: (x: number, y: number) => bridge.isBlocked(x, y) }), // v0.245.0
         audio: () => bridge.audioState,
         clearEvents: (): void => { events.length = 0; },
     };

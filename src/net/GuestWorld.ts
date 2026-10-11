@@ -15,7 +15,8 @@ import { Enemy } from '../entities/Enemy';
 import { Player } from '../entities/Player';
 import { Bullet } from '../entities/Bullet';
 import { EnemyBullet } from '../entities/EnemyBullet';
-import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_MEGA_BOSS, ENEMY_PURSUIT } from '../config/enemies';
+import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_PURSUIT } from '../config/enemies';
+import { megaBossBase } from '../config/playability'; // v0.245.0 GRYWALNOSC
 import { BRAWLERS } from '../config/brawlers';
 import { EnemyKind, PickupKind, type Snapshot, type SnapPlayer } from './Snapshot';
 import { Gem } from '../entities/pickups/Gem';
@@ -137,7 +138,7 @@ export class GuestWorld {
             const ea = this.prevIndex(a).en.get(eb.id) ?? eb;
             let en = this.enemies.get(eb.id);
             if (!en) {
-                const cfg = eb.kind === EnemyKind.Mega ? ENEMY_MEGA_BOSS : eb.kind === EnemyKind.Boss ? ENEMY_BOSS
+                const cfg = eb.kind === EnemyKind.Mega ? megaBossBase() : eb.kind === EnemyKind.Boss ? ENEMY_BOSS
                     : eb.kind === EnemyKind.Pursuit ? ENEMY_PURSUIT : ENEMY_NORMAL;
                 en = new Enemy(eb.x, eb.y, cfg, eb.kind === EnemyKind.Boss || eb.kind === EnemyKind.Mega, this.world,
                     eb.kind === EnemyKind.Mega, eb.kind === EnemyKind.Pursuit);

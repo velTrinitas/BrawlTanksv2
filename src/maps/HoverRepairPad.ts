@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 // TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
 import { t } from '../i18n/i18n';
 import { simNowMs } from '../systems/SimClock';
+import { medPadRepairMs } from '../config/playability';
 
 /**
  * HoverRepairPad — MediPad z v4.48.
@@ -10,7 +11,7 @@ import { simNowMs } from '../systems/SimClock';
 
 const PAD_SIZE = 100;
 const ACTIVATE_RANGE = 60;       // v0.4c: +25% (było 48)
-const REPAIR_TIME_MS = 2250;     // v0.4c: -25% (było 3000)
+const REPAIR_TIME_MS = (): number => medPadRepairMs(); // v0.245.0 GRYWALNOSC: 2250 -> 1575 (config/playability)
 const COOLDOWN_MS = 60000;
 
 // MOBILE-CRISP (fix pikselozy): antialias renderera OFF na mobile => zaokraglone
@@ -214,7 +215,7 @@ export class HoverRepairPad {
             if (dist < ACTIVATE_RANGE * this.padScale && playerHp < playerMaxHp) {
                 if (!isPlayerMoving) {
                     if (!this._repairStart) this._repairStart = now;
-                    this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS);
+                    this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS());
                     if (this.repairProgress >= 1) {
                         healed = true;
                         this.cooldownEnd = now + COOLDOWN_MS;

@@ -30,6 +30,7 @@
  */
 
 import type { DifficultyId } from '../types/GameConfig';
+import { isPlayabilityV3 } from './playability';
 
 export interface DifficultyModifiers {
     // ── Enemy stats (aplikowane do KAZDEGO spawn w SpawnSystem.scaleConfig) ──
@@ -42,6 +43,10 @@ export interface DifficultyModifiers {
 
     /** Mnoznik speed (speedMin + speedMax). */
     enemySpeedMult: number;
+
+    /** v0.245.0 (GRYWALNOSC): mnoznik TEMPA ognia wrogow. Interwal strzalu dzielony przez ten mnoznik
+     *  (1.05 = strzela o 5% czesciej). Legacy: 1.0 wszedzie. */
+    enemyFireRateMult: number;
 
     /** v0.241.0 (D1): mnoznik predkosci pociskow wroga. Easy/Normal wolniej = czas na unik (czytelnosc). */
     enemyBulletSpeedMult: number;
@@ -118,6 +123,7 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         enemyHpMult: 0.85,
         enemyDmgMult: 0.80,
         enemySpeedMult: 1.0,
+        enemyFireRateMult: 1.0,
         enemyBulletSpeedMult: 0.90,
         startSpawnRampMult: 1.6,
         spawnIntervalFrames: 175,
@@ -132,6 +138,7 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         enemyHpMult: 1.0,
         enemyDmgMult: 0.90,
         enemySpeedMult: 1.0,
+        enemyFireRateMult: 1.0,
         enemyBulletSpeedMult: 0.95,
         startSpawnRampMult: 1.6,
         spawnIntervalFrames: 150,
@@ -146,6 +153,7 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         enemyHpMult: 1.10,
         enemyDmgMult: 1.10,
         enemySpeedMult: 1.0, // v0.73.7: zdjete ze skalowania (fairness wolnych czolgow)
+        enemyFireRateMult: 1.0,
         enemyBulletSpeedMult: 1.0,
         startSpawnRampMult: 1.0,
         spawnIntervalFrames: 125,
@@ -160,6 +168,7 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
         enemyHpMult: 1.20,
         enemyDmgMult: 1.20,
         enemySpeedMult: 1.0, // v0.73.7: zdjete ze skalowania (fairness wolnych czolgow)
+        enemyFireRateMult: 1.0,
         enemyBulletSpeedMult: 1.0,
         startSpawnRampMult: 1.0,
         spawnIntervalFrames: 100,
@@ -177,5 +186,35 @@ export const DIFFICULTY_MODIFIERS: Record<DifficultyId, DifficultyModifiers> = {
  * Uzywany w main.ts przy tworzeniu SpawnSystem (`new SpawnSystem(getDifficultyModifiers(config.difficulty))`).
  */
 export function getDifficultyModifiers(difficulty: DifficultyId): DifficultyModifiers {
-    return DIFFICULTY_MODIFIERS[difficulty];
+    return isPlayabilityV3() ? DIFFICULTY_MODIFIERS_V3[difficulty] : DIFFICULTY_MODIFIERS[difficulty];
 }
+
+/**
+ * v0.245.0 FAZA GRYWALNOSC (decyzja Mariusza 2026-10-10): Trudny = Normalny x1.05, Koszmar = Normalny x1.10
+ * w KAZDYM aspekcie (HP, dmg, predkosc, tempo ognia, pociski, spawn, limit, bossy, bomby CTF).
+ * Swiadomie cofa v0.73.7 (predkosc wrogow stala) — nowa decyzja Mariusza: "w kazdym aspekcie".
+ * Lagodny start (rampa 1.6) teraz na kazdym poziomie. Mega boss po 100 zabiciach wszedzie.
+ * Stara tabela (DIFFICULTY_MODIFIERS) zostaje jako rollback `?bal3=0`.
+ */
+const scaleUp = (base: DifficultyModifiers, k: number): DifficultyModifiers => ({
+    enemyHpMult: +(base.enemyHpMult * k).toFixed(3),
+    enemyDmgMult: +(base.enemyDmgMult * k).toFixed(3),
+    enemySpeedMult: +(base.enemySpeedMult * k).toFixed(3),
+    enemyFireRateMult: +(base.enemyFireRateMult * k).toFixed(3),
+    enemyBulletSpeedMult: +(base.enemyBulletSpeedMult * k).toFixed(3),
+    startSpawnRampMult: base.startSpawnRampMult,
+    spawnIntervalFrames: Math.round(base.spawnIntervalFrames / k),   // 150 -> 143 / 136
+    timeScaling: +(base.timeScaling * k).toFixed(3),
+    maxEnemiesOnMap: Math.round(base.maxEnemiesOnMap * k),           // 20 -> 21 / 22
+    bossKillTrigger: Math.round(base.bossKillTrigger / k),           // 20 -> 19 / 18
+    megaBossKillThreshold: base.megaBossKillThreshold,               // 100 wszedzie
+    ctfBombIntervalMs: Math.round(base.ctfBombIntervalMs / k),       // 5000 -> 4762 / 4545
+    ctfBombFlightSpeed: +Math.min(0.012, base.ctfBombFlightSpeed * k).toFixed(4), // cap 0.012 (unik zawsze mozliwy)
+});
+
+export const DIFFICULTY_MODIFIERS_V3: Record<DifficultyId, DifficultyModifiers> = {
+    easy: DIFFICULTY_MODIFIERS.easy,
+    normal: DIFFICULTY_MODIFIERS.normal,
+    hard: scaleUp(DIFFICULTY_MODIFIERS.normal, 1.05),
+    nightmare: scaleUp(DIFFICULTY_MODIFIERS.normal, 1.10),
+};

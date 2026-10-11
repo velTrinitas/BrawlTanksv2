@@ -36,7 +36,7 @@ SELECT
     percentile_cont(0.90) WITHIN GROUP (ORDER BY powers_used)    AS powers_p90,
     percentile_cont(0.90) WITHIN GROUP (ORDER BY cubes_collected) AS cubes_p90
 FROM public.scores
-WHERE score_version = 5;
+WHERE score_version = 6;
 
 -- Q7.2 — to samo per mapa (czy cele musza byc normalizowane per mapa jak trofea?)
 SELECT
@@ -47,7 +47,7 @@ SELECT
     percentile_cont(0.50) WITHIN GROUP (ORDER BY gems_collected) AS gems_p50,
     percentile_cont(0.90) WITHIN GROUP (ORDER BY game_seconds)   AS secs_p90
 FROM public.scores
-WHERE score_version = 5
+WHERE score_version = 6
 GROUP BY map
 ORDER BY runs DESC;
 
@@ -62,7 +62,7 @@ SELECT
 FROM (
     SELECT profile_id, date_trunc('day', created_at) AS d, count(*) AS runs_that_day
     FROM public.scores
-    WHERE score_version = 5 AND profile_id IS NOT NULL
+    WHERE score_version = 6 AND profile_id IS NOT NULL
     GROUP BY profile_id, d
 ) t;
 
@@ -72,4 +72,4 @@ SELECT
     count(*) FILTER (WHERE mega_boss_defeated)            AS victories,
     round(100.0 * count(*) FILTER (WHERE mega_boss_defeated) / nullif(count(*), 0), 1) AS victory_pct
 FROM public.scores
-WHERE score_version = 5;
+WHERE score_version = 6;

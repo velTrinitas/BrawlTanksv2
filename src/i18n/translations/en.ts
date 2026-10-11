@@ -891,6 +891,21 @@ export const en: typeof pl = {
     'queen.door.open': 'DOOR OPEN! To the Queen!',
     'queen.ready': 'GET READY!',
     'queen.tut.title': 'RESCUER TRAINING',
+    // v0.245.0: castle + CTF tutorial cards (TutorialController, like KTB)
+    'castle.tutk.1.title': 'GATE!',
+    'castle.tutk.1.hint': 'Drive to the GATE at the bottom - it opens by itself',
+    'castle.tutk.2.title': 'ACROSS THE MOAT!',
+    'castle.tutk.2.hint': 'Cross the BRIDGE over the moat and come back inside',
+    'castle.tutk.3.title': 'SCOUTS!',
+    'castle.tutk.3.hint': '3 enemies are coming down the ROAD to the gate - destroy them!',
+    'castle.tutk.4.title': 'REPAIR THE WALL!',
+    'castle.tutk.4.hint': 'The wall got hit. STAND still next to it until the bar fills up',
+    'castle.tutk.5.title': 'TRAMPOLINE!',
+    'castle.tutk.5.hint': 'Drive onto the TRAMPOLINE in the courtyard - jump over the walls!',
+    'ctf.tutk.1.title': 'FLAG!',
+    'ctf.tutk.1.hint': 'Drive to the enemy FLAG (arrow 🚩) and run over it',
+    'ctf.tutk.2.title': 'TO THE HANGAR!',
+    'ctf.tutk.2.hint': 'You have the flag! Bring it to your HANGAR on the left',
     'queen.tut.1.title': 'BRICK!',
     'queen.tut.1.hint': 'Drive to the WALL in the east and break a brick - shoot it',
     'queen.tut.2.title': 'KEYSTONE!',
@@ -1206,6 +1221,7 @@ export const en: typeof pl = {
 
     // Achievement (end-game)
     'hud.perfectRun':     '⭐ PERFECT RUN! +{bonus} pts',
+    'hud.victoryBonus':   '🏆 VICTORY! +{bonus} pts',
 
     // Combo (PL=EN — gaming convention)
     'hud.comboDouble':    'DOUBLE!',

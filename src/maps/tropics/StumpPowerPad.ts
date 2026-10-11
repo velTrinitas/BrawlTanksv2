@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { simNowMs } from '../../systems/SimClock';
+import { powerPadTurboMs } from '../../config/playability';
 
 /**
  * v0.38.1 FAZA T7.x — STUMP POWER PAD ("Nienaładowany Pień z Błyskawicą")
@@ -20,7 +21,7 @@ import { simNowMs } from '../../systems/SimClock';
 
 const PAD_SIZE = 100;
 const ACTIVATE_RANGE = 50;
-const TURBO_DURATION_MS = 5000;
+const TURBO_DURATION_MS = (): number => powerPadTurboMs(); // v0.245.0 GRYWALNOSC: 5000 -> 7000 (config/playability)
 const COOLDOWN_MS = 20000;
 const TURBO_MULT = 2.0;
 
@@ -399,7 +400,7 @@ export class StumpPowerPad {
 
         return {
             activated,
-            durationMs: TURBO_DURATION_MS,
+            durationMs: TURBO_DURATION_MS(),
             multiplier: TURBO_MULT,
         };
     }

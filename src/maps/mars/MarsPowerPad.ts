@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { MARS_HEX } from '../MarsMap';
+import { powerPadTurboMs } from '../../config/playability';
 
 /**
  * MarsPowerPad — "Reaktor RTG" turbo station (grammar layer 7, power).
@@ -18,7 +19,7 @@ import { MARS_HEX } from '../MarsMap';
 
 const PAD_SIZE = 100;
 const COOLDOWN_MS = 20000;
-const TURBO_DURATION_MS = 5000;
+const TURBO_DURATION_MS = (): number => powerPadTurboMs(); // v0.245.0 GRYWALNOSC: 5000 -> 7000 (config/playability)
 const TURBO_MULT = 2.0;
 const ACTIVATION_PAD = 8;
 
@@ -165,7 +166,7 @@ export class MarsPowerPad {
         }
 
         this.drawVisuals(now, now >= this.cooldownEnd, inside);
-        return { activated, durationMs: TURBO_DURATION_MS, multiplier: TURBO_MULT };
+        return { activated, durationMs: TURBO_DURATION_MS(), multiplier: TURBO_MULT };
     }
 
     /** Per-frame: fin spin, core pulse, arcs while charged. */

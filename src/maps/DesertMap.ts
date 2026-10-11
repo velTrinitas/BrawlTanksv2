@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * Statyczna tekstura pustyni — bake'owana raz z Canvas 2D.
@@ -371,6 +372,8 @@ export const DESERT_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.18, y: WORLD_H * 0.50 },
     { x: WORLD_W * 0.82, y: WORLD_H * 0.28 },
     { x: WORLD_W * 0.52, y: WORLD_H * 0.30 },
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 1050, y: 2500 }] : []), // playtest Mariusza: -50 px w dol (stal na kladce)
 ];
 
 export const DESERT_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [

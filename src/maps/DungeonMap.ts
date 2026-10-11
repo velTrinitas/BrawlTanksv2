@@ -30,6 +30,7 @@ import { WORLD_W, WORLD_H } from '../config/constants';
 export { DUNGEON_PALETTE, DUNGEON_HEX, DUNGEON_LIGHT } from './dungeon/dungeonPalette';
 import { DUNGEON_PALETTE as P } from './dungeon/dungeonPalette';
 import { lavaPoolOutline, traceSmooth, LAVA_MAX_BULGE } from './dungeon/dungeonLavaShape';
+import { isPlayabilityV3 } from '../config/playability';
 
 /** Seed obrysu lawy per basen — TEN SAM w bake i w DungeonLava (warstwa animowana). */
 export function dungeonLavaSeed(i: number): number { return 0x1a7a + i * 977; }
@@ -113,6 +114,8 @@ export const DUNGEON_KEY_DOOR: DungeonRect = { id: 'keyDoor', x: 2532, y: 1444, 
 export const DUNGEON_MEDI_PAD_POSITIONS: readonly DungeonPoint[] = [
     { x: 900 - 50, y: 700 - 50 },
     { x: 900 - 50, y: 2300 - 50 },
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 450, y: 1500 }] : []),
 ];
 export const DUNGEON_POWER_PAD_POSITIONS: readonly DungeonPoint[] = [
     { x: 1500 - 50, y: 1500 - 50 },

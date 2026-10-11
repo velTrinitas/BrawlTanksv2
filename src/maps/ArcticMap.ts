@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * ArcticMap.ts — definicje mapy Arktyka (lodowcowa niecka "Krystaliczny Poranek").
@@ -566,6 +567,8 @@ export const ARCTIC_MEDI_PAD_POSITIONS: Array<{ x: number; y: number }> = [
     { x: 650,  y: 1550 },
     { x: 2350, y: 900 },
     { x: 1500, y: 2350 },
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 450, y: 2450 }] : []),
 ];
 
 export const ARCTIC_POWER_PAD_POSITIONS: Array<{ x: number; y: number }> = [

@@ -3,12 +3,13 @@ import { Enemy } from '../entities/Enemy';
 import { worldRng } from './Rng'; // Z0.1: seeded gameplay RNG
 import { Heart } from '../entities/pickups/Heart';
 import { Magnet } from '../entities/pickups/Magnet';
-import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_MEGA_BOSS, HEART_CONFIG, type EnemyConfig } from '../config/enemies';
+import { ENEMY_NORMAL, ENEMY_BOSS, HEART_CONFIG, type EnemyConfig } from '../config/enemies';
 import { PICKUP_CONFIG } from '../config/powers';
 import { WORLD_W, WORLD_H } from '../config/constants';
 import type { ICollidable } from '../types/MapType';
 import type { DifficultyModifiers } from '../config/difficulty';
 import { SPAWN_START_RAMP_S } from '../config/difficulty';
+import { megaBossBase, startNoSpawnSeconds, heartIntervalKtb, heartIntervalCastle, magnetIntervalFrames } from '../config/playability';
 import { QuestService } from '../services/QuestService'; // PROG-F3 — metryki rozkazow
 import { sigmaEmit } from '../testing/sigmaFlag'; // SigmaTester: 'kill' w jedynym punkcie zabicia (no-op poza ?bot=1)
 
@@ -118,6 +119,7 @@ export class SpawnSystem {
             dmg: Math.round(base.dmg * this.modifiers.enemyDmgMult),
             bulletDmg: Math.round(base.bulletDmg * this.modifiers.enemyDmgMult),
             bulletSpeed: base.bulletSpeed * this.modifiers.enemyBulletSpeedMult,
+            shootIntervalMs: Math.round(base.shootIntervalMs / this.modifiers.enemyFireRateMult), // v0.245.0 GRYWALNOSC
             speedMin: base.speedMin * this.modifiers.enemySpeedMult,
             speedMax: base.speedMax * this.modifiers.enemySpeedMult,
         };
@@ -155,7 +157,8 @@ export class SpawnSystem {
         const rampLeft = Math.max(0, 1 - this.gameTimeSeconds / SPAWN_START_RAMP_S);
         const effRate = spawnRate * (1 + (this.modifiers.startSpawnRampMult - 1) * rampLeft);
         this.spawnAccum += delta;
-        const spawnTick = this.spawnAccum >= effRate;
+        // v0.245.0 GRYWALNOSC: 3 s spokoju na starcie (KTB) — akumulator czeka, pierwszy wrog zaraz po.
+        const spawnTick = this.spawnAccum >= effRate && this.gameTimeSeconds >= startNoSpawnSeconds();
         if (spawnTick) this.spawnAccum = Number.isFinite(this.spawnAccum) ? Math.min(this.spawnAccum - effRate, effRate) : 0;
 
         // FAZA CTF F2 (D7): tryb CTF — top-up roamerow do capa (legacy 4700-4701).
@@ -165,12 +168,12 @@ export class SpawnSystem {
         // co ~7 s) i magnesy — wstrzymane w fazie budowy (pickupsSuppressed z main.ts).
         if (this.castleMode) {
             if (!this.pickupsSuppressed) {
-                if (this.heartFrameCounter >= 420 && currentHearts.length < 4) {
+                if (this.heartFrameCounter >= heartIntervalCastle() && currentHearts.length < 4) {
                     this.heartFrameCounter = 0;
                     const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200, extraBlocked);
                     if (pos) newHearts.push(new Heart(pos.x, pos.y, worldContainer));
                 }
-                if (this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
+                if (this.magnetFrameCounter >= magnetIntervalFrames() && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
                     this.magnetFrameCounter = 0;
                     const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250, extraBlocked);
                     if (pos) newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
@@ -190,14 +193,14 @@ export class SpawnSystem {
             }
             // Serca — czesciej niz w KTB (co ~6 s zamiast 8.7 s, do 4 na mapie), bo CTF
             // nie ma padow i jest twardszy (single-life + bossy pilnujace flag).
-            if (this.heartFrameCounter >= 360 && currentHearts.length < 4) {
+            if (this.heartFrameCounter >= heartIntervalKtb() && currentHearts.length < 4) {
                 this.heartFrameCounter = 0;
                 const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 200, extraBlocked);
                 if (pos) newHearts.push(new Heart(pos.x, pos.y, worldContainer));
             }
             // F4.2: magnesy w CTF (jak KTB) — interval 900f, max 1 na mapie. Pickup +
             // przyciaganie gemow (main.ts / PowerSystem / Gem) sa generyczne => dzialaja same.
-            if (this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
+            if (this.magnetFrameCounter >= magnetIntervalFrames() && currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap) {
                 this.magnetFrameCounter = 0;
                 const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 250, extraBlocked);
                 if (pos) newMagnets.push(new Magnet(pos.x, pos.y, worldContainer));
@@ -244,7 +247,7 @@ export class SpawnSystem {
         ) {
             const pos = this.findSafeSpawnPos(playerX, playerY, buildings, 500, extraBlocked);
             if (pos) {
-                newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(ENEMY_MEGA_BOSS), true, worldContainer, true));
+                newEnemies.push(new Enemy(pos.x, pos.y, this.scaleConfig(megaBossBase()), true, worldContainer, true));
                 this.megaBossSpawned = true;
                 megaBossJustSpawned = true;
             }
@@ -252,7 +255,7 @@ export class SpawnSystem {
 
         // Heart spawn — NIE skalowane przez difficulty w v1 (decyzja design).
         if (
-            this.heartFrameCounter >= HEART_CONFIG.spawnIntervalFrames &&
+            this.heartFrameCounter >= heartIntervalKtb() &&
             currentHearts.length < HEART_CONFIG.maxOnMap
         ) {
             this.heartFrameCounter = 0;
@@ -264,7 +267,7 @@ export class SpawnSystem {
 
         // Magnet spawn — NIE skalowane przez difficulty w v1 (decyzja design).
         if (
-            this.magnetFrameCounter >= PICKUP_CONFIG.magnetSpawnIntervalFrames &&
+            this.magnetFrameCounter >= magnetIntervalFrames() &&
             currentMagnets.length < PICKUP_CONFIG.magnetMaxOnMap
         ) {
             this.magnetFrameCounter = 0;
@@ -309,6 +312,34 @@ export class SpawnSystem {
         extraBlocked?: (x: number, y: number) => boolean,
     ): { x: number, y: number } | null {
         return this.findSafeSpawnPos(playerX, playerY, buildings, 150, extraBlocked);
+    }
+
+    /**
+     * v0.245.0 GRYWALNOSC — pozycja gemu startowego w PIERSCIENIU wokol gracza (w polu widzenia).
+     * Kat rozlozony rowno (index/count) + jitter z worldRng, zeby gemy nie zbily sie w jedna kupke.
+     * Te same testy kolizji co findSafeSpawnPos (budynki + strefy niedrivalne). null = brak miejsca.
+     */
+    findPickupPosInRing(
+        playerX: number, playerY: number, index: number, count: number,
+        rMin: number, rMax: number,
+        buildings: ICollidable[],
+        extraBlocked?: (x: number, y: number) => boolean,
+    ): { x: number, y: number } | null {
+        for (let i = 0; i < 20; i++) {
+            const ang = ((index + worldRng.next() * 0.6) / count) * Math.PI * 2 + i * 0.37;
+            const r = worldRng.range(rMin, rMax);
+            const x = playerX + Math.cos(ang) * r;
+            const y = playerY + Math.sin(ang) * r;
+            if (x < 100 || y < 100 || x > WORLD_W - 100 || y > WORLD_H - 100) continue;
+            let inBuilding = false;
+            for (const b of buildings) {
+                if (x > b.x - 30 && x < b.x + b.w + 30 && y > b.y - 30 && y < b.y + b.h + 30) { inBuilding = true; break; }
+            }
+            if (inBuilding) continue;
+            if (extraBlocked && extraBlocked(x, y)) continue;
+            return { x, y };
+        }
+        return null;
     }
 
     /** v0.209.0 — hak dla RangeDirector (dystans zabicia). JEDEN punkt dla wszystkich sciezek zabicia. */

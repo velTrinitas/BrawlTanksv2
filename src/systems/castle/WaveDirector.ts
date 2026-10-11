@@ -1,7 +1,8 @@
 import * as PIXI from 'pixi.js';
 import { Enemy } from '../../entities/Enemy';
 import { worldRng } from '../Rng';
-import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_MEGA_BOSS, ENEMY_TARAN, ENEMY_KATAPULTA, ENEMY_TREBUCHET, type EnemyConfig } from '../../config/enemies';
+import { ENEMY_NORMAL, ENEMY_BOSS, ENEMY_TARAN, ENEMY_KATAPULTA, ENEMY_TREBUCHET, type EnemyConfig } from '../../config/enemies';
+import { megaBossBase } from '../../config/playability'; // v0.245.0 GRYWALNOSC
 import { bakeSiegeMachine } from '../../maps/castle/castleBake'; // F4: plaskie sprite'y maszyn
 import { CASTLE_LANES, type CastleLaneId } from '../../maps/CastleMap';
 import { CASTLE_TUNING as T, CASTLE_WAVES, type CastleRole, type CastleWaveDef } from './castleWaves';
@@ -60,6 +61,7 @@ export class WaveDirector {
             dmg: Math.round(base.dmg * m.enemyDmgMult),
             bulletDmg: Math.round(base.bulletDmg * m.enemyDmgMult),
             bulletSpeed: base.bulletSpeed * m.enemyBulletSpeedMult,
+            shootIntervalMs: Math.round(base.shootIntervalMs / m.enemyFireRateMult), // v0.245.0 GRYWALNOSC
             speedMin: base.speedMin * m.enemySpeedMult * speedMult,
             speedMax: base.speedMax * m.enemySpeedMult * speedMult,
         };
@@ -165,7 +167,7 @@ export class WaveDirector {
         let cfg: EnemyConfig;
         let isBoss = false;
         const machine = entry.role === 'taran' || entry.role === 'katapulta' || entry.role === 'trebuchet';
-        if (mega) { cfg = this.scaleConfig(ENEMY_MEGA_BOSS); isBoss = true; }
+        if (mega) { cfg = this.scaleConfig(megaBossBase()); isBoss = true; }
         else if (entry.boss) { cfg = this.scaleConfig(ENEMY_BOSS); isBoss = true; }
         else if (entry.role === 'taran') cfg = this.scaleConfig(ENEMY_TARAN);
         else if (entry.role === 'katapulta') cfg = this.scaleConfig(ENEMY_KATAPULTA);

@@ -24,6 +24,7 @@ import { WORLD_W, WORLD_H } from '../config/constants';
 
 export { CASTLE_PALETTE, CASTLE_HEX, CASTLE_LIGHT } from './castle/castlePalette';
 import { CASTLE_PALETTE } from './castle/castlePalette';
+import { isPlayabilityV3 } from '../config/playability';
 import {
     drawTree, drawPine, drawCampfire, drawTent, drawWarBanner, drawStatue,
     drawWheatField, drawHayCart, drawSheep, drawFence,
@@ -191,6 +192,8 @@ export const CASTLE_HAY: readonly CastleRect[] = [
 export const CASTLE_MEDI_PAD_POSITIONS: readonly CastlePoint[] = [
     { x: 1255, y: 1255 }, // podworze NW (v0.194.0: +25 px od trampoliny NW)
     { x: 1620, y: 700 },  // za pierscieniem N
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 450, y: 525 }] : []),
 ];
 export const CASTLE_POWER_PAD_POSITIONS: readonly CastlePoint[] = [
     { x: 1645, y: 1645 }, // podworze SE (v0.194.0: -25 px od trampoliny SE)

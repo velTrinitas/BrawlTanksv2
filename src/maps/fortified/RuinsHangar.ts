@@ -27,6 +27,9 @@ import {
  */
 
 const WALL_H = 34;
+/** v0.245.0: nowy hangar fake-3D (luk dachu, bok, miekki cien, swiecaca brama). Hitbox BEZ zmian. */
+const HANGAR_ART_V2 = true;
+const HANGAR_BAKE_SCALE = 2;
 const MAST_H = 89; // F4.1b: +20% dluzsze maszty w bazie
 
 /**
@@ -149,6 +152,7 @@ export class RuinsHangar {
         this.floorContainer.addChild(this.gfxBeacon);
 
         const buildingSpr = new PIXI.Sprite(tex.building);
+        if (HANGAR_ART_V2) buildingSpr.scale.set(1 / HANGAR_BAKE_SCALE); // 2x bake = ostre krawedzie na mobile (DPR 2)
         buildingSpr.x = -tex.buildingPad;
         buildingSpr.y = -tex.buildingPad;
         this.buildingContainer.addChild(buildingSpr);
@@ -266,7 +270,8 @@ function buildHangarTextures(): HangarTex {
 
     return {
         floor: PIXI.Texture.from(buildFloorCanvas(R.w, R.h)),
-        building: PIXI.Texture.from(buildBuildingCanvas(B.w, B.h)),
+        // v0.245.0 GRYWALNOSC: juicy fake-3D (2x bake, sprite skalowany 0.5). Stary rysunek: HANGAR_ART_V2 = false.
+        building: HANGAR_ART_V2 ? PIXI.Texture.from(buildBuildingCanvasV2(B.w, B.h)) : PIXI.Texture.from(buildBuildingCanvas(B.w, B.h)),
         buildingPad: 28,
         masts: PIXI.Texture.from(buildMastsCanvas()),
         mastsX: MASTS_ORIGIN_X,
@@ -499,6 +504,157 @@ function buildBuildingCanvas(w: number, h: number): HTMLCanvasElement {
             c.fill();
         }
     }
+
+    return cv;
+}
+
+// ── v0.245.0: bryla v2 — hangar lukowy (Quonset) w fake-3D ──
+// Footprint = hitbox (w x h). Dach (0..roofH) widziany z gory: os luku N-S, wiec swiatlo zmienia sie w poprzek (x):
+// cien z lewej, blik przy grzbiecie, polcien z prawej. Sciana czolowa (roofH..h) = brama z cieplym swiatlem.
+// Bok wschodni (pasek 8 px, skos) daje glebie. Cien miekki (shadowBlur) — pieczony RAZ, zero kosztu na klatke.
+function buildBuildingCanvasV2(w: number, h: number): HTMLCanvasElement {
+    const PAD = 28, S = HANGAR_BAKE_SCALE;
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil((w + PAD * 2) * S);
+    cv.height = Math.ceil((h + PAD * 2) * S);
+    const c = cv.getContext('2d')!;
+    c.scale(S, S);
+    c.translate(PAD, PAD);
+    const roofH = h - WALL_H;
+    const SIDE = 8;
+
+    // 1. Miekki cien rzucony na poludniowy wschod
+    c.save();
+    c.shadowColor = 'rgba(20,16,8,0.55)'; c.shadowBlur = 16; c.shadowOffsetX = 10; c.shadowOffsetY = 12;
+    c.fillStyle = '#2a2a20';
+    c.beginPath(); c.roundRect(0, 0, w + SIDE, h, 14); c.fill();
+    c.restore();
+
+    // 2. Bok wschodni (skos) — ciemniejszy, daje bryle
+    const sideG = c.createLinearGradient(w, 0, w + SIDE, 0);
+    sideG.addColorStop(0, '#2c3522'); sideG.addColorStop(1, '#1c2216');
+    c.fillStyle = sideG;
+    polygon(c, [w - 2, 6, w + SIDE, 12, w + SIDE, h - 2, w - 2, h]);
+    c.fill();
+
+    // 3. Dach lukowy: gradient w poprzek osi (luk), zebra poprzeczne, moro mnozone przez cieniowanie
+    c.save();
+    c.beginPath(); c.roundRect(0, 0, w, roofH + 6, [26, 26, 4, 4]); c.clip();
+    const roofG = c.createLinearGradient(0, 0, w, 0);
+    roofG.addColorStop(0.00, '#2f3a24');
+    roofG.addColorStop(0.22, '#4e5f38');
+    roofG.addColorStop(0.42, '#7d8e58');
+    roofG.addColorStop(0.50, '#93a468'); // blik grzbietu
+    roofG.addColorStop(0.60, '#6c7d4a');
+    roofG.addColorStop(0.85, '#465533');
+    roofG.addColorStop(1.00, '#2c3621');
+    c.fillStyle = roofG; c.fillRect(0, 0, w, roofH + 6);
+    c.globalCompositeOperation = 'multiply';
+    const camo: Array<[number, number, number, number, string]> = [
+        [30, 20, 34, 16, '#8a7448'], [110, 34, 40, 18, '#5a6a44'], [62, 70, 44, 18, '#8f8660'],
+        [150, 84, 30, 14, '#6b5a38'], [20, 96, 36, 14, '#5a6a44'], [96, 104, 38, 12, '#8a7448'],
+    ];
+    for (const [x, y, rx, ry, col] of camo) {
+        c.fillStyle = col; c.beginPath(); c.ellipse(x, y * (roofH / 126), rx, ry, 0.3, 0, Math.PI * 2); c.fill();
+    }
+    c.globalCompositeOperation = 'source-over';
+    // zebra poprzeczne (falista blacha): ciemna linia + jasna pod nia
+    for (let y = 10; y < roofH; y += 11) {
+        c.globalAlpha = 0.35; c.strokeStyle = '#1e2616'; c.lineWidth = 1.6;
+        c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke();
+        c.globalAlpha = 0.22; c.strokeStyle = '#e8f0c8'; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(0, y + 1.6); c.lineTo(w, y + 1.6); c.stroke();
+    }
+    c.globalAlpha = 1;
+    // blik wzdluz grzbietu (fake specular)
+    const spec = c.createLinearGradient(w * 0.40, 0, w * 0.60, 0);
+    spec.addColorStop(0, 'rgba(255,255,230,0)'); spec.addColorStop(0.5, 'rgba(255,255,230,0.28)'); spec.addColorStop(1, 'rgba(255,255,230,0)');
+    c.fillStyle = spec; c.fillRect(w * 0.40, 0, w * 0.20, roofH);
+    // swietlik na grzbiecie
+    c.fillStyle = '#26301c'; c.fillRect(w * 0.5 - 12, 14, 24, roofH * 0.42);
+    const sky = c.createLinearGradient(0, 14, 0, 14 + roofH * 0.42);
+    sky.addColorStop(0, '#cfe8f4'); sky.addColorStop(1, '#6fa2bc');
+    c.fillStyle = sky; c.fillRect(w * 0.5 - 9, 17, 18, roofH * 0.42 - 6);
+    c.restore();
+    // rim light luku
+    c.lineWidth = 2; c.strokeStyle = 'rgba(232,240,200,0.45)';
+    c.beginPath(); c.roundRect(1, 1, w - 2, roofH + 4, [26, 26, 4, 4]); c.stroke();
+
+    // 4. Gwiazda na dachu z cieniem (czyta sie jako "BAZA GRACZA")
+    const scx = w * 0.5, scy = roofH * 0.72;
+    const starPts: number[] = [];
+    for (let i = 0; i < 10; i++) {
+        const rr = i % 2 === 0 ? 18 : 7.5;
+        const a = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+        starPts.push(scx + Math.cos(a) * rr, scy + Math.sin(a) * rr);
+    }
+    c.save();
+    c.shadowColor = 'rgba(0,0,0,0.5)'; c.shadowBlur = 4; c.shadowOffsetX = 2; c.shadowOffsetY = 3;
+    polygon(c, starPts);
+    const starG = c.createLinearGradient(scx, scy - 18, scx, scy + 18);
+    starG.addColorStop(0, '#ffe88a'); starG.addColorStop(1, '#c8952a');
+    c.fillStyle = starG; c.fill();
+    c.restore();
+    polygon(c, starPts); c.strokeStyle = '#5a3e10'; c.lineWidth = 1.5; c.stroke();
+
+    // 5. Sciana czolowa (poludnie): gradient, brama z cieplym swiatlem, lampy
+    const wallG = c.createLinearGradient(0, roofH, 0, h);
+    wallG.addColorStop(0, '#56643f'); wallG.addColorStop(1, '#323c26');
+    c.fillStyle = wallG; c.fillRect(0, roofH, w, WALL_H);
+    c.fillStyle = 'rgba(10,12,6,0.55)'; c.fillRect(0, roofH, w, 4); // okap
+    const gateW = w * 0.56, gateX = (w - gateW) / 2, gateY = roofH + 5, gateH = WALL_H - 7;
+    const glow = c.createLinearGradient(0, gateY, 0, gateY + gateH);
+    glow.addColorStop(0, '#3a2a10'); glow.addColorStop(1, '#ffc24a');
+    c.fillStyle = glow; c.fillRect(gateX, gateY, gateW, gateH);
+    const shutterH = gateH * 0.6;
+    const shG = c.createLinearGradient(0, gateY, 0, gateY + shutterH);
+    shG.addColorStop(0, '#5c6a4a'); shG.addColorStop(1, '#3c4630');
+    c.fillStyle = shG; c.fillRect(gateX, gateY, gateW, shutterH);
+    c.strokeStyle = 'rgba(0,0,0,0.35)'; c.lineWidth = 1;
+    for (let y = gateY + 3; y < gateY + shutterH; y += 3.5) { c.beginPath(); c.moveTo(gateX, y); c.lineTo(gateX + gateW, y); c.stroke(); }
+    // rozlane swiatlo na poligon przed brama
+    const spill = c.createRadialGradient(w / 2, h + 4, 4, w / 2, h + 4, gateW * 0.7);
+    spill.addColorStop(0, 'rgba(255,200,90,0.45)'); spill.addColorStop(1, 'rgba(255,200,90,0)');
+    c.fillStyle = spill; c.fillRect(gateX - 30, h - 6, gateW + 60, 30);
+    // rama bramy w pasy ostrzegawcze
+    c.save();
+    c.beginPath(); c.rect(gateX - 5, roofH + 2, gateW + 10, WALL_H - 2); c.rect(gateX, gateY, gateW, gateH); c.clip('evenodd');
+    for (let x = gateX - 40; x < gateX + gateW + 40; x += 10) {
+        c.fillStyle = Math.floor(x / 10) % 2 ? '#e8c040' : '#24221a';
+        polygon(c, [x, h, x + 6, roofH, x + 12, roofH, x + 6, h]); c.fill();
+    }
+    c.restore();
+    // lampy nad brama (kula + halo)
+    for (const lx of [gateX - 12, gateX + gateW + 12]) {
+        const halo = c.createRadialGradient(lx, roofH + 9, 1, lx, roofH + 9, 14);
+        halo.addColorStop(0, 'rgba(255,230,140,0.9)'); halo.addColorStop(1, 'rgba(255,230,140,0)');
+        c.fillStyle = halo; c.beginPath(); c.arc(lx, roofH + 9, 14, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#fff4c0'; c.beginPath(); c.arc(lx, roofH + 9, 3, 0, Math.PI * 2); c.fill();
+    }
+    // slupy narozne z blikiem
+    for (const x of [0, w - 6]) {
+        const pg = c.createLinearGradient(x, 0, x + 6, 0);
+        pg.addColorStop(0, '#3c4630'); pg.addColorStop(0.4, '#6a7a52'); pg.addColorStop(1, '#262e1c');
+        c.fillStyle = pg; c.fillRect(x, roofH - 2, 6, WALL_H + 2);
+    }
+
+    // 6. Worki z piaskiem (gradient = bryla) po bokach bramy
+    for (const bx of [10, w - 34]) {
+        for (let i = 0; i < 3; i++) {
+            const cx = bx + 12 + (i % 2) * 4, cy = h - 6 - i * 7;
+            const bg = c.createRadialGradient(cx - 4, cy - 2, 1, cx, cy, 13);
+            bg.addColorStop(0, '#d8c68e'); bg.addColorStop(1, '#7a6a40');
+            c.fillStyle = bg; c.beginPath(); c.ellipse(cx, cy, 12, 5, 0, 0, Math.PI * 2); c.fill();
+        }
+    }
+
+    // 7. Antena z czerwonym swiatlem pozycyjnym
+    c.strokeStyle = '#9a9a92'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(w - 22, 10); c.lineTo(w - 22, -22); c.stroke();
+    c.beginPath(); c.moveTo(w - 28, -12); c.lineTo(w - 16, -16); c.stroke();
+    const red = c.createRadialGradient(w - 22, -24, 0.5, w - 22, -24, 7);
+    red.addColorStop(0, 'rgba(255,90,70,1)'); red.addColorStop(1, 'rgba(255,90,70,0)');
+    c.fillStyle = red; c.beginPath(); c.arc(w - 22, -24, 7, 0, Math.PI * 2); c.fill();
 
     return cv;
 }

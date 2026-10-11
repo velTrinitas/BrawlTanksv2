@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * Statyczna tekstura miasta — bake'owana raz z Canvas 2D.
@@ -368,6 +369,8 @@ export const MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: 617, y: 200 },    // V1 street, północ
     { x: 1283, y: 850 },   // V2 street, środek
     { x: 1717, y: 1450 },  // V3 street, południe (fix #21 RELOCATED from V1 [617, 1450])
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 450, y: 2350 }] : []),
 ];
 
 /**

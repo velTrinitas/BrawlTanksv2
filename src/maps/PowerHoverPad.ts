@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { getPadShadowTexture } from './HoverRepairPad';
 import { simNowMs } from '../systems/SimClock';
+import { powerPadTurboMs } from '../config/playability';
 
 /**
  * PowerHoverPad — Turbo pad z v4.48.
@@ -54,7 +55,7 @@ function getPowerSlabTexture(active: boolean): PIXI.Texture {
     return tex;
 }
 const ACTIVATE_RANGE = 50;
-const TURBO_DURATION_MS = 5000;
+const TURBO_DURATION_MS = (): number => powerPadTurboMs(); // v0.245.0 GRYWALNOSC: 5000 -> 7000 (config/playability)
 const COOLDOWN_MS = 20000;
 const TURBO_MULT = 2.0;
 
@@ -186,7 +187,7 @@ export class PowerHoverPad {
         
         return {
             activated,
-            durationMs: TURBO_DURATION_MS,
+            durationMs: TURBO_DURATION_MS(),
             multiplier: TURBO_MULT,
         };
     }

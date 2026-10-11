@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { simNowMs } from '../../systems/SimClock'; // COOP S1
+import { powerPadTurboMs } from '../../config/playability';
 
 /**
  * CastlePowerPad — power/turbo pad scenariusza CTF (FAZA F4.2), wariant ruin.
@@ -16,7 +17,7 @@ import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 const PAD_SIZE = 100;
 const ACTIVATE_RANGE = 50;
-const TURBO_DURATION_MS = 5000;
+const TURBO_DURATION_MS = (): number => powerPadTurboMs(); // v0.245.0 GRYWALNOSC: 5000 -> 7000 (config/playability)
 const COOLDOWN_MS = 20000;
 const TURBO_MULT = 2.0;
 
@@ -89,7 +90,7 @@ export class CastlePowerPad {
         }
 
         this.drawVisuals(isActive, time);
-        return { activated, durationMs: TURBO_DURATION_MS, multiplier: TURBO_MULT };
+        return { activated, durationMs: TURBO_DURATION_MS(), multiplier: TURBO_MULT };
     }
 
     private drawVisuals(isActive: boolean, time: number): void {

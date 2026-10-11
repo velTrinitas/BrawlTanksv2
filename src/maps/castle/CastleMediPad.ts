@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 // TYPO-P1-7: napis szedl hardkodem po polsku — w EN byl bledem widocznym od razu.
 import { t } from '../../i18n/i18n';
 import { simNowMs } from '../../systems/SimClock'; // COOP S1
+import { medPadRepairMs } from '../../config/playability';
 
 /**
  * CastleMediPad — medi pad OBRON ZAMEK (F6): mechanika 1:1 z RuinsMediPad (kopia, izolacja
@@ -19,7 +20,7 @@ import { simNowMs } from '../../systems/SimClock'; // COOP S1
 
 const PAD_SIZE = 100;
 const ACTIVATE_RANGE = 60;
-const REPAIR_TIME_MS = 2250;
+const REPAIR_TIME_MS = (): number => medPadRepairMs(); // v0.245.0 GRYWALNOSC: 2250 -> 1575 (config/playability)
 const COOLDOWN_MS = 60000;
 
 let _platformTex: PIXI.Texture | null = null;
@@ -113,7 +114,7 @@ export class CastleMediPad {
             if (dist < ACTIVATE_RANGE && playerHp < playerMaxHp) {
                 if (!isPlayerMoving) {
                     if (!this._repairStart) this._repairStart = now;
-                    this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS);
+                    this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS());
                     if (this.repairProgress >= 1) {
                         healed = true;
                         this.cooldownEnd = now + COOLDOWN_MS;

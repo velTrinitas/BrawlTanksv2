@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * TropicsMap.ts — definicje mapy Tropiki (karaibskie gospodarstwo).
@@ -465,6 +466,8 @@ export const TROPICS_MEDI_PAD_POSITIONS: Array<{ x: number, y: number }> = [
     { x: WORLD_W * 0.20, y: WORLD_H * 0.54 },    // (600, 1620) — 70px poniżej E-W road
     { x: WORLD_W * 0.80, y: WORLD_H * 0.30 },    // (2400, 900) — zostaje, było OK
     { x: WORLD_W * 0.57, y: WORLD_H * 0.84 },    // (1710, 2520) — off N-S + off road #7
+    // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs: max odleglosc od padow, zero kolizji, >=500 px od krawedzi; rollback ?bal3=0)
+    ...(isPlayabilityV3() ? [{ x: 1575, y: 1400 }] : []),
 ];
 
 export const TROPICS_POWER_PAD_POSITIONS: Array<{ x: number, y: number }> = [

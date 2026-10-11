@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { t } from '../../i18n/i18n';
 import { MARS_HEX } from '../MarsMap';
+import { medPadRepairMs } from '../../config/playability';
 
 /**
  * MarsMediPad — "Sluza medyczna" repair station (grammar layer 7, medi).
@@ -20,7 +21,7 @@ import { MARS_HEX } from '../MarsMap';
  */
 
 const PAD_SIZE = 100;
-const REPAIR_TIME_MS = 2250;
+const REPAIR_TIME_MS = (): number => medPadRepairMs(); // v0.245.0 GRYWALNOSC: 2250 -> 1575 (config/playability)
 const COOLDOWN_MS = 60000;
 const ACTIVATION_PAD = 8;
 
@@ -200,7 +201,7 @@ export class MarsMediPad {
 
         if (isActive && inside && playerHp < playerMaxHp && !isPlayerMoving) {
             if (this._repairStart === null) this._repairStart = now;
-            this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS);
+            this.repairProgress = Math.min(1, (now - this._repairStart) / REPAIR_TIME_MS());
             if (this.repairProgress >= 1) {
                 healed = true;
                 this.repairProgress = 0;

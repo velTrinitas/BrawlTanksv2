@@ -109,7 +109,7 @@ import { CastleJump } from './systems/castle/CastleJump'; // GRUPA E: trampoliny
 import { CASTLE_TUNING, CASTLE_WAVES_TOTAL } from './systems/castle/castleWaves'; // OBRON ZAMEK F3
 import {
     buildDungeonTexture, DUNGEON_PLAYABLE, DUNGEON_ROCK_E, DUNGEON_CAGE, DUNGEON_PILLARS, DUNGEON_PLAYER_SPAWN, DUNGEON_LANES,
-    DUNGEON_MEDI_PAD_POSITIONS, DUNGEON_POWER_PAD_POSITIONS, DUNGEON_LAVA, isDungeonLavaPoint, dungeonLavaSeed, DUNGEON_TORCHES,
+    DUNGEON_MEDI_PAD_POSITIONS, DUNGEON_POWER_PAD_POSITIONS, DUNGEON_LAVA, isDungeonLavaPoint, isDungeonPrisonPoint, dungeonLavaSeed, DUNGEON_TORCHES,
 } from './maps/DungeonMap'; // SAVE THE QUEEN Q1
 import { DungeonBorder } from './maps/dungeon/DungeonBorder'; // SAVE THE QUEEN Q1
 import { DungeonPillar } from './maps/dungeon/DungeonPillar'; // SAVE THE QUEEN Q1
@@ -285,6 +285,7 @@ import { t, i18n, type TranslationKey } from './i18n/i18n';
 
 // === v0.50.0 Difficulty Balance v1: per-difficulty enemy stats + spawn config ===
 import { getDifficultyModifiers } from './config/difficulty';
+import { megaDodgeChance, magnetActiveMs, medPadScore, startGemCount, START_GEM_RING_MIN, START_GEM_RING_MAX, victoryBonus } from './config/playability'; // v0.245.0 GRYWALNOSC
 
 // === FAZA 6.5.2b: MainMenu jako bootstrap entry point ===
 import { MainMenu } from './ui/MainMenu';
@@ -308,7 +309,7 @@ import { haptic, HAPTIC } from './input/Haptics'; // v0.208.0 — wibracje: prez
 import { guardTestWindow } from './config/testWindow';
 // v0.187.0 FAZA 1 — twardnienie na bialy ekran (MatePad): straznik kontekstu WebGL,
 // produkcyjny raport bledow i nakladka diagnostyczna ?diag=1.
-import { getGroundTexture } from './maps/groundTextureCache';
+import { getGroundLayer, type GroundLayer } from './maps/groundTextureCache'; // v0.244.0: grunt w kaflach (upload porcjami)
 import { DamageSmoke } from './rendering/DamageSmoke';
 import { installContextGuard } from './rendering/ContextGuard';
 import { installDiagOverlay } from './rendering/DiagOverlay';
@@ -560,6 +561,7 @@ let castleEnemyBulletSolids: ICollidable[] | null = null;
 /** OBRON ZAMEK F3 — rdzen scenariusza (fale, cele, obrazenia struktur, respawn). */
 let castleSystem: CastleSystem | null = null;
 let castleJump: CastleJump | null = null; // GRUPA E — null poza Zamkiem
+let castleWasAirborne = false; // v0.245.0: zbocze lotu (krok trampoliny w szkoleniu)
 let castleFrameDelta = 1; // delta biezacej klatki dla targetFor (anti-grind liczony w klatkach)
 // SAVE THE QUEEN Q1 — mapa LOCHY: gruba skalna granica + kolumnada (reszta: Q2 cegly, Q4 lawa).
 let dungeonBorder: DungeonBorder | null = null;
@@ -569,7 +571,7 @@ let dungeonLava: DungeonLava[] = [];
 /** SAVE THE QUEEN Q5 — pochodnie (flara telegrafu, gasniecie PORWANA), nietoperze, grunt (tint = sciemnienie). */
 let dungeonTorches: DungeonTorch | null = null;
 let dungeonBats: DungeonBats | null = null;
-let dungeonGround: PIXI.Sprite | null = null;
+let dungeonGround: GroundLayer | null = null;
 /** SAVE THE QUEEN Q2 — rdzen scenariusza (zegar, wiezienie, Krolowa, wygrana/przegrana). */
 let queenSystem: QueenSystem | null = null;
 /** SAVE THE QUEEN Q3 — dyrektor spawnu (fazy z zegara, telegraf lane'u, boss z killi). */
@@ -605,6 +607,56 @@ function launchQueenTutorial(config: GameConfig): void {
             markQueenTutorialDone();
             if (cont) { queenTutSuppressOnce = true; void startGame(config); }
             else returnToMenuFromEnd();
+        },
+    });
+}
+/**
+ * v0.245.0 GRYWALNOSC (decyzja Mariusza: "tutorial na Zamku tak jak na KTB") — karty TutorialController nad
+ * istniejaca maszyna stanow CastleSystem (kroki 1-4 jak dotad + 5: skok na trampolinie). System liczy postep,
+ * karta tylko go pokazuje. GRAJ DALEJ = oblezenie rusza od intro; MENU = powrot do hubu.
+ */
+function ctfTutorialWanted(): boolean {
+    if (SIGMA_BOT) return false;
+    try {
+        if (new URLSearchParams(location.search).get('ctftut') === '1') return true;
+        return localStorage.getItem('bt2:ctf_tut_done') !== '1';
+    } catch { return false; }
+}
+/**
+ * v0.245.0 GRYWALNOSC (decyzja Mariusza: "tutorial CTF jak w KTB") — 2 karty nad sandboxem CTF (sily meczu
+ * NIE dospawnowane, tutorialActive = spawn off): podnies flage -> dowiez do hangaru. Koniec/POMIN: flaga
+ * urzadzenia + RESTART meczu od zera (wzorzec Krolowej — zero przeciekow: zdobyta flaga, wynik, tarcza).
+ */
+function launchCtfTutorial(cfg: GameConfig): void {
+    new TutorialController({
+        isTouch: touchManager.isActive,
+        steps: [
+            { title: t('ctf.tutk.1.title'), hint: t('ctf.tutk.1.hint'), isDone: () => (ctfSystem?.getCarriedFlag() ?? null) !== null || (currentSession?.ctf?.flagsCaptured ?? 0) > 0 },
+            { title: t('ctf.tutk.2.title'), hint: t('ctf.tutk.2.hint'), isDone: () => (currentSession?.ctf?.flagsCaptured ?? 0) > 0 },
+        ],
+        onDone: (cont) => {
+            try { localStorage.setItem('bt2:ctf_tut_done', '1'); } catch { /* prywatny tryb */ }
+            tutorialActive = false; clearTutorialSandbox();
+            if (cont) void startGame(cfg);
+            else returnToMenuFromEnd();
+        },
+    });
+}
+
+function launchCastleTutorial(): void {
+    const step = (): number => castleSystem?.tutorialStep ?? 0;
+    new TutorialController({
+        isTouch: touchManager.isActive,
+        steps: [
+            { title: t('castle.tutk.1.title'), hint: t('castle.tutk.1.hint'), isDone: () => step() === 0 || step() >= 2 },
+            { title: t('castle.tutk.2.title'), hint: t('castle.tutk.2.hint'), isDone: () => step() === 0 || step() >= 3 },
+            { title: t('castle.tutk.3.title'), hint: t('castle.tutk.3.hint'), isDone: () => step() === 0 || step() >= 4 },
+            { title: t('castle.tutk.4.title'), hint: t('castle.tutk.4.hint'), isDone: () => step() === 0 || step() >= 5 },
+            { title: t('castle.tutk.5.title'), hint: t('castle.tutk.5.hint'), isDone: () => step() === 0 },
+        ],
+        onDone: (cont) => {
+            castleSystem?.endTutorial();
+            if (!cont) returnToMenuFromEnd();
         },
     });
 }
@@ -1471,7 +1523,10 @@ menu.onGameRequested = (config: GameConfig) => {
         // po ukonczeniu/skip -> flaga + spawn wraca => plynnie prawdziwy mecz (bez restartu sceny).
         void startGame(config, true).then(() => {
             launchTutorial((cont) => {
-                markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
+                markTutorialCoreDone();
+                // v0.245.0: CTF — po rdzeniu od razu karty flagi (sandbox zostaje, sily meczu jeszcze nie ma)
+                if (cont && lastGameConfig && lastGameConfig.scenario === 'ctf' && ctfTutorialWanted()) { clearTutorialSandbox(); launchCtfTutorial(config); return; }
+                tutorialActive = false; clearTutorialSandbox();
                 if (cont) {
                     resetPlayerStateForMatch(config); // stan od zera (super/score) — sprawiedliwosc
                     if (lastGameConfig && lastGameConfig.scenario === 'ctf') spawnCtfMatchForces();
@@ -1479,6 +1534,9 @@ menu.onGameRequested = (config: GameConfig) => {
                 } else returnToMenuFromEnd();
             });
         });
+    } else if (config.scenario === 'ctf' && ctfTutorialWanted()) {
+        // v0.245.0: rdzen zaliczony, CTF pierwszy raz -> sandbox CTF + karty flagi, potem swiezy mecz
+        void startGame(config, true).then(() => launchCtfTutorial(config));
     } else {
         void startGame(config);
     }
@@ -1894,7 +1952,9 @@ menu.onHowToPlayRequested = () => {
     menu.hide();
     void startGame(cfg, true).then(() => {
         launchTutorial((cont) => {
-            markTutorialCoreDone(); tutorialActive = false; clearTutorialSandbox();
+            markTutorialCoreDone();
+            if (cont && cfg.scenario === 'ctf' && ctfTutorialWanted()) { clearTutorialSandbox(); launchCtfTutorial(cfg); return; } // v0.245.0
+            tutorialActive = false; clearTutorialSandbox();
             if (cont) {
                 resetPlayerStateForMatch(cfg); // stan od zera (super/score) — sprawiedliwosc
                 if (cfg.scenario === 'ctf') spawnCtfMatchForces();
@@ -2682,10 +2742,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
 
     performance.mark("bt:start:map");
     if (config.map === 'city') {
-        const cityTex = getGroundTexture('city', buildCityTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const citySprite = new PIXI.Sprite(cityTex);
-        citySprite.zIndex = -100;
-        worldContainer.addChild(citySprite);
+        const cityGround = getGroundLayer('city', buildCityTexture); // v0.244.0: kafle 750 px, upload porcjami przez prepare (cache jak dotad)
+        cityGround.zIndex = -100;
+        worldContainer.addChild(cityGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         CITY_BUILDINGS_LAYOUT.forEach(b => {
             const cb = new CyberBuilding(b[0], b[1], b[2], b[3], b[4], b[5], worldContainer);
@@ -2813,12 +2873,12 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         ];
 
     } else if (config.map === 'desert') {
-        const desertTex = isDesertArtV2()
-            ? getGroundTexture('desert_v2', buildDesertTextureV2) // DESERT ART v2 — ten sam rozmiar/VRAM
-            : getGroundTexture('desert', buildDesertTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const desertSprite = new PIXI.Sprite(desertTex);
-        desertSprite.zIndex = -100;
-        worldContainer.addChild(desertSprite);
+        const desertGround = isDesertArtV2()
+            ? getGroundLayer('desert_v2', buildDesertTextureV2) // DESERT ART v2 — ten sam rozmiar/VRAM
+            : getGroundLayer('desert', buildDesertTexture); // v0.244.0: kafle 750 px, upload porcjami (cache jak dotad)
+        desertGround.zIndex = -100;
+        worldContainer.addChild(desertGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         const desertV2 = isDesertArtV2(); // DESERT ART v2 (?desertart=1 / rollback ?desertart=0)
         DESERT_PYRAMID_LAYOUT.forEach(p => {
@@ -2961,12 +3021,12 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         powerPads = DESERT_POWER_PAD_POSITIONS.map(p => new DesertStormPad(p.x, p.y, worldContainer));
     } else if (config.map === 'tropics') {
         const tropicsV2 = isTropicsArtV2(); // TROPICS ART v2 / T2: grunt z wpieczonymi drogami
-        const tropicsTex = tropicsV2
-            ? getGroundTexture('tropics_v2', buildTropicsTextureV2)
-            : getGroundTexture('tropics', buildTropicsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const tropicsSprite = new PIXI.Sprite(tropicsTex);
-        tropicsSprite.zIndex = -100;
-        worldContainer.addChild(tropicsSprite);
+        const tropicsGround = tropicsV2
+            ? getGroundLayer('tropics_v2', buildTropicsTextureV2)
+            : getGroundLayer('tropics', buildTropicsTexture); // v0.244.0: kafle 750 px, upload porcjami (cache jak dotad)
+        tropicsGround.zIndex = -100;
+        worldContainer.addChild(tropicsGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         if (!tropicsV2) TROPICS_DIRT_ROAD_PATHS.forEach((waypoints, i) => {
             new DirtRoad(waypoints, worldContainer, 17 + i * 7);
@@ -3129,10 +3189,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // ── ARC-R1 "LODOWA ARENA" (koncepcja Mariusza 2026-08-01) ──
         // Tafla (zlagodzone pekniecia) + waska granatowa granica + male igloo.
         // Kostki lodu konstruowane PO utworzeniu effects/audio (wzorzec crates, nizej).
-        const arcticTex = getGroundTexture('arctic', buildArcticTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const arcticSprite = new PIXI.Sprite(arcticTex);
-        arcticSprite.zIndex = -100;
-        worldContainer.addChild(arcticSprite);
+        const arcticGround = getGroundLayer('arctic', buildArcticTexture); // v0.244.0: kafle 750 px, upload porcjami przez prepare (cache jak dotad)
+        arcticGround.zIndex = -100;
+        worldContainer.addChild(arcticGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         // Waska granica (wzorzec SandstormBorder): outer 30 + wizual 55, playable [40, 2960].
         arcticBorder = new ArcticBorder(WORLD_W, WORLD_H, worldContainer);
@@ -3183,10 +3243,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     } else if (config.map === 'fortified_ruins') {
         // ── FAZA CTF F1: Fortified Ruins (mapa scenariusza CTF) ──
         // Layout deterministyczny, AABB-verified (scratchpad ctf_f1_aabb.js — 15 checkow PASS).
-        const ruinsTex = getGroundTexture('fortified_ruins', buildFortifiedRuinsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const ruinsSprite = new PIXI.Sprite(ruinsTex);
-        ruinsSprite.zIndex = -100;
-        worldContainer.addChild(ruinsSprite);
+        const ruinsGround = getGroundLayer('fortified_ruins', buildFortifiedRuinsTexture); // v0.244.0: kafle 750 px, upload porcjami przez prepare (cache jak dotad)
+        ruinsGround.zIndex = -100;
+        worldContainer.addChild(ruinsGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         // Granica mapy: 4 AABB kolizji (wizual muru baked w teksture gruntu)
         ruinsBorder = new RuinsBorder(WORLD_W, WORLD_H, worldContainer);
@@ -3220,6 +3280,14 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
             worldContainer,
             { x: FORTIFIED_BRIDGE_RECT.x, w: FORTIFIED_BRIDGE_RECT.w },
         );
+        // v0.245.0 GRYWALNOSC (Mariusz: "mostki jak na Pustyni"): pieczony most v2 (deski na kamiennych
+        // przyczolkach) nad pasem FORTIFIED_BRIDGE_RECT. Tylko wizual: fizyka bez zmian — pas mostu i tak jest
+        // wyciety ze strefy slow fosy. Poklad 115 < 120 pasa => wizual nigdy nie obiecuje szybkiego przejazdu
+        // poza pasem (czytelnosc). Dlugosc = fosa 110 + przyczolki (proporcja jak Pustynia: 80 -> 180).
+        {
+            const FB = FORTIFIED_BRIDGE_RECT;
+            bridges.push(new Bridge(FB.x + FB.w / 2, FB.y + FB.h / 2, FB.h + 90, FB.w - 5, Math.PI / 2, worldContainer, true));
+        }
         ruinsBushes = FORTIFIED_BUSHES_LAYOUT.map(b =>
             new RuinsBush(b.x, b.y, b.r, b.seed, worldContainer));
         ruinsHangar = new RuinsHangar(worldContainer);
@@ -3248,10 +3316,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // ── FAZA MARS M2 "RDZAWY SWIT" — pierwsza mapa Map Factory ──
         // Layout FROZEN + AABB-verified: tools/mars_m1_layout.mjs (PASS, 0 bledow).
         // M2 = grunt + border (grywalna pusta mapa). M3+: baza/skaly/strefy/pady/UFO.
-        const marsTex = getGroundTexture('mars', buildMarsTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const marsSprite = new PIXI.Sprite(marsTex);
-        marsSprite.zIndex = -100;
-        worldContainer.addChild(marsSprite);
+        const marsGround = getGroundLayer('mars', buildMarsTexture); // v0.244.0: kafle 750 px, upload porcjami przez prepare (cache jak dotad)
+        marsGround.zIndex = -100;
+        worldContainer.addChild(marsGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         // Waska granica (wzorzec SandstormBorder): outer 30 + wizual 55, playable [40, 2960].
         marsBorder = new DuststormBorder(WORLD_W, WORLD_H, worldContainer);
@@ -3344,10 +3412,9 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // Layout FROZEN + AABB-verified: tools/junkyard_j0_layout.mjs (PASS, 0 bledow).
         // J1 = grunt + plot + stosy wrakow + opony + kontenery + biuro + kupki + pady + STAND-INY maszyn
         // (kolizja finalna, zero zachowan). J2 stealth, J3 prasa, J4 dzwig, J5 tasma/kruszarka, J6 zdarzenia.
-        const jyTex = getGroundTexture('junkyard', buildJunkyardTexture); // 34 MB VRAM — cache jak kazda mapa
-        const jySprite = new PIXI.Sprite(jyTex);
-        jySprite.zIndex = -100;
-        worldContainer.addChild(jySprite);
+        const jyGround = getGroundLayer('junkyard', buildJunkyardTexture); // v0.244.0: kafle 750 px, upload porcjami (cache jak dotad)
+        jyGround.zIndex = -100;
+        worldContainer.addChild(jyGround);
         await breathe(); // PERF: grunt 3000x3000 + bake'i propow w osobnych zadaniach (ekran ladowania nie zamarza)
 
         junkyardBorder = new JunkyardBorder(WORLD_W, WORLD_H, worldContainer);
@@ -3382,10 +3449,10 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // F1 = grunt (laka + droga pierscieniowa + fosa + mosty + bruk) + border +
         // glazy + pady Ruin jako placeholder. F2: zamek (CastlePart), fosa-strefa,
         // las, kaplica, pelny bake. F3: CastleSystem + fale.
-        const castleTex = getGroundTexture('castle_grounds', buildCastleTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const castleSprite = new PIXI.Sprite(castleTex);
-        castleSprite.zIndex = -100;
-        worldContainer.addChild(castleSprite);
+        const castleGround = getGroundLayer('castle_grounds', buildCastleTexture); // v0.244.0: kafle 750 px, upload porcjami przez prepare (cache jak dotad)
+        castleGround.zIndex = -100;
+        worldContainer.addChild(castleGround);
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         castleBorder = new CastleBorder(WORLD_W, WORLD_H, worldContainer);
         buildings.push(...castleBorder.getCollisionRects());
@@ -3468,11 +3535,11 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         // Q1 = grunt (plyty + lawa statyczna + mosty + kregi gejzerow + skala + luki lane'ow
         // + cela) + kolumnada + pady Zamku jako placeholder (reskin w Q5). Q2: PrisonBrick /
         // ruda / Zwornik / Krolowa + QueenSystem. Q4: DungeonLava (DoT+slow), gejzery.
-        const dungeonTex = getGroundTexture('dungeon', buildDungeonTexture); // v0.187.0: 34 MB VRAM — cache zamiast alokacji co mecz
-        const dungeonSprite = new PIXI.Sprite(dungeonTex);
-        dungeonSprite.zIndex = -100;
-        worldContainer.addChild(dungeonSprite);
-        dungeonGround = dungeonSprite; // Q5: tint = sciemnienie PORWANA (zero overlayow)
+        const dungeonGroundLayer = getGroundLayer('dungeon', buildDungeonTexture); // v0.244.0: kafle 750 px, upload porcjami (cache jak dotad)
+        dungeonGroundLayer.zIndex = -100;
+        worldContainer.addChild(dungeonGroundLayer);
+        dungeonGround = dungeonGroundLayer; // Q5: tint = sciemnienie PORWANA (zero overlayow; GroundLayer.tint = wszystkie kafle)
+        await breathe(); // PERF: raster gruntu w osobnym zadaniu, bake'i propow w nastepnym
 
         dungeonBorder = new DungeonBorder(WORLD_W, WORLD_H, DUNGEON_PLAYABLE, [DUNGEON_ROCK_E, ...DUNGEON_CAGE]); // v3: klatka celi = cienkie prety kolizji
         buildings.push(...dungeonBorder.getCollisionRects());
@@ -4122,6 +4189,8 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     }) : null;
     spawnSystem.onKill = rangeDirector ? (enemy) => { if (localPlayer) rangeDirector?.onKill(enemy, localPlayer.x, localPlayer.y); } : null;
     bullets = [];
+    Enemy.megaThreatBullets = bullets; // v0.245.0 GRYWALNOSC: unik mega bossa widzi pociski gracza
+    Enemy.megaDodgeChance = megaDodgeChance(config.difficulty);
     bulletPool = []; // POOLING: pula pociskow gracza (stare sprite'y znika removeChildren)
     enemyBullets = [];
     enemyBulletPool = []; // POOLING: pula pociskow wroga (stare sprite'y znika removeChildren)
@@ -4212,6 +4281,16 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         }
     }
 
+    // v0.245.0 GRYWALNOSC: darmowe gemy w polu widzenia na starcie (KTB + Zamek; CTF ma swoje 12).
+    // 8 gemow = "jeszcze 2 zabicia do supera" (10 gemow = 3 ladunki). Pozycje z worldRng (determinizm).
+    if (!tutorialMode && (config.scenario === 'ktb' || config.scenario === 'castle') && spawnSystem && localPlayer) {
+        const n = startGemCount();
+        for (let i = 0; i < n; i++) {
+            const pos = spawnSystem.findPickupPosInRing(localPlayer.x, localPlayer.y, i, n, START_GEM_RING_MIN, START_GEM_RING_MAX, buildings, spawnBlocked);
+            if (pos) spawnGem(pos.x, pos.y);
+        }
+    }
+
     // OBRON ZAMEK F2 — tablice kolizji wrogow liczone RAZ, po finalizacji buildings/
     // solidBuildings (skrzynki/sciany mocy dochodza pozniej do `buildings` — ruch
     // wrogow uzywa kopii z furtkami, jak CTF; pociski wroga dostaja proxy z takeDamage).
@@ -4225,6 +4304,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         ];
 
         // F3: rdzen scenariusza — po effects/audio/powerSystem (konstrukcja jak CtfSystem).
+        const castleTutWanted = !tutorialMode && (castleTutorialForced() || !castleTutorialDone()); // v0.245.0: wspolne dla systemu i kart
         castleSystem = new CastleSystem({
             session: currentSession,
             worldContainer,
@@ -4253,11 +4333,14 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
             // F6: telegraf lane'u — portal w kolorze wroga na obozie, z ktorego rusza batch (Czytelnosc: skad ida)
             onLaneBatch: (lane) => { const l = CASTLE_LANES.find(x => x.id === lane); if (l) effects.spawnPortal(l.x, l.y, 0xff4d4d); audio.playMineDrop(); }, // P1: telegraf slyszalny
             // TUTORIAL scenariusza: raz per urzadzenie (wzorzec GoalCard bt2:goal_*), ?castletut=1 wymusza
-            tutorial: !tutorialMode && (castleTutorialForced() || !castleTutorialDone()),
+            tutorial: castleTutWanted,
+            tutorialExternalUi: true, // v0.245.0: karty TutorialController (jak KTB/Krolowa) + krok trampoliny
             onTutorialDone: () => { try { localStorage.setItem('bt2:castle_tut_done', '1'); } catch { /* prywatny tryb */ } },
         });
         powerSystem.onRepairActivated = (x, y) => castleSystem?.onRepairPower(x, y);
         castleJump = new CastleJump(worldContainer); // GRUPA E — trampoliny zawsze (decyzja Mariusza, v0.194.0)
+        castleWasAirborne = false;
+        if (castleTutWanted && !SIGMA_BOT) launchCastleTutorial(); // v0.245.0
         // debug F12 (P0.13: tylko DEV / ?perf=1): castleInfo() -> stan HUD scenariusza; castleWave(n) -> natychmiastowy start fali n
         if (CASTLE_DEBUG_HOOKS) {
         (window as any).castleInfo = () => castleSystem?.getHudInfo();
@@ -5120,6 +5203,9 @@ async function triggerVictory(): Promise<void> {
         // OBRON ZAMEK F3: Perfect Run zamku = zero smierci (respawn jest czescia petli), nie "zero obrazen".
         const perfectRun = castleSystem ? currentSession.applyCastlePerfectRunBonus() : currentSession.applyPerfectRunBonus();
         victoryPerfectRun = perfectRun.applied;
+        // v0.245.0 GRYWALNOSC: premia za wygrana (Normalny +25 / Trudny +75 / Koszmar +150) — glosno (Flex).
+        const vb = currentSession.addVictoryBonus(victoryBonus(currentSession.config.difficulty));
+        if (vb.added > 0) hud.addNotif(t('hud.victoryBonus', { bonus: vb.added }), '#f1c40f');
         if (perfectRun.applied) {
             console.log(`[Score] PERFECT RUN bonus applied: +${perfectRun.bonus} pts`);
             hud.addNotif(t('hud.perfectRun', { bonus: perfectRun.bonus }), '#f1c40f');
@@ -5951,6 +6037,9 @@ function runLogicStep(delta: number): void {
         : junkyardJump
             ? junkyardJump.update(delta, localPlayer, buildings, effects, gameState === 'PLAYING' && !tutorialActive, (tx, c) => hud.addNotif(tx, c)) // ZLOMOWISKO J6b
             : false;
+    // v0.245.0: zbocze wybicia z trampoliny -> krok 5 szkolenia Zamku
+    if (castleAirborne && !castleWasAirborne && castleJump) castleSystem?.notifyTutorialJump();
+    castleWasAirborne = castleAirborne;
     if (castlePlayerDead) { isMouseDown = false; localInput.fire = false; localPlayer.firing = false; }
     else if (castleAirborne) { localPlayer.firing = false; } // isMouseDown zostaje: po ladowaniu trzymany strzal dziala dalej
     else {
@@ -6010,7 +6099,12 @@ function runLogicStep(delta: number): void {
         const pp = padOccupant(pad.x, pad.y);
         const result = pad.update(pp.x, pp.y, pp.isMoving, pp.hp, pp.maxHp, time);
         if (result.healed) {
+            const padHealedForReal = pp.hp < pp.maxHp; // v0.245.0: punkty TYLKO za realne leczenie (anty-farma)
             pp.hp = Math.min(pp.maxHp, pp.hp + 100);
+            if (padHealedForReal && pp === localPlayer && currentSession && !tutorialActive) {
+                const { added } = currentSession.addMedPadBonus(medPadScore());
+                if (added > 0) effects.spawnFloatingText(pp.x, pp.y - 50, `+${added}`, 0x2ecc71);
+            }
             effects.spawnEnemyHitSparks(pp.x, pp.y, 0x2ecc71);
             if (pp === localPlayer) {
                 hud.addNotif(t('hud.mediPadHeal', { hp: 100 }), '#2ecc71');
@@ -6200,12 +6294,12 @@ function runLogicStep(delta: number): void {
         const mp = playerTouching(m.x, m.y, m.radius + 22); // COOP S5
         if (mp) {
             if (m.pickup(effects)) {
-                psOf(mp).activateMagnet(PICKUP_CONFIG.magnetActiveDurationMs); // COOP S7: magnes ZBIERAJACEGO
+                psOf(mp).activateMagnet(magnetActiveMs()); // COOP S7: magnes ZBIERAJACEGO
                 if (mp === localPlayer) {
-                    hud.addNotif(t('hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }), '#e74c3c');
+                    hud.addNotif(t('hud.magnetActive', { sec: Math.round(magnetActiveMs() / 1000) }), '#e74c3c');
                     audio.playMagnetPickup();
                     QuestService.track('magnet'); // PROG-F3
-                } else coopNotify(mp, 'hud.magnetActive', { sec: Math.round(PICKUP_CONFIG.magnetActiveDurationMs / 1000) }, '#e74c3c');
+                } else coopNotify(mp, 'hud.magnetActive', { sec: Math.round(magnetActiveMs() / 1000) }, '#e74c3c');
                 m.destroy();
                 magnets.splice(i, 1);
             }
@@ -6695,7 +6789,8 @@ function runLogicStep(delta: number): void {
         // jako "pomin szkolenie" w tutorialu — to inna funkcja i jej usuniecie zabraloby
         // graczowi mozliwosc przeskoczenia szkolenia.
         const btn = ensureCastleNextBtn();
-        const showBtn = ci.phase === 'tutorial' && gameState === 'PLAYING';
+        // v0.245.0: szkolenie ma karte TutorialController z wlasnym POMIN — drugi przycisk bylby dublem.
+        const showBtn = false && ci.phase === 'tutorial' && gameState === 'PLAYING';
         const label = t('castle.tut.skip');
         if (showBtn) { if (btn.style.display !== 'block' || btn.textContent !== label) { btn.textContent = label; btn.style.display = 'block'; } }
         else if (btn.style.display !== 'none') btn.style.display = 'none';
@@ -6798,6 +6893,15 @@ if (SIGMA_BOT) {
             get powerCubes() { return powerCubes; },
             get buildings() { return buildings; },
             get solidBuildings() { return solidBuildings; },
+            get powerPadsPos() { return powerPads.map(pd => ({ x: pd.x, y: pd.y })); }, // v0.245.0: tools/pad-placement.mjs
+            // v0.245.0: tools/pad-placement.mjs — pad nie moze lezec w strefie niedrivalnej, lawie ANI w strefie
+            // specjalnej (pole/krzaki/parking/myjnia/regolit/ogrod) — pad w krzakach = falszywa czytelnosc.
+            isBlocked: (x: number, y: number) => spawnBlocked(x, y)
+                || (dungeonLava.length > 0 && (isDungeonLavaPoint(x, y) || isDungeonPrisonPoint(x, y)))
+                || farmFields.some(f => f.isPointInside(x, y)) || ruinsBushes.some(b => b.isPointInside(x, y))
+                || neonStations.some(n => n.isPointInside(x, y))
+                || regolithFields.some(r => r.isPointInside(x, y)) || hydroGardens.some(h => h.isPointInside(x, y))
+                || castleWheat.some(w => w.isPointInside(x, y)) || (!!foamStation && foamStation.isPointInside(x, y)),
             get camera() { return camera; },
             get session() { return currentSession; },
             get rangeReport() { return rangeDirector?.report() ?? null; }, // STRZELNICA v0.209.0

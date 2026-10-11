@@ -76,4 +76,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 14; // v0.243.0: ZLOMOWISKO live (new map + machines in the sim)
+export const SIM_VERSION = 15; // v0.245.0: GRYWALNOSC (trudnosc d3, start bez spawnu 3 s, gemy startowe, pickupy/pady)

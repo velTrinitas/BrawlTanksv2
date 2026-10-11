@@ -921,6 +921,21 @@ export const pl = {
     'queen.door.open': 'DRZWI OTWARTE! Do Królowej!',
     'queen.ready': 'GOTUJ SIĘ!',
     'queen.tut.title': '👸 SZKOLENIE RATOWNIKA',
+    // v0.245.0 GRYWALNOSC: karty szkolenia Zamku i CTF (TutorialController, jak KTB)
+    'castle.tutk.1.title': 'BRAMA!',
+    'castle.tutk.1.hint': 'Podjedź do BRAMY na dole — otworzy się sama',
+    'castle.tutk.2.title': 'ZA FOSĘ!',
+    'castle.tutk.2.hint': 'Wyjedź MOSTEM za fosę i wróć do środka zamku',
+    'castle.tutk.3.title': 'ZWIAD!',
+    'castle.tutk.3.hint': 'Nadciągają 3 wrogowie DROGĄ na bramę — zniszcz ich!',
+    'castle.tutk.4.title': 'NAPRAW MUR!',
+    'castle.tutk.4.hint': 'Mur oberwał. STAŃ przy nim nieruchomo, aż pasek się zapełni',
+    'castle.tutk.5.title': 'TRAMPOLINA!',
+    'castle.tutk.5.hint': 'Wjedź na TRAMPOLINĘ na dziedzińcu — wyskoczysz za mury!',
+    'ctf.tutk.1.title': 'FLAGA!',
+    'ctf.tutk.1.hint': 'Jedź do FLAGI wroga (strzałka 🚩) i najedź na nią',
+    'ctf.tutk.2.title': 'DO HANGARU!',
+    'ctf.tutk.2.hint': 'Masz flagę! Wieź ją do swojego HANGARU po lewej',
     'queen.tut.1.title': 'CEGŁA!',
     'queen.tut.1.hint': 'Jedź do MURU na wschodzie i rozbij cegłę — strzelaj w nią',
     'queen.tut.2.title': 'ZWORNIK!',
@@ -1240,6 +1255,7 @@ export const pl = {
 
     // Achievement (end-game)
     'hud.perfectRun':     '⭐ PERFECT RUN! +{bonus} pkt',
+    'hud.victoryBonus':   '🏆 ZWYCIĘSTWO! +{bonus} pkt',
 
     // Combo (PL=EN — gaming convention, dzieciaki znaja terminy z innych gier)
     'hud.comboDouble':    'DOUBLE!',

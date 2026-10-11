@@ -95,6 +95,9 @@ export interface CastleSystemOpts {
     onLaneBatch: (lane: CastleLaneId) => void;
     /** TUTORIAL: true = zacznij od szkolenia (4 kroki) zamiast intro. */
     tutorial: boolean;
+    /** v0.245.0: kroki szkolenia pokazuje TutorialController (karta jak KTB) — system NIE wyswietla banerow
+     *  krokow, a po naprawie muru dochodzi krok 5 (skok na trampolinie, main.ts -> notifyTutorialJump). */
+    tutorialExternalUi?: boolean;
     /** TUTORIAL zaliczony/pominiety — main zapisuje flage per urzadzenie. */
     onTutorialDone: () => void;
 }
@@ -188,8 +191,10 @@ export class CastleSystem {
             this.phase = 'tutorial';
             this.tutStep = 1;
             this.tutStepAt = now;
-            opts.banner(t('castle.tut.title'), '#e0b53c', 150);
-            opts.hudNotif(t('castle.tut.step1'), '#e0b53c');
+            if (!opts.tutorialExternalUi) {
+                opts.banner(t('castle.tut.title'), '#e0b53c', 150);
+                opts.hudNotif(t('castle.tut.step1'), '#e0b53c');
+            }
         } else {
             this.phase = 'intro';
             this.phaseUntil = now + T.firstWaveDelayMs;
@@ -203,6 +208,7 @@ export class CastleSystem {
     private tutStepAt = 0;
     private tutWentOut = false;
     private tutWall: CastlePart | null = null;
+    private tutJumped = false; // v0.245.0: krok 5 (trampolina) — tylko przy tutorialExternalUi
 
     private tutAdvance(next: number, now: number): void {
         this.tutStep = next;
@@ -210,7 +216,8 @@ export class CastleSystem {
         this.opts.audio.playMenuClick();
         const key = next === 2 ? 'castle.tut.step2' : next === 3 ? 'castle.tut.step3' : 'castle.tut.step4';
         // v0.191.0: bylo baner + notif z TYM SAMYM tekstem w jednej klatce. Zostaje baner.
-        this.opts.banner(t(key), '#e0b53c', 170);
+        // v0.245.0: przy karcie TutorialController tekst kroku jest na karcie — baner bylby dublem.
+        if (!this.opts.tutorialExternalUi) this.opts.banner(t(key), '#e0b53c', 170);
         if (next === 3) {
             this.director.spawnScouts(3, 'S');
             this.noteLane('S');
@@ -222,7 +229,7 @@ export class CastleSystem {
             w.applyDamage(Math.round(w.maxHp * 0.55));
             this.opts.effects.spawnShockwaveRing(w.centerX, w.centerY, 90, 0xc9ccd0);
             this.opts.effects.shake(8, 12);
-            this.opts.banner(t('castle.repairHint'), '#2ecc71', 150);
+            if (!this.opts.tutorialExternalUi) this.opts.banner(t('castle.repairHint'), '#2ecc71', 150);
         }
     }
 
@@ -238,7 +245,7 @@ export class CastleSystem {
         this.phase = 'intro';
         this.phaseUntil = now + T.firstWaveDelayMs;
         this.nextHintAt = now + 1200;
-        if (!skipped) this.opts.banner(t('castle.tut.done'), '#2ecc71', 150);
+        if (!skipped && !this.opts.tutorialExternalUi) this.opts.banner(t('castle.tut.done'), '#2ecc71', 150);
         this.opts.onTutorialDone();
     }
 
@@ -256,7 +263,13 @@ export class CastleSystem {
                 if (now - this.tutStepAt > 1500 && this.director.aliveCount() === 0) this.tutAdvance(4, now);
                 break;
             case 4:
-                if (this.tutWall && this.tutWall.hpPct >= 0.9) this.tutFinish(now, false);
+                if (this.tutWall && this.tutWall.hpPct >= 0.9) {
+                    if (this.opts.tutorialExternalUi) { this.tutStep = 5; this.tutStepAt = now; this.opts.audio.playMenuClick(); }
+                    else this.tutFinish(now, false);
+                }
+                break;
+            case 5: // v0.245.0: skok na trampolinie (karta TutorialController)
+                if (this.tutJumped) this.tutFinish(now, false);
                 break;
         }
     }
@@ -264,6 +277,12 @@ export class CastleSystem {
     // ── PUBLIC API ─────────────────────────────────────────────────────────
 
     public get currentPhase(): CastlePhase { return this.phase; }
+    /** v0.245.0: krok szkolenia (1..5) dla kart TutorialController; 0 = poza szkoleniem. */
+    public get tutorialStep(): number { return this.phase === 'tutorial' ? this.tutStep : 0; }
+    /** v0.245.0: gracz wybil sie z trampoliny (main.ts, zbocze isAirborne). Liczy sie tylko w kroku 5. */
+    public notifyTutorialJump(): void { if (this.phase === 'tutorial' && this.tutStep === 5) this.tutJumped = true; }
+    /** v0.245.0: POMIN / koniec karty — konczy szkolenie, jesli jeszcze trwa (idempotentne). */
+    public endTutorial(): void { if (this.phase === 'tutorial') this.tutFinish(Date.now(), true); }
     public get currentWave(): number { return this.wave; }
     public isPlayerDead(): boolean { return this.playerDead; }
     public isSpawnInvul(): boolean { return Date.now() < this.invulUntil; }

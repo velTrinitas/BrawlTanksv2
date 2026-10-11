@@ -685,6 +685,28 @@ export class GameSession {
         return { added: bonus };
     }
 
+    /** v0.245.0 GRYWALNOSC — premia za WYGRANA (Normalny +25 / Trudny +75 / Koszmar +150), PO mnozniku
+     *  trudnosci jak Perfect Run. Wolac RAZ w triggerVictory. Liczby: config/playability.ts. */
+    public bonusVictory: number = 0;
+    addVictoryBonus(bonus: number): { added: number } {
+        if (bonus <= 0) return { added: 0 };
+        this.scoreFromStaticBonus += bonus;
+        this.bonusVictory += bonus;
+        this.recomputeScore();
+        return { added: bonus };
+    }
+
+    /** v0.245.0 GRYWALNOSC — punkty za leczenie na medi padzie (+35), tylko gdy pad faktycznie leczyl
+     *  (caller sprawdza HP < max przed leczeniem). PO mnozniku — liczba w popupie = liczba w wyniku. */
+    public bonusMedPad: number = 0;
+    addMedPadBonus(bonus: number): { added: number } {
+        if (bonus <= 0) return { added: 0 };
+        this.scoreFromStaticBonus += bonus;
+        this.bonusMedPad += bonus;
+        this.recomputeScore();
+        return { added: bonus };
+    }
+
     /**
      * OBRON ZAMEK F3 — bonusy statyczne scenariusza Zamku (fala odparta, wczesny start,
      * bonusy koncowe). Laduja w scoreFromStaticBonus (PO mnozniku trudnosci — jak flagi),

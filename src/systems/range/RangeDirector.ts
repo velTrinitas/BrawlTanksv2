@@ -220,6 +220,7 @@ export class RangeDirector {
             dmg: Math.round(base.dmg * m.enemyDmgMult),
             bulletDmg: Math.round(base.bulletDmg * m.enemyDmgMult),
             bulletSpeed: base.bulletSpeed * m.enemyBulletSpeedMult,
+            shootIntervalMs: Math.round(base.shootIntervalMs / m.enemyFireRateMult), // v0.245.0 GRYWALNOSC
             speedMin: base.speedMin * m.enemySpeedMult,
             speedMax: base.speedMax * m.enemySpeedMult,
         };

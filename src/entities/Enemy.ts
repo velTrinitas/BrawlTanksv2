@@ -250,6 +250,16 @@ export class Enemy {
     private megaPhase: MegaBossPhase = 'rush';
     private megaStrafeAngle: number = 0;
     private megaStrafeDir: number = 1;
+    // v0.245.0 GRYWALNOSC — unik mega bossa: telegraf (blysk) -> boczny zwrot. Czasy na zegarze meczu.
+    private megaDodgeNextCheck: number = 0;
+    private megaDodgeTelegraphUntil: number = 0;
+    private megaDodgeUntil: number = 0;
+    private megaDodgeDirX: number = 0;
+    private megaDodgeDirY: number = 0;
+    /** Pociski gracza, przed ktorymi mega boss moze uskoczyc (main.ts ustawia raz na mecz — referencja tablicy). */
+    public static megaThreatBullets: ReadonlyArray<{ x: number; y: number; vx: number; vy: number; active: boolean }> = [];
+    /** Szansa uniku per wykryte zagrozenie (0 = wylaczony). main.ts ustawia z difficulty (config/playability). */
+    public static megaDodgeChance: number = 0;
     private megaShieldActive: boolean = false;
     private megaShieldNextTime: number = 0;
     private megaShieldEndTime: number = 0;
@@ -453,6 +463,25 @@ export class Enemy {
     private avoidSide = 0;          // -1 / 0 / +1 — strona skretu (0 = brak)
     private avoidFrames = 0;        // pamiec strony (histereza)
     private static readonly AVOID_HOLD = 42;
+    /** v0.245.0: pierwszy pocisk gracza lecacy W mega bossa (< 350 px, korytarz +-60 px). */
+    private findMegaThreat(): { x: number; y: number; vx: number; vy: number } | null {
+        const list = Enemy.megaThreatBullets;
+        for (let i = 0; i < list.length; i++) {
+            const b = list[i];
+            if (!b.active) continue;
+            const rx = this.x - b.x, ry = this.y - b.y;
+            const d2 = rx * rx + ry * ry;
+            if (d2 > 350 * 350) continue;
+            const sp = Math.hypot(b.vx, b.vy);
+            if (sp < 0.01) continue;
+            const along = (rx * b.vx + ry * b.vy) / sp;
+            if (along <= 0) continue; // pocisk juz minal / leci w druga strone
+            const perp = Math.abs(rx * b.vy - ry * b.vx) / sp;
+            if (perp < 60) return b;
+        }
+        return null;
+    }
+
     private moveAvoiding(mx: number, my: number, delta: number, buildings: ICollidable[], r: number): void {
         const speed = Math.hypot(mx, my);
         if (speed < 0.01) { if (this.avoidFrames > 0) this.avoidFrames -= delta; return; }
@@ -1039,6 +1068,36 @@ export class Enemy {
                 if (dist < 500) {
                     moveX = -(dx / dist) * effectiveSpeed * 1.3;
                     moveY = -(dy / dist) * effectiveSpeed * 1.3;
+                }
+            }
+
+            // v0.245.0 GRYWALNOSC: unik pocisku gracza. Czytelnosc > spryt: najpierw 150 ms blysku
+            // (gracz WIDZI, ze boss zaraz uskoczy), potem 350 ms bocznego zwrotu, potem 2.5 s przerwy.
+            if (Enemy.megaDodgeChance > 0) {
+                if (now < this.megaDodgeUntil) {
+                    moveX = this.megaDodgeDirX * effectiveSpeed * 2.2;
+                    moveY = this.megaDodgeDirY * effectiveSpeed * 2.2;
+                } else if (this.megaDodgeTelegraphUntil > 0) {
+                    if (this.flashOverlay) { this.flashOverlay.texture = this.hull.texture; this.flashOverlay.visible = true; }
+                    if (now >= this.megaDodgeTelegraphUntil) {
+                        this.megaDodgeTelegraphUntil = 0;
+                        this.megaDodgeUntil = now + 350;
+                        if (this.flashOverlay) this.flashOverlay.visible = false;
+                    }
+                } else if (now >= this.megaDodgeNextCheck) {
+                    const threat = this.findMegaThreat();
+                    if (threat) {
+                        this.megaDodgeNextCheck = now + 2500;
+                        if (worldRng.chance(Enemy.megaDodgeChance)) {
+                            // Prostopadle do toru pocisku, w strone, po ktorej boss juz stoi (krotsza droga z toru).
+                            const sp = Math.hypot(threat.vx, threat.vy) || 1;
+                            const ux = threat.vx / sp, uy = threat.vy / sp;
+                            const side = (this.x - threat.x) * -uy + (this.y - threat.y) * ux >= 0 ? 1 : -1;
+                            this.megaDodgeDirX = -uy * side;
+                            this.megaDodgeDirY = ux * side;
+                            this.megaDodgeTelegraphUntil = now + 150;
+                        }
+                    }
                 }
             }
 

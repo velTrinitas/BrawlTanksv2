@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { WORLD_W, WORLD_H } from '../config/constants';
+import { isPlayabilityV3 } from '../config/playability';
 
 /**
  * JunkyardMap.ts — map definitions for ZLOMOWISKO (junkyard), KTB map.
@@ -170,7 +171,8 @@ export const JUNKYARD_LAYOUT = Object.freeze({
     containers: [{ x: 2200, y: 400, w: 180, h: 100 }, { x: 2500, y: 400, w: 180, h: 100 }] as ReadonlyArray<JyRect>,
     /** Scrap office (solid) — megaphone roof for "Wyprzedaz czesci" (J6). */
     office: { x: 640, y: 2380, w: 220, h: 140 } as JyRect,
-    mediPads: [{ x: 420, y: 1120 }, { x: 2540, y: 1120 }, { x: 1500, y: 2200 }],
+    mediPads: [{ x: 420, y: 1120 }, { x: 2540, y: 1120 }, { x: 1500, y: 2200 },
+        ...(isPlayabilityV3() ? [{ x: 1600, y: 450 }] : [])], // v0.245.0 GRYWALNOSC: +1 medi pad (tools/pad-placement.mjs)
     powerPads: [{ x: 420, y: 2300 }, { x: 1900, y: 2300 }],
     /** Crane console pad (J4). */
     cranePad: { x: 1220, y: 560 },

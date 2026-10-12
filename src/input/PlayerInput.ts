@@ -33,10 +33,12 @@ export interface PlayerInput {
     dash: boolean;
     /** Prosba o aktywacje slotu mocy w tym kroku: -1 = brak, 0/1/2 = slot. */
     superSlot: number;
+    /** v0.246.0: prosba o CECHE czolgu (4. slot) w tym kroku (zbocze). */
+    trait: boolean;
 }
 
 export function createPlayerInput(): PlayerInput {
-    return { seq: 0, tick: 0, moveX: 0, moveY: 0, analog: false, aimX: 0, aimY: 0, fire: false, dash: false, superSlot: -1 };
+    return { seq: 0, tick: 0, moveX: 0, moveY: 0, analog: false, aimX: 0, aimY: 0, fire: false, dash: false, superSlot: -1, trait: false };
 }
 
 const Q = 127;
@@ -54,7 +56,7 @@ export function quantizeInput(inp: PlayerInput): PlayerInput {
 }
 
 /** Bity flag w slocie [6]. */
-const F_FIRE = 1, F_DASH = 2, F_ANALOG = 4;
+const F_FIRE = 1, F_DASH = 2, F_ANALOG = 4, F_TRAIT = 8; // v0.246.0: bit cechy
 
 /**
  * Pakowanie do 8 x int16 (16 B) — ramka sieciowa LAN-2.
@@ -68,7 +70,7 @@ export function packInput(inp: PlayerInput, out: Int16Array = new Int16Array(8))
     out[3] = Math.round(inp.moveY * Q);
     out[4] = qCoord(inp.aimX);
     out[5] = qCoord(inp.aimY);
-    out[6] = (inp.fire ? F_FIRE : 0) | (inp.dash ? F_DASH : 0) | (inp.analog ? F_ANALOG : 0);
+    out[6] = (inp.fire ? F_FIRE : 0) | (inp.dash ? F_DASH : 0) | (inp.analog ? F_ANALOG : 0) | (inp.trait ? F_TRAIT : 0);
     out[7] = inp.superSlot;
     return out;
 }
@@ -82,6 +84,7 @@ export function unpackInput(buf: Int16Array, out: PlayerInput = createPlayerInpu
     out.aimY = buf[5];
     out.fire = (buf[6] & F_FIRE) !== 0;
     out.dash = (buf[6] & F_DASH) !== 0;
+    out.trait = (buf[6] & F_TRAIT) !== 0; // v0.246.0
     out.analog = (buf[6] & F_ANALOG) !== 0;
     out.superSlot = buf[7] >= 0 && buf[7] <= 2 ? buf[7] : -1;
     return out;

@@ -9,6 +9,7 @@ import { SIM_VERSION } from '../config/multiplayer';
 import { INPUT_FORMAT_VERSION } from '../input/PlayerInput';
 import { balanceRulesetId } from '../config/balanceFlag';
 import { difficultyRulesetId } from '../config/playability';
+import { traitRulesetId } from '../config/traits';
 import { CURSE_RULESET_ID } from '../config/desertCurse';
 
 /** Wersja protokolu sieciowego (format komunikatow kanalow danych). Bij przy kazdej zmianie. */
@@ -40,7 +41,7 @@ export function localNetVersion(): NetVersion {
         proto,
         sim: SIM_VERSION,
         input: INPUT_FORMAT_VERSION,
-        balance: `${balanceRulesetId()}+${difficultyRulesetId()}`, // v0.245.0: roster + ruleset trudnosci (d1/d3)
+        balance: `${balanceRulesetId()}+${difficultyRulesetId()}+${traitRulesetId()}`, // v0.245.0 roster+trudnosc, v0.246.0 + cechy (t0/t1)
         curse: CURSE_RULESET_ID,
         game: gameVersion(),
     };

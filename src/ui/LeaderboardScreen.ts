@@ -19,6 +19,9 @@ import type { AvatarId } from '../types/Profile';
 import type { MapId } from '../types/MapType';
 import { backArrowIcon } from './hub/gameIcons';
 import { tankPillHtml } from './tankPill'; // v0.240.0: czolg obok nazwy gracza
+import { difficultyPillHtml, difficultyIcon, difficultyLabel, DIFFICULTY_ORDER } from './difficultyPill'; // v0.246.0
+import { isLbDiffEnabled } from '../config/lbDiffFlag'; // v0.246.0
+import type { DifficultyId } from '../types/GameConfig';
 
 const WINDOWS: readonly TimeWindow[] = ['all', 'week', 'day'];
 const DEFAULT_AVATAR: AvatarId = AVATAR_IDS[0];
@@ -31,6 +34,7 @@ export class LeaderboardScreen implements IScreen {
     private board: BoardDefinition = LEADERBOARD_BOARDS.find(b => b.enabled) ?? LEADERBOARD_BOARDS[0];
     private window: TimeWindow = 'all';
     private map: MapId | null = null; // null = agregat "Wszystkie (najlepszy)"
+    private difficulty: DifficultyId | null = null; // v0.246.0: null = wszystkie poziomy (tylko przy LB_DIFF_LIVE)
     private loadToken = 0;            // guard przeciw wyscigom async przy szybkim klikaniu
 
     mount(root: HTMLElement): void {
@@ -64,6 +68,7 @@ export class LeaderboardScreen implements IScreen {
                 <div class="bt-lb-segment" role="tablist">${this.renderWindowSegment()}</div>
             </div>
             <div class="bt-lb-chips">${this.renderMapChips()}</div>
+            <div class="bt-lb-chips bt-lb-diffs">${this.renderDiffChips()}</div>
             <div class="bt-lb-body"><div class="bt-lb-status">${t('leaderboard.loading')}</div></div>
             <div class="bt-lb-you"></div>
         `;
@@ -99,6 +104,17 @@ export class LeaderboardScreen implements IScreen {
         return all + rest;
     }
 
+    /** v0.246.0: filtr poziomu (WSZYSTKIE + 4 poziomy w kolorach pickera). Pusty bez flagi => rzad znika (:empty). */
+    private renderDiffChips(): string {
+        if (!isLbDiffEnabled()) return '';
+        const all = `<button class="bt-lb-chip bt-lb-diffchip ${this.difficulty === null ? 'is-active' : ''}" type="button" data-diff="__all__">${t('leaderboard.diff.all')}</button>`;
+        const rest = DIFFICULTY_ORDER.map(d =>
+            `<button class="bt-lb-chip bt-lb-diffchip bt-lb-diffchip--${d} ${this.difficulty === d ? 'is-active' : ''}" type="button" data-diff="${d}" title="${difficultyLabel(d)}">`
+            + `<span aria-hidden="true">${difficultyIcon(d)}</span><span class="bt-lb-diffchip-tx">${difficultyLabel(d)}</span></button>`
+        ).join('');
+        return all + rest;
+    }
+
     private wireShell(): void {
         const r = this.rootEl;
         if (!r) return;
@@ -128,7 +144,16 @@ export class LeaderboardScreen implements IScreen {
             this.renderShell();
             void this.reload();
         }));
-        r.querySelectorAll<HTMLElement>('.bt-lb-chip').forEach(el => el.addEventListener('click', () => {
+        r.querySelectorAll<HTMLElement>('.bt-lb-diffchip').forEach(el => el.addEventListener('click', () => {
+            const raw = el.dataset.diff;
+            const next = raw === '__all__' ? null : (raw as DifficultyId);
+            if (next === this.difficulty) return;
+            AudioSys.getInstance().playMenuClick();
+            this.difficulty = next;
+            this.renderShell();
+            void this.reload();
+        }));
+        r.querySelectorAll<HTMLElement>('.bt-lb-chip[data-map]').forEach(el => el.addEventListener('click', () => {
             const raw = el.dataset.map;
             const next = raw === '__all__' ? null : (raw as MapId);
             if (next === this.map) return;
@@ -150,14 +175,14 @@ export class LeaderboardScreen implements IScreen {
         youEl.innerHTML = '';
 
         const profileId = ProfileService.getActiveProfile()?.id ?? null;
-        const q = { window: this.window, map: this.map, limit: 100 };
+        const q = { window: this.window, map: this.map, difficulty: this.difficulty, limit: 100 };
 
         let entries: LeaderboardEntry[] = [];
         let myRank: MyRank | null = null;
         try {
             [entries, myRank] = await Promise.all([
                 leaderboardService.getLeaderboard(this.board, q),
-                profileId ? leaderboardService.getMyRank(profileId, this.board, { window: this.window, map: this.map }) : Promise.resolve(null),
+                profileId ? leaderboardService.getMyRank(profileId, this.board, { window: this.window, map: this.map, difficulty: this.difficulty }) : Promise.resolve(null),
             ]);
         } catch {
             if (token !== this.loadToken) return;
@@ -198,7 +223,7 @@ export class LeaderboardScreen implements IScreen {
 
     // ── Rank-up flex: porownaj range z ostatnio ogladana (per board+okno+mapa) ──────
     private rankStorageKey(): string {
-        return `bt2:lbrank_${this.board.id}_${this.window}_${this.map ?? 'all'}`;
+        return `bt2:lbrank_${this.board.id}_${this.window}_${this.map ?? 'all'}${this.difficulty ? '_' + this.difficulty : ''}`; // v0.246.0: + poziom
     }
     /** true = ranga poprawila sie od ostatniego ogladania tego samego widoku. Zapisuje nowa range. */
     private detectRankUp(my: MyRank | null): boolean {
@@ -222,6 +247,7 @@ export class LeaderboardScreen implements IScreen {
                     ${this.avatarImg(e.avatarId)}
                     <span class="bt-lb-name">${this.esc(e.displayName)}</span>
                     ${tankPillHtml(e.brawlerId)}
+                    ${difficultyPillHtml(e.difficulty)}
                     <span class="bt-lb-score">${e.score.toLocaleString('pl-PL')}</span>
                 </div>`;
     }

@@ -213,12 +213,15 @@ let _plusTexture: PIXI.Texture | null = null;
 /** MOCE JUICY cz.1 (v0.233.0) — gruby plus 32x32 z miekka krawedzia (Naprawa, tint = kolor). */
 export function getPlusTexture(): PIXI.Texture {
     if (_plusTexture) return _plusTexture;
-    const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+    // v0.246.1 (Mariusz: "wieksze krzyzyki"): 48x48, grube zaokraglone ramiona + miekka poswiata. Wspolne dla
+    // mocy Naprawa i cechy Enigmy. Bialy => tint daje kolor (zielony / jasnozielony).
+    const c = document.createElement('canvas'); c.width = 48; c.height = 48;
     const ctx = c.getContext('2d')!;
-    ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = 5;
+    ctx.shadowColor = 'rgba(255,255,255,0.7)'; ctx.shadowBlur = 5;
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(12, 4, 8, 24);
-    ctx.fillRect(4, 12, 24, 8);
+    // v0.246.2: chudsze ramiona (12 -> 8 px, Mariusz: "zbyt miesiste")
+    ctx.beginPath(); ctx.roundRect(20, 6, 8, 36, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(6, 20, 36, 8, 3); ctx.fill();
     _plusTexture = PIXI.Texture.from(c);
     return _plusTexture;
 }
@@ -719,8 +722,8 @@ export class EffectsManager {
         const p = this.acquireFx(this.fxPluses, getPlusTexture(), this.fxAddLayer, true, 8);
         p.sprite.anchor.set(0.5);
         p.sprite.x = x + (Math.random() - 0.5) * 46; p.sprite.y = y - 10 + (Math.random() - 0.5) * 16;
-        p.sprite.tint = Math.random() < 0.3 ? 0xd8ffe4 : 0x3ef08a; p.sprite.alpha = 0;
-        p.sprite.scale.set(0.55 + Math.random() * 0.35); p.life = 1; p.max = 46; p.grow = 0;
+        p.sprite.tint = Math.random() < 0.15 ? 0x7dffa8 : 0x1fe060; // v0.246.2: mocniej zielone p.sprite.alpha = 0;
+        p.sprite.scale.set(0.75 + Math.random() * 0.45); p.life = 1; p.max = 52; p.grow = 0; // v0.246.1: ~1.8x wiekszy krzyz (tekstura 48 px)
     }
 
     /** MROZ: fala lodu od gracza (dwa pierscienie ADD + odlamki + blysk). */

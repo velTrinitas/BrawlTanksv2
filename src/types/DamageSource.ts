@@ -33,6 +33,7 @@ export type DamageSourceKind =
     | 'player_bullet'  // pocisk gracza (takze super shot)
     | 'power'          // super moc (mega bomba, miny, rakiety, Dziura, Laser, wieza...)
     | 'shockwave'      // shockwave-on-hit Pancernego (perk brawlera, nie moc)
+    | 'trait'          // v0.246.0 CECHA czolgu (taran Pancernego, plot Techa) -> wrogowie
     | 'chicken_peck'   // TROPICS v2 / T6: dzioby Szalonych Kurczakow (zdarzenie farmy) -> wrogowie
     | 'bull_charge'    // TROPICS v2 / T6.2: szarza byka -> wrogowie I gracz (z telegrafem)
     | 'reaper'         // TROPICS v2 / T6.3: Zniwiarka-Potwor -> wrogowie I gracz (z telegrafem)
@@ -63,6 +64,8 @@ export const SRC_TOWER: DamageSource = Object.freeze({ kind: 'tower' as const })
 export const SRC_CURSE_FOG: DamageSource = Object.freeze({ kind: 'curse_fog' as const }); // DESERT ART v2 / E4
 export const SRC_RA_FIRE: DamageSource = Object.freeze({ kind: 'ra_fire' as const }); // DESERT ART v2 / E7
 export const SRC_PLAYER_BULLET: DamageSource = Object.freeze({ kind: 'player_bullet' as const, playerIndex: 0 });
+/** v0.246.0: cecha czolgu (taran / plot). playerIndex jak moce (koop ETAP 2). */
+export function srcTrait(i: number): DamageSource { return cachedSrc('tr' + i, () => ({ kind: 'trait', playerIndex: i })); }
 export const SRC_POWER: DamageSource = Object.freeze({ kind: 'power' as const, playerIndex: 0 });
 export const SRC_SHOCKWAVE: DamageSource = Object.freeze({ kind: 'shockwave' as const, playerIndex: 0 });
 export const SRC_REAPER: DamageSource = Object.freeze({ kind: 'reaper' as const }); // TROPICS v2 / T6.3

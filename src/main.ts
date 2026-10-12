@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { traitIconUrl } from './rendering/traitIcons';
 import './ui/menu-styles.css';  // FAZA 6.5.2b: CSS bundle dla MainMenu
 import { WORLD_W, WORLD_H } from './config/constants';
 import { BRAWLERS } from './config/brawlers';
@@ -314,6 +315,11 @@ import { DamageSmoke } from './rendering/DamageSmoke';
 import { installContextGuard } from './rendering/ContextGuard';
 import { installDiagOverlay } from './rendering/DiagOverlay';
 import { installCrashReporter } from './services/CrashReporter';
+import { TraitSystem, type TraitCtx } from './systems/TraitSystem'; // v0.246.0
+import { isTraitsEnabled, type TraitId } from './config/traits'; // v0.246.0
+import { srcTrait } from './types/DamageSource'; // v0.246.0
+import { NickSpray } from './rendering/NickSpray'; // v0.246.0
+import { isSprayEnabled } from './config/sprayFlag'; // v0.246.0
 
 // PIERWSZA instrukcja ciala modulu — PRZED PIXI, audio, flagami URL i czymkolwiek
 // innym. Gdy okno testow jest zamkniete, `guardTestWindow` rysuje ekran konca I RZUCA,
@@ -602,6 +608,7 @@ function launchQueenTutorial(config: GameConfig): void {
             { title: t('queen.tut.3.title'), hint: t('queen.tut.3.hint'), onEnter: () => qs()?.tutPrepare(3), isDone: () => qs()?.playerHasKey ?? false },
             { title: t('queen.tut.4.title'), hint: t('queen.tut.4.hint'), onEnter: () => qs()?.tutPrepare(4), isDone: () => (qs()?.regenBricksBroken ?? 0) >= 1 },
             { title: t('queen.tut.5.title'), hint: t('queen.tut.5.hint'), isDone: () => qs()?.doorOpen ?? false },
+            ...traitTutorialStep(),
         ],
         onDone: (cont) => {
             markQueenTutorialDone();
@@ -615,6 +622,12 @@ function launchQueenTutorial(config: GameConfig): void {
  * istniejaca maszyna stanow CastleSystem (kroki 1-4 jak dotad + 5: skok na trampolinie). System liczy postep,
  * karta tylko go pokazuje. GRAJ DALEJ = oblezenie rusza od intro; MENU = powrot do hubu.
  */
+/** v0.246.1: karta CECHA CZOLGU dla tutoriali scenariuszy (pusta lista, gdy gracz nie ma cechy / flaga off). */
+function traitTutorialStep(): Array<{ title: string; hint: string; isDone: () => boolean }> {
+    if (!traitOf(localPlayer)) return [];
+    return [{ title: t('tutorial.trait.title'), hint: touchManager.isActive ? t('tutorial.trait.hintTouch') : t('tutorial.trait.hintDesktop'), isDone: () => (traitOf(localPlayer)?.uses ?? 0) > 0 }];
+}
+
 function ctfTutorialWanted(): boolean {
     if (SIGMA_BOT) return false;
     try {
@@ -633,6 +646,7 @@ function launchCtfTutorial(cfg: GameConfig): void {
         steps: [
             { title: t('ctf.tutk.1.title'), hint: t('ctf.tutk.1.hint'), isDone: () => (ctfSystem?.getCarriedFlag() ?? null) !== null || (currentSession?.ctf?.flagsCaptured ?? 0) > 0 },
             { title: t('ctf.tutk.2.title'), hint: t('ctf.tutk.2.hint'), isDone: () => (currentSession?.ctf?.flagsCaptured ?? 0) > 0 },
+            ...traitTutorialStep(),
         ],
         onDone: (cont) => {
             try { localStorage.setItem('bt2:ctf_tut_done', '1'); } catch { /* prywatny tryb */ }
@@ -653,6 +667,7 @@ function launchCastleTutorial(): void {
             { title: t('castle.tutk.3.title'), hint: t('castle.tutk.3.hint'), isDone: () => step() === 0 || step() >= 4 },
             { title: t('castle.tutk.4.title'), hint: t('castle.tutk.4.hint'), isDone: () => step() === 0 || step() >= 5 },
             { title: t('castle.tutk.5.title'), hint: t('castle.tutk.5.hint'), isDone: () => step() === 0 },
+            ...traitTutorialStep(),
         ],
         onDone: (cont) => {
             castleSystem?.endTutorial();
@@ -894,6 +909,7 @@ function pushHayBales(p: Player, delta: number): void {
 }
  // TROPICS v2: bele siana dziela kontrakt skrzyni
 let effects: EffectsManager | null = null;
+let nickSpray: NickSpray | null = null; // v0.246.0 SPRAY (klawisz R, tylko wizual, flaga ?spray=1)
 // v0.188.0 FAZA 2 — dym uszkodzenia gracza. WLASNA warstwa nad czolgami (zIndex 15000) i wlasna
 // tablica klebow: pula czasteczek ma cap 200 i przy pelnej puli NADPISUJE zywe czastki, przez co dym
 // znikal w walce, a particleContainer (zIndex 500) chowal go pod czolgiem na ~85% mapy.
@@ -903,6 +919,11 @@ let powerSystem: PowerSystem | null = null; // COOP S7: instancja GRACZA LOKALNE
 /** COOP S7: osobny PowerSystem na gracza (moce, cooldowny, aura, magnes). Solo: 1 wpis = powerSystem. */
 const powerSystems = new Map<Player, PowerSystem>();
 function psOf(p: Player): PowerSystem { return powerSystems.get(p) ?? powerSystem!; }
+// v0.246.0 CECHY CZOLGOW (4. slot) — instancja per gracz, tylko przy ?traits=1 / TRAITS_LIVE.
+const traitSystems = new Map<Player, TraitSystem>();
+function traitOf(p: Player | null): TraitSystem | null { return p ? traitSystems.get(p) ?? null : null; }
+/** Dym Ogniarza: czy punkt lezy w KTOREJKOLWIEK chmurze (stealth gracza / dezorientacja wroga). */
+function anySmokeContains(x: number, y: number): boolean { for (const ts of traitSystems.values()) if (ts.smokeContains(x, y)) return true; return false; }
 // COOP S7: efekty SWIATOWE (dzialaja na wszystkich wrogow) — agregacja po instancjach wszystkich graczy.
 function anyFreezeActive(): boolean { for (const ps of powerSystems.values()) if (ps.isFreezeActive) return true; return false; }
 function maxFreezeUntil(): number { let m = 0; for (const ps of powerSystems.values()) if (ps.isFreezeActive) m = Math.max(m, ps.freezeUntil); return m; }
@@ -961,6 +982,7 @@ const keys = { w: false, a: false, s: false, d: false };
 // COOP S6: zdarzenia jednorazowe (dash / moc) NIE wykonuja sie w handlerze — trafiaja do kolejki
 // i zostaja pobrane do PlayerInput gracza lokalnego w najblizszym kroku logiki (<= 16 ms).
 let pendingDash = false;
+let pendingTrait = false; // v0.246.0 CECHA: zbocze klawisza E / przycisku dotykowego
 let pendingSuperSlot = -1;
 /** COOP S6: wejscie kazdego gracza na biezacy krok (dzis tylko lokalny; LAN-2: + gosc z sieci). */
 const playerInputs = new Map<Player, PlayerInput>();
@@ -1224,6 +1246,8 @@ function collectLocalInput(aimWorldX: number, aimWorldY: number): PlayerInput {
     inp.aimY = aimWorldY;
     inp.fire = isMouseDown;
     inp.dash = pendingDash;
+    inp.trait = pendingTrait; // v0.246.0
+    pendingTrait = false;
     inp.superSlot = pendingSuperSlot;
     pendingDash = false;
     pendingSuperSlot = -1;
@@ -1242,8 +1266,26 @@ function applyPlayerActions(p: Player, input: PlayerInput): void {
         }
     }
     if (input.superSlot >= 0) tryActivateSuper(input.superSlot as 0 | 1 | 2, p); // COOP S7: instancja mocy gracza
+    if (input.trait) traitOf(p)?.activate(input.moveX, input.moveY); // v0.246.0 CECHA (w kroku logiki)
 }
 touchManager.onDashRequested = requestDash;
+/** v0.246.0 CECHA: prosba z klawisza E / przycisku dotykowego — wykonanie w kroku logiki. */
+/** v0.246.0: nazwa cechy na kafelku (literalne t() — dynamiczne klucze sie nie kompiluja). */
+function traitLabel(id: TraitId): string {
+    switch (id) {
+        case 'sandbags': return t('trait.name.sandbags');
+        case 'ram': return t('trait.name.ram');
+        case 'cloak': return t('trait.name.cloak');
+        case 'blink': return t('trait.name.blink');
+        case 'fence': return t('trait.name.fence');
+        case 'bigJump': return t('trait.name.bigJump');
+        case 'smoke': return t('trait.name.smoke');
+        case 'ceasefire': return t('trait.name.ceasefire');
+        case 'repair': return t('trait.name.repair');
+    }
+}
+function queueTrait(): void { if (gameState === 'PLAYING' && traitOf(localPlayer)) pendingTrait = true; }
+touchManager.onTraitRequested = queueTrait;
 
 if (touchManager.isActive) {
     hud.uiScale = 0.7;
@@ -1273,6 +1315,107 @@ function nearestInRange<T extends { x: number; y: number }>(items: T[], range: n
  * przeszkodach ani w miejscach nieprzeznaczonych do jazdy (bug: "wrogowie na skalach/rzekach").
  * Czyta LIVE tablice modulowe (puste na mapach bez danego typu => no-op).
  */
+/**
+ * v0.246.0 SPRAY (Mariusz: "efekt fun, tylko na podlodze, 1x na minute") — nick gracza sprayem za czolgiem.
+ * Podloga = poza budynkami (AABB + margines), strefami niedrivalnymi i lawa. Odmowa = krotki komunikat + "bonk".
+ */
+function trySprayNick(): void {
+    if (!nickSpray || !localPlayer || gameState !== 'PLAYING') return;
+    const nick = ProfileService.getActiveProfile()?.nickname ?? '';
+    const ang = localPlayer.moveAngle;
+    const x = localPlayer.x - Math.cos(ang) * 100, y = localPlayer.y - Math.sin(ang) * 100; // za czolgiem (v0.246.1: napis o polowe mniejszy)
+    const color = BRAWLERS.find(b => b.id === localPlayer!.brawler.id)?.colorMain ?? '#f1c40f';
+    const blocked = (px: number, py: number): boolean => {
+        if (px < 60 || py < 60 || px > WORLD_W - 60 || py > WORLD_H - 60) return true;
+        for (const b of buildings) if (px > b.x - 12 && px < b.x + b.w + 12 && py > b.y - 12 && py < b.y + b.h + 12) return true;
+        if (dungeonLava.length > 0 && isDungeonLavaPoint(px, py)) return true;
+        return spawnBlocked(px, py);
+    };
+    const res = nickSpray.tryPaint(x, y, nick, color, blocked);
+    if (res === 'ok') {
+        audio.playSprayPaint();
+        effects?.spawnEnemyHitSparks(x, y, parseInt(color.replace('#', ''), 16));
+    } else if (res === 'cooldown') {
+        hud.addNotif(t('spray.cooldown', { sec: Math.ceil(nickSpray.cooldownLeftMs() / 1000) }), '#9fd8ff');
+        audio.playTraitSfx('trait_denied');
+    } else if (res === 'blocked') {
+        hud.addNotif(t('spray.blocked'), '#9fd8ff');
+        audio.playTraitSfx('trait_denied');
+    }
+}
+
+/**
+ * Bloczek collidera (moc Mur + v0.246.0 barykady cech): PELNOPRAWNY collider gracz+wrogowie+pociski.
+ * Walidacja: nie w budynku, nie na wrogu, nie na graczu. Zwraca remover albo null (miejsce niedozwolone).
+ */
+function spawnColliderBlock(wx: number, wy: number, size: number): (() => void) | null {
+    // F7b-6 BUILDER: segment muru = PELNOPRAWNY collider (gracz+wrogowie+pociski
+    // OBU stron — Czytelnosc: sciana to sciana). Wstawiany do buildings +
+    // solidBuildings + (gdy CTF ma osobna KOPIE) ctfEnemyBuildings; zwracany
+    // remover splice'uje ze wszystkich. null = miejsce niedozwolone.
+    const half = size / 2;
+    const wall: ICollidable = {
+        x: wx - half, y: wy - half,
+        w: size, h: size,
+        update: () => { /* statyczny — zycie/expiry prowadzi PowerSystem */ },
+    };
+    // Walidacja: nie W budynku (niewidzialny naklad hitboxow)...
+    for (const b of buildings) {
+        if (wall.x < b.x + b.w && wall.x + wall.w > b.x && wall.y < b.y + b.h && wall.y + wall.h > b.y) {
+            return null;
+        }
+    }
+    // ...nie NA wrogu (zamurowany wrog w srodku collidera = stuck na zawsze)...
+    for (const e of enemies) {
+        if (e.active && (e.x - wx) ** 2 + (e.y - wy) ** 2 < 45 * 45) return null;
+    }
+    // ...i nie NA graczu (pas + cofka moga zawinac droge na punkt zrzutu — mur
+    // spawnujacy sie na czolgu zablokowalby ruch gracza az do expiry 8s).
+    for (const pl of players) if ((pl.x - wx) ** 2 + (pl.y - wy) ** 2 < 42 * 42) return null; // COOP S7: zaden gracz
+    buildings.push(wall);
+    solidBuildings.push(wall);
+    const ctfArr = ctfEnemyBuildings !== null && ctfEnemyBuildings !== buildings ? ctfEnemyBuildings : null;
+    if (ctfArr) ctfArr.push(wall);
+    return () => {
+        for (const arr of [buildings, solidBuildings, ctfArr]) {
+            if (!arr) continue;
+            const idx = arr.indexOf(wall);
+            if (idx >= 0) arr.splice(idx, 1);
+        }
+    };
+}
+
+/** v0.246.0 CECHY: swiat dla TraitSystem (kolizje, obrazenia z pelna sciezka zabicia, dzwieki, komunikaty). */
+function buildTraitCtx(): TraitCtx {
+    return {
+        world: worldContainer,
+        effects: effects!,
+        enemies: () => enemies,
+        buildings: () => buildings,
+        addBlock: (cx, cy, size) => spawnColliderBlock(cx, cy, size),
+        isFloor: (x, y) => {
+            if (x < 60 || y < 60 || x > WORLD_W - 60 || y > WORLD_H - 60) return false;
+            if (dungeonLava.length > 0 && isDungeonLavaPoint(x, y)) return false;
+            return !spawnBlocked(x, y);
+        },
+        damageEnemy: (e, dmg, owner) => {
+            if (!e.active || !effects || !spawnSystem || !currentSession) return;
+            const wasFrozen = simNowMs() < e.frozenUntil;
+            const killed = e.takeDamage(dmg, e.x, e.y, worldContainer, effects, srcTrait(Math.max(0, players.indexOf(owner))));
+            if (killed) {
+                spawnSystem.registerKill(e);
+                currentSession.addKillScore(e.scoreValue);
+                if (wasFrozen) currentSession.addFrozenKillBonus(e.scoreValue);
+                handleEnemyDrop(e);
+                if (e.isMegaBoss) setTimeout(() => triggerVictory(), 800);
+            }
+        },
+        setCeasefire: (until) => { Enemy.ceasefireUntil = Math.max(Enemy.ceasefireUntil, until); },
+        sfx: (key, owner) => { if (owner === localPlayer) audio.playTraitSfx(key); },
+        notify: (owner, what) => { if (owner === localPlayer) hud.addNotif(what === 'noRoom' ? t('trait.noRoom') : t('trait.blocked'), '#9fd8ff'); },
+    };
+}
+
 const spawnBlocked = (x: number, y: number): boolean => {
     for (const q of quicksands) if (q.isPointInside(x, y)) return true;
     for (const o of oases) if (o.isPointInside(x, y)) return true;
@@ -1456,6 +1599,7 @@ function launchTutorial(onDone: (continuePlaying: boolean) => void): void {
         superPillRect: tutorialSuperPillRect,
         armSuperPower: tutorialArmSuperPower,
         superPowerUsed: tutorialSuperPowerUsed,
+        traitUsed: traitOf(localPlayer) ? () => (traitOf(localPlayer)?.uses ?? 0) > 0 : undefined, // v0.246.1
         onDone,
     });
 }
@@ -1842,6 +1986,7 @@ function runGuestStep(delta: number): void {
     for (const pad of mediPads) pad.update(-9999, -9999, false, 1, 1, tPad);
     for (const pad of powerPads) pad.update(-9999, -9999, tPad);
     effects.update(delta);
+    nickSpray?.update(); // v0.246.0 SPRAY: odslanianie / blakniecie / znikniecie po 60 s
     // Glebokosc pseudo-3D: auto-sort PIXI jest WYLACZONY (v0.68.0), host sortuje recznie na koncu
     // runLogicStep. Gosc go nie wola — bez tej linii czolgi lezaly NA palmach oazy (playtest 2026-09-29).
     worldContainer.sortChildren();
@@ -2275,6 +2420,8 @@ window.addEventListener('keydown', e => {
     // do mlocenia klawisza, a projekt ma udokumentowany problem ze zmeczeniem
     // powtarzanym dzwiekiem). Na dotyku klaksonu nie ma — dlatego kafle znikaja
     // ze sklepu na urzadzeniach dotykowych, zamiast sprzedawac martwy towar.
+    if (k === 'r' && !e.repeat) trySprayNick(); // v0.246.0 SPRAY
+    if (k === 'e' && !e.repeat) queueTrait(); // v0.246.0 CECHA czolgu (4. slot)
     if (k === 'h') {
         const pid = ProfileService.getActiveProfile()?.id ?? 'default';
         const hornId = ProgressionService.getCosmeticState(pid).equipped.horn;
@@ -3565,6 +3712,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
 
     performance.mark("bt:start:mapDone");
     effects = new EffectsManager(worldContainer);
+    nickSpray?.destroy(); nickSpray = isSprayEnabled() ? new NickSpray(worldContainer) : null; // v0.246.0
     installFxMirror(effects); // COOP LAN-3b: lustro efektow do goscia (no-op poza hostem koopa)
     hostEvents = [];
     damageSmoke = new DamageSmoke(worldContainer);
@@ -3645,42 +3793,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
             currentSession.addMultiKillBonus(multiKillSumBase, multiKillCount);
             hud.addNotif(t('hud.multiKill', { count: multiKillCount }), '#ff8800');
         }
-    }, (wx, wy) => {
-        // F7b-6 BUILDER: segment muru = PELNOPRAWNY collider (gracz+wrogowie+pociski
-        // OBU stron — Czytelnosc: sciana to sciana). Wstawiany do buildings +
-        // solidBuildings + (gdy CTF ma osobna KOPIE) ctfEnemyBuildings; zwracany
-        // remover splice'uje ze wszystkich. null = miejsce niedozwolone.
-        const half = BUILDER_CONFIG.segmentSize / 2;
-        const wall: ICollidable = {
-            x: wx - half, y: wy - half,
-            w: BUILDER_CONFIG.segmentSize, h: BUILDER_CONFIG.segmentSize,
-            update: () => { /* statyczny — zycie/expiry prowadzi PowerSystem */ },
-        };
-        // Walidacja: nie W budynku (niewidzialny naklad hitboxow)...
-        for (const b of buildings) {
-            if (wall.x < b.x + b.w && wall.x + wall.w > b.x && wall.y < b.y + b.h && wall.y + wall.h > b.y) {
-                return null;
-            }
-        }
-        // ...nie NA wrogu (zamurowany wrog w srodku collidera = stuck na zawsze)...
-        for (const e of enemies) {
-            if (e.active && (e.x - wx) ** 2 + (e.y - wy) ** 2 < 45 * 45) return null;
-        }
-        // ...i nie NA graczu (pas + cofka moga zawinac droge na punkt zrzutu — mur
-        // spawnujacy sie na czolgu zablokowalby ruch gracza az do expiry 8s).
-        for (const pl of players) if ((pl.x - wx) ** 2 + (pl.y - wy) ** 2 < 42 * 42) return null; // COOP S7: zaden gracz
-        buildings.push(wall);
-        solidBuildings.push(wall);
-        const ctfArr = ctfEnemyBuildings !== null && ctfEnemyBuildings !== buildings ? ctfEnemyBuildings : null;
-        if (ctfArr) ctfArr.push(wall);
-        return () => {
-            for (const arr of [buildings, solidBuildings, ctfArr]) {
-                if (!arr) continue;
-                const idx = arr.indexOf(wall);
-                if (idx >= 0) arr.splice(idx, 1);
-            }
-        };
-    }, diceEnabled);
+    }, (wx, wy) => spawnColliderBlock(wx, wy, BUILDER_CONFIG.segmentSize), diceEnabled);
     powerSystem = buildPowerSystem(() => localPlayer!);
     powerSystems.clear(); // wpis gracza lokalnego po utworzeniu czolgu (players = [localPlayer])
     // v0.114.0: 3 sloty; przy Szalonych Mocach slot 3 gra jako kostka (ikona + fioletowy ring).
@@ -4135,6 +4248,15 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     localPlayer = new Player(brawler, worldContainer, activeProfile?.flagId ?? null, skinPulse);
     players = [localPlayer]; // Z0.3: tablica = zrodlo prawdy (dzis zawsze 1 element)
     powerSystems.set(localPlayer, powerSystem); // COOP S7
+    // v0.246.0 CECHY: instancja gracza lokalnego (+ nietykalnosc taranu/skoku przez PowerSystem.isInvulnerable)
+    for (const ts of traitSystems.values()) ts.destroy();
+    traitSystems.clear();
+    Enemy.ceasefireUntil = 0;
+    if (isTraitsEnabled()) {
+        const ts = new TraitSystem(localPlayer, buildTraitCtx());
+        if (ts.def) { traitSystems.set(localPlayer, ts); const lp = localPlayer; powerSystem.traitInvul = () => traitOf(lp)?.isInvulnerable ?? false; }
+    }
+    { const td = traitOf(localPlayer)?.def; touchManager.setTrait(td?.icon ?? null, td?.iconColor, td?.iconArt ? traitIconUrl(td.iconArt) : undefined); }
     // COOP LAN-3a: gosc nie ma jeszcze wlasnego czolgu (LAN-2) — ogląda swiat hosta z migawek.
     guestWorld?.clear();
     guestWorld = null;
@@ -5402,6 +5524,7 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
         // Naprawia exploit: gracz wpadal w corn/sugarcane/oasis, czekal 10s na "reset",
         // wyjezdzal, strzelal — przeciwnicy nie widzieli go bo flagger stealth byl aktywny.
         const shooterSt = pst;
+        traitOf(p)?.onOwnerShot(); // v0.246.0: strzal zdradza niewidke (gasnie po 0,5 s)
         if (now < shooterSt.stealthEndTime) {
             shooterSt.stealthEndTime = 0;
             shooterSt.stealthBrokenByShot = true;
@@ -5575,6 +5698,7 @@ function runLogicStep(delta: number): void {
                 localPlayer.dashSecondsLeft,
             );
         }
+        { const ts = traitOf(localPlayer); if (ts) touchManager.updateTraitState(ts.cooldownProgress, ts.secondsLeft); } // v0.246.0 CECHA
 
         const aimVec = touchManager.aimVector;
         if (aimVec) {
@@ -5599,6 +5723,7 @@ function runLogicStep(delta: number): void {
         pendingGuestDash = false; pendingGuestSlot = -1;
     }
     for (const [ip, inp] of playerInputs) applyPlayerActions(ip, inp);
+    for (const ts of traitSystems.values()) ts.step(); // v0.246.0 CECHY: taran/skok/plot/naprawa w kroku logiki
     if (gameState !== 'PLAYING') return; // moc (np. mega bomba) mogla zakonczyc mecz
 
     // COOP S5: update stref = WIDOK (culling kamery, slady gasienic gracza lokalnego) — raz na krok;
@@ -5733,6 +5858,8 @@ function runLogicStep(delta: number): void {
 
         const isStealthActive = playerInAnyStealth && nowMs < st.stealthEndTime;
         st.stealthActive = isStealthActive;
+        // v0.246.0 CECHY: niewidka Zwiadu albo gracz w dymie Ogniarza = wrogowie go gubia
+        { const ts = traitOf(p); if ((ts && ts.cloakActive) || anySmokeContains(p.x, p.y)) st.stealthActive = true; }
 
         // Komunikaty HUD/dzwiek — tylko gracz TEGO urzadzenia (stan liczy sie dla kazdego).
         if (p === localPlayer) {
@@ -5783,7 +5910,7 @@ function runLogicStep(delta: number): void {
 
     // COOP S5: wrog "nie widzi" gracza, ktorego sciga (najblizszy zywy), jesli ten jest ukryty.
     for (const enemy of enemies) {
-        enemy.playerStealthed = simOf(nearestLivingPlayer(enemy.x, enemy.y)).stealthActive;
+        enemy.playerStealthed = simOf(nearestLivingPlayer(enemy.x, enemy.y)).stealthActive || anySmokeContains(enemy.x, enemy.y); // v0.246.0: wrog w dymie = zdezorientowany
     }
 
     // FAZA CTF F2 — rdzen CTF. Po bloku stealth (enemy.playerStealthed swieze),
@@ -6042,6 +6169,7 @@ function runLogicStep(delta: number): void {
     castleWasAirborne = castleAirborne;
     if (castlePlayerDead) { isMouseDown = false; localInput.fire = false; localPlayer.firing = false; }
     else if (castleAirborne) { localPlayer.firing = false; } // isMouseDown zostaje: po ladowaniu trzymany strzal dziala dalej
+    else if (traitOf(localPlayer)?.controlsPosition) { localPlayer.firing = false; } // v0.246.0: taran/skok prowadza pozycje
     else {
         localPlayer.firing = localInput.fire; // FAZA P3 — supresja taunt bounce podczas strzelania (lab: !pointer.down)
 
@@ -6727,6 +6855,12 @@ function runLogicStep(delta: number): void {
 
     if (hud.comboTextTimer > 0) hud.comboTextTimer--;
     effects.update(delta);
+    nickSpray?.update(); // v0.246.0 SPRAY (petla hosta / solo)
+    for (const ts of traitSystems.values()) ts.frame(); // v0.246.0 CECHY: wizual (alpha niewidki, wiazki, dym, korony)
+    { // v0.246.0: 4. kafelek HUD (desktop) — stan cechy gracza lokalnego
+        const ts = traitOf(localPlayer);
+        hud.traitInfo = ts && ts.def ? { icon: ts.def.icon, iconArt: ts.def.iconArt, iconColor: ts.def.iconColor, label: traitLabel(ts.def.id), color: ts.def.color, progress: ts.cooldownProgress, secs: ts.secondsLeft, active: ts.isActive, activeSecs: ts.activeLeftMs / 1000 } : null;
+    }
 
     const megaBoss = enemies.find(e => e.isMegaBoss && e.active) || null;
     // v0.52.0 fix: force PIXI re-sort children co frame. PIXI sortableChildren=true

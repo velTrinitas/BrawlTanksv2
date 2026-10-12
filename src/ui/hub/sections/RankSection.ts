@@ -3,6 +3,7 @@ import type { HubSection } from './HubSection';
 import { ProfileService } from '../../../services/ProfileService';
 import { leaderboardService } from '../../../services/ScoreService';
 import { LEADERBOARD_BOARDS, type LeaderboardEntry, type MyRank } from '../../../services/leaderboard';
+import { difficultyPillHtml } from '../../difficultyPill'; // v0.246.0
 import { tankPillHtml } from '../../tankPill'; // v0.240.0: czolg obok nazwy gracza
 
 /** v0.240.0: nick z rankingu escapowany (jak w LeaderboardScreen) — wczesniej szedl surowo do innerHTML. */
@@ -69,6 +70,7 @@ export class RankSection implements HubSection {
                     <span class="pos">${medal(e.rank)}</span>
                     <span class="who">${escHtml(e.displayName)}</span>
                     ${tankPillHtml(e.brawlerId, true)}
+                    ${difficultyPillHtml(e.difficulty, true)}
                     <span class="pts">${e.score}</span>
                 </div>`).join('');
 

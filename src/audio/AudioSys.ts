@@ -101,6 +101,25 @@ const SOUND_LIST: SoundDef[] = [
     // (celowo ~1,5 dB pod shoot -22: ciagla seria brzmi glosniej niz pojedynczy strzal przy tym samym poziomie).
     { key: 'shoot_gatling',       file: 'shoot_gatling.mp3',       volume: 0.45 },
     { key: 'shoot_gatling_super', file: 'shoot_gatling_super.mp3', volume: 0.42 }, // mean -17,6 dB, nizszy i grubszy
+    // v0.246.0 CECHY + SPRAY (tools/render-trait-sfx.mjs, ffmpeg q4 mono, razem ~180 KB): NOWE dzwieki per efekt.
+    // Cele: aktywacja cechy -16 dB (pod superami -13), UI/powtarzalne -22, spray -20. Pomiar volumedetect mean.
+    { key: 'spray_paint', file: 'traits/spray_paint.mp3', volume: 0.66 }, // mean -16.4 dB (target -20)
+    { key: 'trait_ready', file: 'traits/trait_ready.mp3', volume: 0.45 }, // mean -15.1 dB (target -22)
+    { key: 'trait_denied', file: 'traits/trait_denied.mp3', volume: 0.38 }, // mean -13.5 dB (target -22)
+    { key: 'sandbag_build', file: 'traits/sandbag_build.mp3', volume: 1.00 }, // mean -17.7 dB (target -16) — ponizej celu nawet przy 1.0
+    { key: 'ram_charge', file: 'traits/ram_charge.mp3', volume: 0.63 }, // mean -12 dB (target -16)
+    { key: 'ram_impact', file: 'traits/ram_impact.mp3', volume: 1.00 }, // mean -18.9 dB (target -16) — ponizej celu nawet przy 1.0
+    { key: 'invis_on', file: 'traits/invis_on.mp3', volume: 1.00 }, // mean -17.1 dB (target -16) — ponizej celu nawet przy 1.0
+    { key: 'invis_off', file: 'traits/invis_off.mp3', volume: 0.86 }, // mean -14.7 dB (target -16)
+    { key: 'teleport_out', file: 'traits/teleport_out.mp3', volume: 1.00 }, // mean -17.1 dB (target -16) — ponizej celu nawet przy 1.0
+    { key: 'teleport_in', file: 'traits/teleport_in.mp3', volume: 1.00 }, // mean -21.5 dB po +7 dB/limiter 0.70 (target -16) — szpiczasty plik, celowo bez kompresji (krotki pop)
+    { key: 'fence_up', file: 'traits/fence_up.mp3', volume: 1.00 }, // mean -18.8 dB (target -16) — ponizej celu nawet przy 1.0
+    { key: 'fence_zap', file: 'traits/fence_zap.mp3', volume: 0.74 }, // mean -19.4 dB (target -22)
+    { key: 'jump_launch', file: 'traits/jump_launch.mp3', volume: 0.92 }, // mean -15.3 dB (target -16)
+    { key: 'jump_land', file: 'traits/jump_land.mp3', volume: 1.00 }, // mean -18.4 dB (target -16) — ponizej celu nawet przy 1.0
+    { key: 'smoke_puff', file: 'traits/smoke_puff.mp3', volume: 1.00 }, // v0.246.1 duchowy wydech: mean -18.1 dB (target -16; dlugi ogon echa zaniza srednia) — ponizej celu nawet przy 1.0
+    { key: 'ceasefire', file: 'traits/ceasefire.mp3', volume: 0.73 }, // mean -13.3 dB (target -16)
+    { key: 'repair_charge', file: 'traits/repair_charge.mp3', volume: 0.89 }, // mean -15 dB (target -16)
     // ZLOMOWISKO J3 (tools/render-junkyard-sfx.mjs, ffmpeg): prasa — pip telegrafu x2, huk, syk hydrauliki, zgniecenie, ogluszenie
     { key: 'press_beep',    file: 'junkyard/press_beep.mp3',    volume: 0.5 },  // mean -15,3 dB
     { key: 'press_beep_hi', file: 'junkyard/press_beep_hi.mp3', volume: 0.5 },
@@ -1290,6 +1309,14 @@ export class AudioSys {
         } catch (e) {
             console.error('[AudioSys] playScarabSkitter failed', (e as Error).stack);
         }
+    }
+
+    /** v0.246.0: SFX spraya i cech (pliki traits/*.mp3). */
+    playSprayPaint(): void { this.safePlay('spray_paint'); }
+    playTraitSfx(key: 'trait_ready' | 'trait_denied' | 'sandbag_build' | 'ram_charge' | 'ram_impact' | 'invis_on' | 'invis_off'
+        | 'teleport_out' | 'teleport_in' | 'fence_up' | 'fence_zap' | 'jump_launch' | 'jump_land' | 'smoke_puff' | 'ceasefire' | 'repair_charge'): void {
+        if (key === 'fence_zap' || key === 'ram_impact') this.safePlayVaried(key, 0.08, 0.15); // powtarzalne — anty-zmeczenie
+        else this.safePlay(key);
     }
 
     /** Jek mumii: niski pilowy ton z vibrato opadajacy w dol (~1.1 s). */

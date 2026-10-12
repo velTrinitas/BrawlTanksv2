@@ -23,14 +23,25 @@ export class DashButton {
 
     onRequest: (() => void) | null = null;
 
+    /** v0.246.0: ten sam przycisk sluzy CESZE czolgu (inna klasa CSS = szesciokat, ikona per czolg). */
+    constructor(private readonly cls = 'bt-dash-button', private icon = '💨', private readonly label = 'Dash — tap to dash') {}
+
+    /** v0.246.0: ikona cechy zmienia sie per czolg (RAZ na mecz). */
+    setIcon(icon: string, color?: string, imgSrc?: string): void {
+        this.icon = icon;
+        const el = this.rootEl?.querySelector<HTMLElement>('.bt-dash-button-icon');
+        if (el && imgSrc) { el.textContent = ''; const img = document.createElement('img'); img.src = imgSrc; img.alt = ''; img.className = 'bt-trait-icon-img'; el.appendChild(img); el.style.color = ''; el.classList.remove('is-glyph'); return; }
+        if (el) { el.textContent = icon; el.style.color = color ?? ''; el.classList.toggle('is-glyph', !!color); }
+    }
+
     mount(parent: HTMLElement): void {
         if (this.rootEl) return;
         this.rootEl = document.createElement('button');
         this.rootEl.type = 'button';
-        this.rootEl.className = 'bt-dash-button';
-        this.rootEl.setAttribute('aria-label', 'Dash — tap to dash');
+        this.rootEl.className = this.cls;
+        this.rootEl.setAttribute('aria-label', this.label);
         this.rootEl.innerHTML = `
-            <span class="bt-dash-button-icon" aria-hidden="true">💨</span>
+            <span class="bt-dash-button-icon" aria-hidden="true">${this.icon}</span>
             <div class="bt-super-button-cd" aria-hidden="true"></div>
             <span class="bt-super-button-cd-text" aria-hidden="true"></span>
         `;

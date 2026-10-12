@@ -1,4 +1,5 @@
 import type { Player } from '../entities/Player';
+import { traitIconCanvas, type TraitIconArt } from './traitIcons';
 import type { Enemy } from '../entities/Enemy';
 import type { SpawnSystem } from '../systems/Spawn';
 import type { PowerSystem } from '../systems/PowerSystem';
@@ -166,6 +167,8 @@ export class HUD {
     public crosshairStyle: CrosshairId = DEFAULT_CROSSHAIR;
     /** Czy rysowac dolny SuperPowerBar (centered 3-icon bar). False na mobile (SuperButton zastepuje). */
     public showPowerBar: boolean = true;
+    /** v0.246.0 CECHA czolgu — 4. kafelek (desktop). null = brak cechy / flaga off. Ustawiane per klatka z main.ts. */
+    public traitInfo: { icon: string; iconArt?: TraitIconArt; iconColor?: string; label: string; color: string; progress: number; secs: number; active: boolean; activeSecs?: number } | null = null;
 
     /**
      * SEASON KIT — licznik znajdziek sezonowych w TYM meczu, albo null gdy sezon
@@ -1202,6 +1205,62 @@ export class HUD {
             }
         }
 
+        // v0.246.0 CECHA CZOLGU — 4. kafelek tuz obok 3 mocy i CELOWO inny: OSMIOKAT (v0.246.1), turkusowo-zlota
+        // ramka z gradientem, poswiata w kolorze cechy, etykieta + klawisz E. Czytelnosc: to nie jest 4. moc.
+        if (this.traitInfo) {
+            const ti = this.traitInfo;
+            const R = ICON_SIZE * 0.56;
+            const tcx = startX + totalW + ICON_GAP + R, tcy = iconsBaseY + ICON_SIZE / 2; // v0.246.1: blizej (bez dodatkowych 14 px)
+            this.sigmaRect('trait-tile', tcx - R, tcy - R, R * 2, R * 2 + 22, true);
+            const hex = (r: number): void => {
+                c.beginPath();
+                for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + (k * Math.PI) / 4; /* osmiokat */ const hx = tcx + Math.cos(a) * r, hy = tcy + Math.sin(a) * r; if (k === 0) c.moveTo(hx, hy); else c.lineTo(hx, hy); }
+                c.closePath();
+            };
+            const ready = ti.progress <= 0 && !ti.active;
+            const t = Date.now();
+            c.save();
+            if (ready || ti.active) { c.shadowColor = ti.color; c.shadowBlur = 14 + Math.sin(t / 220) * 5; }
+            hex(R);
+            const frame = c.createLinearGradient(tcx - R, tcy - R, tcx + R, tcy + R);
+            frame.addColorStop(0, '#ffe08a'); frame.addColorStop(0.5, '#3fd8ff'); frame.addColorStop(1, '#0c5f7a');
+            c.fillStyle = frame; c.fill();
+            c.restore();
+            hex(R - 4);
+            const inner = c.createRadialGradient(tcx - R * 0.3, tcy - R * 0.35, 2, tcx, tcy, R);
+            inner.addColorStop(0, ti.active ? '#2c4a20' : '#22364a'); inner.addColorStop(1, '#0d1824');
+            c.fillStyle = inner; c.fill();
+            c.font = `40px "${FONT_FAMILY}",cursive`;
+            c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.globalAlpha = ti.progress > 0 ? 0.4 : 1;
+            const bob = ready ? Math.sin(t / 260) * 2 : 0;
+            if (ti.iconArt) { const S = 50; c.drawImage(traitIconCanvas(ti.iconArt), tcx - S / 2, tcy - S / 2 - 3 + bob, S, S); }
+            else if (ti.iconColor) { c.fillStyle = ti.iconColor; c.font = `46px "${FONT_FAMILY}",cursive`; c.strokeStyle = '#0a2a14'; c.lineWidth = 4; c.strokeText(ti.icon, tcx, tcy - 5 + bob); }
+            if (!ti.iconArt) c.fillText(ti.icon, tcx, tcy - 5 + bob);
+            c.globalAlpha = 1;
+            if (ti.progress > 0) {
+                c.save(); hex(R - 4); c.clip();
+                c.beginPath(); c.moveTo(tcx, tcy);
+                c.arc(tcx, tcy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ti.progress, false);
+                c.closePath(); c.fillStyle = 'rgba(0,0,0,0.6)'; c.fill(); c.restore();
+                c.font = `22px "${FONT_FAMILY}",cursive`;
+                c.strokeStyle = '#000'; c.lineWidth = 4;
+                c.strokeText(Math.ceil(ti.secs).toString(), tcx, tcy);
+                c.fillStyle = '#7fe8ff'; c.fillText(Math.ceil(ti.secs).toString(), tcx, tcy);
+            }
+            c.font = `13px "${FONT_FAMILY}",cursive`;
+            c.strokeStyle = 'rgba(0,0,0,0.85)'; c.lineWidth = 3;
+            c.strokeText(ti.label, tcx, tcy + R - 9);
+            c.fillStyle = ti.progress > 0 ? 'rgba(140,140,140,0.8)' : '#7fe8ff';
+            c.fillText(ti.label, tcx, tcy + R - 9);
+            // znaczek klawisza "E" (keycap) w rogu
+            const kx = tcx + R * 0.62, ky = tcy - R * 0.78;
+            c.fillStyle = '#f5f7fa'; c.beginPath(); c.roundRect(kx - 10, ky - 10, 20, 20, 5); c.fill();
+            c.strokeStyle = '#3fd8ff'; c.lineWidth = 2; c.stroke();
+            c.font = `13px "${FONT_FAMILY}",cursive`; c.fillStyle = '#0d1824'; c.fillText('E', kx, ky + 1);
+            c.textBaseline = 'alphabetic';
+        }
+
         c.font = `12px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'center';
         // TYPO-P0-3: kontur. Podpowiedz jest CELOWO przygaszona (alpha 0.55), wiec bez
@@ -1403,6 +1462,33 @@ export class HUD {
         c.restore();
     }
     
+    /** v0.246.3: pigulka trwania cechy (jak turbo z power pada), pod turbo w prawej kolumnie. */
+    private drawTraitStatus(): void {
+        const ti = this.traitInfo;
+        if (!ti || !ti.activeSecs || ti.activeSecs <= 0) return;
+        const c = this.ctx;
+        const px = this.screenW / this.uiScale - 14 - 200;
+        const py = 156 + this.seasonRowShift();
+        this.sigmaRect('pill-trait', px, py, 200, 32, true);
+        c.save();
+        c.globalAlpha = 0.95;
+        c.fillStyle = ti.color;
+        c.beginPath(); c.roundRect(px, py, 200, 32, 10); c.fill();
+        c.fillStyle = 'rgba(0,0,0,0.25)';
+        c.beginPath(); c.roundRect(px, py, 200, 32, 10); c.fill();
+        c.font = `16px "${FONT_FAMILY}",cursive`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillStyle = '#fff';
+        c.strokeStyle = '#000';
+        c.lineWidth = 3;
+        if (ti.iconArt) c.drawImage(traitIconCanvas(ti.iconArt), px + 6, py + 2, 28, 28);
+        const txt = `${ti.iconColor || ti.iconArt ? '' : ti.icon + ' '}${ti.label.toUpperCase()} ${ti.activeSecs.toFixed(1)}s`;
+        c.strokeText(txt, px + 100, py + 16);
+        c.fillText(txt, px + 100, py + 16);
+        c.restore();
+    }
+
     private drawMegaBossBar(megaBoss: Enemy): void {
         const c = this.ctx;
         // v0.186.0: rysowane w kontekscie skalowanym uiScale, wiec szerokosc liczymy w TEJ przestrzeni
@@ -1955,6 +2041,7 @@ export class HUD {
         // Magnet + turbo status — right-aligned tu tez sa scaled
         this.drawMagnetStatus(powerSystem);
         this.drawTurboStatus(player);
+        this.drawTraitStatus();
 
         // SuperPowerBar (bottom-center) — hidden on mobile (zastepuje SuperButton)
         if (this.showPowerBar) {

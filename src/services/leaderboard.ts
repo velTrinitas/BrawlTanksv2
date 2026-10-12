@@ -1,3 +1,4 @@
+import type { DifficultyId } from '../types/GameConfig';
 /**
  * leaderboard.ts — LB-F1 (FAZA 9c) warstwa danych leaderboardu.
  *
@@ -98,6 +99,8 @@ export interface LeaderboardEntry {
     readonly score: number;
     readonly map: MapId;
     readonly brawlerId: string;
+    /** v0.246.0: poziom trudnosci NAJLEPSZEGO wyniku gracza (null = stare RPC v1 / brak danych). */
+    readonly difficulty: DifficultyId | null;
     readonly timestamp: number;
 }
 
@@ -114,6 +117,8 @@ export interface LeaderboardQuery {
     readonly window: TimeWindow;
     /** null/undefined = agregat po wszystkich mapach ("Wszystkie, najlepszy"). */
     readonly map?: MapId | null;
+    /** v0.246.0: null/undefined = wszystkie poziomy. Dziala tylko z RPC v2 (flaga LB_DIFF_LIVE). */
+    readonly difficulty?: DifficultyId | null;
     readonly limit?: number;
 }
 

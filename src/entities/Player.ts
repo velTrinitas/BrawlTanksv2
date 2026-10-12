@@ -16,6 +16,7 @@ import type { DamageSource } from '../types/DamageSource'; // Z0.5
 // FAZA 7c: profile flag override via FLAGS config (data-driven)
 import { FLAGS, type FlagConfig } from '../config/flags';
 import type { FlagId } from '../types/Profile';
+import { isTraitsEnabled } from '../config/traits'; // v0.246.1
 import { simNowMs } from '../systems/SimClock'; // COOP S1
 import type { PlayerInput } from '../input/PlayerInput'; // COOP S6
 
@@ -584,7 +585,8 @@ export class Player {
     // ── DASH (BALANCE_V2 S3) ────────────────────────────────────────────────────────────
 
     /** Czy ten czolg w ogole ma dash (ruleset v2 -> `dash: true`). Przy `?bal=0` zawsze false. */
-    get hasDash(): boolean { return this.brawler.dash === true; }
+    /** v0.246.1 (Mariusz): przy CECHACH (?traits=1) Shadow traci dash — jego cecha to wielki skok. */
+    get hasDash(): boolean { return this.brawler.dash === true && !isTraitsEnabled(); }
 
     /** Gotowy do odpalenia: ma dash, nie leci juz teraz i ma odnowione. */
     get canDash(): boolean { return this.hasDash && this.dashStepsLeft <= 0 && this.dashCdLeft <= 0; }

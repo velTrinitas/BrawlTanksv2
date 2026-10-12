@@ -570,8 +570,11 @@ export class PowerSystem {
     }
 
     /** Czy gracz aktualnie ma tarcze (invulnerability)? */
+    /** v0.246.0: nietykalnosc z CECHY czolgu (taran, lot skoku, laska teleportu) — wstrzykiwana przez main.ts. */
+    public traitInvul: (() => boolean) | null = null;
+
     get isInvulnerable(): boolean {
-        return this.activePowerId === 'aura';
+        return this.activePowerId === 'aura' || (this.traitInvul?.() ?? false);
     }
 
     /** Czy aktualnie freeze jest aktywny? */

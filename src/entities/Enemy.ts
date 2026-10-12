@@ -260,6 +260,8 @@ export class Enemy {
     public static megaThreatBullets: ReadonlyArray<{ x: number; y: number; vx: number; vy: number; active: boolean }> = [];
     /** Szansa uniku per wykryte zagrozenie (0 = wylaczony). main.ts ustawia z difficulty (config/playability). */
     public static megaDodgeChance: number = 0;
+    /** v0.246.0 CECHA Kinga: do tej chwili (zegar meczu) ZADEN wrog nie strzela; ruch bez zmian. Reset w startGame. */
+    public static ceasefireUntil: number = 0;
     private megaShieldActive: boolean = false;
     private megaShieldNextTime: number = 0;
     private megaShieldEndTime: number = 0;
@@ -1155,7 +1157,8 @@ export class Enemy {
         // CASTLE_FIRE_CONE (ponizej). Dotyczy tylko `castleRole`; reszta scenariuszy bez zmian.
         const shootRange = this.shootRangeOverride ?? (this.isPursuit ? PURSUIT_SHOOT_RANGE : 640);
         const shotWanted = !isChasingCube && !this.castleNoShoot
-            && simNowMs() - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange;
+            && simNowMs() - this.lastShotTime >= this.shootIntervalMs && aimDist < shootRange
+            && simNowMs() >= Enemy.ceasefireUntil; // v0.246.0 CECHA Kinga: krolewski rozejm — nikt nie strzela
         let facing = aimAngle;
         if (this.castleRole) {
             const mdx = this.x - this.preMoveX, mdy = this.y - this.preMoveY;

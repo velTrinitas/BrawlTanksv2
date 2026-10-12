@@ -1,3 +1,4 @@
+import { isLbDiffEnabled } from '../config/lbDiffFlag'; // v0.246.0
 /**
  * SupabaseScoreService.ts — FAZA 9b.2 (v0.47.0)
  *
@@ -51,6 +52,12 @@ function nonNegInt(v: number | undefined): number {
 interface LeaderboardTopRow {
     rank: number; profile_id: string; nickname: string; avatar_id: string;
     flag_id: string | null; score: number; map: string; brawler_id: string; created_at: string;
+    /** v0.246.0: tylko z leaderboard_top_v2 (supabase/leaderboard_rpc_v2.sql). */
+    difficulty?: string | null;
+}
+/** v0.246.0: bezpieczna konwersja tekstu z bazy na DifficultyId (nieznane = null, pill sie nie pokaze). */
+function toDifficultyId(v: string | null | undefined): DifficultyId | null {
+    return v === 'easy' || v === 'normal' || v === 'hard' || v === 'nightmare' ? v : null;
 }
 /** Ksztalt wiersza z RPC leaderboard_my_rank. */
 interface MyRankRow { rank: number | null; my_score: number | null; total: number; }
@@ -322,13 +329,24 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
         if (!isCloudEnabled()) return [];   // ranking pusty => UI pokaze stan „brak wynikow"
         try {
             const sb = getSupabase();
-            const { data, error } = await sb.rpc('leaderboard_top', {
-                p_scenario: board.scenario,
-                p_score_version: CURRENT_SCORE_VERSION,
-                p_map: query.map ?? null,
-                p_window: query.window,
-                p_limit: query.limit ?? 100,
-            });
+            // v0.246.0: RPC v2 (poziom trudnosci) za flaga LB_DIFF_LIVE; v1 zostaje jako rollback.
+            const useV2 = isLbDiffEnabled();
+            const { data, error } = useV2
+                ? await sb.rpc('leaderboard_top_v2', {
+                    p_scenario: board.scenario,
+                    p_score_version: CURRENT_SCORE_VERSION,
+                    p_map: query.map ?? null,
+                    p_window: query.window,
+                    p_limit: query.limit ?? 100,
+                    p_difficulty: query.difficulty ?? null,
+                })
+                : await sb.rpc('leaderboard_top', {
+                    p_scenario: board.scenario,
+                    p_score_version: CURRENT_SCORE_VERSION,
+                    p_map: query.map ?? null,
+                    p_window: query.window,
+                    p_limit: query.limit ?? 100,
+                });
             if (error) throw error;
             return ((data ?? []) as LeaderboardTopRow[]).map((r) => Object.freeze({
                 rank: Number(r.rank),
@@ -340,6 +358,7 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
                 score: r.score,
                 map: r.map as MapId,
                 brawlerId: r.brawler_id,
+                difficulty: toDifficultyId(r.difficulty),
                 timestamp: new Date(r.created_at).getTime(),
             }));
         } catch (e) {
@@ -357,13 +376,22 @@ export class SupabaseScoreService implements IScoreService, ILeaderboardService 
         if (!isCloudEnabled()) return Object.freeze({ rank: null, score: null, total: 0 });
         try {
             const sb = getSupabase();
-            const { data, error } = await sb.rpc('leaderboard_my_rank', {
-                p_profile_id: profileId,
-                p_scenario: board.scenario,
-                p_score_version: CURRENT_SCORE_VERSION,
-                p_map: query.map ?? null,
-                p_window: query.window,
-            });
+            const { data, error } = isLbDiffEnabled()
+                ? await sb.rpc('leaderboard_my_rank_v2', {
+                    p_profile_id: profileId,
+                    p_scenario: board.scenario,
+                    p_score_version: CURRENT_SCORE_VERSION,
+                    p_map: query.map ?? null,
+                    p_window: query.window,
+                    p_difficulty: query.difficulty ?? null,
+                })
+                : await sb.rpc('leaderboard_my_rank', {
+                    p_profile_id: profileId,
+                    p_scenario: board.scenario,
+                    p_score_version: CURRENT_SCORE_VERSION,
+                    p_map: query.map ?? null,
+                    p_window: query.window,
+                });
             if (error) throw error;
             // RPC RETURNS TABLE => tablica jednowierszowa.
             const row = (Array.isArray(data) ? data[0] : data) as MyRankRow | undefined;

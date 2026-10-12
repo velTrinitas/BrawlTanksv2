@@ -34,6 +34,7 @@ export class TouchInputManager {
     /** PROG-F7a: przyciski slotow (0/1) + v0.114.0 kostka 🎲 (index 2, per-mecz). */
     private superButtons: [SuperButton, SuperButton, SuperButton];
     private dashButton: DashButton;
+    private readonly traitButton: DashButton; // v0.246.0 CECHA
 
     /** v0.114.0: czy slot 🎲 aktywny w biezacym meczu (toggle "Szalone Moce" w Garazu). */
     private diceEnabled: boolean = false;
@@ -45,6 +46,8 @@ export class TouchInputManager {
     onSuperRequested: ((slot: 0 | 1 | 2) => void) | null = null;
     /** BALANCE_V2 S3: tap w przycisk dasha (tylko gdy widoczny). */
     onDashRequested: (() => void) | null = null;
+    /** v0.246.0: tap w przycisk CECHY czolgu (4. slot, lewy dolny rog). */
+    onTraitRequested: (() => void) | null = null;
 
     // ── SigmaTester (J6): wstrzykiwanie inputu przez TE SAME gettery, ktore czyta main.ts ──
     // Bot nie symuluje dotyku; podaje gotowe wektory. undefined = nie ruszaj tego kanalu.
@@ -66,6 +69,7 @@ export class TouchInputManager {
         this.aimJoystick = new VirtualJoystick('right', 'fixed');
         this.superButtons = [new SuperButton(0), new SuperButton(1), new SuperButton(2)];
         this.dashButton = new DashButton();
+        this.traitButton = new DashButton('bt-dash-button bt-trait-button', '✨', 'Trait — tap to use');
     }
 
     init(): void {
@@ -90,6 +94,8 @@ export class TouchInputManager {
         }
         this.dashButton.mount(this.rootEl);
         this.dashButton.onRequest = () => this.onDashRequested?.();
+        this.traitButton.mount(this.rootEl);
+        this.traitButton.onRequest = () => this.onTraitRequested?.();
 
         this.hide();
 
@@ -103,6 +109,7 @@ export class TouchInputManager {
         this.aimJoystick.show();
         for (const btn of this.superButtons) btn.show();
         this.dashButton.show();
+        this.traitButton.show();
     }
 
     hide(): void {
@@ -112,6 +119,7 @@ export class TouchInputManager {
         this.aimJoystick.hide();
         for (const btn of this.superButtons) btn.hide();
         this.dashButton.hide();
+        this.traitButton.hide();
     }
 
     // === Bridge API for main.ts gameLoop ===
@@ -157,6 +165,18 @@ export class TouchInputManager {
         if (!this.isActive) return;
         this.dashButton.setVisible(visible);
         if (visible) this.dashButton.setCooldown(progress, secsLeft);
+    }
+
+/** v0.246.0: cecha czolgu — ikona RAZ na mecz (null = brak cechy / flaga off => przycisku nie ma). */
+    setTrait(icon: string | null, color?: string, imgSrc?: string): void {
+        if (!this.isActive) return;
+        this.traitButton.setVisible(icon !== null);
+        if (icon) this.traitButton.setIcon(icon, color, imgSrc);
+    }
+    /** v0.246.0: cooldown cechy per klatka (thrash-guard w DashButton). */
+    updateTraitState(progress: number, secsLeft: number): void {
+        if (!this.isActive) return;
+        this.traitButton.setCooldown(progress, secsLeft);
     }
 
     updateSuperCooldown(slot: 0 | 1 | 2, progress: number, secsLeft: number): void {

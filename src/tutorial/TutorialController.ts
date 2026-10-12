@@ -31,6 +31,8 @@ export interface TutorialOpts {
     armSuperPower: () => void;   // SUPER POWER: gwarantuj gotowosc mocy + cele
     superPowerUsed: () => boolean; // SUPER POWER: gate (moc aktywowana)
     onDone: (continuePlaying: boolean) => void; // FAZA B2: finalny wybor gracza (graj dalej / menu)
+    /** v0.246.1: karta CECHA CZOLGU (tylko przy ?traits=1) — gate: cecha uzyta raz. undefined = brak karty. */
+    traitUsed?: () => boolean;
 }
 
 /** SAVE THE QUEEN Q6 (polish): kroki scenariusza na TYM SAMYM UI (karta, pill, POMIN, SWIETNIE, finalny wybor). */
@@ -152,6 +154,13 @@ export class TutorialController {
                 // (querySelector na '.bt-super-button' zlapalby pierwszy w DOM = kruche).
                 ringSelector: '.bt-super-button--slot1',
             },
+            // v0.246.1 CECHA CZOLGU — osobna karta zaraz po mocy (inny przycisk => nie podkrok mocy, decyzja w planie).
+            ...(opts.traitUsed ? [{
+                title: t('tutorial.trait.title'),
+                hint: opts.isTouch ? t('tutorial.trait.hintTouch') : t('tutorial.trait.hintDesktop'),
+                isDone: opts.traitUsed,
+                ringSelector: '.bt-trait-button',
+            } as Step] : []),
             // Przedmioty/strefy (serce/magnes/kostka/medi-pad/power-pad) uczone teraz JUST-IN-TIME
             // w meczu (ItemHints), nie kartami tutorialu — decyzja Mariusza + best practice.
             {   // 7 — GOTOWY (finalny wybor: graj dalej / powrot do menu; NIE zwija sie)

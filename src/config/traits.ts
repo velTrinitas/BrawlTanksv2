@@ -14,7 +14,7 @@ import type { TraitIconArt } from '../rendering/traitIcons';
 /** Id czolgu = Brawler.id (string w configu brawlers.ts). */
 type BrawlerId = string;
 
-export const TRAITS_LIVE = false;
+export const TRAITS_LIVE = true; // v0.248.0 flip (rollback ?traits=0)
 
 let cached: boolean | null = null;
 export function isTraitsEnabled(): boolean {

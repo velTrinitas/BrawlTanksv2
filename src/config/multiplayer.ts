@@ -76,4 +76,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 15; // v0.245.0: GRYWALNOSC (trudnosc d3, start bez spawnu 3 s, gemy startowe, pickupy/pady)
+export const SIM_VERSION = 16; // v0.248.0: CECHY CZOLGOW na produkcji (TRAITS_LIVE=true)

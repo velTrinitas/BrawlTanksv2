@@ -1,7 +1,7 @@
 /**
  * LeaderboardScreen.ts — LB-F2 (FAZA 9c). Publiczny ranking, DOM overlay (jak MainMenu),
- * poza petla PIXI. Zakladki = rejestr boardow (LEADERBOARD_BOARDS), segment czasu
- * (Wszech/Tydzien/Dzis), chipy map w KTB, podium top-3 | lista 4..N, przypiety wiersz "TY".
+ * poza petla PIXI. Zakladki = rejestr boardow (LEADERBOARD_BOARDS), dropdown czasu
+ * (Wszech/Tydzien/Dzis), mapa + poziom w popoverze Filtry (v0.249.0), podium top-3 | lista 4..N, przypiety wiersz "TY".
  *
  * Dane: leaderboardService (RPC leaderboard_top / my_rank — dedupe best-per-player + ranga
  * + join profiles, po stronie Postgres). Avatary z AVATARS[avatarId].assetPath (DOM <img>).
@@ -35,23 +35,31 @@ export class LeaderboardScreen implements IScreen {
     private window: TimeWindow = 'all';
     private map: MapId | null = null; // null = agregat "Wszystkie (najlepszy)"
     private difficulty: DifficultyId | null = null; // v0.246.0: null = wszystkie poziomy (tylko przy LB_DIFF_LIVE)
+    private openDd: string | null = null; // v0.249.0: otwarty popover (board/window/filters)
     private loadToken = 0;            // guard przeciw wyscigom async przy szybkim klikaniu
 
     mount(root: HTMLElement): void {
         this.rootEl = document.createElement('div');
         this.rootEl.className = 'bt-settings-screen bt-lb-screen';
         root.appendChild(this.rootEl);
+        this.openDd = null;
+        document.addEventListener('pointerdown', this.onDocPointer);
+        document.addEventListener('keydown', this.onDocKey);
         this.renderShell();
         void this.reload();
     }
 
     unmount(): void {
         this.loadToken++; // uniewaznij pending load
+        document.removeEventListener('pointerdown', this.onDocPointer);
+        document.removeEventListener('keydown', this.onDocKey);
         this.rootEl?.remove();
         this.rootEl = null;
     }
 
-    // ── Shell (naglowek + zakladki + segment + chipy) — statyczne az do zmiany stanu ──
+    // ── Shell: JEDEN rzad dropdownow (Tryb / Czas / Filtry) + linia skrotu aktywnych filtrow ──
+    // v0.249.0 (Mariusz): 4 rzedy chipow zaslanialy ranking na mobile (2-3 widoczne wiersze).
+    // Domyslny widok = KTB / wszech czasow / wszystkie mapy / kazdy poziom; szczegoly w popoverze Filtry.
     private renderShell(): void {
         if (!this.rootEl) return;
         this.rootEl.innerHTML = `
@@ -63,35 +71,94 @@ export class LeaderboardScreen implements IScreen {
                 <h2 class="bt-settings-title">${t('leaderboard.title')}</h2>
                 <button class="bt-lb-refresh" type="button" aria-label="${t('leaderboard.refresh')}">🔄</button>
             </header>
-            <div class="bt-lb-controls">
-                <div class="bt-lb-tabs" role="tablist">${this.renderTabs()}</div>
-                <div class="bt-lb-segment" role="tablist">${this.renderWindowSegment()}</div>
+            <div class="bt-lb-bar">
+                ${this.renderBoardDropdown()}
+                ${this.renderWindowDropdown()}
+                ${this.renderFiltersDropdown()}
             </div>
-            <div class="bt-lb-chips">${this.renderMapChips()}</div>
-            <div class="bt-lb-chips bt-lb-diffs">${this.renderDiffChips()}</div>
+            ${this.renderActiveSummary()}
             <div class="bt-lb-body"><div class="bt-lb-status">${t('leaderboard.loading')}</div></div>
             <div class="bt-lb-you"></div>
         `;
         this.wireShell();
     }
 
-    private renderTabs(): string {
-        return LEADERBOARD_BOARDS.map(b => {
+    /** Wspolny przycisk dropdownu: etykieta sekcji (desktop) + wartosc + strzalka. */
+    private ddButton(id: string, label: string, valueHtml: string, extra = ''): string {
+        const open = this.openDd === id;
+        return `<button class="bt-lb-dd ${open ? 'is-open' : ''}" type="button" data-dd="${id}" aria-haspopup="true" aria-expanded="${open}">
+                    <span class="bt-lb-dd-label">${label}</span>
+                    <span class="bt-lb-dd-value">${valueHtml}</span>
+                    ${extra}
+                    <span class="bt-lb-dd-caret" aria-hidden="true">▾</span>
+                </button>`;
+    }
+
+    private renderBoardDropdown(): string {
+        const opts = LEADERBOARD_BOARDS.map(b => {
             const active = b.id === this.board.id ? 'is-active' : '';
             const locked = b.enabled ? '' : 'is-locked';
-            return `<button class="bt-lb-tab ${active} ${locked}" type="button"
-                        data-board="${b.id}" ${b.enabled ? '' : 'aria-disabled="true"'}>
-                        <span aria-hidden="true">${b.icon}</span>
+            return `<button class="bt-lb-opt ${active} ${locked}" type="button" data-board="${b.id}" ${b.enabled ? '' : 'aria-disabled="true"'}>
+                        <span class="bt-lb-opt-ico" aria-hidden="true">${b.enabled ? b.icon : '🔒'}</span>
                         <span>${this.boardLabel(b.id)}</span>
                     </button>`;
         }).join('');
+        const value = `<span aria-hidden="true">${this.board.icon}</span><span class="bt-lb-dd-tx">${this.boardLabel(this.board.id)}</span>`;
+        return `<div class="bt-lb-ddwrap bt-lb-ddwrap--board">
+                    ${this.ddButton('board', t('leaderboard.dd.mode'), value)}
+                    <div class="bt-lb-pop" data-pop="board" ${this.openDd === 'board' ? '' : 'hidden'}>${opts}</div>
+                </div>`;
     }
 
-    private renderWindowSegment(): string {
-        return WINDOWS.map(w => {
-            const active = w === this.window ? 'is-active' : '';
-            return `<button class="bt-lb-seg ${active}" type="button" data-window="${w}">${this.windowLabel(w)}</button>`;
-        }).join('');
+    private renderWindowDropdown(): string {
+        const opts = WINDOWS.map(w =>
+            `<button class="bt-lb-opt ${w === this.window ? 'is-active' : ''}" type="button" data-window="${w}">${this.windowLabel(w)}</button>`
+        ).join('');
+        const value = `<span aria-hidden="true">🕒</span><span class="bt-lb-dd-tx">${this.windowLabel(this.window)}</span>`;
+        return `<div class="bt-lb-ddwrap bt-lb-ddwrap--window">
+                    ${this.ddButton('window', t('leaderboard.dd.time'), value)}
+                    <div class="bt-lb-pop" data-pop="window" ${this.openDd === 'window' ? '' : 'hidden'}>${opts}</div>
+                </div>`;
+    }
+
+    /** Ile filtrow odbiega od domyslnego widoku (badge na przycisku Filtry). */
+    private activeFilterCount(): number {
+        return (this.map !== null ? 1 : 0) + (this.difficulty !== null ? 1 : 0);
+    }
+
+    private renderFiltersDropdown(): string {
+        const mapChips = this.renderMapChips();
+        const diffChips = this.renderDiffChips();
+        if (!mapChips && !diffChips) return ''; // np. CTF bez flagi poziomu — nic do filtrowania
+        const n = this.activeFilterCount();
+        const badge = n > 0 ? `<span class="bt-lb-dd-badge">${n}</span>` : '';
+        // Desktop: wartosc = co odfiltrowane (etykieta FILTRY nad nia). Telefon: krotko 'Filtry' + badge, szczegoly w linii skrotu.
+        const valueTx = n > 0 ? this.activeFilterParts().join(' · ') : t('leaderboard.map.all');
+        const value = `<span aria-hidden="true">⚙️</span><span class="bt-lb-dd-tx bt-lb-dd-tx--wide">${valueTx}</span><span class="bt-lb-dd-tx bt-lb-dd-tx--short">${t('leaderboard.filters')}</span>`;
+        const mapSec = mapChips ? `<div class="bt-lb-popsec"><div class="bt-lb-popsec-title">${t('leaderboard.filters.map')}</div><div class="bt-lb-chips bt-lb-chips--grid">${mapChips}</div></div>` : '';
+        const diffSec = diffChips ? `<div class="bt-lb-popsec"><div class="bt-lb-popsec-title">${t('leaderboard.filters.diff')}</div><div class="bt-lb-chips bt-lb-chips--grid bt-lb-diffs">${diffChips}</div></div>` : '';
+        const clear = n > 0 ? `<button class="bt-lb-clear" type="button" data-clear="1">✕ ${t('leaderboard.filters.clear')}</button>` : '';
+        return `<div class="bt-lb-ddwrap bt-lb-ddwrap--filters">
+                    ${this.ddButton('filters', t('leaderboard.filters'), value, badge)}
+                    <div class="bt-lb-pop bt-lb-pop--filters" data-pop="filters" ${this.openDd === 'filters' ? '' : 'hidden'}>${mapSec}${diffSec}${clear}</div>
+                </div>`;
+    }
+
+    private activeFilterParts(): string[] {
+        const parts: string[] = [];
+        if (this.map !== null) parts.push(this.esc(this.mapLabel(this.map)));
+        if (this.difficulty !== null) parts.push(`${difficultyIcon(this.difficulty)} ${this.diffChipLabel(this.difficulty)}`);
+        return parts;
+    }
+
+    /** Linia skrotu pod paskiem — tylko gdy filtr aktywny; ✕ = jeden tap do domyslnego widoku. */
+    private renderActiveSummary(): string {
+        if (this.activeFilterCount() === 0) return '';
+        const parts = this.activeFilterParts();
+        return `<div class="bt-lb-summary">
+                    <span class="bt-lb-summary-tx">${parts.join(' · ')}</span>
+                    <button class="bt-lb-summary-x" type="button" data-clear="1" aria-label="${t('leaderboard.filters.clear')}">✕</button>
+                </div>`;
     }
 
     private renderMapChips(): string {
@@ -104,15 +171,24 @@ export class LeaderboardScreen implements IScreen {
         return all + rest;
     }
 
-    /** v0.246.0: filtr poziomu (WSZYSTKIE + 4 poziomy w kolorach pickera). Pusty bez flagi => rzad znika (:empty). */
+    /** v0.246.0: filtr poziomu (WSZYSTKIE + 4 poziomy w kolorach pickera). Pusty bez flagi => sekcja znika. */
     private renderDiffChips(): string {
         if (!isLbDiffEnabled()) return '';
         const all = `<button class="bt-lb-chip bt-lb-diffchip ${this.difficulty === null ? 'is-active' : ''}" type="button" data-diff="__all__">${t('leaderboard.diff.all')}</button>`;
         const rest = DIFFICULTY_ORDER.map(d =>
-            `<button class="bt-lb-chip bt-lb-diffchip bt-lb-diffchip--${d} ${this.difficulty === d ? 'is-active' : ''}" type="button" data-diff="${d}" title="${difficultyLabel(d)}">`
-            + `<span aria-hidden="true">${difficultyIcon(d)}</span><span class="bt-lb-diffchip-tx">${difficultyLabel(d)}</span></button>`
+            `<button class="bt-lb-chip bt-lb-diffchip bt-lb-diffchip--${d} ${this.difficulty === d ? 'is-active' : ''}" type="button" data-diff="${d}" title="${this.diffChipLabel(d)}">`
+            + `<span aria-hidden="true">${difficultyIcon(d)}</span><span class="bt-lb-diffchip-tx">${this.diffChipLabel(d)}</span></button>`
         ).join('');
         return all + rest;
+    }
+
+    /** Zmiana stanu filtra: przerysuj shell (popover zostaje wg openDd) i przeladuj liste. */
+    private apply(mutate: () => void, closeDd: boolean): void {
+        AudioSys.getInstance().playMenuClick();
+        mutate();
+        if (closeDd) this.openDd = null;
+        this.renderShell();
+        void this.reload();
     }
 
     private wireShell(): void {
@@ -126,43 +202,63 @@ export class LeaderboardScreen implements IScreen {
             AudioSys.getInstance().playMenuClick();
             void this.reload();
         });
-        r.querySelectorAll<HTMLElement>('.bt-lb-tab').forEach(el => el.addEventListener('click', () => {
-            const id = el.dataset.board;
-            const b = LEADERBOARD_BOARDS.find(x => x.id === id);
-            if (!b || !b.enabled || b.id === this.board.id) return;
+        // Otwieranie/zamykanie dropdownow — tylko przelaczenie atrybutow, bez przerysowania (lista nie miga).
+        r.querySelectorAll<HTMLElement>('.bt-lb-dd').forEach(el => el.addEventListener('click', () => {
+            const id = el.dataset.dd ?? null;
             AudioSys.getInstance().playMenuClick();
-            this.board = b;
-            this.map = null; // reset filtra mapy przy zmianie scenariusza
-            this.renderShell();
-            void this.reload();
+            this.setOpenDd(this.openDd === id ? null : id);
         }));
-        r.querySelectorAll<HTMLElement>('.bt-lb-seg').forEach(el => el.addEventListener('click', () => {
+        r.querySelectorAll<HTMLElement>('.bt-lb-opt[data-board]').forEach(el => el.addEventListener('click', () => {
+            const b = LEADERBOARD_BOARDS.find(x => x.id === el.dataset.board);
+            if (!b || !b.enabled) return;
+            if (b.id === this.board.id) { this.setOpenDd(null); return; }
+            this.apply(() => { this.board = b; this.map = null; }, true); // reset filtra mapy przy zmianie scenariusza
+        }));
+        r.querySelectorAll<HTMLElement>('.bt-lb-opt[data-window]').forEach(el => el.addEventListener('click', () => {
             const w = el.dataset.window as TimeWindow | undefined;
-            if (!w || w === this.window) return;
-            AudioSys.getInstance().playMenuClick();
-            this.window = w;
-            this.renderShell();
-            void this.reload();
+            if (!w) return;
+            if (w === this.window) { this.setOpenDd(null); return; }
+            this.apply(() => { this.window = w; }, true);
         }));
         r.querySelectorAll<HTMLElement>('.bt-lb-diffchip').forEach(el => el.addEventListener('click', () => {
             const raw = el.dataset.diff;
             const next = raw === '__all__' ? null : (raw as DifficultyId);
             if (next === this.difficulty) return;
-            AudioSys.getInstance().playMenuClick();
-            this.difficulty = next;
-            this.renderShell();
-            void this.reload();
+            this.apply(() => { this.difficulty = next; }, false); // panel Filtry zostaje otwarty
         }));
         r.querySelectorAll<HTMLElement>('.bt-lb-chip[data-map]').forEach(el => el.addEventListener('click', () => {
             const raw = el.dataset.map;
             const next = raw === '__all__' ? null : (raw as MapId);
             if (next === this.map) return;
-            AudioSys.getInstance().playMenuClick();
-            this.map = next;
-            this.renderShell();
-            void this.reload();
+            this.apply(() => { this.map = next; }, false);
+        }));
+        r.querySelectorAll<HTMLElement>('[data-clear]').forEach(el => el.addEventListener('click', () => {
+            this.apply(() => { this.map = null; this.difficulty = null; }, true);
         }));
     }
+
+    private setOpenDd(id: string | null): void {
+        this.openDd = id;
+        const r = this.rootEl;
+        if (!r) return;
+        r.querySelectorAll<HTMLElement>('.bt-lb-pop').forEach(p => { p.hidden = p.dataset.pop !== id; });
+        r.querySelectorAll<HTMLElement>('.bt-lb-dd').forEach(b => {
+            const open = b.dataset.dd === id;
+            b.classList.toggle('is-open', open);
+            b.setAttribute('aria-expanded', String(open));
+        });
+    }
+
+    /** Tap poza dropdownem / Esc zamyka popover. Listenery na document — zdejmowane w unmount. */
+    private readonly onDocPointer = (e: PointerEvent): void => {
+        if (!this.openDd) return;
+        const tgt = e.target as Element | null;
+        if (tgt && tgt.closest('.bt-lb-ddwrap')) return;
+        this.setOpenDd(null);
+    };
+    private readonly onDocKey = (e: KeyboardEvent): void => {
+        if (e.key === 'Escape' && this.openDd) this.setOpenDd(null);
+    };
 
     // ── Ladowanie danych + render listy ──────────────────────────────────────────
     private async reload(): Promise<void> {
@@ -289,6 +385,15 @@ export class LeaderboardScreen implements IScreen {
             case 'all':  return t('leaderboard.window.all');
             case 'week': return t('leaderboard.window.week');
             case 'day':  return t('leaderboard.window.day');
+        }
+    }
+    /** v0.249.0: w filtrach poziom zapisany normalnie (Łatwy), nie kapitalikami jak pill w wierszu. */
+    private diffChipLabel(d: DifficultyId): string {
+        switch (d) {
+            case 'easy':      return t('leaderboard.diff.easy');
+            case 'normal':    return t('leaderboard.diff.normal');
+            case 'hard':      return t('leaderboard.diff.hard');
+            case 'nightmare': return t('leaderboard.diff.nightmare');
         }
     }
     private mapLabel(m: MapId): string {

@@ -51,7 +51,6 @@ export class MainHub implements IScreen {
 
     onPlayClick: (() => void) | null = null;
     onContinueClick: ((lastSession: LastSession) => void) | null = null;
-    onHowToPlayClick: (() => void) | null = null;
     onSettingsClick: (() => void) | null = null;
     onLeaderboardClick: (() => void) | null = null;
 
@@ -98,10 +97,6 @@ export class MainHub implements IScreen {
 
         const secondaryGrid = `
             <div class="bt-hub-secondary-grid">
-                <button class="bt-hub-secondary-btn" type="button" data-action="howToPlay">
-                    <span class="icon" aria-hidden="true">📖</span>
-                    <span class="label">${t('hub.howToPlay')}</span>
-                </button>
                 <button class="bt-hub-secondary-btn" type="button" data-action="settings">
                     <span class="icon" aria-hidden="true">⚙️</span>
                     <span class="label">${t('hub.settings')}</span>
@@ -258,9 +253,6 @@ export class MainHub implements IScreen {
                     if (this.lastSession) {
                         this.onContinueClick?.(this.lastSession);
                     }
-                    break;
-                case 'howToPlay':
-                    this.onHowToPlayClick?.();
                     break;
                 case 'settings':
                     this.onSettingsClick?.();

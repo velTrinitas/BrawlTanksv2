@@ -3711,8 +3711,10 @@
     font-size: 1.8rem;
     letter-spacing: 1px;
     color: var(--bt-heading);
-    text-shadow: 2px 2px 0 #000;
-    -webkit-text-stroke: 1px #000;
+    /* v0.249.0: styl tytulu endcarda (obrys 2 px, twardy cien 3 px) — wspolny dla Rankingu, Ustawien, Jak grac */
+    text-shadow: 3px 3px 0 #000;
+    -webkit-text-stroke: 2px #000;
+    text-transform: uppercase; /* jak endcard / RANKING / JAK GRAC */
 }
 
 /* === Content container — max-width dla desktopu === */
@@ -4122,121 +4124,8 @@
 }
 
 /* ============================================================
-   Sekcja 30 — HowToPlay (ekran "Jak grac"). Re-uzywa bt-settings-* (shell/scroll/sekcje)
-   + bt-cta-button; ponizej tylko layout wierszy sciagi (sterowanie / przedmioty / cele).
-   ============================================================ */
-/* Tlo = ten sam MainHub co hub + ciemny scrim (czytelnosc #1). Karty sekcji daja lokalny
-   kontrast pod tekstem, wiec scrim moze byc lzejszy i obraz zostaje widoczny. */
-.bt-howto-screen {
-    background-image:
-        linear-gradient(180deg, rgba(15, 20, 35, 0.62) 0%, rgba(15, 20, 35, 0.78) 100%),
-        url('../intro/MainHub_Background.jpg');
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
-}
-/* Naglowki sekcji: font-body waga 700 zamiast Titan One (za tluste w gestej sciądze). */
-.bt-howto-screen .bt-settings-section-title {
-    font-family: var(--font-body);
-    font-weight: 700;
-    letter-spacing: 0.2px;
-}
-/* Karty odrobine ciemniejsze niz w Ustawieniach — tekst czytelny na zdjeciu. */
-.bt-howto-screen .bt-settings-section {
-    background: rgba(0, 0, 0, 0.5);
-}
-/* Title pcha replay-button na prawo; margin-right trzyma go z dala od samego rogu. */
-.bt-howto-screen .bt-settings-title { margin-right: auto; }
-.bt-howto-replay {
-    margin-right: 12px;
-    padding: 9px 18px;
-    border: 2px solid rgba(241, 196, 15, 0.75);
-    border-radius: var(--radius-pill);
-    background: rgba(241, 196, 15, 0.16);
-    color: #ffd24a;
-    font-family: var(--font-body);
-    font-weight: 700;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
-}
-.bt-howto-replay:hover { background: rgba(241, 196, 15, 0.28); }
-.bt-howto-replay:active { transform: scale(0.96); }
-
-/* Reading text = font-body (system-ui, normalna waga) — Titan One czytany w gestym bloku
-   sciagi jest za ciezki/nieczytelny. */
-.bt-howto-row {
-    display: flex;
-    gap: 12px;
-    align-items: baseline;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-}
-.bt-howto-row:last-child { border-bottom: none; }
-.bt-howto-key {
-    color: #ffd24a;
-    font-family: var(--font-body);
-    font-weight: 700;
-    font-size: 0.95rem;
-    min-width: 40%;
-    flex-shrink: 0;
-}
-.bt-howto-val {
-    color: #e9edf8;
-    font-family: var(--font-body);
-    font-weight: 400;
-    font-size: 0.95rem;
-    line-height: 1.35;
-}
-.bt-howto-item {
-    color: #e9edf8;
-    font-family: var(--font-body);
-    font-weight: 400;
-    font-size: 1rem;
-    line-height: 1.45;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-}
-.bt-howto-item:last-child { border-bottom: none; }
-.bt-howto-item b { color: #ffd24a; font-weight: 700; }
-
-@media (max-width: 375px) {
-    .bt-howto-key, .bt-howto-val { font-size: 0.82rem; }
-    .bt-howto-item { font-size: 0.86rem; }
-}
-
-/* Landscape mobile (niski viewport): zmiesc CALOSC na 1 ekranie bez scrolla.
-   3 kolumny = 3 sekcje obok siebie (wykorzystaj szerokosc), replay = slim pasek na gorze.
-   Sygnal = max-height + landscape (NIE szerokosc — duzy telefon landscape ma width > 768). */
-@media (max-height: 500px) and (orientation: landscape) {
-    .bt-howto-screen { padding: 8px 12px; overflow: hidden; }
-    .bt-howto-screen .bt-settings-header { padding-bottom: 8px; margin-bottom: 8px; }
-    .bt-howto-screen .bt-settings-title { font-size: 1.25rem; }
-    .bt-howto-screen .bt-settings-content {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        max-width: none;
-        align-content: start;
-    }
-    /* replay-button w naglowku — kompaktowy na niskim viewport */
-    .bt-howto-replay { padding: 6px 14px; font-size: 0.82rem; margin-right: 8px; }
-    /* kompaktowe sekcje */
-    .bt-howto-screen .bt-settings-section { padding: 9px 11px; border-radius: var(--radius-md); }
-    .bt-howto-screen .bt-settings-section-title { font-size: 0.9rem; margin-bottom: 7px; gap: 6px; }
-    .bt-howto-screen .bt-settings-icon { font-size: 1.1rem; }
-    /* wiersze sterowania: key NAD val (waskie kolumny) */
-    .bt-howto-row { flex-direction: column; gap: 1px; padding: 4px 0; }
-    .bt-howto-key { min-width: 0; font-size: 0.78rem; }
-    .bt-howto-val { font-size: 0.76rem; line-height: 1.25; }
-    .bt-howto-item { font-size: 0.8rem; line-height: 1.3; padding: 4px 0; }
-}
-
-/* ============================================================
-   Sekcja 31 — Ekran USTAWIENIA: ta sama tapeta co "Jak grac" (MainHub) + kompaktowy
-   layout landscape bez scrolla. Tlo zduplikowane swiadomie (zeby NIE ruszac dzialajacego
-   .bt-howto-screen). Suwaki audio zostaja szerokie (mobile tap-target) — patrz media landscape.
+   Sekcja 31 — Ekran USTAWIENIA: tapeta MainHub (jak hub) + kompaktowy
+   layout landscape bez scrolla. Suwaki audio zostaja szerokie (mobile tap-target) — patrz media landscape.
    ============================================================ */
 .bt-settings-panel {
     background-image:
@@ -4252,7 +4141,7 @@
     /* overflow-x:hidden = nigdy poziomej "ucieczki"; pion zostaje dostepny (nie obcinamy kontrolek). */
     .bt-settings-panel { padding: 8px 16px; overflow-x: hidden; overflow-y: auto; }
     .bt-settings-panel .bt-settings-header { padding-bottom: 6px; margin-bottom: 8px; }
-    .bt-settings-panel .bt-settings-title { font-size: 1.2rem; }
+    .bt-settings-panel .bt-settings-title { font-size: 1.5rem; }
     /* 2 czytelne kolumny (nie auto-fit), wysrodkowane z max-width; auto-placement ogarnia warunkowy Profil. */
     .bt-settings-panel .bt-settings-content {
         display: grid;
@@ -4304,27 +4193,107 @@
 }
 .bt-lb-screen .bt-settings-header { padding-bottom: 10px; margin-bottom: 0; flex-shrink: 0; }
 
-/* Kontrolki (zakladki + segment czasu) */
-.bt-lb-controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.bt-lb-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.bt-lb-tab {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 14px; border-radius: var(--radius-pill); cursor: pointer;
-    font-family: var(--font-body); font-weight: 700; font-size: 0.9rem;
-    color: #e9edf8; background: rgba(0, 0, 0, 0.35);
-    border: 2px solid rgba(255, 255, 255, 0.12);
-    transition: background 0.15s ease, border-color 0.15s ease;
+/* v0.249.0 — PASEK FILTROW: jeden rzad dropdownow (Tryb / Czas / Filtry). Wczesniej 4 rzedy chipow
+   zaslanialy ranking na telefonie (2-3 widoczne wiersze). Popovery bez blur (fill-rate A54). */
+.bt-lb-bar {
+    display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto; gap: 8px;
+    align-items: stretch; flex-shrink: 0; position: relative; z-index: 5;
 }
-.bt-lb-tab.is-active { color: #1a252f; background: #ffd24a; border-color: #ffd24a; }
-.bt-lb-tab.is-locked { opacity: 0.4; cursor: not-allowed; }
-.bt-lb-segment { display: flex; gap: 0; border-radius: var(--radius-pill); overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.14); }
-.bt-lb-seg {
-    padding: 7px 14px; cursor: pointer; border: none; background: rgba(0, 0, 0, 0.35);
-    color: #cfd6e6; font-family: var(--font-body); font-weight: 700; font-size: 0.82rem;
+.bt-lb-ddwrap { position: relative; min-width: 0; }
+.bt-lb-dd {
+    width: 100%; min-height: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "value badge caret"; align-items: center; column-gap: 6px;
+    padding: 6px 12px; border-radius: 14px; cursor: pointer; text-align: left;
+    color: #f2f4f8; background: linear-gradient(180deg, rgba(40, 52, 80, 0.92), rgba(18, 24, 40, 0.94));
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    transition: border-color 0.15s ease, transform 0.08s ease;
 }
-.bt-lb-seg.is-active { background: rgba(241, 196, 15, 0.9); color: #1a252f; }
+.bt-lb-dd:hover { border-color: rgba(255, 210, 74, 0.6); }
+.bt-lb-dd:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45); }
+.bt-lb-dd.is-open { border-color: #ffd24a; box-shadow: 0 0 0 2px rgba(255, 210, 74, 0.25), 0 3px 0 rgba(0, 0, 0, 0.45); }
+.bt-lb-dd-label { display: none; grid-area: label; font-family: var(--font-body); font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: #9fb0cf; }
+.bt-lb-dd-value { grid-area: value; display: inline-flex; align-items: center; gap: 7px; min-width: 0;
+    font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.02em; }
+.bt-lb-dd-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-lb-dd-tx--wide { display: none; }
+.bt-lb-dd-caret { grid-area: caret; color: #ffd24a; font-size: 0.85rem; transition: transform 0.15s ease; }
+.bt-lb-dd.is-open .bt-lb-dd-caret { transform: rotate(180deg); }
+.bt-lb-dd-badge { grid-area: badge; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 0.75rem; color: #1a252f; background: #ffd24a;
+    box-shadow: 0 0 8px rgba(255, 210, 74, 0.6); }
 
-/* Chipy map (tylko KTB) */
+/* Popover — ciemny panel ze zlota ramka, wyrownany do lewej krawedzi przycisku */
+.bt-lb-pop {
+    position: absolute; top: calc(100% + 6px); left: 0; min-width: 100%; z-index: 20;
+    display: flex; flex-direction: column; gap: 4px; padding: 8px;
+    max-height: calc(100vh - 140px); overflow-y: auto;
+    background: linear-gradient(180deg, #232f4a, #141b2d); border: 2px solid #ffd24a; border-radius: 14px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+    animation: bt-lb-pop-in 0.14s ease-out;
+}
+.bt-lb-pop[hidden] { display: none; }
+.bt-lb-pop--filters { left: auto; right: 0; width: min(340px, calc(100vw - 32px)); gap: 10px; }
+@keyframes bt-lb-pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: none; } }
+.bt-lb-opt {
+    display: flex; align-items: center; gap: 9px; min-height: 42px; padding: 8px 12px; border-radius: 10px;
+    cursor: pointer; text-align: left; white-space: nowrap; border: 2px solid transparent;
+    font-family: var(--font-display); font-size: 0.92rem; color: #e9edf8; background: rgba(255, 255, 255, 0.04);
+}
+.bt-lb-opt:hover { background: rgba(255, 255, 255, 0.10); }
+.bt-lb-opt.is-active { color: #1a252f; background: linear-gradient(180deg, #ffe07a, #ffc928); border-color: #ffd24a; }
+.bt-lb-opt.is-locked { opacity: 0.45; cursor: not-allowed; }
+.bt-lb-opt-ico { width: 1.4em; text-align: center; }
+.bt-lb-popsec-title { margin: 0 0 6px 2px; font-family: var(--font-body); font-size: 0.7rem; font-weight: 800;
+    letter-spacing: 0.1em; text-transform: uppercase; color: #9fb0cf; }
+.bt-lb-chips--grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.bt-lb-chips--grid .bt-lb-chip { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.bt-lb-pop .bt-lb-diffchip-tx { display: inline !important; } /* w panelu jest miejsce na nazwe poziomu */
+.bt-lb-clear {
+    align-self: stretch; min-height: 40px; border-radius: 10px; cursor: pointer;
+    font-family: var(--font-display); font-size: 0.85rem; color: #ffb3b3;
+    background: rgba(192, 57, 43, 0.18); border: 2px solid rgba(192, 57, 43, 0.55);
+}
+
+/* Linia skrotu aktywnych filtrow (tylko gdy cos odfiltrowane) */
+.bt-lb-summary { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: -2px;
+    font-family: var(--font-body); font-size: 0.8rem; font-weight: 700; color: #ffe07a; }
+.bt-lb-summary-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-lb-summary-x { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+    color: #1a252f; background: #ffd24a; border: none; font-weight: 900; font-size: 0.75rem; }
+
+/* Desktop / tablet: etykieta sekcji nad wartoscia, stale szerokosci wyrownane w gridzie */
+@media (min-width: 768px) and (min-height: 501px) {
+    .bt-lb-bar { grid-template-columns: 250px 230px 230px; justify-content: start; gap: 12px; }
+    .bt-lb-dd { min-height: 54px; grid-template-areas: "label label caret" "value badge caret"; row-gap: 1px; padding: 6px 14px; }
+    .bt-lb-dd-label { display: block; }
+    .bt-lb-dd-tx--wide { display: inline; }
+    .bt-lb-dd-tx--short { display: none; }
+    .bt-lb-summary { display: none; } /* przycisk Filtry sam pokazuje, co odfiltrowane; czyszczenie w panelu */
+}
+/* Telefon w pionie: same ikony + krotki tekst, mniejsze odstepy */
+@media (max-width: 420px) {
+    .bt-lb-bar { gap: 6px; }
+    .bt-lb-dd { padding: 6px 9px; }
+    .bt-lb-dd-value { font-size: 0.85rem; gap: 5px; }
+    .bt-lb-ddwrap--filters .bt-lb-dd-tx--short { display: none; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+    .bt-lb-dd { min-height: 40px; padding: 4px 11px; }
+    .bt-lb-pop { max-height: calc(100vh - 110px); }
+    .bt-lb-pop--filters { width: min(560px, calc(100vw - 32px)); }
+}
+/* Telefon: mapa i poziom w JEDNYM rzedzie (przewijany w bok), pigulki -10% rozmiaru i wysokosci */
+@media (max-width: 480px), (orientation: landscape) and (max-height: 500px) {
+    .bt-lb-chips--grid { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 5px; padding-bottom: 2px; scrollbar-width: none; }
+    .bt-lb-chips--grid::-webkit-scrollbar { display: none; }
+    .bt-lb-chips--grid .bt-lb-chip { flex: 0 0 auto; min-height: 34px; padding: 4px 11px; font-size: 0.72rem; white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) { .bt-lb-pop { animation: none; } }
+
+/* Chipy map / poziomu — teraz wewnatrz popovera Filtry */
 .bt-lb-chips { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
 .bt-lb-chips:empty { display: none; }
 .bt-lb-chip {
@@ -4470,7 +4439,7 @@
 /* Landscape mobile: podium OBOK listy (2 kolumny), zeby zmiescic wiecej bez scrolla calosci. */
 @media (max-height: 500px) and (orientation: landscape) {
     .bt-lb-screen { padding: 8px 14px; gap: 7px; }
-    .bt-lb-screen .bt-settings-title { font-size: 1.2rem; }
+    .bt-lb-screen .bt-settings-title { font-size: 1.5rem; } /* v0.249.0: jak tytul endcarda w niskim landscape */
     .bt-lb-avatar { width: 26px; height: 26px; }
     .bt-lb-row { padding: 5px 12px; min-height: 38px; }
 }

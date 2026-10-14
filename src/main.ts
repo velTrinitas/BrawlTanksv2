@@ -2077,38 +2077,6 @@ menu.onContinueRequested = (lastSession: LastSession) => {
     void startGame(config);
 };
 
-menu.onHowToPlayRequested = () => {
-    // Replay tutorialu z ekranu "Jak grac". Sandbox (spawn off) Twoim czolgiem -> po skonczeniu wg
-    // wyboru finalnej karty (GRAJ DALEJ = mecz / MENU = hub).
-    // Fallback, zeby przycisk ZAWSZE dzialal (bez tego: brak meczu w tej sesji => lastGameConfig null
-    // => cichy no-op). 1) config z tej sesji, 2) odbuduj z trwalej ostatniej sesji, 3) domyslny czolg + KTB.
-    let replayCfg = lastGameConfig;
-    if (!replayCfg) {
-        const ls = sessionService.getLastSession();
-        replayCfg = new GameConfigBuilder()
-            .setScenario(ls?.scenario ?? 'ktb')
-            .setMap(ls?.map ?? 'city')
-            .setBrawlerId(ls?.brawlerId ?? BRAWLERS[0].id)
-            .setDifficulty(ls?.difficulty ?? 'easy')
-            .setProfileId(ProfileService.getActiveProfile()?.id ?? 'default')
-            .build();
-    }
-    const cfg = replayCfg;
-    menu.hide();
-    void startGame(cfg, true).then(() => {
-        launchTutorial((cont) => {
-            markTutorialCoreDone();
-            if (cont && cfg.scenario === 'ctf' && ctfTutorialWanted()) { clearTutorialSandbox(); launchCtfTutorial(cfg); return; } // v0.245.0
-            tutorialActive = false; clearTutorialSandbox();
-            if (cont) {
-                resetPlayerStateForMatch(cfg); // stan od zera (super/score) — sprawiedliwosc
-                if (cfg.scenario === 'ctf') spawnCtfMatchForces();
-                if (cfg.scenario === 'ktb' || cfg.scenario === 'ctf' || cfg.scenario === 'castle' || cfg.scenario === 'save_queen') showModeGoal(cfg.scenario, touchManager.isActive);
-            } else returnToMenuFromEnd();
-        });
-    });
-};
-
 menu.onSettingsRequested = () => {
     menu.show('settings');
 };

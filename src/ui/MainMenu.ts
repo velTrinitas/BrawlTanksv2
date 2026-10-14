@@ -30,7 +30,6 @@ import { BrawlerPicker } from './BrawlerPicker';
 import { IdentityScreen } from './IdentityScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { ProfileEditScreen } from './ProfileEditScreen';
-import { HowToPlayScreen } from './HowToPlayScreen';
 import { LeaderboardScreen } from './LeaderboardScreen';
 import { HubShell } from './hub/HubShell'; // HUB-0 (nowy hub za flaga ?hub=1)
 import { sessionService, type LastSession } from '../services/SessionService';
@@ -53,7 +52,6 @@ export type ScreenId =
     | 'brawlerPicker'
     | 'settings'
     | 'profileEdit'
-    | 'howToPlay'
     | 'leaderboard';
 
 /**
@@ -214,8 +212,6 @@ export class MainMenu {
                 return this.createSettingsScreen();
             case 'profileEdit':
                 return this.createProfileEditScreen();
-            case 'howToPlay':
-                return this.createHowToPlayScreen();
             case 'leaderboard':
                 return this.createLeaderboardScreen();
             default: {
@@ -259,10 +255,6 @@ export class MainMenu {
 
         hub.onPlayClick = () => {
             this.show('scenarioPicker');
-        };
-
-        hub.onHowToPlayClick = () => {
-            this.show('howToPlay'); // ekran-sciaga; replay samouczka odpala przycisk w srodku
         };
 
         hub.onLeaderboardClick = () => {
@@ -356,13 +348,6 @@ export class MainMenu {
         screen.onBack = () => {
             this.show(this.hubId());
         };
-        return screen;
-    }
-
-    private createHowToPlayScreen(): IScreen {
-        const screen = new HowToPlayScreen();
-        screen.onBack = () => this.show(this.hubId());
-        screen.onReplayTutorial = () => this.onHowToPlayRequested?.(); // istniejacy replay samouczka
         return screen;
     }
 

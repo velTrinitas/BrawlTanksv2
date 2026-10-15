@@ -313,7 +313,7 @@ export class Crane {
             if (!e.active) continue;
             if (Math.abs(e.x - tx) < STACK_W / 2 + 20 && Math.abs(e.y - ty) < STACK_H / 2 + 20) {
                 const dx = e.x - tx || 1, dy = e.y - ty; const len = Math.hypot(dx, dy) || 1;
-                e.x = tx + dx / len * 90; e.y = ty + dy / len * 70;
+                e.pushBy(tx + dx / len * 90 - e.x, ty + dy / len * 70 - e.y); // v0.252.0: z kolizja (nie w sasiedni wrak/granice)
             }
         }
         // new cover; oldest crumbles when over the limit

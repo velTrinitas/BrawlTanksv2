@@ -1776,8 +1776,7 @@ export class PowerSystem {
             const d = Math.sqrt(d2);
             const resist = (e.isBoss || e.isMegaBoss) ? HOLE_CONFIG.bossPullMult : 1;
             const f = HOLE_CONFIG.pullPerFrame * (1 - d / HOLE_CONFIG.pullRadius) * resist * delta;
-            e.x += (dx / d) * f;
-            e.y += (dy / d) * f;
+            e.pushBy((dx / d) * f, (dy / d) * f); // v0.252.0: z kolizja (nie przez mury/granice)
             // WIZUAL (zero wplywu na symulacje): im blizej rdzenia, tym wrog mniejszy i krecacy sie.
             const k = (1 - d / HOLE_CONFIG.pullRadius) * resist;
             if (e.container.destroyed) continue;
@@ -2530,8 +2529,7 @@ export class PowerSystem {
             if (d2 > fr2 || d2 < 1) continue;
             const d = Math.sqrt(d2);
             const boost = GRANNY_CONFIG.fearBoostPerFrame * (1 - d / GRANNY_CONFIG.fearRadius) * strength * delta;
-            e.x += (dx / d) * boost;
-            e.y += (dy / d) * boost;
+            e.pushBy((dx / d) * boost, (dy / d) * boost); // v0.252.0 FIX: Babcia wypychala za granice planszy
         }
     }
 
@@ -2713,8 +2711,7 @@ export class PowerSystem {
         for (let i = this.burpPushes.length - 1; i >= 0; i--) {
             const p = this.burpPushes[i];
             if (!p.e.active) { this.burpPushes.splice(i, 1); continue; }
-            p.e.x += p.kx * delta;
-            p.e.y += p.ky * delta;
+            p.e.pushBy(p.kx * delta, p.ky * delta); // v0.252.0: odrzut Beku z kolizja
             const decay = Math.pow(BURP_CONFIG.knockDecay, delta);
             p.kx *= decay;
             p.ky *= decay;

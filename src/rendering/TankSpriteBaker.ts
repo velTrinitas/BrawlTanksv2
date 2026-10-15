@@ -124,7 +124,7 @@ class TankSpriteBakerImpl {
      */
     async bakeBrawler(app: PIXI.Application, brawlerId: string, look: TankLook): Promise<BakedBrawler> {
         // ENIGMA istnieje tylko w artach v2 (render2dV2) — przy ?tankart=0 nadal pieczemy ja sciezka v2 (inaczej wyjatek).
-        const v2 = isTankArtV2() || GATLING_IDS.has(brawlerId);
+        const v2 = isTankArtV2() || GATLING_IDS.has(brawlerId) || brawlerId === 'pumpkin'; // PUMPKIN: tez tylko v2
         const key = (v2 ? 'v2|' : 'v1|') + tankLookKey(look);
         const cached = this.cache.get(brawlerId);
         if (cached && cached.key === key) return cached;

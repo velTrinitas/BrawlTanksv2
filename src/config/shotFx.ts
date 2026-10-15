@@ -48,6 +48,8 @@ export const SHOT_FX: Record<string, ShotFx> = {
     shadow: { ...DEF, color: 0xb48cff, flashScale: 0.8, smoke: 1, sparks: 3, trailLen: 48, trailWidth: 4, ringRadius: 20 },
     king:   { ...DEF, color: 0xffb340, flashScale: 1.25, smoke: 3, sparks: 5, trailLen: 44, trailWidth: 7, ringRadius: 26, hitSparks: 7, hitStopFrames: 1, nudgePx: 1 },
     // ENIGMA (12 strz./s): maly blysk, bez dymu, 1 iskra, krotka smuga, bez hit-stopu — limit 200 czastek przy serii.
+    // PUMPKIN: pomaranczowy zar, pestki (iskry), srednia smuga, maly hit-stop (ciezka dynia).
+    pumpkin: { ...DEF, color: 0xff7a12, flashScale: 1.1, smoke: 1, sparks: 3, trailLen: 34, trailWidth: 7, ringRadius: 22, hitSparks: 5, hitStopFrames: 1 },
     enigma: { ...DEF, color: 0xf5c542, flashScale: 0.6, smoke: 0, sparks: 1, trailLen: 30, trailWidth: 3.6, ringRadius: 12, hitSparks: 2 }, // smuga +20% (Mariusz)
 };
 

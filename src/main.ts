@@ -229,7 +229,7 @@ import { Oasis } from './maps/desert/Oasis';
 import { Caravan } from './maps/desert/Caravan';
 import { MAP_CONFIGS, type ICollidable } from './types/MapType';
 import { Player, SUPER_SHOT_DURATION_MS } from './entities/Player';
-import { Enemy } from './entities/Enemy';
+import { Enemy, setEnemyPushColliders } from './entities/Enemy';
 import { ENEMY_NORMAL, ENEMY_PURSUIT, HEART_CONFIG } from './config/enemies'; // v0.58.0 Warstwa C2; FAZA B tutorial dummy/wave; SAVE THE QUEEN Q2 serce Krolowej
 import { Bullet } from './entities/Bullet';
 import { EnemyBullet } from './entities/EnemyBullet';
@@ -439,6 +439,9 @@ const SUPER_PROFILES: Record<string, SuperProfile> = {
     shadow: { offsets: [-0.2, 0, 0.2], dmg: 300 },                 // 3 x 300 = 900  (bylo 5 x 450 = 2250)
     // ENIGMA (gatling): 1 pocisk x1.5 dmg (38 -> 57 = 6 strzalow na 300 HP); promien x1.6 i predkosc x1.1 w Bullet.ts
     enigma: { offsets: [0], dmg: 60 }, // playtest 2026-10-07: 40 dmg x1.5 = 60 (5 strzalow na 300 HP)
+    // PUMPKIN: "Fiesta de Calabazas" — 5 dyn w wachlarzu +-24 st., kazda z inna mina (Bullet.setPumpkinFace);
+    // dmg per dynia wyrownuje fairSuperProfiles (v2), 110 = wartosc v1.
+    pumpkin: { offsets: [-0.42, -0.21, 0, 0.21, 0.42], dmg: 110 },
 };
 /**
  * BALANCE_V2 (S4, v0.200.0) — SPRAWIEDLIWY SUPER: dmg per pocisk LICZONY Z RELOADU.
@@ -932,6 +935,8 @@ function psOf(p: Player): PowerSystem { return powerSystems.get(p) ?? powerSyste
 const traitSystems = new Map<Player, TraitSystem>();
 function traitOf(p: Player | null): TraitSystem | null { return p ? traitSystems.get(p) ?? null : null; }
 /** Dym Ogniarza: czy punkt lezy w KTOREJKOLWIEK chmurze (stealth gracza / dezorientacja wroga). */
+/** PUMPKIN: czy pocisk wroga trafil ktoras CALACE (odbiera jej HP). */
+function calacaAbsorbsAny(x: number, y: number, dmg: number): boolean { for (const ts of traitSystems.values()) if (ts.calacaAbsorbs(x, y, dmg)) return true; return false; }
 function anySmokeContains(x: number, y: number): boolean { for (const ts of traitSystems.values()) if (ts.smokeContains(x, y)) return true; return false; }
 // COOP S7: efekty SWIATOWE (dzialaja na wszystkich wrogow) — agregacja po instancjach wszystkich graczy.
 function anyFreezeActive(): boolean { for (const ps of powerSystems.values()) if (ps.isFreezeActive) return true; return false; }
@@ -945,6 +950,7 @@ function powerSteerFor(e: Enemy): { x: number; y: number } | null {
     for (const ps of powerSystems.values()) { const t = ps.burpFearFor(e); if (t) return t; }
     for (const ps of powerSystems.values()) { const t = ps.grannyFearFor(e); if (t) return t; }
     for (const ps of powerSystems.values()) { const t = ps.ghostTauntFor(e); if (t) return t; }
+    for (const ts of traitSystems.values()) { const t = ts.calacaLureFor(e); if (t) return t; } // PUMPKIN: CALACA = wabik
     return null;
 }
 let camera = { x: 0, y: 0 };
@@ -1291,6 +1297,7 @@ function traitLabel(id: TraitId): string {
         case 'smoke': return t('trait.name.smoke');
         case 'ceasefire': return t('trait.name.ceasefire');
         case 'repair': return t('trait.name.repair');
+        case 'summon': return t('trait.name.summon');
     }
 }
 function queueTrait(): void { if (gameState === 'PLAYING' && traitOf(localPlayer)) pendingTrait = true; }
@@ -1907,10 +1914,10 @@ if (isMultiplayerEnabled()) {
 
 // CASTLE ART v2 (dev-only): start dowolnego scenariusza z narzedzi zrzutow (tools/castle-shot.mjs).
 if (import.meta.env.DEV) {
-    (window as unknown as { __devStart: (scenario: string, map: string) => void }).__devStart = (scenario, map) => {
+    (window as unknown as { __devStart: (scenario: string, map: string, brawlerId?: string) => void }).__devStart = (scenario, map, brawlerId) => {
         const pid = ProfileService.getActiveProfile()?.id ?? 'default';
         menu.onGameRequested?.(new GameConfigBuilder().setScenario(scenario as GameConfig['scenario']).setMap(map as GameConfig['map'])
-            .setBrawlerId(BRAWLERS[0].id).setDifficulty('normal').setProfileId(pid).build());
+            .setBrawlerId(brawlerId ?? BRAWLERS[0].id).setDifficulty('normal').setProfileId(pid).build());
     };
     (window as unknown as { __hud: unknown }).__hud = hud;
     (window as unknown as { __tut: () => unknown }).__tut = () => ({ lp: localPlayer ? { x: localPlayer.x, y: localPlayer.y } : null, act: tutorialActive, en: tutorialEnemies.map(e => ({ x: e.x, y: e.y, a: e.active, hp: e.hp })) });
@@ -2203,6 +2210,8 @@ menu.onProfileEditRequested = () => {
 if (import.meta.env.DEV) {
     // TROPICS ART v2 (dev): przeniesienie czolgu do weryfikacji zrzutami (tools/tropics-shot.mjs)
     (window as unknown as { __devTp: (x: number, y: number) => void }).__devTp = (x, y) => { if (localPlayer) { localPlayer.x = x; localPlayer.y = y; } };
+    // PUMPKIN (dev): ladunek supera do zrzutow (tools/pumpkin-match.mjs)
+    (window as unknown as { __devSuper: () => void }).__devSuper = () => { localPlayer?.addSuperCharge(1); };
     (window as unknown as { BT_DEV: unknown }).BT_DEV = {
         ProfileService,
         ProfileSpriteCache,
@@ -5620,12 +5629,14 @@ function stepPlayerShooting(p: Player, input: PlayerInput, now: number): void {
         const normalProfile = (SUPER_V2_ENABLED && !isSuperShot) ? NORMAL_PROFILES[p.brawler.id] : null;
         const shotProfile = superProfile || normalProfile;
         const volleyOffsets = shotProfile ? shotProfile.offsets : getVolleyOffsets(p.brawler, isSuperShot);
-        for (const off of volleyOffsets) {
+        for (let vi = 0; vi < volleyOffsets.length; vi++) {
+            const off = volleyOffsets[vi];
             // ENIGMA: rozrzut gatlinga z worldRng — raz na pocisk, tylko u symulujacego (determinizm koopa)
             const spread = p.brawler.spreadRad ? (worldRng.next() * 2 - 1) * p.brawler.spreadRad : 0;
             const b = acquireBullet(sX, sY, angle + off + spread, isSuperShot, shotProfile?.dmg, p); // POOLING, COOP S6: wlasciciel
             b.dmg = Math.round(b.dmg * dmgMultiplier);
             if (shotProfile) b.applyBehavior(shotProfile); // FAZA P5 Batch 2 — breakup/boomerang
+            if (p.brawler.id === 'pumpkin') b.setPumpkinFace(vi); // PUMPKIN: mina dyni w salwie (tylko wizual)
             bullets.push(b);
         }
         // v0.100.0 — staty meczu: liczymy POCISKI, nie pociagniecia spustu. Dzieki temu
@@ -5652,6 +5663,7 @@ function runLogicStep(delta: number): void {
     if (gameState !== 'PLAYING' || !localPlayer || !effects || !spawnSystem || !powerSystem || !currentSession) return;
     if (orientationPaused) return; // v0.186.0: telefon w pionie => gra STOI (ostrzezenie zakrywa plansze i kontrolki)
     advanceSimClock(delta * LOGIC_STEP_MS); // COOP S1: czas gry plynie tylko w krokach logiki
+    setEnemyPushColliders(buildings); // v0.252.0: odrzuty mocy/map z kolizja (Enemy.pushBy)
 
     // SHOP-1 — paczka glosowa: ostrzezenie przy spadku ponizej polowy pancerza.
     // Sprawdzamy w petli, bo HP zmienia sie w osmiu roznych miejscach (pociski, taran,
@@ -5845,6 +5857,7 @@ function runLogicStep(delta: number): void {
         if (!enemyInSlow && queenSystem && queenSystem.isLavaAt(enemy.x, enemy.y)) enemyInSlow = true; // SAVE THE QUEEN Q4 — lawa spowalnia obie strony
         enemy.speedModifier = enemyInSlow ? 0.5 : 1.0;
         if (chickenFlock && chickenFlock.isPecked(enemy)) enemy.speedModifier *= CHICKENS.slowMult; // T6.1: oblepiony kurami
+        for (const ts of traitSystems.values()) enemy.speedModifier *= ts.calacaSlowMult(enemy); // PUMPKIN: nuta CALACI (-15%)
     }
 
     // COOP S5: update stref stealth = WIDOK (culling, parallax, mgla z gasienic gracza lokalnego) —
@@ -6288,9 +6301,12 @@ function runLogicStep(delta: number): void {
         if (result.healed) {
             const padHealedForReal = pp.hp < pp.maxHp; // v0.245.0: punkty TYLKO za realne leczenie (anty-farma)
             pp.hp = Math.min(pp.maxHp, pp.hp + 100);
+            // v0.252.0 (Mariusz: zielone "+35" czytalo sie jak HP): leczenie = ZIELONE "+100 HP" nad czolgiem,
+            // punkty = ZLOTE "+35 pkt" (kolor punktow, jak gemy) nieco wyzej — dwie rozne rzeczy, dwa kolory.
+            if (pp === localPlayer) effects.spawnFloatingText(pp.x, pp.y - 50, t('hud.mediPadHp', { hp: 100 }), 0x2ecc71);
             if (padHealedForReal && pp === localPlayer && currentSession && !tutorialActive) {
                 const { added } = currentSession.addMedPadBonus(medPadScore());
-                if (added > 0) effects.spawnFloatingText(pp.x, pp.y - 50, `+${added}`, 0x2ecc71);
+                if (added > 0) effects.spawnFloatingText(pp.x, pp.y - 78, t('hud.mediPadPts', { pts: added }), 0xf1c40f);
             }
             effects.spawnEnemyHitSparks(pp.x, pp.y, 0x2ecc71);
             if (pp === localPlayer) {
@@ -6604,6 +6620,15 @@ function runLogicStep(delta: number): void {
             enemyBulletPool.push(eb); // POOLING
             continue;
         }
+        // PUMPKIN: CALACA (wabik z HP) przyjmuje pociski wroga — tak jak Widmo nie przepuszcza ich do gracza za nia.
+        if (calacaAbsorbsAny(eb.x, eb.y, eb.dmg)) {
+            effects.spawnEnemyHitSparks(eb.x, eb.y, 0xff5fa2);
+            effects.spawnRingFx(eb.x, eb.y, 26, 0xffb0d0, 10);
+            eb.deactivate();
+            enemyBullets.splice(i, 1);
+            enemyBulletPool.push(eb); // POOLING
+            continue;
+        }
         // F7b-4 WIDMO: wabik ABSORBUJE pociski wroga (sim 1:1 — fioletowy puff).
         // Sensoryka + uczciwosc: skoro wrogowie strzelaja DO wabika, pociski nie moga
         // przelatywac przez niego i trafiac gracza stojacego za nim.
@@ -6837,6 +6862,8 @@ function runLogicStep(delta: number): void {
                     effects.spawnImpactV2(hitX, hitY, Math.atan2(b.vy, b.vx), fx);
                     if (fx.hitStopFrames > 0) triggerHitStop(fx.hitStopFrames);
                     if (fx.nudgePx > 0) effects.shake(fx.nudgePx, 3);
+                    // PUMPKIN: plama dyni na wrogu (tylko wizual, 3 s, 1 na wroga); obrot z netId = bez Math.random
+                    if (localPlayer.brawler.id === 'pumpkin' && !killed) effects.attachPumpkinSplat(enemy.container, b.netId * 1.7 % 6.28, b.netId);
                 }
                 const damageApplied = enemy.hp < hpBefore || killed;
 

@@ -129,4 +129,7 @@ export const BALANCE_V2_STATS: Readonly<Record<string, BalanceStats>> = Object.f
     // PLAYTEST 2026-10-07 (Mariusz, 1 h gry): dmg 40 (dalej 8 strz./300 HP), 15 strz./s (reload 60 -> 4 kroki = 66,7 ms),
     // speed +0,2. DPS ~600 = Ogniarz, s/zabicie 0,53 (2. miejsce). Super 60 (proporcja 57*40/38) = 5 strzalow.
     enigma: { hp: 450, dmg: 40,  reload: 60,  speed: 4.7, maxDist: 650,  bulletRadius: 8, cubeDmgMult: 0.5, spreadRad: 3 * Math.PI / 180, spinUpSteps: 15 },
+    // PUMPKIN (sezon 4, za flaga ?pumpkin=1) — pumpkin-preview.html (2026-10-15): DPS ~279 (Twardy ~357), w zamian
+    // szybszy (5.6) i wiekszy pocisk (11 = latwiej trafic, przyjazne dzieciom). 135 dmg = 3 strzaly na 300 HP.
+    pumpkin: { hp: 425, dmg: 135, reload: 480, speed: 5.6, maxDist: 750,  bulletRadius: 11 },
 });

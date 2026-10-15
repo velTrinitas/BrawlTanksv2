@@ -26,18 +26,21 @@ const SPEED_MAP: Record<string, number> = {
     twardy: 17, heavy: 13, scout: 27, sniper: 29,
     plasma: 17, pyro: 14, shadow: 19, king: 14,
     enigma: 18, // ENIGMA gatling: szybki, krotki pocisk
+    pumpkin: 13, // PUMPKIN: wolniejsza dynia (lob-feel)
 };
 
 const RADIUS_MAP: Record<string, number> = {
     twardy: 6, heavy: 11, scout: 4, sniper: 4,
     plasma: 9, pyro: 10, shadow: 8, king: 10,
     enigma: 4, // (v1; w v2 trafienie = bulletRadius 8 jak wszyscy)
+    pumpkin: 11,
 };
 
 const TRAIL_LEN_MAP: Record<string, number> = {
     twardy: 10, heavy: 7, scout: 16, sniper: 0,
     plasma: 5, pyro: 10, shadow: 7, king: 5,
     enigma: 8, // zlota smuga
+    pumpkin: 8,
 };
 
 const COLOR_MAP: Record<string, number> = {
@@ -50,6 +53,7 @@ const COLOR_MAP: Record<string, number> = {
     shadow: 0x6c3483,
     king:   0xd35400,
     enigma: 0xf5c542, // zloto
+    pumpkin: 0xff7a12, // zar dyni
 };
 
 // Super-shot multipliers (v4.48 wierność)
@@ -57,8 +61,11 @@ const SUPER_DMG_MULT = 3;
 const SUPER_RADIUS_MULT = 1.5;
 const SUPER_TRAIL_MULT = 1.5;
 /** ENIGMA: wlasne mnozniki supera (analiza w enigma-preview.html): pocisk x1.6 wiekszy i x1.1 szybszy. */
-const SUPER_RADIUS_BY_ID: Record<string, number> = { enigma: 1.6 };
+const SUPER_RADIUS_BY_ID: Record<string, number> = { enigma: 1.6, pumpkin: 1 }; // PUMPKIN: 5 dyn salwy = ten sam promien
 const SUPER_SPEED_BY_ID: Record<string, number> = { enigma: 1.1 };
+
+/** PUMPKIN: kolory smugi 5 dyn supera (= aureole w render2dV2 drawBulletV2). */
+const PUMPKIN_FACE_COLORS = [0xe8318a, 0x22c3b5, 0xffb21e, 0x9b59ff, 0xff5a3c];
 
 // Fioletowy tint (Q2🅲️ user choice) — flat path only.
 const SUPER_TINT = 0xc850ff;
@@ -140,6 +147,8 @@ export class Bullet {
     private spinMode: 'dir' | 'spin' | 'none' = 'none';
     private spinRate: number = 0;
     private superTrailColor: number = SUPER_TINT; // per-brawler super tint (bake) lub SUPER_TINT (flat)
+    /** PUMPKIN: mina dyni w salwie supera (0..4) — tylko wizual (tekstura + kolor smugi). */
+    public face = 0;
 
     constructor(
         x: number, y: number, angle: number,
@@ -218,6 +227,8 @@ export class Bullet {
         this.boomerangLife = 0;
         this.trailHead = 0; this.trailCount = 0; // v0.73.7 PERF: reset ring-buffera (pool punktow zostaje do reuzycia)
         this.sparkleTimer = 0;
+        this.face = 0;
+        if (b.id === 'pumpkin') this.superTrailColor = this.bakerActive ? BulletSpriteBaker.getSuperTintNum(b.id) : SUPER_TINT; // pula: cofnij kolor miny
 
         if (this.bakerActive) {
             // 2.5D: PIXI.Sprite z labowa tekstura (aura wpieczona dla super). Rotacja wg trybu.
@@ -351,6 +362,7 @@ export class Bullet {
                             const fx = shotFxFor(this.brawlerInfo.id);
                             effects.spawnImpactV2(this.x, this.y, Math.atan2(this.vy, this.vx), { color: fx.color, ringRadius: fx.ringRadius * 0.7, hitSparks: Math.max(2, fx.hitSparks - 2) });
                             effects.spawnBulletMark(this.x, this.y);
+                            if (this.brawlerInfo.id === 'pumpkin') effects.spawnPumpkinWallSplat(this.x, this.y, this.netId * 1.7 % 6.28, this.netId); // PUMPKIN: plama na scianie
                         }
                         AudioSys.getInstance().playHit('wall');
                     }
@@ -453,6 +465,16 @@ export class Bullet {
         } else if (this.gfx) {
             this.gfx.x = x; this.gfx.y = y; this.gfx.zIndex = y + 10;
         }
+    }
+
+    /**
+     * PUMPKIN: super = 5 dyn, kazda z inna mina i kolorem smugi (fiesta). Tylko wizual — wolane po acquireBullet.
+     */
+    setPumpkinFace(face: number): void {
+        this.face = face;
+        if (!this.isSuper) return;
+        this.superTrailColor = PUMPKIN_FACE_COLORS[face % PUMPKIN_FACE_COLORS.length];
+        if (this.bakerActive && this.sprite) this.sprite.texture = BulletSpriteBaker.getTexture(this.brawlerInfo.id, true, face);
     }
 
     /** FAZA P5 Batch 2 — boomerang: faza out do maxOutDist, potem powrot do gracza. */

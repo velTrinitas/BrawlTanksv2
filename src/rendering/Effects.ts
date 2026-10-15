@@ -209,6 +209,93 @@ function getStrawTexture(): PIXI.Texture {
 /** Telefon (dotyk) = lzejsze efekty siana. Liczone raz. */
 const HAY_LITE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
+const _pumpkinSplatTextures: PIXI.Texture[] = [];
+/** PUMPKIN: liczba wariantow plamy (wybor deterministyczny: netId pocisku % N). */
+export const PUMPKIN_SPLAT_VARIANTS = 4;
+/**
+ * PUMPKIN (sezon 4): plama dyni 72x72 w 4 WARIANTACH (ksztalt mazi, rozrzut kropel, odlamki skorki, pestki,
+ * wlokna miazszu, zacieki, wariant 3 = kawalek wycietej buzi z zarem). Pieczone LENIWIE, raz na wariant —
+ * w meczu to tylko sprite'y z puli (zero rysowania per klatka). Wspolne dla wrogow i scian.
+ */
+export function getPumpkinSplatTexture(variant = 0): PIXI.Texture {
+    const v = ((variant % PUMPKIN_SPLAT_VARIANTS) + PUMPKIN_SPLAT_VARIANTS) % PUMPKIN_SPLAT_VARIANTS;
+    const cached = _pumpkinSplatTextures[v];
+    if (cached) return cached;
+    let seed = 0x9e3779b9 ^ (v * 0x85ebca6b);
+    const rnd = (): number => { seed = (seed + 0x6d2b79f5) | 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const S = 72, c = document.createElement('canvas'); c.width = S * 2; c.height = S * 2;
+    const ctx = c.getContext('2d')!;
+    ctx.scale(2, 2); ctx.translate(S / 2, S / 2 - 6);
+    const r = 18 + v;
+    const lobes = 10 + v * 2;
+    const radii: number[] = [];
+    for (let i = 0; i < lobes; i++) radii.push(r * (i % 2 ? 0.58 + rnd() * 0.18 : 0.9 + rnd() * 0.25));
+    const blob = (k: number): void => {
+        ctx.beginPath();
+        for (let i = 0; i <= lobes; i++) {
+            const an = i / lobes * Math.PI * 2, rr = radii[i % lobes] * k;
+            const x = Math.cos(an) * rr, y = Math.sin(an) * rr * 0.86;
+            if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.closePath();
+    };
+    // cien (grubosc mazi) + cialo z gradientem + ciemniejszy brzeg
+    ctx.fillStyle = 'rgba(60,20,0,0.35)'; ctx.save(); ctx.translate(1.4, 1.8); blob(1); ctx.fill(); ctx.restore();
+    const g = ctx.createRadialGradient(-r * 0.25, -r * 0.3, 1, 0, 0, r * 1.1);
+    g.addColorStop(0, '#ffb855'); g.addColorStop(0.55, '#ea731b'); g.addColorStop(1, '#a8420a');
+    ctx.fillStyle = g; blob(1); ctx.fill();
+    ctx.strokeStyle = 'rgba(110,35,0,0.55)'; ctx.lineWidth = 1; blob(1); ctx.stroke();
+    // jasniejsze "jeziorka" miazszu
+    ctx.fillStyle = 'rgba(255,190,90,0.55)';
+    for (let i = 0; i < 2 + (v % 2); i++) { ctx.beginPath(); ctx.ellipse((rnd() - 0.5) * r, (rnd() - 0.5) * r * 0.7, r * (0.18 + rnd() * 0.15), r * (0.1 + rnd() * 0.08), rnd() * 3, 0, Math.PI * 2); ctx.fill(); }
+    // wlokna miazszu (cienkie zolte nitki)
+    ctx.strokeStyle = 'rgba(255,215,120,0.8)'; ctx.lineWidth = 0.8;
+    for (let i = 0; i < 4; i++) { const a = rnd() * 6.28, d0 = r * 0.2, d1 = r * (0.7 + rnd() * 0.4); ctx.beginPath(); ctx.moveTo(Math.cos(a) * d0, Math.sin(a) * d0); ctx.quadraticCurveTo(Math.cos(a + 0.5) * d1 * 0.6, Math.sin(a + 0.5) * d1 * 0.5, Math.cos(a + 0.2) * d1, Math.sin(a + 0.2) * d1 * 0.86); ctx.stroke(); }
+    // kropelki rozbryzgu (rozne wielkosci, z mini-blikiem)
+    for (let i = 0; i < 5 + v; i++) {
+        const a = rnd() * 6.28, d = r * (1.05 + rnd() * 0.45), sz = 1.4 + rnd() * 2.4;
+        const x = Math.cos(a) * d, y = Math.sin(a) * d * 0.86;
+        ctx.fillStyle = '#d8621a'; ctx.beginPath(); ctx.arc(x, y, sz, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,230,170,0.7)'; ctx.beginPath(); ctx.arc(x - sz * 0.3, y - sz * 0.3, sz * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+    // zacieki w dol (2-3, rozne dlugosci)
+    ctx.fillStyle = '#d8621a';
+    for (let i = 0; i < 2 + (v % 2); i++) { const k = (rnd() - 0.5) * 1.2, L = r * (0.45 + rnd() * 0.5); ctx.beginPath(); ctx.roundRect(k * r - 1.4, r * 0.2, 2.8, L, 1.4); ctx.fill(); ctx.beginPath(); ctx.arc(k * r, r * 0.2 + L, 2.1, 0, Math.PI * 2); ctx.fill(); }
+    // odlamki skorki (zakrzywione kawalki z ciemna zewnetrzna skorka i zebrem)
+    for (let i = 0; i < 2 + (v % 3); i++) {
+        const a = rnd() * 6.28, d = r * (0.55 + rnd() * 0.6), x = Math.cos(a) * d, y = Math.sin(a) * d * 0.86, rot = rnd() * 6.28, L = 5 + rnd() * 3;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+        ctx.fillStyle = '#c4580f'; ctx.beginPath(); ctx.moveTo(-L, 0); ctx.quadraticCurveTo(0, -4.5, L, 0); ctx.quadraticCurveTo(0, -1.5, -L, 0); ctx.fill();
+        ctx.strokeStyle = '#5a2206'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-L, 0); ctx.quadraticCurveTo(0, -4.5, L, 0); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,200,120,0.6)'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-L * 0.4, -2); ctx.lineTo(L * 0.4, -2.4); ctx.stroke();
+        ctx.restore();
+    }
+    // pestki (kremowe, z cieniem i obwodka)
+    for (let i = 0; i < 4 + v; i++) {
+        const x = (rnd() - 0.5) * r * 1.4, y = (rnd() - 0.5) * r * 1.1, a = rnd() * 3;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+        ctx.fillStyle = 'rgba(80,30,0,0.4)'; ctx.beginPath(); ctx.ellipse(0.5, 0.7, 2.8, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff1c8'; ctx.beginPath(); ctx.ellipse(0, 0, 2.8, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#c9a66a'; ctx.lineWidth = 0.5; ctx.stroke();
+        ctx.restore();
+    }
+    // wariant 3: kawalek wycietej buzi (trojkatne oko) z zarem — "to byla dynia z charakterem"
+    if (v === 3) {
+        ctx.save(); ctx.translate(-r * 0.15, -r * 0.1); ctx.rotate(0.4);
+        ctx.fillStyle = '#c4580f'; ctx.beginPath(); ctx.ellipse(0, 0, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#5a2206'; ctx.lineWidth = 1; ctx.stroke();
+        const eg = ctx.createRadialGradient(0, 0, 0.5, 0, 0, 5); eg.addColorStop(0, '#fff3b0'); eg.addColorStop(1, '#ff7a12');
+        ctx.fillStyle = eg; ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(4, 3); ctx.lineTo(0, -4); ctx.closePath(); ctx.fill();
+        ctx.restore();
+    }
+    // polysk (mokra mazia)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(-r * 0.3, -r * 0.38, r * 0.28, r * 0.11, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.arc(r * 0.25, -r * 0.1, 1.4, 0, Math.PI * 2); ctx.fill();
+    const tex = PIXI.Texture.from(c, { resolution: 2 } as PIXI.IBaseTextureOptions);
+    _pumpkinSplatTextures[v] = tex;
+    return tex;
+}
+
 let _plusTexture: PIXI.Texture | null = null;
 /** MOCE JUICY cz.1 (v0.233.0) — gruby plus 32x32 z miekka krawedzia (Naprawa, tint = kolor). */
 export function getPlusTexture(): PIXI.Texture {
@@ -430,6 +517,12 @@ export class EffectsManager {
     private hayBits: Array<{ sprite: PIXI.Sprite; vx: number; vy: number; vr: number; life: number; ground: number; active: boolean }> = [];
     private hayLayer: PIXI.Container | null = null;
     private static readonly MAX_BULLET_MARKS = 8;
+    /** PUMPKIN: plamy dyni — na scianach (pula 10) i na wrogach (pula 12, sprite-dziecko kontenera wroga). */
+    private fxSplatLayer: PIXI.Container | null = null;
+    private fxPumpkinWall: FxSprite[] = [];
+    private pumpkinOnEnemy: Array<{ sprite: PIXI.Sprite; owner: PIXI.Container; life: number }> = [];
+    private static readonly MAX_PUMPKIN_WALL = 10;
+    private static readonly MAX_PUMPKIN_ENEMY = 12;
 
     constructor(worldContainer: PIXI.Container) {
         this.worldContainer = worldContainer;
@@ -760,6 +853,70 @@ export class EffectsManager {
         p.sprite.x = x; p.sprite.y = y; p.sprite.tint = tint; p.sprite.scale.set(size); p.sprite.alpha = 0.5;
         p.vx = (Math.random() - 0.5) * 0.6; p.vy = (Math.random() - 0.5) * 0.6 - 0.3;
         p.life = 0.6; p.decay = 0.035; p.scaleDecay = 0;
+    }
+
+    /**
+     * PUMPKIN: plama dyni na SCIANIE (zwykly blend, warstwa nad budynkami, pod smugami). Pula 10, 4 s,
+     * wejscie "plask" (skala 0.5 -> 1 w 5 klatek), zanik w ostatnim 25%. Tylko wizual klienta.
+     */
+    spawnPumpkinWallSplat(x: number, y: number, rot: number, variant = 0): void {
+        if (!this.fxSplatLayer) {
+            this.fxSplatLayer = new PIXI.Container();
+            this.fxSplatLayer.zIndex = 8990;
+            this.fxSplatLayer.sortableChildren = false;
+            this.worldContainer.addChild(this.fxSplatLayer);
+        }
+        const m = this.acquireFx(this.fxPumpkinWall, getPumpkinSplatTexture(), this.fxSplatLayer, false, EffectsManager.MAX_PUMPKIN_WALL);
+        m.sprite.texture = getPumpkinSplatTexture(variant);
+        m.sprite.anchor.set(0.5, 0.4);
+        m.sprite.x = x; m.sprite.y = y - 10; m.sprite.rotation = rot; m.sprite.alpha = 1;
+        m.sprite.scale.set(0.5);
+        m.life = 1; m.max = 240; m.grow = 0;
+    }
+
+    /**
+     * PUMPKIN: plama dyni NA WROGU — sprite-dziecko kontenera wroga (jedzie z nim), 1 na wroga (kolejne
+     * trafienie odswieza), pula 12, 3 s, zero obrazen. Kontener wroga zniszczony => wpis wypada z puli.
+     */
+    attachPumpkinSplat(owner: PIXI.Container, rot: number, variant = 0): void {
+        let e = this.pumpkinOnEnemy.find(s => s.owner === owner);
+        if (!e) {
+            e = this.pumpkinOnEnemy.find(s => s.life <= 0);
+            if (!e) {
+                if (this.pumpkinOnEnemy.length >= EffectsManager.MAX_PUMPKIN_ENEMY) e = this.pumpkinOnEnemy.reduce((a, b) => (a.life < b.life ? a : b));
+                else {
+                    const sprite = new PIXI.Sprite(getPumpkinSplatTexture());
+                    sprite.anchor.set(0.5, 0.4);
+                    e = { sprite, owner, life: 0 };
+                    this.pumpkinOnEnemy.push(e);
+                }
+            }
+            e.owner = owner;
+            if (e.sprite.parent !== owner) owner.addChild(e.sprite);
+        }
+        e.sprite.texture = getPumpkinSplatTexture(variant);
+        e.sprite.visible = true; e.sprite.rotation = rot; e.sprite.position.set(0, -8);
+        e.sprite.scale.set(0.4 / (owner.scale.x || 1));
+        e.life = 180;
+    }
+
+    private updatePumpkinSplats(delta: number): void {
+        for (let i = this.pumpkinOnEnemy.length - 1; i >= 0; i--) {
+            const e = this.pumpkinOnEnemy[i];
+            if (e.sprite.destroyed || e.owner.destroyed) { this.pumpkinOnEnemy.splice(i, 1); continue; } // wrog zniknal razem z dziecmi
+            if (e.life <= 0) continue;
+            e.life -= delta;
+            if (e.life <= 0) { e.sprite.visible = false; continue; }
+            const base = 1 / (e.owner.scale.x || 1);
+            const age = 180 - e.life;
+            e.sprite.scale.set(base * (age < 5 ? 0.4 + age * 0.08 : 0.8));
+            e.sprite.alpha = Math.min(1, e.life / 45);
+        }
+        this.updateFxPool(this.fxPumpkinWall, delta, (f, t) => {
+            const age = t * f.max;
+            f.sprite.scale.set(age < 5 ? 0.5 + age * 0.1 : 1);
+            f.sprite.alpha = t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
+        });
     }
 
     /** Slad po pocisku na scianie: mala ciemna plamka (pula 8, fade 90 klatek), warstwa sladow. */
@@ -1460,6 +1617,7 @@ export class EffectsManager {
             b.sprite.alpha = Math.min(1, b.life / 25);
         }
         this.updateFxPool(this.fxMarks, delta, (f, t) => { f.sprite.alpha = 0.6 * (1 - t); });
+        if (this.fxPumpkinWall.length || this.pumpkinOnEnemy.length) this.updatePumpkinSplats(delta);
 
         // === Tick-anims (v0.155.3 D2): pierscienie mega bomby/shockwave/portalu + overlay freeze ===
         for (let i = this.tickAnims.length - 1; i >= 0; i--) {

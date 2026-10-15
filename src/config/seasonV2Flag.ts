@@ -9,7 +9,7 @@
  *  - front nie pokazuje numeru sezonu (id `s3` zostaje kluczem zapisu).
  * Przed flipem: `?seasonv2=1` do testu, po flipie rollback `?seasonv2=0`.
  */
-export const SEASON_V2_LIVE = false;
+export const SEASON_V2_LIVE = true; // v0.252.0 FLIP (rollback ?seasonv2=0)
 
 export function isSeasonV2Enabled(): boolean {
     try {

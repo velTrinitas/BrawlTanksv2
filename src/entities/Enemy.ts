@@ -18,6 +18,17 @@ import type { CastlePart } from '../maps/castle/CastlePart'; // OBRON ZAMEK F3
 import { simNowMs } from '../systems/SimClock'; // COOP S1
 /** SPAWN GRACE (2026-10-07): czas gotowosci bojowej po spawnie (ms zegara symulacji). */
 export const ENEMY_SPAWN_GRACE_MS = 2000;
+
+/**
+ * v0.252.0 FIX (playtest: Babcia wypchnela 2 czolgi za granice planszy, utknely na zawsze).
+ * Zewnetrzne sily (moce: Babcia, Mega Beka, Czarna Dziura; mapy: byk, zniwiarka, tasma, dzwig) przesuwaly
+ * wroga wprost `e.x += ...` — BEZ kolizji i bez krawedzi swiata. Wrog przelatywal przez cienki pas granicy
+ * albo wbijal sie w budynek, a potem kazdy jego ruch (kolizja per-os) byl blokowany.
+ * Jedno zrodlo prawdy: `Enemy.pushBy()` — te same kolidery co ruch wroga (`buildings`, w tym pasy granic map).
+ */
+let pushColliders: readonly ICollidable[] = [];
+/** main.ts (krok logiki): aktualna lista kolizji gracza/wrogow — dla zewnetrznych sil. */
+export function setEnemyPushColliders(c: readonly ICollidable[]): void { pushColliders = c; }
 import { nextNetId } from '../systems/NetId'; // COOP S5b
 
 /**
@@ -465,6 +476,8 @@ export class Enemy {
     private avoidSide = 0;          // -1 / 0 / +1 — strona skretu (0 = brak)
     private avoidFrames = 0;        // pamiec strony (histereza)
     private static readonly AVOID_HOLD = 42;
+    /** v0.252.0: promien kolizji dla zewnetrznych sil (pushBy) — maly, zeby odrzut nie zatrzymywal sie za wczesnie. */
+    private static readonly PUSH_R = 20;
     /** v0.245.0: pierwszy pocisk gracza lecacy W mega bossa (< 350 px, korytarz +-60 px). */
     private findMegaThreat(): { x: number; y: number; vx: number; vy: number } | null {
         const list = Enemy.megaThreatBullets;
@@ -553,6 +566,7 @@ export class Enemy {
         if (canY) this.y = ny;
         // SigmaTester C2: zamiar ruchu byl, a pozycja stoi => utkniecie (licznik, zero logiki)
         if (!canX && !canY) this.sigmaStuckFrames += delta; else this.sigmaStuckFrames = 0;
+        if (this.sigmaStuckFrames >= 45) this.escapeIfEmbedded(); // v0.252.0: wbity w kolider => wyjscie
         if (!canX && !canY) {
             // 4. rog / zakleszczenie: flip strony + krok po osi prostopadlej do ruchu
             this.avoidSide = this.avoidSide === 0 ? 1 : -this.avoidSide;
@@ -561,6 +575,55 @@ export class Enemy {
             let free = true;
             for (const b of buildings) { if (checkRectCollision(b.x, b.y, b.w, b.h, ex, ey, r)) { free = false; break; } }
             if (free) { this.x = ex; this.y = ey; }
+        }
+    }
+
+    /**
+     * Przesuniecie z ZEWNETRZNEJ sily (moc/pulapka mapy): podkroki co <= 8 px (duzy odrzut nie przeskoczy
+     * cienkiej sciany), kolizja per-os z tymi samymi koliderami co ruch, clamp do krawedzi swiata.
+     * Zatrzymuje sie na przeszkodzie (wrog "odbija sie" od muru zamiast w niego wchodzic).
+     */
+    public pushBy(dx: number, dy: number): void {
+        const r = Enemy.PUSH_R;
+        const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 8));
+        const sx = dx / steps, sy = dy / steps;
+        for (let i = 0; i < steps; i++) {
+            const nx = Math.max(30, Math.min(WORLD_W - 30, this.x + sx));
+            const ny = Math.max(30, Math.min(WORLD_H - 30, this.y + sy));
+            let canX = nx !== this.x, canY = ny !== this.y;
+            for (const b of pushColliders) {
+                if (canX && checkRectCollision(b.x, b.y, b.w, b.h, nx, this.y, r)) canX = false;
+                if (canY && checkRectCollision(b.x, b.y, b.w, b.h, this.x, ny, r)) canY = false;
+                if (!canX && !canY) break;
+            }
+            if (canX) this.x = nx;
+            if (canY) this.y = ny;
+            if (!canX && !canY) break;
+        }
+    }
+
+    /**
+     * Siatka bezpieczenstwa: wrog WBITY w kolider (z dowolnej przyczyny, takze sprzed fixu) nie moze ruszyc
+     * sie ani o piksel (kolizja per-os blokuje kazdy kierunek). Szukamy najblizszego wolnego punktu na
+     * kierunkach 8 rozy wiatrow (co 12 px, do 240 px) i stawiamy go tam. Deterministyczne (bez RNG).
+     * Wolane tylko, gdy wrog stoi zablokowany >= 45 krokow — koszt zerowy w normalnej grze.
+     */
+    private escapeIfEmbedded(): void {
+        const r = Enemy.PUSH_R;
+        const hit = (x: number, y: number): boolean => {
+            if (x < 30 || y < 30 || x > WORLD_W - 30 || y > WORLD_H - 30) return true;
+            for (const b of pushColliders) if (checkRectCollision(b.x, b.y, b.w, b.h, x, y, r)) return true;
+            return false;
+        };
+        if (!hit(this.x, this.y)) return;
+        // najpierw w strone srodka swiata (wyrzucony za granice wraca NA plansze, nie dalej w las)
+        const ca = Math.atan2(WORLD_H / 2 - this.y, WORLD_W / 2 - this.x);
+        for (let d = 12; d <= 240; d += 12) {
+            for (let k = 0; k < 8; k++) {
+                const a = ca + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 4);
+                const x = this.x + Math.cos(a) * d, y = this.y + Math.sin(a) * d;
+                if (!hit(x, y)) { this.x = x; this.y = y; this.sigmaStuckFrames = 0; return; }
+            }
         }
     }
 

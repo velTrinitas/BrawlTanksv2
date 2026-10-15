@@ -31,7 +31,7 @@ export function isTraitsEnabled(): boolean {
 
 export function traitRulesetId(): 't0' | 't1' { return isTraitsEnabled() ? 't1' : 't0'; }
 
-export type TraitId = 'sandbags' | 'ram' | 'cloak' | 'blink' | 'fence' | 'bigJump' | 'smoke' | 'ceasefire' | 'repair';
+export type TraitId = 'sandbags' | 'ram' | 'cloak' | 'blink' | 'fence' | 'bigJump' | 'smoke' | 'ceasefire' | 'repair' | 'summon';
 
 export interface TraitDef {
     id: TraitId;
@@ -59,6 +59,8 @@ export const TRAIT_DEFS: Record<TraitId, TraitDef> = {
     smoke:     { id: 'smoke',     icon: '💨', color: '#b8bec8', cooldownMs: 30_000, durationMs: 6_000 },
     ceasefire: { id: 'ceasefire', icon: '✋', color: '#f1c40f', cooldownMs: 35_000, durationMs: 5_000 },
     repair:    { id: 'repair',    icon: '✚', iconColor: '#2ecc71', color: '#2ecc71', cooldownMs: 50_000, durationMs: 8_000 },
+    // PUMPKIN (sezon 4): WEZWANIE "CALACA" — szkielet-mariachi na rowerku: wabik + nuty (malo dmg, lekkie spowolnienie)
+    summon:    { id: 'summon',    icon: '💀', iconArt: 'calaca', color: '#ff5fa2', cooldownMs: 30_000, durationMs: 8_000 },
 };
 
 export const BRAWLER_TRAIT: Readonly<Record<BrawlerId, TraitId>> = {
@@ -71,6 +73,7 @@ export const BRAWLER_TRAIT: Readonly<Record<BrawlerId, TraitId>> = {
     pyro: 'smoke',
     king: 'ceasefire',
     enigma: 'repair',
+    pumpkin: 'summon',
 };
 
 /** Liczby szczegolowe efektow (jeden tuning pass). */
@@ -96,4 +99,8 @@ export const TRAIT_TUNING = {
     smokeRadius: 220, smokePuffs: 11,
     // Naprawa (Enigma)
     repairTotalHp: 125,
+    // Wezwanie CALACA (Pumpkin): wabik jak Widmo, ale z HP; co noteEveryMs nuta w promieniu (dmg + spowolnienie)
+    calacaHp: 200, calacaLureRadius: 300, calacaAbsorbRadius: 30, calacaBossIgnoreMs: 2000,
+    calacaNoteEveryMs: 1200, calacaNoteRadius: 120, calacaNoteDamage: 8, calacaSlowMult: 0.85, calacaSlowMs: 600,
+    calacaOrbitRx: 70, calacaOrbitRy: 50, calacaSpeedPx: 3.4, calacaSeekRadius: 520,
 } as const;

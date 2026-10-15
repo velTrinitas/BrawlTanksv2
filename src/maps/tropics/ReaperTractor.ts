@@ -119,7 +119,7 @@ export class ReaperTractor {
         for (let i = this.pushes.length - 1; i >= 0; i--) {
             const p = this.pushes[i];
             if (!p.e.active) { this.pushes.splice(i, 1); continue; }
-            p.e.x += p.kx; p.e.y += p.ky; p.kx *= 0.88; p.ky *= 0.88;
+            p.e.pushBy(p.kx, p.ky); p.kx *= 0.88; // v0.252.0: z kolizja p.ky *= 0.88;
             if (Math.abs(p.kx) < 0.15 && Math.abs(p.ky) < 0.15) this.pushes.splice(i, 1);
         }
         if (this.phase === 'idle') return;

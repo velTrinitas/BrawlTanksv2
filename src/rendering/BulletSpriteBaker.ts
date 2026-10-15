@@ -57,6 +57,8 @@ const CFG: Record<string, BulletBakeCfg> = {
     king:   { type: 'gold',          size: 7.5, tex: 52, superType: 'gold',          superSize: 12,  superTex: 112, tint: '#FF5A2C', auraScale: 1,    spin: 'spin', spinRate: 0.012, muzzleDist: 54 },
     // ENIGMA (gatling): zlota smuga v2 (render2dV2 drawBulletV2); 'gold' = fallback v1. Bez tego mecz Enigma nie startuje.
     enigma: { type: 'gold',          size: 4,   tex: 40, superType: 'gold',          superSize: 6.5, superTex: 72,  tint: '#F5C542', auraScale: 0.8,  spin: 'dir',  spinRate: 0,     muzzleDist: 60 },
+    // PUMPKIN: dynia v2 (render2dV2 drawBulletV2), size 9 = +50% (Mariusz 15.10, tez super); super = 5 tekstur (5 min, b.face 0..4) — superFaces. 'tracer' = fallback v1.
+    pumpkin: { type: 'tracer',       size: 9,   tex: 68, superType: 'tracer',        superSize: 9,   superTex: 92,  tint: '#FF7A12', auraScale: 1,    spin: 'dir',  spinRate: 0,     muzzleDist: 56 },
 };
 
 // render2d constants (for muzzle geometry mapping render2d-space -> world-space).
@@ -69,6 +71,8 @@ const BAKE_DISPLAY_SCALE = 1.25;
 interface BakedBullet {
     normal: PIXI.Texture;
     super: PIXI.Texture;
+    /** PUMPKIN: super w 5 wariantach (mina dyni wg indeksu pocisku w salwie). */
+    superFaces?: PIXI.Texture[];
 }
 
 class BulletSpriteBakerImpl {
@@ -135,7 +139,11 @@ class BulletSpriteBakerImpl {
         const normal = this.bakeOne(fire, cfg.type, cfg.size, false, null, 1, cfg.tex, resolution);
         const superTex = this.bakeOne(fire, cfg.superType, cfg.superSize, true, cfg.tint, cfg.auraScale, cfg.superTex, resolution);
 
-        return { normal, super: superTex };
+        // PUMPKIN: 5 min supera (5 malych tekstur 64 px, raz pod ekranem ladowania)
+        const superFaces = brawlerId === 'pumpkin'
+            ? [0, 1, 2, 3, 4].map(f => this.bakeOne(fire, cfg.superType, cfg.superSize, true, cfg.tint, cfg.auraScale, cfg.superTex, resolution, f))
+            : undefined;
+        return { normal, super: superTex, superFaces };
     }
 
     private bakeOne(
@@ -147,6 +155,7 @@ class BulletSpriteBakerImpl {
         auraScale: number,
         texSize: number,
         resolution: number,
+        face: number = 0,
     ): PIXI.Texture {
         const canvas = document.createElement('canvas');
         canvas.width = texSize * resolution;
@@ -178,6 +187,7 @@ class BulletSpriteBakerImpl {
             auraScale,
             life: 1,
             maxLife: 1,
+            face, // PUMPKIN: mina dyni (inne paintery ignoruja)
         };
 
         // drawBulletWithFx: if b.superTint -> drawAura (additive 'lighter') then drawBullet; else
@@ -190,8 +200,9 @@ class BulletSpriteBakerImpl {
     }
 
     /** Baked texture for (brawler, isSuper). Throws if not baked. */
-    getTexture(brawlerId: string, isSuper: boolean): PIXI.Texture {
+    getTexture(brawlerId: string, isSuper: boolean, face: number = 0): PIXI.Texture {
         const baked = this.requireBaked(brawlerId);
+        if (isSuper && baked.superFaces) return baked.superFaces[face % baked.superFaces.length];
         return isSuper ? baked.super : baked.normal;
     }
 
@@ -229,6 +240,7 @@ class BulletSpriteBakerImpl {
         if (!baked) return;
         baked.normal.destroy(true);
         baked.super.destroy(true);
+        baked.superFaces?.forEach(t => t.destroy(true));
         this.cache.delete(brawlerId);
     }
 

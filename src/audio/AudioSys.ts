@@ -39,7 +39,8 @@ const SHOOT_TYPE_MAP: Record<string, string> = {
     sniper: 'sniper',
     plasma: 'plasma',
     pyro:   'plasma',
-    enigma: 'gatling',  // ENIGMA: wyrenderowana synteza (tools/render-gatling-sfx.mjs) + wersja super
+    enigma: 'gatling',
+    pumpkin: 'pumpkin', // PUMPKIN: wyrenderowana synteza (tools/render-pumpkin-sfx.mjs) + wersja super "fiesta"  // ENIGMA: wyrenderowana synteza (tools/render-gatling-sfx.mjs) + wersja super
 };
 
 /** Volume per layer — BASELINE values. Multipliers (musicVolMult/sfxVolMult) apply on top. */
@@ -101,6 +102,10 @@ const SOUND_LIST: SoundDef[] = [
     // (celowo ~1,5 dB pod shoot -22: ciagla seria brzmi glosniej niz pojedynczy strzal przy tym samym poziomie).
     { key: 'shoot_gatling',       file: 'shoot_gatling.mp3',       volume: 0.45 },
     { key: 'shoot_gatling_super', file: 'shoot_gatling_super.mp3', volume: 0.42 }, // mean -17,6 dB, nizszy i grubszy
+    // PUMPKIN: "THOOMP + BONK" dyni (tools/render-pumpkin-sfx.mjs, +13 dB, limiter 0.84): mean -15,8 dB -> vol 0.49 = eff ~-22 dB (target shoot -22);
+    // super: + 3 dzwoneczki marimby, mean -14 dB -> vol 0.5 = eff ~-20 dB (salwa 5 dyn = 1 dzwiek na spust).
+    { key: 'shoot_pumpkin',       file: 'shoot_pumpkin.mp3',       volume: 0.49 },
+    { key: 'shoot_pumpkin_super', file: 'shoot_pumpkin_super.mp3', volume: 0.5 },
     // v0.246.0 CECHY + SPRAY (tools/render-trait-sfx.mjs, ffmpeg q4 mono, razem ~180 KB): NOWE dzwieki per efekt.
     // Cele: aktywacja cechy -16 dB (pod superami -13), UI/powtarzalne -22, spray -20. Pomiar volumedetect mean.
     { key: 'spray_paint', file: 'traits/spray_paint.mp3', volume: 0.66 }, // mean -16.4 dB (target -20)
@@ -120,6 +125,9 @@ const SOUND_LIST: SoundDef[] = [
     { key: 'smoke_puff', file: 'traits/smoke_puff.mp3', volume: 1.00 }, // v0.246.1 duchowy wydech: mean -18.1 dB (target -16; dlugi ogon echa zaniza srednia) — ponizej celu nawet przy 1.0
     { key: 'ceasefire', file: 'traits/ceasefire.mp3', volume: 0.73 }, // mean -13.3 dB (target -16)
     { key: 'repair_charge', file: 'traits/repair_charge.mp3', volume: 0.89 }, // mean -15 dB (target -16)
+    // PUMPKIN CALACA (tools/render-pumpkin-sfx.mjs): fanfara wezwania (target -16) + nuta trabki co 1,2 s (target -22). Volume po pomiarze.
+    { key: 'calaca_summon', file: 'traits/calaca_summon.mp3', volume: 0.57 }, // mean -11.1 dB (+6 dB, limiter 0.84) -> eff ~-16 dB
+    { key: 'calaca_note', file: 'traits/calaca_note.mp3', volume: 0.53 }, // mean -16.5 dB -> eff ~-22 dB
     // ZLOMOWISKO J3 (tools/render-junkyard-sfx.mjs, ffmpeg): prasa — pip telegrafu x2, huk, syk hydrauliki, zgniecenie, ogluszenie
     { key: 'press_beep',    file: 'junkyard/press_beep.mp3',    volume: 0.5 },  // mean -15,3 dB
     { key: 'press_beep_hi', file: 'junkyard/press_beep_hi.mp3', volume: 0.5 },
@@ -811,6 +819,7 @@ export class AudioSys {
             this.safePlayVaried(isSuper ? 'shoot_gatling_super' : 'shoot_gatling', 0.06);
             return;
         }
+        if (type === 'pumpkin') { this.safePlayVaried(isSuper ? 'shoot_pumpkin_super' : 'shoot_pumpkin'); return; } // PUMPKIN: osobny plik supera
         this.safePlayVaried(`shoot_${type}`); // anti-fatigue jitter (v0.114.1)
     }
 
@@ -1314,8 +1323,9 @@ export class AudioSys {
     /** v0.246.0: SFX spraya i cech (pliki traits/*.mp3). */
     playSprayPaint(): void { this.safePlay('spray_paint'); }
     playTraitSfx(key: 'trait_ready' | 'trait_denied' | 'sandbag_build' | 'ram_charge' | 'ram_impact' | 'invis_on' | 'invis_off'
-        | 'teleport_out' | 'teleport_in' | 'fence_up' | 'fence_zap' | 'jump_launch' | 'jump_land' | 'smoke_puff' | 'ceasefire' | 'repair_charge'): void {
-        if (key === 'fence_zap' || key === 'ram_impact') this.safePlayVaried(key, 0.08, 0.15); // powtarzalne — anty-zmeczenie
+        | 'teleport_out' | 'teleport_in' | 'fence_up' | 'fence_zap' | 'jump_launch' | 'jump_land' | 'smoke_puff' | 'ceasefire' | 'repair_charge'
+        | 'calaca_summon' | 'calaca_note'): void {
+        if (key === 'fence_zap' || key === 'ram_impact' || key === 'calaca_note') this.safePlayVaried(key, 0.08, 0.15); // powtarzalne — anty-zmeczenie
         else this.safePlay(key);
     }
 

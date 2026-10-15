@@ -3,6 +3,7 @@ import { CASTLE_HEX } from './castlePalette';
 import type { CastleRect } from '../CastleMap';
 import { isCastleArtV2 } from '../../config/castleArtFlag';
 import { CastleMoatV2 } from './castleMoatV2';
+import { moatLoopFrom, type MoatLoop } from './castleMoatLoop';
 
 /**
  * CastleMoat — fosa zamku (OBRON ZAMEK F2). Uogolnienie RuinsFosa na N pasow:
@@ -22,6 +23,7 @@ interface Ripple { strip: number; t: number; u: number; speed: number; phase: nu
 
 export class CastleMoat {
     private strips: CastleRect[];
+    private loop: MoatLoop;
     private container: PIXI.Container;
     private gfx: PIXI.Graphics;
     private ripples: Ripple[];
@@ -30,6 +32,7 @@ export class CastleMoat {
 
     constructor(strips: readonly CastleRect[], worldContainer: PIXI.Container, bridges: readonly CastleRect[] = [], lowFx = false) {
         this.strips = [...strips];
+        this.loop = moatLoopFrom(strips);
         this.container = new PIXI.Container();
         this.container.zIndex = 5; // nad gruntem, pod czolgami
         worldContainer.addChild(this.container);
@@ -55,10 +58,19 @@ export class CastleMoat {
 
     /** Punkt (world) w spowalniajacej wodzie? Mosty sa wyciete z pasow, wiec nie spowalniaja. */
     public isPointInside(px: number, py: number): boolean {
+        let hit = false;
         for (const s of this.strips) {
-            if (px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h) return true;
+            if (px >= s.x && px <= s.x + s.w && py >= s.y && py <= s.y + s.h) { hit = true; break; }
         }
-        return false;
+        if (!hit) return false;
+        // v0.252.0 (SIM 17): rogi zewnetrzne fosy sa lukiem (woda skreca, klin rogu = laka z krzakami).
+        // W kwadracie rogu slow tylko w promieniu szerokosci kanalu od wewnetrznego naroznika — strefa = to, co narysowane.
+        const L = this.loop;
+        const cx = px < L.i0 ? L.i0 : px > L.i1 ? L.i1 : NaN;
+        const cy = py < L.i0 ? L.i0 : py > L.i1 ? L.i1 : NaN;
+        if (Number.isNaN(cx) || Number.isNaN(cy)) return true;
+        const r = L.half * 2;
+        return (px - cx) ** 2 + (py - cy) ** 2 <= r * r;
     }
 
     /** tanks: czolgi do plusku/kilwatera (tylko v2; legacy ignoruje). */

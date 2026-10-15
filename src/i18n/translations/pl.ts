@@ -127,6 +127,7 @@ export const pl = {
     'trait.name.bigJump': 'SKOK',
     'trait.name.smoke': 'DYM',
     'trait.name.ceasefire': 'ROZEJM',
+    'trait.name.summon': 'CALACA',
     'trait.name.repair': 'NAPRAWA',
     'spray.cooldown': '🎨 Spray znowu za {sec} s',
     'spray.blocked': '🎨 Tu nie da się malować — tylko na podłodze',
@@ -751,6 +752,7 @@ export const pl = {
     'brawler.shadow.desc': 'Zwinny zabójca, który wjeżdża, kończy cel i znika. Ma doskok — jednym ruchem wyrywa się z linii ognia albo dopada rannego przeciwnika. Cienki pancerz wybacza niewiele.',
     'brawler.king.desc': 'Ciężki czołg z koroną. Każdy jego strzał boli najmocniej, a gruby pancerz pozwala iść naprzód tam, gdzie inni muszą się cofać. W zamian strzela najwolniej w garażu.',
     'brawler.enigma.desc': 'Złoty gatling na ośmiu kołach. Lufy rozkręcają się chwilę, a potem sypią gradem kul — dwanaście strzałów na sekundę. Trzymaj cel na muszce, a nic nie ustoi.',
+    'brawler.pumpkin.desc': 'Dyniowa terenówka z Día de los Muertos. Strzela płonącymi dyniami, które oblepiają wrogów pomarańczową mazią. Szybka na kołach, a jej super to fiesta pięciu dyń naraz.',
 
     'hub.quests.daily': 'ROZKAZY DNIA',
     'hub.quests.weekly': 'ROZKAZY TYGODNIA',
@@ -1038,6 +1040,7 @@ export const pl = {
     'brawler.shadow.name': 'CIEŃ',
     'brawler.king.name': 'KRÓL',
     'brawler.enigma.name': 'ENIGMA',
+    'brawler.pumpkin.name': 'PUMPKIN',
 
     // ============================================================
     // Settings (v0.42.0 FAZA 8a finalize + v0.43.0 FAZA 8b: profile section)
@@ -1290,6 +1293,8 @@ export const pl = {
 
     // Pickupy (heal/turbo/super charge/magnet)
     'hud.mediPadHeal':    '🔧 +{hp} HP',
+    'hud.mediPadHp':      '+{hp} HP',
+    'hud.mediPadPts':     '+{pts} pkt',
     'hud.heartHeal':      '❤️ +{hp} HP',
     'hud.turboBoost':     '⚡ TURBO ×2 — {sec}s!',
     'hud.superCharge':    '⚡ +{count} SUPER STRZAŁY! (×{total})',

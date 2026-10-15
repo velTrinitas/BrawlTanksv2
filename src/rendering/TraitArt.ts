@@ -84,6 +84,70 @@ export function smokePuffTexture(variant: 0 | 1 | 2): PIXI.Texture {
 }
 
 /** Korona (v0.246.1: BEZ ozdob — gladkie zloto z gradientem, blik, ciemny obrys). */
+/**
+ * PUMPKIN: CALACA (62x68) — szkielet-mariachi w sombrero na turkusowym rowerku z trabka. 2 klatki (pedaly / nogi
+ * w dwoch fazach) = animacja jazdy bez rysowania per klatka. Patrzy w prawo (lustro scale.x w grze).
+ */
+export function calacaTexture(frame: 0 | 1): PIXI.Texture {
+    return bake('calaca' + frame, 62, 68, (c) => {
+        c.translate(31, 52);
+        const ped = frame ? Math.PI : 0;
+        c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(0, 10, 24, 6, 0, 0, Math.PI * 2); c.fill();
+        // kola
+        for (const wx of [-14, 14]) {
+            c.strokeStyle = '#1b1b22'; c.lineWidth = 3; c.beginPath(); c.arc(wx, 2, 8.5, 0, Math.PI * 2); c.stroke();
+            c.strokeStyle = '#9aa0a8'; c.lineWidth = 1; for (let k = 0; k < 3; k++) { const a = ped + k * Math.PI / 3; c.beginPath(); c.moveTo(wx + Math.cos(a) * 7, 2 + Math.sin(a) * 7); c.lineTo(wx - Math.cos(a) * 7, 2 - Math.sin(a) * 7); c.stroke(); }
+            c.fillStyle = '#ff5fa2'; c.beginPath(); c.arc(wx, 2, 2, 0, Math.PI * 2); c.fill();
+        }
+        // rama
+        c.strokeStyle = '#22c3b5'; c.lineWidth = 3; c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(-14, 2); c.lineTo(-3, -10); c.lineTo(11, -10); c.lineTo(14, 2); c.moveTo(-3, -10); c.lineTo(0, 2); c.lineTo(-14, 2); c.stroke();
+        c.strokeStyle = '#ddd'; c.lineWidth = 2; c.beginPath(); c.moveTo(11, -10); c.lineTo(13, -16); c.lineTo(17, -16); c.stroke(); // kierownica
+        // nogi (kosci) do pedalow
+        const px = Math.cos(ped) * 4, py = Math.sin(ped) * 4;
+        c.strokeStyle = '#f2ead6'; c.lineWidth = 2.6; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(-3, -18); c.lineTo(2 + px * 0.5, -8); c.lineTo(px, 2 + py); c.stroke();
+        c.beginPath(); c.moveTo(-1, -18); c.lineTo(3 - px * 0.5, -8); c.lineTo(-px, 2 - py); c.stroke();
+        // tulow: czarna kamizelka charro z guzikami + zebra
+        const tg = c.createLinearGradient(-8, -34, 6, -16); tg.addColorStop(0, '#3a2440'); tg.addColorStop(1, '#120a16');
+        c.fillStyle = tg; c.beginPath(); c.ellipse(-2, -25, 7, 10, -0.15, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#f2ead6'; c.lineWidth = 1.2; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(-6, -29 + i * 4); c.lineTo(2, -29 + i * 4); c.stroke(); }
+        c.fillStyle = '#ffb21e'; for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(3.5, -30 + i * 4, 1.1, 0, Math.PI * 2); c.fill(); }
+        // reka + zlota trabka (dzwon w strone jazdy)
+        c.strokeStyle = '#f2ead6'; c.lineWidth = 2.2; c.beginPath(); c.moveTo(1, -27); c.lineTo(8, -31); c.stroke();
+        const hg = c.createLinearGradient(0, -36, 0, -26); hg.addColorStop(0, '#fff0a0'); hg.addColorStop(1, '#c98a10');
+        c.fillStyle = hg; c.beginPath(); c.moveTo(6, -33); c.lineTo(20, -36); c.lineTo(22, -26); c.lineTo(6, -30); c.closePath(); c.fill();
+        c.strokeStyle = '#7a4a08'; c.lineWidth = 1; c.stroke();
+        c.fillStyle = '#fff6c8'; c.beginPath(); c.ellipse(21.5, -31, 2.4, 5.2, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+        // czaszka-cukrowka
+        const sg = c.createRadialGradient(-1, -44, 1, 1, -41, 9);
+        sg.addColorStop(0, '#ffffff'); sg.addColorStop(1, '#cfc2a4');
+        c.fillStyle = sg; c.beginPath(); c.arc(1, -41, 8, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#3a1f10'; c.lineWidth = 1.2; c.stroke();
+        c.fillStyle = '#1a0a10'; for (const ex of [-2, 5]) { c.beginPath(); c.arc(ex, -42, 2.4, 0, Math.PI * 2); c.fill(); }
+        c.fillStyle = '#ff5fa2'; for (const ex of [-2, 5]) { c.beginPath(); c.arc(ex, -42, 1, 0, Math.PI * 2); c.fill(); }
+        c.strokeStyle = '#1a0a10'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(-2, -36.5); c.lineTo(5, -36.5); c.stroke();
+        for (const x of [-0.5, 1.5, 3.5]) { c.beginPath(); c.moveTo(x, -37.5); c.lineTo(x, -35.5); c.stroke(); }
+        // sombrero
+        c.fillStyle = '#c72576'; c.beginPath(); c.ellipse(1, -48, 16, 4.2, 0, 0, Math.PI * 2); c.fill();
+        const cg = c.createLinearGradient(0, -60, 0, -48); cg.addColorStop(0, '#ff8cc2'); cg.addColorStop(1, '#c72576');
+        c.fillStyle = cg; c.beginPath(); c.moveTo(-5, -48.5); c.quadraticCurveTo(-4, -60, 1, -60); c.quadraticCurveTo(6, -60, 7, -48.5); c.closePath(); c.fill();
+        c.strokeStyle = '#4a0d2a'; c.lineWidth = 1; c.beginPath(); c.ellipse(1, -48, 16, 4.2, 0, 0, Math.PI * 2); c.stroke();
+        c.fillStyle = '#ffb21e'; for (let i = -3; i <= 3; i++) { c.beginPath(); c.arc(1 + i * 4.4, -47.6, 1, 0, Math.PI * 2); c.fill(); }
+        c.fillStyle = 'rgba(255,255,255,0.5)'; c.beginPath(); c.ellipse(-1.5, -55, 1.4, 3, -0.3, 0, Math.PI * 2); c.fill();
+    });
+}
+
+/** PUMPKIN: nutka (16x20) — wylatuje z trabki CALACI przy kazdej nucie. Biala => tint daje kolor. */
+export function noteTexture(): PIXI.Texture {
+    return bake('note', 16, 20, (c) => {
+        c.fillStyle = '#ffffff'; c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1;
+        c.beginPath(); c.ellipse(5, 15, 4, 3, -0.4, 0, Math.PI * 2); c.fill(); c.stroke();
+        c.fillRect(8, 3, 1.8, 12);
+        c.beginPath(); c.moveTo(9.8, 3); c.quadraticCurveTo(15, 6, 13, 11); c.quadraticCurveTo(13, 7, 9.8, 7); c.fill();
+    });
+}
+
 export function crownTexture(): PIXI.Texture {
     return bake('crown2', 44, 34, (c) => {
         c.save(); c.shadowColor = 'rgba(255,200,40,0.9)'; c.shadowBlur = 8;

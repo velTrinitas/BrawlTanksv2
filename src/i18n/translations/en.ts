@@ -119,6 +119,7 @@ export const en: typeof pl = {
     'trait.name.bigJump': 'JUMP',
     'trait.name.smoke': 'SMOKE',
     'trait.name.ceasefire': 'TRUCE',
+    'trait.name.summon': 'CALACA',
     'trait.name.repair': 'REPAIR',
     'spray.cooldown': '🎨 Spray again in {sec} s',
     'spray.blocked': '🎨 Can not paint here - floor only',
@@ -729,6 +730,7 @@ export const en: typeof pl = {
     'brawler.shadow.desc': 'An agile assassin that drives in, finishes the target and disappears. It has a dash — one move pulls it out of the line of fire or lands it next to a wounded enemy. Its thin armour forgives very little.',
     'brawler.king.desc': 'A heavy tank wearing a crown. Every single shot hurts the most, and thick armour lets it push forward where others have to fall back. In exchange, it reloads the slowest in the garage.',
     'brawler.enigma.desc': 'A golden gatling on eight wheels. The barrels need a moment to spin up, then they pour out a hail of bullets — twelve shots per second. Keep the target in your sights and nothing stands.',
+    'brawler.pumpkin.desc': 'A pumpkin off-roader from Día de los Muertos. It fires burning pumpkins that splatter enemies with orange goo. Quick on its wheels, and its super is a fiesta of five pumpkins at once.',
 
     'hub.quests.daily': 'DAILY ORDERS',
     'hub.quests.weekly': 'WEEKLY ORDERS',
@@ -1010,6 +1012,7 @@ export const en: typeof pl = {
     'brawler.shadow.name': 'SHADOW',
     'brawler.king.name': 'KING',
     'brawler.enigma.name': 'ENIGMA',
+    'brawler.pumpkin.name': 'PUMPKIN',
 
     // ============================================================
     // Settings
@@ -1257,6 +1260,8 @@ export const en: typeof pl = {
     'ctxlost.button':     'Back to the game',
 
     'hud.mediPadHeal':    '🔧 +{hp} HP',
+    'hud.mediPadHp':      '+{hp} HP',
+    'hud.mediPadPts':     '+{pts} pts',
     'hud.heartHeal':      '❤️ +{hp} HP',
     'hud.turboBoost':     '⚡ TURBO ×2 — {sec}s!',
     'hud.superCharge':    '⚡ +{count} SUPER SHOTS! (×{total})',

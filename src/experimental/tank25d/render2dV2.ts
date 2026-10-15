@@ -103,6 +103,193 @@ const ENIGMA_BASE = {
   BRAWLERS_V2.push({ ...ENIGMA_BASE, colors, look: 'v2' });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUMPKIN (czolg sezonu 4, Dia de los Muertos) — tylko podglad pumpkin-preview.html do akceptacji wygladu.
+// Kadlub "Calavera Truck": niska 4-kolowa terenowka o oblych blotnikach, maska = czaszka-cukrowka
+// (oczodoly-reflektory z platkami nagietka, nos-serce, usmiech-grill z zebami), nadwozie dyniowe z
+// zebrami dyni, papel picado na relingu, zapasowe kolo na tyle. Wieza "Lantern" = dynia z wycieta
+// buzia i swieczka, ogonek z lisciem; lufa = krotki szeroki mozdzierz z kwiecista opaska.
+// Paleta: dynia #F28A1E, nagietek #FFB21E, magenta #E8318A, turkus #22C3B5, obrys #4A2008.
+// ─────────────────────────────────────────────────────────────────────────────
+const PK_ORANGE = '#E2701C', PK_OL = '#1E0C03', PK_MARIGOLD = '#FFA41A', PK_MAGENTA = '#C8246E', PK_TEAL = '#1C9C92', PK_BONE = '#E9DFC8', PK_CHAR = '#24170F', PK_EMBER = '#FF7A12';
+const PUMPKIN_BASE = {
+  id: 'pumpkin', name: 'Pumpkin', color: PK_ORANGE, hp: 5, speed: 5, dmg: 0.5, reload: 480, size: 1.0,
+  hullW: 92, hullH: 60, hullShape: 'pumpkin', turretRadius: 19, turretShape: 'pumpkin', barrelLen: 40, muzzleDist: 56,
+  barrelType: 'standard', emblem: 'none', flag: 'PL', asym: 'none',
+  bullet: { type: 'pumpkin', size: 6, speed: 430 }, super: { type: 'pumpkin_super', name: 'Fiesta de Calabazas' },
+  mudguard: 'none', exhaust: { color: '#2a1d16', size: 7, rate: 300, count: 2, sideY: 0.32 },
+  // kola mniejsze (Mariusz: "jak monster truck"), kadlub nizszy o ~15% (hullZ 13 -> 11)
+  wheels: true, wheelSet: { xs: [-0.56, 0.5], L: 24, W: 15, flower: true, out: 1 }, hullZ: 11, theme: 'pumpkin', outline: PK_OL,
+};
+{
+  const colors = derive(PK_ORANGE); colors.outline = PK_OL;
+  BRAWLERS_V2.push({ ...PUMPKIN_BASE, colors, look: 'v2' });
+}
+
+/** Kadlub Pumpkina: oble blotniki (wypukle burty przy kolach), zaokraglona maska z przodu, prostszy tyl. */
+function pumpkinHullPath(ctx, w, h) {
+  const hx = w / 2, hy = h / 2;
+  ctx.moveTo(-hx + 10, -hy + 4);
+  ctx.quadraticCurveTo(-hx * 0.56, -hy - 3, -hx * 0.2, -hy + 3);   // blotnik tylny L
+  ctx.lineTo(hx * 0.22, -hy + 3);
+  ctx.quadraticCurveTo(hx * 0.5, -hy - 3, hx * 0.78, -hy + 4);     // blotnik przedni L
+  ctx.quadraticCurveTo(hx + 2, -hy * 0.55, hx + 1, 0);              // maska (nos)
+  ctx.quadraticCurveTo(hx + 2, hy * 0.55, hx * 0.78, hy - 4);
+  ctx.quadraticCurveTo(hx * 0.5, hy + 3, hx * 0.22, hy - 3);
+  ctx.lineTo(-hx * 0.2, hy - 3);
+  ctx.quadraticCurveTo(-hx * 0.56, hy + 3, -hx + 10, hy - 4);
+  ctx.quadraticCurveTo(-hx - 1, hy - 4, -hx, 0);
+  ctx.quadraticCurveTo(-hx - 1, -hy + 4, -hx + 10, -hy + 4);
+  ctx.closePath();
+}
+
+function pkFlower(ctx, x, y, r, petal, center, n = 6) {
+  ctx.fillStyle = petal;
+  for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.5, r * 0.3, a, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = center; ctx.beginPath(); ctx.arc(x, y, r * 0.32, 0, Math.PI * 2); ctx.fill();
+}
+
+/**
+ * Kadlub "mroczniejszy" (Mariusz 15.10: za infantylny): spalona dynia z grubymi bruzdami i zweglonymi
+ * krawedziami, czarne pasy z nagietkowym sciegiem, maska = kostna calavera z KANCIASTYMI oczodolami
+ * (zar w srodku = reflektory), ostre zeby grilla, orurowanie-bullbar z nitami. Klimat swieta zostaje
+ * (nagietki, papel picado, zdobienia cukrowki), ale charakter = grozny, nie slodki.
+ */
+function pumpkinHullTop(ctx, b, c, o, path) {
+  const w = b.hullW, h = b.hullH, hx = w / 2, hy = h / 2;
+  const ph = o.phase || 0, live = o.liveCanvas;
+  ctx.save(); path(); ctx.clip();
+  // zweglone krawedzie (winieta) — bryla wyglada na wypalona, nie plastikowa
+  const vg = ctx.createRadialGradient(0, 0, hy * 0.5, 0, 0, hx * 1.05);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(25,8,0,0.55)');
+  ctx.fillStyle = vg; ctx.fillRect(-hx - 2, -hy - 4, w + 4, h + 8);
+  // ZEBRA DYNI: glebokie bruzdy + waski grzbiet swiatla
+  for (const k of [-0.62, -0.3, 0.3, 0.62]) {
+    const y = hy * k;
+    ctx.strokeStyle = 'rgba(40,10,0,0.55)'; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(-hx, y * 0.86); ctx.quadraticCurveTo(0, y * 1.08, hx, y * 0.7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,190,110,0.28)'; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(-hx, y * 0.86 + 2.4); ctx.quadraticCurveTo(0, y * 1.08 + 2.4, hx, y * 0.7 + 2.4); ctx.stroke();
+  }
+  // blizny / pekniecia skorki (male, ciemne)
+  ctx.strokeStyle = 'rgba(30,8,0,0.6)'; ctx.lineWidth = 0.9;
+  [[-hx * 0.35, -hy * 0.15], [hx * 0.05, hy * 0.45], [-hx * 0.7, hy * 0.42]].forEach(([x, y]) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 3, y - 2); ctx.lineTo(x + 5, y + 1); ctx.lineTo(x + 8, y - 1); ctx.stroke(); });
+  ctx.fillStyle = 'rgba(20,6,0,0.4)'; ctx.fillRect(-hx, -hy, w, 6); ctx.fillRect(-hx, hy - 6, w, 6);
+  ctx.restore();
+  // czarny pas burty z nagietkowym sciegiem (zamiast slodkiego turkus/magenta)
+  for (const sd of [-1, 1]) {
+    const y = sd * (hy - 9);
+    ctx.fillStyle = PK_CHAR; roundRectPath(ctx, -hx * 0.64, y - 2.2, hx * 1.2, 4.4, 1.6); ctx.fill();
+    ctx.strokeStyle = PK_MARIGOLD; ctx.lineWidth = 0.9; ctx.beginPath();
+    for (let x = -hx * 0.6, i = 0; x < hx * 0.52; x += 4, i++) { ctx.lineTo(x, y + (i % 2 ? -1.3 : 1.3)); }
+    ctx.stroke();
+  }
+  // MASKA = CALAVERA (kosc, przybrudzona) na przodzie
+  const fx = hx * 0.74; // maska wysunieta przed wieze — widoczna spod lufy
+  const bg = ctx.createRadialGradient(fx - 3, -4, 2, fx, 0, hy * 0.7);
+  bg.addColorStop(0, '#f6eedc'); bg.addColorStop(1, '#b9a98a');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(fx, 0, 11, hy * 0.64, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = PK_OL; ctx.lineWidth = 1.4; ctx.stroke();
+  // KANCIASTE OCZODOLY (skos do srodka = zmruzone, grozne) z zarem-reflektorem
+  const pulse = 0.5 + 0.5 * Math.sin(ph * Math.PI * 2);
+  for (const sd of [-1, 1]) {
+    const ex = fx + 1, ey = sd * hy * 0.3;
+    // obwodka z platkow nagietka (klimat swieta), ciemniejsza
+    ctx.strokeStyle = PK_MARIGOLD; ctx.lineWidth = 1.2; ctx.setLineDash([1.6, 1.4]); ctx.beginPath(); ctx.arc(ex, ey, 6.6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#0a0402'; ctx.beginPath();
+    ctx.moveTo(ex - 5.5, ey - sd * 4.5); ctx.lineTo(ex + 6, ey - sd * 1.2); ctx.lineTo(ex + 4, ey + sd * 4.6); ctx.lineTo(ex - 4.5, ey + sd * 3.4); ctx.closePath(); ctx.fill();
+    glow(ctx, ex + 1.5, ey + sd * 0.8, 4.2, PK_EMBER, 0.55 + pulse * 0.45, live);
+    ctx.fillStyle = '#ffd08a'; ctx.beginPath(); ctx.arc(ex + 1.5, ey + sd * 0.8, 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+  // nos = odwrocone czarne serce
+  ctx.fillStyle = '#0a0402'; ctx.beginPath(); ctx.moveTo(fx + 9.5, 0); ctx.lineTo(fx + 5, -3.2); ctx.lineTo(fx + 5.8, 0); ctx.lineTo(fx + 5, 3.2); ctx.closePath(); ctx.fill();
+  // GRILL = ostre zeby (szczeka) na czubku maski
+  ctx.fillStyle = '#0a0402'; roundRectPath(ctx, hx - 6, -hy * 0.44, 6, hy * 0.88, 2); ctx.fill();
+  ctx.fillStyle = PK_BONE;
+  for (let y = -hy * 0.4; y < hy * 0.38; y += 4) { ctx.beginPath(); ctx.moveTo(hx - 5.6, y); ctx.lineTo(hx - 1.2, y + 1.6); ctx.lineTo(hx - 5.6, y + 3.2); ctx.closePath(); ctx.fill(); }
+  // zdobienia cukrowki: cienkie magentowe zawijasy na czole + pekniecie kosci
+  ctx.strokeStyle = PK_MAGENTA; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.arc(fx - 7, 0, 3.4, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.arc(fx - 7, 0, 1.4, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(40,20,5,0.7)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(fx - 11, -6); ctx.lineTo(fx - 8, -4); ctx.lineTo(fx - 9, -1.5); ctx.stroke();
+  // BULLBAR: zelazna rura przed maska z nitami
+  ctx.strokeStyle = '#120a06'; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(hx * 0.78, -hy + 6); ctx.quadraticCurveTo(hx + 4, 0, hx * 0.78, hy - 6); ctx.stroke();
+  ctx.strokeStyle = '#6a6460'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(hx * 0.8, -hy + 6.5); ctx.quadraticCurveTo(hx + 2.5, -2, hx + 1.6, -hy * 0.2); ctx.stroke();
+  // PAPEL PICADO: ciemne choragiewki z kolorowym obrzezem (nadal fiesta, ale nocna)
+  ctx.strokeStyle = '#0a0402'; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.moveTo(-hx * 0.62, -hy + 7); ctx.quadraticCurveTo(-hx * 0.1, -hy + 11, hx * 0.36, -hy + 7); ctx.stroke();
+  const edges = [PK_MAGENTA, PK_MARIGOLD, PK_TEAL, PK_MAGENTA, PK_MARIGOLD, PK_TEAL];
+  edges.forEach((col, i) => {
+    const t = (i + 0.5) / edges.length, x = -hx * 0.62 + t * hx * 0.98, y = -hy + 7 + Math.sin(t * Math.PI) * 3.6;
+    ctx.fillStyle = '#1a1014'; ctx.beginPath(); ctx.moveTo(x - 3, y); ctx.lineTo(x + 3, y); ctx.lineTo(x + 3, y + 4.6); ctx.lineTo(x, y + 3.4); ctx.lineTo(x - 3, y + 4.6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y + 1.8, 0.8, 0, Math.PI * 2); ctx.fill();
+  });
+  // TYL: zapasowe kolo (kwiat nagietka na czarnej oponie) + 2 osmalone wydechy
+  const sx = -hx + 6, sy = hy * 0.18;
+  ctx.fillStyle = '#100d12'; ctx.beginPath(); ctx.ellipse(sx, sy, 4.5, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+  pkFlower(ctx, sx, sy, 5.2, '#d9820f', '#0a0402', 6);
+  ctx.fillStyle = vgrad(ctx, -hy * 0.42, 5, '#5a5552'); [-0.5, -0.3].forEach(k => { roundRectPath(ctx, -hx - 2, hy * k - 1.6, 6, 3.2, 1.4); ctx.fill(); });
+  ctx.fillStyle = '#000'; [-0.5, -0.3].forEach(k => { ctx.beginPath(); ctx.ellipse(-hx - 2, hy * k, 0.8, 1.2, 0, 0, Math.PI * 2); ctx.fill(); });
+  // nity blotnikow (ciemne zelazo)
+  for (const x of [-hx * 0.56, hx * 0.5]) { rivet(ctx, x - 6, -hy + 3.4, c, 1.2); rivet(ctx, x + 6, -hy + 3.4, c, 1.2); rivet(ctx, x - 6, hy - 3.4, c, 1.2); rivet(ctx, x + 6, hy - 3.4, c, 1.2); }
+}
+
+/** Wieza = JACK-O'-LANTERN z charakterem: gniewnie zmruzone oczy, poszarpany usmiech z klami, zar od srodka. */
+function pumpkinTurretTop(ctx, b, c, o, r) {
+  const ph = o.phase || 0, live = o.liveCanvas;
+  // zweglony brzeg + glebokie bruzdy platow
+  const vg = ctx.createRadialGradient(-r * 0.2, -r * 0.25, r * 0.2, 0, 0, r * 1.1);
+  vg.addColorStop(0, 'rgba(255,200,120,0.18)'); vg.addColorStop(0.6, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(25,8,0,0.5)');
+  ctx.fillStyle = vg; ctx.beginPath(); ctx.arc(0, 0, r * 1.1, 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2 + Math.PI / 8;
+    ctx.strokeStyle = 'rgba(40,10,0,0.6)'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25); ctx.quadraticCurveTo(Math.cos(a + 0.12) * r * 0.7, Math.sin(a + 0.12) * r * 0.7, Math.cos(a) * r * 0.98, Math.sin(a) * r * 0.98); ctx.stroke();
+  }
+  // WYCIETA BUZIA (patrzy w kierunku lufy) — swieci zarem (pomarancz -> czerwien na brzegu)
+  const flick = 0.75 + 0.25 * Math.sin(ph * Math.PI * 6) * Math.sin(ph * Math.PI * 2.6);
+  const cut = (fn) => {
+    ctx.fillStyle = '#140600'; fn(); ctx.fill();
+    ctx.save(); fn(); ctx.clip();
+    const g = ctx.createRadialGradient(r * 0.2, 0, 1, r * 0.2, 0, r * 0.9);
+    g.addColorStop(0, 'rgba(255,236,150,' + flick + ')'); g.addColorStop(0.5, 'rgba(255,130,20,' + (0.9 * flick) + ')'); g.addColorStop(1, 'rgba(190,40,10,' + (0.8 * flick) + ')');
+    ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2); ctx.restore();
+    ctx.strokeStyle = '#0a0402'; ctx.lineWidth = 1.1; fn(); ctx.stroke();
+  };
+  // oczy: skosne trojkaty (wewnetrzny rog nizej = gniewne brwi), wieksze — czytelne z gory
+  for (const sd of [-1, 1]) cut(() => { ctx.beginPath(); ctx.moveTo(-r * 0.22, sd * r * 0.1); ctx.lineTo(r * 0.36, sd * r * 0.16); ctx.lineTo(-r * 0.05, sd * r * 0.74); ctx.closePath(); });
+  // usmiech: szeroki luk z poszarpanymi zebami (2 kly)
+  cut(() => {
+    ctx.beginPath(); ctx.moveTo(r * 0.42, -r * 0.72);
+    ctx.quadraticCurveTo(r * 1.05, 0, r * 0.42, r * 0.72);
+    ctx.lineTo(r * 0.56, r * 0.5); ctx.lineTo(r * 0.46, r * 0.3); ctx.lineTo(r * 0.62, r * 0.12); ctx.lineTo(r * 0.5, 0);
+    ctx.lineTo(r * 0.62, -r * 0.12); ctx.lineTo(r * 0.46, -r * 0.3); ctx.lineTo(r * 0.56, -r * 0.5); ctx.closePath();
+  });
+  glow(ctx, r * 0.3, 0, r * 0.8, PK_EMBER, 0.42 * flick, live);
+  // zdobienie cukrowki: magentowy wzor nad oczami (miedzy nimi, od tylu) — subtelny akcent swieta
+  ctx.strokeStyle = PK_MAGENTA; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(-r * 0.55, -r * 0.18); ctx.quadraticCurveTo(-r * 0.4, 0, -r * 0.55, r * 0.18); ctx.stroke();
+  ctx.fillStyle = PK_MARIGOLD; ctx.beginPath(); ctx.arc(-r * 0.36, 0, 1.4, 0, Math.PI * 2); ctx.fill();
+  // OGONEK: suchy, sekaty, ciemny + zwiniety was
+  ctx.fillStyle = vgrad(ctx, 0, 8, '#3a3a1a'); ctx.beginPath(); ctx.moveTo(-r * 0.2, -3); ctx.quadraticCurveTo(-r * 0.6, -6, -r * 0.7, 0); ctx.lineTo(-r * 0.56, 3); ctx.quadraticCurveTo(-r * 0.45, 0, -r * 0.15, 3); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#120c04'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = '#3d4a1a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-r * 0.5, 2); ctx.bezierCurveTo(-r * 0.8, 9, -r * 0.3, 11, -r * 0.62, r * 0.66); ctx.stroke();
+}
+
+/** Lufa: prosta jak u Twardego, ale GRUBSZA (16 vs 12), ciemne zelazo, opaska nagietkowa, wylot osmalony. */
+function pumpkinBarrel(ctx, b, c, o) {
+  const sup = o.isSuper;
+  const base = sup ? '#d946ef' : '#2e2420', top = sup ? '#f0a0ff' : '#5a4a40', side = sup ? '#a020bf' : '#1a1210', ol = sup ? '#7c0eaa' : PK_OL;
+  cylinder(ctx, 16, 0, 54, 0, 16, base, top, ol, true);
+  ring(ctx, 30, 19, 6, side, ol);
+  ctx.fillStyle = PK_MARIGOLD; ctx.fillRect(28.2, -9, 3.6, 18); // opaska nagietkowa na pierscieniu
+  block(ctx, 45, -10, 11, 20, 2.5, side, ol);
+  ctx.fillStyle = '#000'; [-7, -2.5, 2].forEach(y => ctx.fillRect(47, y, 7, 3)); // szczeliny hamulca wylotowego
+  muzzleHole(ctx, 56, 0, 16, side, ol);
+  ctx.fillStyle = sup ? 'rgba(255,170,255,0.6)' : 'rgba(255,122,18,0.55)'; ctx.beginPath(); ctx.ellipse(56.4, 0, 1.6, 4, 0, 0, Math.PI * 2); ctx.fill();
+}
+
 /** Kadlub Enigmy: prostokat z kanciastym tylem i KLINOWYM przodem (twarz). */
 function enigmaHullPath(ctx, w, h) {
   const hx = w / 2, hy = h / 2;
@@ -114,11 +301,12 @@ function enigmaHullPath(ctx, w, h) {
 /** 8 kol (4/strone): opona z bieznikiem przesuwanym z treadShift + zlota felga od zewnatrz. */
 function wheelsV2(ctx, b, c, treadShift) {
   const hx = b.hullW / 2, hy = b.hullH / 2;
-  const xs = [-hx * 0.66, -hx * 0.26, hx * 0.16, hx * 0.56];
-  const L = 19, W = 13;
+  const ws = b.wheelSet; // PUMPKIN: 4 duze kola (2/strone) z kolpakiem-kwiatem; brak = 8 kol Enigmy
+  const xs = ws ? ws.xs.map(k => hx * k) : [-hx * 0.66, -hx * 0.26, hx * 0.16, hx * 0.56];
+  const L = ws ? ws.L : 19, W = ws ? ws.W : 13;
   const ts = treadShift || 0;
   for (const side of [-1, 1]) {
-    const ty = side * (hy + 1.5);
+    const ty = side * (hy + 1.5 + ((ws && ws.out) || 0));
     for (const x of xs) {
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRectPath(ctx, x - L / 2 + 1, ty - W / 2 + 2.2, L, W, 5); ctx.fill();
       ctx.fillStyle = '#16131a'; roundRectPath(ctx, x - L / 2, ty - W / 2, L, W, 5); ctx.fill();
@@ -134,6 +322,12 @@ function wheelsV2(ctx, b, c, treadShift) {
       ctx.fillStyle = g; ctx.fillRect(x - L / 2, ty - W / 2, L, W);
       ctx.restore();
       ctx.strokeStyle = '#05040a'; ctx.lineWidth = 1.2; roundRectPath(ctx, x - L / 2, ty - W / 2, L, W, 5); ctx.stroke();
+      if (ws && ws.flower) { // kolpak-kwiat (widoczny od zewnatrz): magenta + nagietek, obraca sie z jazda
+        const fy2 = ty + side * (W / 2 - 3);
+        ctx.save(); ctx.translate(x, fy2); ctx.scale(1, 0.45); ctx.rotate(-ts * 0.08);
+        pkFlower(ctx, 0, 0, W * 0.55, '#d9820f', PK_MAGENTA, 6); ctx.restore();
+        continue;
+      }
       // zlota felga (widoczna od zewnatrz kola)
       const fy = ty + side * (W / 2 - 2.2);
       ctx.fillStyle = vgrad(ctx, fy, 4.4, c.main); roundRectPath(ctx, x - 5.5, fy - 2.2, 11, 4.4, 2); ctx.fill(); // felga w kolorze skorki
@@ -280,6 +474,8 @@ function hullPath(ctx, shape, w, h) {
     ctx.quadraticCurveTo(-hx, hy, -hx, hy - c); ctx.lineTo(-hx, -hy + c); ctx.quadraticCurveTo(-hx, -hy, -hx + c, -hy); ctx.closePath();
   } else if (shape === 'enigma') {
     enigmaHullPath(ctx, w, h);
+  } else if (shape === 'pumpkin') {
+    pumpkinHullPath(ctx, w, h);
   } else if (shape === 'wedge') {
     const fr = hy * 0.62;
     ctx.moveTo(-hx + 10, -hy); ctx.lineTo(hx - 22, -hy); ctx.lineTo(hx - 2, -fr);
@@ -316,6 +512,14 @@ function turretPath(ctx, shape, r) {
     ctx.lineTo(-w, -h + rad); ctx.quadraticCurveTo(-w, -h, -w + rad, -h); ctx.closePath();
   } else if (shape === 'wide_cylinder') {
     ctx.ellipse(0, 0, r * 1.25, r * 0.95, 0, 0, Math.PI * 2);
+  } else if (shape === 'pumpkin') {
+    // dynia: 8 wypuklych platow (lekko splaszczona w osi lufy)
+    for (let i = 0; i <= 16; i++) {
+      const a = i / 16 * Math.PI * 2, rr = r * (i % 2 ? 1.04 : 0.9);
+      const px = Math.cos(a) * rr * 1.06, py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else { const am = (i - 0.5) / 16 * Math.PI * 2, rm = r * 1.02; ctx.quadraticCurveTo(Math.cos(am) * rm * 1.06, Math.sin(am) * rm, px, py); }
+    }
+    ctx.closePath();
   } else if (shape === 'faceted_hex') {
     for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; const px = Math.cos(a) * r, py = Math.sin(a) * r; i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
     ctx.closePath();
@@ -620,7 +824,7 @@ function hatch(ctx, x, y, r, c) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PAINTERZY PER CZOLG — HULL TOP
 // ─────────────────────────────────────────────────────────────────────────────
-const HULL_SHAPE_V2 = { twardy: 'standard', heavy: 'armored', scout: 'wedge', sniper: 'slim', plasma: 'tech', pyro: 'wide', shadow: 'faceted', king: 'royal', enigma: 'enigma' };
+const HULL_SHAPE_V2 = { twardy: 'standard', heavy: 'armored', scout: 'wedge', sniper: 'slim', plasma: 'tech', pyro: 'wide', shadow: 'faceted', king: 'royal', enigma: 'enigma', pumpkin: 'pumpkin' };
 
 function hullTopV2(ctx, b, c, o) {
   const id = b.id; const w = b.hullW, h = b.hullH; const hx = w / 2, hy = h / 2;
@@ -631,6 +835,7 @@ function hullTopV2(ctx, b, c, o) {
   if (o.drawSkin) { ctx.save(); path(); ctx.clip(); o.drawSkin(ctx, b, c, 'hull'); ctx.restore(); }
 
   if (id === 'enigma') enigmaHullTop(ctx, b, c, o, path);
+  else if (id === 'pumpkin') pumpkinHullTop(ctx, b, c, o, path);
   else if (id === 'twardy') {
     // WETERAN: duze plamy moro, przednia plyta z workami z piaskiem, zapasowe ogniwa, grill silnika
     ctx.save(); path(); ctx.clip();
@@ -824,7 +1029,7 @@ function hullTopV2(ctx, b, c, o) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PAINTERZY PER CZOLG — WIEZA (top face) i LUFA
 // ─────────────────────────────────────────────────────────────────────────────
-const TURRET_SHAPE_V2 = { twardy: 'chamfered_cube', heavy: 'heavy_octagon', scout: 'scout_rect', sniper: 'tall_rect', plasma: 'chamfered_cube_tech', pyro: 'wide_cylinder', shadow: 'faceted_hex', king: 'crowned_cylinder', enigma: 'round' };
+const TURRET_SHAPE_V2 = { twardy: 'chamfered_cube', heavy: 'heavy_octagon', scout: 'scout_rect', sniper: 'tall_rect', plasma: 'chamfered_cube_tech', pyro: 'wide_cylinder', shadow: 'faceted_hex', king: 'crowned_cylinder', enigma: 'round', pumpkin: 'pumpkin' };
 
 function turretTopV2(ctx, b, c, o) {
   const id = b.id; const r = b.turretRadius; const live = o.liveCanvas; const ph = o.phase || 0;
@@ -839,6 +1044,7 @@ function turretTopV2(ctx, b, c, o) {
   if (o.drawSkin) { ctx.save(); path(); ctx.clip(); o.drawSkin(ctx, b, c, 'turret'); ctx.restore(); }
 
   if (id === 'enigma') enigmaTurretTop(ctx, b, c, o, r);
+  else if (id === 'pumpkin') pumpkinTurretTop(ctx, b, c, o, r);
   else if (id === 'twardy') {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([2, 1.5]); ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.55); ctx.lineTo(r * 0.5, -r * 0.55); ctx.moveTo(-r * 0.6, r * 0.55); ctx.lineTo(r * 0.5, r * 0.55); ctx.stroke(); ctx.setLineDash([]);
     hatch(ctx, -r * 0.35, -r * 0.35, 5.5, c);
@@ -934,6 +1140,7 @@ function barrelV2(ctx, b, c, o) {
   const base = o.isSuper ? '#d946ef' : c.deep; const side = o.isSuper ? '#a020bf' : c.dark; const ol = o.isSuper ? '#7c0eaa' : c.outline;
   const top = o.isSuper ? '#f0a0ff' : lighten(c.deep, 0.25);
   if (id === 'enigma') enigmaBarrel(ctx, b, c, o);
+  else if (id === 'pumpkin') pumpkinBarrel(ctx, b, c, o);
   else if (id === 'twardy') {
     cylinder(ctx, 16, 0, 52, 0, 12, base, top, ol, true);
     ring(ctx, 30, 15, 6, side, ol);
@@ -1094,7 +1301,7 @@ export function getMuzzlePosV2(t, ang) {
 //   king   = korona z 3 zebami, zolta, glow, fake 3D. Reszta = dotychczasowy drawBulletWithFx.
 // Rysowane w prawo (vx=1); rotacja/spin w Bullet.ts. Efekty runtime (luki, ogien, orbitery) — Bullet.ts.
 // ─────────────────────────────────────────────────────────────────────────────
-export const BULLET_V2_IDS = ['heavy', 'sniper', 'king', 'enigma'];
+export const BULLET_V2_IDS = ['heavy', 'sniper', 'king', 'enigma', 'pumpkin'];
 
 export function drawBulletV2(ctx, id, b, fallback) {
   const x = b.x, y = b.y, s = b.size, sup = !!b.isSuper;
@@ -1128,6 +1335,55 @@ export function drawBulletV2(ctx, id, b, fallback) {
     const tg = ctx.createLinearGradient(-L, 0, L * 0.5, 0); tg.addColorStop(0, 'rgba(255,190,40,0)'); tg.addColorStop(1, 'rgba(255,215,90,0.95)');
     ctx.fillStyle = tg; roundRectPath(ctx, -L, -R, L * 1.5, R * 2, R); ctx.fill();
     ctx.fillStyle = '#fff6cc'; ctx.beginPath(); ctx.ellipse(L * 0.25, 0, R * 1.3, R * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (id === 'pumpkin') {
+    // DYNIA fake 3D: kula z glebokimi bruzdami (cieniowanie platow), blik + odbite swiatlo od dolu, wycieta
+    // buzia z zarem, ogonek. Super = ta sama wielkosc, ale "fiesta": kolorowa aureola wg b.face (0..4,
+    // 5 roznych min), korona z platkow nagietka i magentowa poswiata — od razu inna niz zwykly strzal.
+    // Cien na ziemi rysuje wywolujacy (osobno, nieobracany); tu tylko maly cien kontaktowy (b.noShadow wylacza).
+    const R = s * (sup ? 1.2 : 1.25);
+    const FACE_COL = ['#E8318A', '#22C3B5', '#FFB21E', '#9b59ff', '#ff5a3c'];
+    const face = (b.face || 0) % 5;
+    const gcol = sup ? FACE_COL[face] : PK_EMBER;
+    const g = ctx.createRadialGradient(x, y, R * 0.4, x, y, R * (sup ? 2.8 : 2.2));
+    g.addColorStop(0, rgba(gcol, sup ? 0.6 : 0.45)); g.addColorStop(1, rgba(gcol, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R * (sup ? 2.8 : 2.2), 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.translate(x, y);
+    if (!b.noShadow) { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(1, 1.8, R * 1.1, R * 0.9, 0, 0, Math.PI * 2); ctx.fill(); }
+    if (sup) { // korona z platkow nagietka (za kula)
+      ctx.fillStyle = PK_MARIGOLD;
+      for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; ctx.beginPath(); ctx.ellipse(Math.cos(a) * R * 1.12, Math.sin(a) * R * 1.0, R * 0.32, R * 0.18, a, 0, Math.PI * 2); ctx.fill(); }
+    }
+    const body = () => { ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * 0.95, 0, 0, Math.PI * 2); };
+    const bg = ctx.createRadialGradient(-R * 0.4, -R * 0.45, R * 0.05, 0, 0, R * 1.2);
+    bg.addColorStop(0, '#ffcf8a'); bg.addColorStop(0.45, PK_ORANGE); bg.addColorStop(1, '#7a2c05');
+    ctx.fillStyle = bg; body(); ctx.fill();
+    ctx.save(); body(); ctx.clip();
+    // platy: ciemne bruzdy + jasne grzbiety (wypuklosc)
+    for (const k of [-0.55, 0, 0.55]) {
+      ctx.strokeStyle = 'rgba(70,18,0,0.6)'; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12 * Math.abs(k) + 0.4, R * 0.95, 0, -Math.PI / 2, Math.PI / 2, k < 0); ctx.stroke();
+    }
+    // odbite swiatlo od ziemi (dolna krawedz) — kula "siedzi" w przestrzeni
+    ctx.fillStyle = 'rgba(255,170,80,0.35)'; ctx.beginPath(); ctx.ellipse(R * 0.1, R * 0.85, R * 0.8, R * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = PK_OL; ctx.lineWidth = 1.1; body(); ctx.stroke();
+    // buzia (patrzy w kierunku lotu) — zar
+    ctx.fillStyle = sup ? '#fff3b0' : '#ffd36a';
+    const eye = (sd) => { ctx.beginPath(); if (face === 2 && sup) { ctx.arc(R * 0.25, sd * R * 0.32, R * 0.17, 0, Math.PI * 2); } else { ctx.moveTo(R * 0.02, sd * R * 0.12); ctx.lineTo(R * 0.46, sd * R * 0.22); ctx.lineTo(R * 0.12, sd * R * 0.52); ctx.closePath(); } ctx.fill(); };
+    eye(-1); eye(1);
+    ctx.beginPath();
+    if (sup && face === 1) ctx.ellipse(R * 0.64, 0, R * 0.18, R * 0.3, 0, 0, Math.PI * 2);          // "O!"
+    else if (sup && face === 3) { ctx.moveTo(R * 0.55, -R * 0.4); ctx.lineTo(R * 0.86, 0); ctx.lineTo(R * 0.55, R * 0.4); ctx.lineTo(R * 0.68, 0); ctx.closePath(); } // zygzak
+    else { ctx.moveTo(R * 0.5, -R * 0.46); ctx.quadraticCurveTo(R * (sup && face === 4 ? 0.7 : 0.98), 0, R * 0.5, R * 0.46); ctx.lineTo(R * 0.6, R * 0.16); ctx.lineTo(R * 0.52, 0); ctx.lineTo(R * 0.6, -R * 0.16); ctx.closePath(); }
+    ctx.fill();
+    // blik (specular)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(-R * 0.45, -R * 0.45, R * 0.28, R * 0.14, -0.6, 0, Math.PI * 2); ctx.fill();
+    // ogonek z tylu
+    ctx.fillStyle = '#3a3a1a'; roundRectPath(ctx, -R * 1.3, -1.5, R * 0.42, 3, 1); ctx.fill();
+    ctx.fillStyle = '#4e6a22'; ctx.beginPath(); ctx.ellipse(-R * 1.08, -R * 0.45, R * 0.32, R * 0.16, -0.5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     return;
   }

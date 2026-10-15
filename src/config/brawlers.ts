@@ -2,6 +2,7 @@ import type { Brawler } from '../types/Brawler';
 import { isBalanceV2Enabled } from './balanceFlag';     // BALANCE_V2 (v0.200.0)
 import { BALANCE_V2_STATS } from './balanceRules';
 import { isEnigmaEnabled } from './enigmaFlag';
+import { isPumpkinEnabled } from './pumpkinFlag';
 
     const BASE = import.meta.env.BASE_URL;
 
@@ -37,7 +38,13 @@ import { isEnigmaEnabled } from './enigmaFlag';
      * (Enemy.ts uzywa BRAWLERS[1], koop wysyla brawlerIdx jako u8). Liczby v1 = v2 (czolg powstal po rebalansie).
      */
     const ENIGMA_V1: Brawler = { id: 'enigma', emoji: '⚙️', icon: BASE + 'assets/tanks/EnigmaX7.jpg', name: 'Enigma', colorMain: '#E8B83A', hp: 450, speed: 4.7, dmg: 40, reload: 60, type: 'standard', flag: 'PL', spreadRad: 3 * Math.PI / 180, spinUpSteps: 15, cubeDmgMult: 0.5 };
-    const ROSTER_V1: Brawler[] = isEnigmaEnabled() ? [...BRAWLERS_V1, ENIGMA_V1] : BRAWLERS_V1;
+    /**
+     * PUMPKIN (czolg sezonu 4, Dia de los Muertos) — tylko przy ?pumpkin=1, ZAWSZE NA KONCU (po Enigmie): indeks u8 w koopie.
+     * Liczby v1 = v2 (czolg powstal po rebalansie, analiza w pumpkin-preview.html).
+     */
+    const PUMPKIN_V1: Brawler = { id: 'pumpkin', emoji: '🎃', icon: BASE + 'assets/tanks/Pumpkin.jpg', name: 'Pumpkin', colorMain: '#E2701C', hp: 425, speed: 5.6, dmg: 135, reload: 480, type: 'standard', flag: 'PL' };
+    const ROSTER_BASE: Brawler[] = isEnigmaEnabled() ? [...BRAWLERS_V1, ENIGMA_V1] : BRAWLERS_V1;
+    const ROSTER_V1: Brawler[] = isPumpkinEnabled() ? [...ROSTER_BASE, PUMPKIN_V1] : ROSTER_BASE;
 
     function buildRoster(): Brawler[] {
         if (!isBalanceV2Enabled()) return ROSTER_V1;

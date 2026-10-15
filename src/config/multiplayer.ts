@@ -76,4 +76,4 @@ export function isMultiplayerSandbox(): boolean {
  */
 export const COOP_HAZARDS_ENABLED = false;
 
-export const SIM_VERSION = 16; // v0.248.0: CECHY CZOLGOW na produkcji (TRAITS_LIVE=true)
+export const SIM_VERSION = 17; // v0.252.0: FLIP SEZON v2 + CASTLE ART v2 (slow fosy w rogach = luk) + Enemy.pushBy: odrzuty mocy/map z kolizja (fix Babci za granica)

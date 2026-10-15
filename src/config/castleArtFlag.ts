@@ -6,7 +6,7 @@
  * przed flipem, `?castleart=0` ZAWSZE wylacza (rollback bez deployu). Czysty wizual: hitboxy,
  * fale, HP i slow fosy sa nietkniete niezaleznie od flagi (brak wplywu na symulacje).
  */
-export const CASTLE_ART_V2 = false;
+export const CASTLE_ART_V2 = true; // v0.252.0 FLIP (rollback ?castleart=0)
 
 export function isCastleArtV2(): boolean {
     try {

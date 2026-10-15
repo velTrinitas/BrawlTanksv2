@@ -2,7 +2,8 @@ import * as PIXI from 'pixi.js';
 import { simNowMs } from './SimClock';
 import { checkRectCollision } from './Physics';
 import { TRAIT_DEFS, TRAIT_TUNING as T, BRAWLER_TRAIT, type TraitDef, type TraitId } from '../config/traits';
-import { sandbagTexture, fencePostTexture, smokePuffTexture, crownTexture, TRAIT_ART_SCALE } from '../rendering/TraitArt';
+import { sandbagTexture, fencePostTexture, smokePuffTexture, crownTexture, calacaTexture, noteTexture, TRAIT_ART_SCALE } from '../rendering/TraitArt';
+import { WORLD_W, WORLD_H } from '../config/constants';
 import type { Player } from '../entities/Player';
 import type { Enemy } from '../entities/Enemy';
 import type { EffectsManager } from '../rendering/Effects';
@@ -20,7 +21,8 @@ import type { ICollidable } from '../types/MapType';
  */
 
 export type TraitSfx = 'trait_ready' | 'trait_denied' | 'sandbag_build' | 'ram_charge' | 'ram_impact' | 'invis_on' | 'invis_off'
-    | 'teleport_out' | 'teleport_in' | 'fence_up' | 'fence_zap' | 'jump_launch' | 'jump_land' | 'smoke_puff' | 'ceasefire' | 'repair_charge';
+    | 'teleport_out' | 'teleport_in' | 'fence_up' | 'fence_zap' | 'jump_launch' | 'jump_land' | 'smoke_puff' | 'ceasefire' | 'repair_charge'
+    | 'calaca_summon' | 'calaca_note';
 
 export interface TraitCtx {
     world: PIXI.Container;
@@ -58,6 +60,13 @@ export class TraitSystem {
     private crownRing: PIXI.Container | null = null;
     private repairUntil = 0; private repairLeft = 0;
     private invulUntil = 0;
+    /**
+     * PUMPKIN: WEZWANIE CALACA. SYMULACJA: pozycja, HP, zegar nut i spowolnienia (krok logiki, simNowMs, bez RNG).
+     * WIZUAL: view (sprite 2 klatek + paski) — tylko frame().
+     */
+    private calaca: { x: number; y: number; born: number; until: number; hp: number; nextNote: number; ang: number; flip: 1 | -1; view: PIXI.Container; bike: PIXI.Sprite; bars: PIXI.Graphics; hitFlash: number } | null = null;
+    private readonly calacaSlow = new WeakMap<Enemy, number>();
+    private readonly calacaPoint = { x: 0, y: 0 };
     /** v0.246.1: ile razy cecha zadzialala (karta CECHA w tutorialach). */
     public uses = 0;
     // wizual lokalny: krotkie efekty (teleport, cien skoku) prowadzone w frame()
@@ -82,13 +91,13 @@ export class TraitSystem {
     get isActive(): boolean {
         const now = simNowMs();
         return !!this.barrier || this.ramStepsLeft > 0 || now < this.cloakUntil || this.jumpT >= 0 || !!this.smoke
-            || now < this.ceasefireUntil || now < this.repairUntil;
+            || now < this.ceasefireUntil || now < this.repairUntil || !!this.calaca;
     }
     /** Nietykalny (taran, lot skoku). PowerSystem.isInvulnerable czyta to przez main. */
     /** v0.246.3: ile ms zostalo efektu z czasem trwania (pigulka HUD jak turbo); 0 = brak / efekt natychmiastowy. */
     get activeLeftMs(): number {
         const now = simNowMs();
-        const until = Math.max(this.barrier?.until ?? 0, this.cloakUntil, this.smoke?.until ?? 0, this.ceasefireUntil, this.repairUntil);
+        const until = Math.max(this.barrier?.until ?? 0, this.cloakUntil, this.smoke?.until ?? 0, this.ceasefireUntil, this.repairUntil, this.calaca?.until ?? 0);
         return Math.max(0, until - now);
     }
     get isInvulnerable(): boolean { return simNowMs() < this.invulUntil || this.jumpT >= 0 || this.ramStepsLeft > 0; }
@@ -131,6 +140,7 @@ export class TraitSystem {
             case 'smoke': this.spawnSmoke(); break;
             case 'ceasefire': this.startCeasefire(); break;
             case 'repair': this.repairUntil = now + d.durationMs; this.repairLeft = T.repairTotalHp; this.ctx.sfx('repair_charge', p); break;
+            case 'summon': this.spawnCalaca(); break;
         }
         if (!ok) { this.ctx.sfx('trait_denied', p); return false; }
         this.cooldownUntil = now + d.cooldownMs;
@@ -178,6 +188,7 @@ export class TraitSystem {
         } else if (now >= this.repairUntil) this.repairLeft = 0;
         if (this.cloakUntil > 0 && now >= this.cloakUntil) { this.cloakUntil = 0; this.ctx.sfx('invis_off', p); }
         if (this.crownRing && now >= this.ceasefireUntil) { this.crownRing.destroy({ children: true }); this.crownRing = null; }
+        if (this.calaca) this.stepCalaca(now);
     }
 
     /** Wizual co klatke (alpha niewidki, wiazki plotu, dym, korony, aura naprawy). Nie zmienia stanu gry. */
@@ -222,6 +233,7 @@ export class TraitSystem {
         }
         if (this.ramStepsLeft > 0) this.ramTrailFx(now);
         if (now < this.repairUntil && Math.floor(now / 250) !== Math.floor((now - 17) / 250)) this.ctx.effects.spawnHealPlus(p.x, p.y - 10);
+        if (this.calaca) this.frameCalaca(now);
     }
 
     destroy(): void {
@@ -230,6 +242,7 @@ export class TraitSystem {
         this.fx = [];
         if (this.jumpShadow) { this.jumpShadow.destroy(); this.jumpShadow = null; }
         if (this.crownRing) { this.crownRing.destroy({ children: true }); this.crownRing = null; }
+        if (this.calaca) { this.calaca.view.destroy({ children: true }); this.calaca = null; }
     }
 
     // ── Barykada z workow / plot elektryczny ───────────────────────────────
@@ -629,5 +642,132 @@ export class TraitSystem {
         this.ctx.effects.spawnRingFx(p.x, p.y, 110, 0xf1c40f, 20);
         this.ctx.effects.spawnShockwaveRing(p.x, p.y, 420, 0xf1c40f);
         this.ctx.sfx('ceasefire', p);
+    }
+
+    // ── Wezwanie CALACA (Pumpkin) ──────────────────────────────────────────
+    /** Wabik dla wroga (wzorzec ghostTauntFor): w promieniu lureRadius cel = CALACA; boss ignoruje po 2 s. */
+    calacaLureFor(e: Enemy): { x: number; y: number } | null {
+        const c = this.calaca;
+        if (!c) return null;
+        if ((e.isBoss || e.isMegaBoss) && simNowMs() - c.born > T.calacaBossIgnoreMs) return null;
+        if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 > T.calacaLureRadius * T.calacaLureRadius) return null;
+        this.calacaPoint.x = c.x; this.calacaPoint.y = c.y;
+        return this.calacaPoint;
+    }
+
+    /** Pocisk wroga trafil CALACE? (absorpcja jak Widmo, ale ODBIERA HP — przy 0 CALACA znika wczesniej). */
+    calacaAbsorbs(x: number, y: number, dmg: number): boolean {
+        const c = this.calaca;
+        if (!c) return false;
+        if ((x - c.x) ** 2 + (y - (c.y - 14)) ** 2 > T.calacaAbsorbRadius * T.calacaAbsorbRadius) return false;
+        c.hp -= dmg;
+        c.hitFlash = simNowMs() + 120;
+        return true;
+    }
+
+    /** Mnoznik predkosci wroga po nucie (1 = bez efektu). Czytany w petli spowolnien main.ts. */
+    calacaSlowMult(e: Enemy): number {
+        const until = this.calacaSlow.get(e);
+        return until !== undefined && simNowMs() < until ? T.calacaSlowMult : 1;
+    }
+
+    private spawnCalaca(): void {
+        const p = this.owner;
+        const now = simNowMs();
+        const view = new PIXI.Container();
+        const bike = new PIXI.Sprite(calacaTexture(0));
+        bike.anchor.set(0.5, 0.77);
+        bike.scale.set(TRAIT_ART_SCALE * 1.5);
+        const bars = new PIXI.Graphics();
+        view.addChild(bike, bars);
+        const x = Math.max(60, Math.min(WORLD_W - 60, p.x + 50)), y = Math.max(60, Math.min(WORLD_H - 60, p.y + 34));
+        view.position.set(x, y);
+        this.ctx.world.addChild(view);
+        this.calaca = { x, y, born: now, until: now + (this.def?.durationMs ?? 8000), hp: T.calacaHp, nextNote: now + 600, ang: 0, flip: 1, view, bike, bars, hitFlash: 0 };
+        this.ctx.effects.spawnConfetti(x, y - 30);
+        this.ctx.effects.spawnConfetti(x, y - 30);
+        this.ctx.effects.spawnRingFx(x, y, 80, 0xff5fa2, 16);
+        this.ctx.effects.spawnBlastFx(x, y - 20, 50, 0xffb21e, false);
+        this.ctx.sfx('calaca_summon', p);
+    }
+
+    private stepCalaca(now: number): void {
+        const c = this.calaca!;
+        if (now >= c.until || c.hp <= 0) { this.endCalaca(); return; }
+        const p = this.owner;
+        // cel: najblizszy aktywny wrog w zasiegu od gracza — CALACA krazy wokol niego ("przeszkadza", nie szarzuje)
+        let tgt: Enemy | null = null, best = T.calacaSeekRadius * T.calacaSeekRadius;
+        for (const e of this.ctx.enemies()) {
+            if (!e.active) continue;
+            const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+            if (d < best) { best = d; tgt = e; }
+        }
+        let gx: number, gy: number;
+        if (tgt) {
+            c.ang += 0.03;
+            gx = tgt.x + Math.cos(c.ang) * T.calacaOrbitRx; gy = tgt.y + Math.sin(c.ang) * T.calacaOrbitRy;
+        } else { gx = p.x + 50; gy = p.y + 34; }
+        const dx = gx - c.x, dy = gy - c.y, dl = Math.hypot(dx, dy);
+        if (dl > 0.5) {
+            const k = Math.min(1, T.calacaSpeedPx / dl);
+            c.x = Math.max(60, Math.min(WORLD_W - 60, c.x + dx * k));
+            c.y = Math.max(60, Math.min(WORLD_H - 60, c.y + dy * k));
+            if (Math.abs(dx) > 1) c.flip = dx >= 0 ? 1 : -1;
+        }
+        // NUTA: co noteEveryMs — male obrazenia + lekkie spowolnienie w promieniu
+        if (now >= c.nextNote) {
+            c.nextNote += T.calacaNoteEveryMs;
+            const r2 = T.calacaNoteRadius * T.calacaNoteRadius;
+            for (const e of this.ctx.enemies()) {
+                if (!e.active || (e.x - c.x) ** 2 + (e.y - c.y) ** 2 > r2) continue;
+                this.calacaSlow.set(e, now + T.calacaSlowMs);
+                this.ctx.damageEnemy(e, T.calacaNoteDamage, p);
+                this.ctx.effects.spawnEnemyHitSparks(e.x, e.y, 0xff5fa2);
+            }
+            this.ctx.effects.spawnRingFx(c.x + c.flip * 16, c.y - 24, T.calacaNoteRadius, 0xff5fa2, 22);
+            this.noteFx(c.x + c.flip * 20, c.y - 34, c.flip);
+            this.ctx.sfx('calaca_note', p);
+        }
+    }
+
+    /** Nutka wylatuje z trabki i odplywa w gore z kolysaniem (tylko wizual). */
+    private noteFx(x: number, y: number, flip: number): void {
+        const s = new PIXI.Sprite(noteTexture());
+        s.anchor.set(0.5); s.scale.set(TRAIT_ART_SCALE * 1.8);
+        s.tint = [0xff5fa2, 0xffb21e, 0x22c3b5][Math.floor(simNowMs() / 1200) % 3];
+        s.position.set(x, y); s.zIndex = 900003;
+        this.ctx.world.addChild(s);
+        this.fx.push({ obj: s, born: simNowMs(), life: 900, tick: (k, o) => { o.position.set(x + flip * k * 30 + Math.sin(k * 9) * 6, y - k * 46); o.alpha = 1 - k * k; o.scale.set(TRAIT_ART_SCALE * 1.8 * (1 + k * 0.4)); } });
+    }
+
+    private frameCalaca(now: number): void {
+        const c = this.calaca!;
+        c.view.position.set(c.x, c.y);
+        c.view.zIndex = c.y + 20;
+        c.bike.texture = calacaTexture((Math.floor(now / 140) % 2) as 0 | 1);
+        const age = now - c.born;
+        const pop = age < 260 ? 0.4 + 0.6 * Math.sin((age / 260) * Math.PI / 2) * 1.1 : 1; // wjazd "sprezynka"
+        const S = TRAIT_ART_SCALE * 1.5 * pop;
+        c.bike.scale.set(S * c.flip, S);
+        c.bike.y = -Math.abs(Math.sin(now / 95)) * 3;           // podskoki na wybojach
+        c.bike.rotation = Math.sin(now / 180) * 0.06;
+        c.bike.tint = now < c.hitFlash ? 0xffb0d0 : 0xffffff;
+        // paski nad glowa: czas (rozowy) + HP (zielony)
+        const g = c.bars; g.clear();
+        const tl = Math.max(0, (c.until - now) / (this.def?.durationMs ?? 8000)), hl = Math.max(0, c.hp / T.calacaHp);
+        g.beginFill(0x000000, 0.55); g.drawRoundedRect(-18, -66, 36, 9, 3); g.endFill();
+        g.beginFill(0xff5fa2); g.drawRect(-16, -64.5, 32 * tl, 2.5); g.endFill();
+        g.beginFill(0x2ecc71); g.drawRect(-16, -61, 32 * hl, 2.5); g.endFill();
+    }
+
+    private endCalaca(): void {
+        const c = this.calaca!;
+        // pozegnanie: konfetti kosci i kwiatow + rozowy "puf"
+        this.ctx.effects.spawnConfetti(c.x, c.y - 24);
+        this.ctx.effects.spawnConfetti(c.x, c.y - 24);
+        this.ctx.effects.spawnConfetti(c.x, c.y - 24);
+        this.ctx.effects.spawnBlastFx(c.x, c.y - 20, 55, 0xff5fa2, false);
+        c.view.destroy({ children: true });
+        this.calaca = null;
     }
 }

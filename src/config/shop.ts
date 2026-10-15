@@ -14,7 +14,7 @@
  */
 
 import type { TranslationKey } from '../i18n/i18n';
-import { getCosmetic, cosmeticsByType, TANK_SKIN_CAT_ORDER, type Rarity } from './cosmetics';
+import { getCosmetic, cosmeticsByType, isSeasonTrackOnly, TANK_SKIN_CAT_ORDER, type Rarity } from './cosmetics';
 import { isSkinsEnabled } from './skins'; // SKIN-1 — gate taba i SKU barw czolgu
 
 /**
@@ -170,7 +170,7 @@ function stickerSkus(): ShopItemDef[] {
  */
 function tankSkinSkus(): ShopItemDef[] {
     // SKIN-2: sortowanie po kategorii (sekcje w gridzie zakladki), wzory drozsze.
-    const defs = [...cosmeticsByType('tankSkin')].sort((a, b) =>
+    const defs = [...cosmeticsByType('tankSkin')].filter(d => !isSeasonTrackOnly(d)).sort((a, b) =>
         TANK_SKIN_CAT_ORDER.indexOf(a.patternCat) - TANK_SKIN_CAT_ORDER.indexOf(b.patternCat));
     return defs.map(def => ({
         sku: def.id,
@@ -187,7 +187,7 @@ function tankSkinSkus(): ShopItemDef[] {
 }
 
 function profileSkinSkus(): ShopItemDef[] {
-    return cosmeticsByType('profileSkin').map(def => ({
+    return cosmeticsByType('profileSkin').filter(d => !isSeasonTrackOnly(d)).map(def => ({
         sku: def.id,
         category: 'profileSkins' as const,
         price: PROFILE_SKIN_PRICE[def.rarity],

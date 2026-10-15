@@ -412,3 +412,62 @@ i tak się przewija** — i to jest tańsze niż pogorszenie nazw w obu językac
 
 **Poza ścieżką krytyczną, do świadomego zaplanowania:** sigmy bez ujścia (sklep) oraz
 system skinów czołgu. Oba są długami, które lepiej zaplanować niż odkryć w trakcie.
+
+---
+
+## 18. SEZON v2 (v0.250.0) — sezoniaki jedynym licznikiem sezonu
+
+Decyzja Mariusza 2026-10-14. Flaga `SEASON_V2_LIVE` (`src/config/seasonV2Flag.ts`), test `?seasonv2=1`,
+rollback `?seasonv2=0`. **Flip = bump `SIM_VERSION`** (losowanie sezoniaka idzie z `worldRng`).
+
+### 18.1 Co sie zmienia wzgledem §6-§7
+- Pucharki sezonowe (`season.trophies`, Season Track na stronie PUCHARKI) **nie sa naliczane ani pokazywane**.
+  Pole zostaje w danych (archiwum), nic nie migrujemy.
+- Jedyny tor nagrod = **SZLAK SEZONU** na stronie SEZON, napedzany punktami sezoniakow.
+- Front **nie pokazuje numeru sezonu** — tylko nazwe motywu („Powrót do szkoły") i „Sezon" w pigulce.
+  `id` (`s3`) zostaje kluczem zapisu (zasada z §2 bez zmian).
+
+### 18.2 Manifest — nowe pola `SeasonContentDef`
+| Pole | Znaczenie |
+|---|---|
+| `counterIcon` | PNG sterty sezoniakow (`seasons/<id>/sezoniaki.png`, 200×200 RGBA) — box SEZONIAKI, HUD, endcard, pasek motywu |
+| `track[]` | tiery `{ id, kind, need, reward }` |
+
+`kind`: `points` (suma punktow ≥ need) · `set` (liczba ROZNYCH sezoniakow ≥ need) · `complete` (liczba zdobytych
+pozostalych tierow ≥ need; tier na KONCU listy). `reward`: `bolts`, `crates`, `cosmetic` (id z `cosmetics.ts`),
+`seasonTank: true` (czolg sezonu).
+
+**Klucz odbioru = `trk:<id>`** w `season.rewardsClaimed` (UNION-sync). **Id tieru jest nieruchome jak id sezonu**
+— progi (`need`) mozna stroic bez podwojnych wyplat; zmiana `id` = ponowna wyplata. Znaczniki gratulacji:
+`cel:tank`, `cel:complete`.
+
+### 18.3 Kosmetyki sezonu
+- Pole `season: '<id>'` = kosmetyk WYLACZNIE z Szlaku: nigdy w skrzynkach, przy v2 poza sklepem (posiadacze zachowuja).
+- Nowy typ `menuTheme` (`color` = akcent, `bgImage` = tlo hubu, `emoji` = emblemat). Zakladany w PROFIL → Kolekcja.
+  Render: `HubShell.applyMenuTheme` — klasa `bt-theme-on` + zmienne CSS; 3 miejsca: pasek Szlaku w srodku belki,
+  poswiata karty profilu, emblemat na dole paska nawigacji (desktop). Pasek belki uzywa `seasons/<id>/decor.jpg`.
+
+### 18.4 Czolg sezonu
+- `src/config/seasonTank.ts` → `SEASON_TANKS { brawlerId, seasonId }`. Czolg jest ZWYKLYM wpisem rosteru;
+  blokada tylko w UI wyboru (galeria: osobny pas „Czołg sezonu", garaz: karuzela pomija, TRYB GRY: klodka).
+  Koop bez zmian (ten sam roster i indeksy u wszystkich).
+- Odblokowanie: tier z `seasonTank` dodaje `tank:<id>` do `ownedCosmetics`.
+- Gratulacje: `SeasonCelebrationOverlay` (skora `.bt-rankup*`) — „CZOŁG SEZONU ODBLOKOWANY!" (CTA WYPRÓBUJ → Garaz)
+  i „SEZON UKOŃCZONY!" (tier `complete`). Kolejka po randze w `HubShell.maybeCelebrateSeason`.
+- Dev-symulacja: `?seasontank=enigma`. Prawdziwy czolg sezonu = osobna faza (wlasne id + art 2.5D + balans).
+
+### 18.5 Ukonczony sezon
+- Tier `complete` (+sigmy) → gratulacje, **odznaka sezonu** w karcie profilu (`getCompletedSeasons`),
+  w Muzeum flaga `completed` w `SeasonArchiveEntry`.
+
+### 18.6 Podglad dla producenta
+`?seasonv2=1&seasondemo=250&seasontank=enigma` — N punktow i 6/6 przedmiotow TYLKO w pamieci
+(ProgressionService nie zapisuje nic: ani localStorage, ani chmura). Przeladowanie bez parametru = prawdziwy stan.
+
+### 18.7 Checklista nowego sezonu (uzupelnia §14)
+1. `SEASONS` w `season.ts` (id, daty, emoji, akcent, bullety) + i18n `season.<id>.*` (nazwa BEZ numeru).
+2. Paczka `public/seasons/<id>/`: `hero.jpg`, `decor.jpg`, `item1..6.png`, **`sezoniaki.png`**.
+3. Manifest `seasonContent.ts`: `items`, `counterIcon`, **`track`** (10 tierow + `complete`), `spawn`.
+4. Kosmetyki z `season: '<id>'`: tlo awatara, ramka, kolor nicku, skorka czolgu, skorka profilu, **motyw menu**.
+5. (Opcjonalnie) wpis w `SEASON_TANKS`.
+6. `node tools/season_check.mjs` + zrzuty `node tools/season-v2-shot.mjs <pkt> theme`.

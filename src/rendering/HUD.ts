@@ -177,6 +177,19 @@ export class HUD {
      * pustym sezonie, magnes i turbo byly by zepchniete bez powodu.
      */
     public seasonCount: number | null = null;
+    /** v0.250.0 SEZON v2 — ikona sezoniakow (PNG z manifestu sezonu) w pigulce; null = sam tekst. */
+    private seasonIconImg: HTMLImageElement | null = null;
+
+    /** v0.250.0 — ustaw ikone sezoniakow (sciezka wzgledem BASE_URL) albo null. Ladowana raz, rysowana gdy gotowa. */
+    public setSeasonIcon(path: string | null): void {
+        if (!path) { this.seasonIconImg = null; return; }
+        const src = import.meta.env.BASE_URL + path;
+        if (this.seasonIconImg?.src.endsWith(path)) return;
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = src;
+        this.seasonIconImg = img;
+    }
 
     /** FAZA CTF F3 — dane CTF (null poza scenariuszem ctf). Ustawiane per klatke z main.ts. */
     public ctfInfo: HudCtfInfo | null = null;
@@ -1351,7 +1364,12 @@ export class HUD {
         const cy = py + PH / 2;
         const PAD = 12;
         const GAP = 8;                      // minimalny odstep podpis <-> wartosc
-        const budget = PW - PAD * 2 - GAP;
+        // v0.250.0 SEZON v2: ikona sezoniakow na lewym brzegu (gdy zaladowana) — podpis przesuwa sie o jej szerokosc.
+        const ico = this.seasonIconImg;
+        const icoS = ico && ico.complete && ico.naturalWidth > 0 ? PH + 4 : 0;
+        if (ico && icoS) c.drawImage(ico, px + 4, py - 2, icoS, icoS);
+        const lx = px + PAD + (icoS ? icoS - 6 : 0);
+        const budget = PW - PAD * 2 - GAP - (icoS ? icoS - 6 : 0);
 
         // v0.139.0 (pkt 3): podpis „Książki" -> „Znajdźki". Playtest: slowo „ksiazki"
         // nic graczowi nie mowilo, bo znajdzki sezonu to nie tylko ksiazki, a nazwa
@@ -1393,9 +1411,9 @@ export class HUD {
         c.textBaseline = 'middle';
         c.strokeStyle = 'rgba(0,0,0,0.9)';
         c.lineWidth = 4;
-        c.strokeText(label, px + PAD, cy);
+        c.strokeText(label, lx, cy);
         c.fillStyle = '#ffffff';
-        c.fillText(label, px + PAD, cy);
+        c.fillText(label, lx, cy);
 
         c.font = `${valPx}px "${FONT_FAMILY}",cursive`;
         c.textAlign = 'right';

@@ -17,6 +17,7 @@ import { turntableCanvasHtml, mountTankTurntable, type TurntableHandle } from '.
 import { mountTankTurn360 } from '../tankTurn360'; // GARAZ-2.5: viewer 3/4 z klatek
 import { loadoutSlotTileHtml } from '../overlays/LoadoutOverlay'; // GARAZ-3: kafle slotow
 import { applySkinToViewer, skinNeeds360 } from '../skinCommon'; // GARAZ v2: wspolne reguly skinow
+import { isSeasonTank, seasonRibbonHtml } from '../seasonTankUi'; // v0.250.0 czolg sezonu
 import { playUiClick } from '../../uiSounds';
 
 /**
@@ -364,6 +365,7 @@ export class GarageSection implements HubSection {
     public selectTank(id: string): void {
         const el = this.el;
         if (!el || !BRAWLERS.some(b => b.id === id) || id === this.sel.brawlerId) return;
+        if (ProgressionService.isTankLocked(ProfileService.getActiveProfile()?.id ?? 'default', id)) return; // v0.250.0
         this.previewSkinId = null;
         this.sel.brawlerId = id;
         this.persistBrawler();
@@ -373,7 +375,12 @@ export class GarageSection implements HubSection {
 
     private cycleTank(el: HTMLElement, dir: 1 | -1): void {
         const idx = BRAWLERS.findIndex(b => b.id === this.sel.brawlerId);
-        const next = BRAWLERS[(idx + dir + BRAWLERS.length) % BRAWLERS.length];
+        // v0.250.0 SEZON v2: karuzela przeskakuje zablokowany czolg sezonu (widac go w galerii z klodka).
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        let next = BRAWLERS[(idx + dir + BRAWLERS.length) % BRAWLERS.length];
+        for (let k = 2; next && ProgressionService.isTankLocked(pid, next.id) && k <= BRAWLERS.length; k++) {
+            next = BRAWLERS[(idx + dir * k + BRAWLERS.length * k) % BRAWLERS.length];
+        }
         if (!next) return;
         playUiClick();
         this.previewSkinId = null; // SKIN-1: preview jest ulotny — zmiana czolgu go zdejmuje
@@ -403,6 +410,7 @@ export class GarageSection implements HubSection {
                             aria-label="next">&#8250;</button>
                 </div>
                 <div class="bt-gr2-side">
+                    ${isSeasonTank(b.id) ? seasonRibbonHtml('is-gr2') : ''}
                     <button class="bt-gr2-name" data-action="gr2-next" type="button"
                             style="color:${b.colorMain}">${tankName(b)}</button>
                     ${/* BALANCE_V2 (S5): TEMPO zawsze (reload byl najwieksza ukryta statystyka gry),

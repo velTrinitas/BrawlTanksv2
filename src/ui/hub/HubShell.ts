@@ -25,9 +25,11 @@ import { ShopSection } from './sections/ShopSection';       // SHOP-1
 import { ShopOverlay } from './overlays/ShopOverlay';       // SHOP-1
 import { isShopEnabled } from '../../config/shop';          // SHOP-1
 import { CrateOverlay } from './overlays/CrateOverlay';
-import { getCosmetic, nickColorStyle, frameStyle, avatarBgStyle } from '../../config/cosmetics'; // F2a
+import { getCosmetic, nickColorStyle, frameStyle, avatarBgStyle, type CosmeticDef } from '../../config/cosmetics'; // F2a
+import { getSeasonContent } from '../../config/seasonContent'; // v0.250.0 SEZON v2 — pasek motywu
 import { AVATARS } from '../../config/avatars'; // PROFILE-1 — miniatura w chipie
-import { seasonShortKey } from '../../config/season'; // SEASON-1/2 — pill sezonu
+import { seasonShortKey, getCurrentSeason } from '../../config/season'; // SEASON-1/2 — pill sezonu
+import { isSeasonV2Enabled } from '../../config/seasonV2Flag'; // v0.250.0 SEZON v2
 import { SeasonSection } from './sections/SeasonSection'; // v0.129.0 — strona sezonu
 import { MapPickerOverlay } from './overlays/MapPickerOverlay'; // v0.127.0 — wybor mapy 3x2
 import { RankUpOverlay } from './overlays/RankUpOverlay'; // RANKS-1 — celebracja awansu
@@ -38,6 +40,7 @@ import { requestHostStart, setLocalBrawlerProvider } from '../../net/CoopMatch';
 import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
+import { SeasonCelebrationOverlay } from './overlays/SeasonCelebrationOverlay'; // v0.250.0
 import './shop-styles.css'; // SHOP-1 — izolacja per-feature (design-values.md)
 
 /**
@@ -87,7 +90,9 @@ export class HubShell implements IScreen {
      */
     private readonly hubSel: HubSelection = (() => {
         const last = sessionService.getLastSession();
-        const ok = !!last && BRAWLERS.some(b => b.id === last.brawlerId);
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        // v0.250.0: zablokowany czolg sezonu nie moze byc wyborem startowym (np. po wygasnieciu podgladu).
+        const ok = !!last && BRAWLERS.some(b => b.id === last.brawlerId) && !ProgressionService.isTankLocked(pid, last.brawlerId);
         return { brawlerId: ok && last ? last.brawlerId : (BRAWLERS[0]?.id ?? 'twardy') };
     })();
     private readonly battle = new BattleSection(this.hubSel);
@@ -98,6 +103,7 @@ export class HubShell implements IScreen {
     private readonly skins = new SkinsOverlay();
     /** GALERIA CZOLGOW (v0.230.0). */
     private readonly roster = new TankRosterOverlay();
+    private readonly seasonCel = new SeasonCelebrationOverlay(); // v0.250.0 SEZON v2 — gratulacje sezonu
     private readonly quests = new QuestsSection();
     /** v0.208.0 — trzymany z nazwy, bo HubShell podaje mu `prevTrophies` (pasek dojezdza). */
     private readonly trophyRoad = new TrophyRoadSection();
@@ -198,6 +204,7 @@ export class HubShell implements IScreen {
             if (host) this.roster.open(host, {
                 selectedId: this.hubSel.brawlerId,
                 onPick: (id) => this.garage.selectTank(id),
+                onOpenSeason: () => this.setActive('season'), // v0.250.0 „Zobacz Szlak" z karty czolgu sezonu
             });
         };
         this.garage.onOpenCrate = () => {
@@ -215,6 +222,7 @@ export class HubShell implements IScreen {
         this.profile.onNavigate = (id) => this.setActive(id);
         // SEASON-2 — CTA strony sezonu prowadzi do Season Tracku w TROFEA.
         this.season.onViewTrack = () => this.openSeasonTrack();
+        this.season.onRewardsClaimed = () => { this.refreshReadout(); this.maybeCelebrateSeason(); }; // v0.250.0 SEZON v2
         // PROG-F3 — nagroda za rozkaz zmienia srubki (readout) i moze dosypac skrzynke (GARAŻ).
         this.quests.onRewardClaimed = ({ bolts, from }) => {
             // J6 — sigmy leca do coina; count-up rusza przy PIERWSZEJ monecie, nie przy kliknieciu.
@@ -279,12 +287,62 @@ export class HubShell implements IScreen {
     }
 
     /** F2a — odswiez tylko gorny readout (po equip kosmetyku). */
+    /** v0.250.0 SEZON v2 — zalozony motyw menu (kosmetyk 'menuTheme') albo undefined. */
+    private menuThemeDef(): CosmeticDef | undefined {
+        if (!isSeasonV2Enabled()) return undefined;
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const id = ProgressionService.getCosmeticState(pid).equipped.menuTheme;
+        const def = id ? getCosmetic(id) : undefined;
+        return def?.type === 'menuTheme' ? def : undefined;
+    }
+
+    /**
+     * v0.250.0 SEZON v2 — MOTYW MENU: akcent + tlo hubu (art sezonu) + 3 miejsca ze zrzutu Mariusza
+     * (srodek belki = pasek Szlaku Sezonu, karta profilu = poswiata, dol paska nawigacji = emblemat).
+     * Wszystko przez klase `bt-theme-on` i zmienne CSS — zero przerysowania sekcji, zero overdraw.
+     */
+    private applyMenuTheme(): void {
+        const root = this.rootEl;
+        if (!root) return;
+        const def = this.menuThemeDef();
+        root.classList.toggle('bt-theme-on', !!def);
+        const base = import.meta.env.BASE_URL;
+        if (def) {
+            root.style.setProperty('--theme-acc', def.color ?? '#f1c40f');
+            root.style.setProperty('--theme-bg', `url('${base}${def.bgImage ?? ''}')`);
+            root.style.setProperty('--theme-decor', `url('${base}seasons/${def.season ?? ''}/decor.jpg')`);
+        } else {
+            for (const p of ['--theme-acc', '--theme-bg', '--theme-decor']) root.style.removeProperty(p);
+        }
+        const emblem = root.querySelector<HTMLElement>('.bt-hub0-theme-emblem');
+        if (emblem) emblem.textContent = def?.emoji ?? '';
+    }
+
+    /** Srodek belki: przy motywie — mini Szlak Sezonu (ikona sezoniakow, pasek, punkty), tap = strona SEZON. */
+    private themeStripHtml(pid: string): string {
+        if (!this.menuThemeDef()) return '<span class="bt-hub0-spacer"></span>';
+        const track = ProgressionService.getSeasonTrackState(pid);
+        const content = getSeasonContent(getCurrentSeason().id);
+        if (!track || !content) return '<span class="bt-hub0-spacer"></span>';
+        const pointTiers = track.tiers.filter(x => x.tier.kind === 'points');
+        const max = pointTiers.length ? pointTiers[pointTiers.length - 1].tier.need : 1;
+        const pct = Math.min(100, Math.round((track.points / max) * 100));
+        const icon = content.counterIcon ?? content.items[content.items.length - 1].asset;
+        return `<button class="bt-hub0-spacer bt-hub0-themestrip" data-action="season" type="button" aria-label="${t('hub.season.trail')}">
+                    <img src="${import.meta.env.BASE_URL}${icon}" alt="" draggable="false">
+                    <span class="ts-name">${t(getCurrentSeason().nameKey)}</span>
+                    <span class="ts-bar"><i style="width:${pct}%"></i></span>
+                    <b class="ts-pts">${track.points}</b>
+                </button>`;
+    }
+
     private refreshReadout(): void {
         const top = this.rootEl?.querySelector('.bt-hub0-top') as HTMLElement | null;
         if (!top) return;
         const prev = this.lastReadout;
         const cur = this.readoutValues();
         top.innerHTML = this.renderReadout();
+        this.applyMenuTheme(); // v0.250.0 — zalozenie/zdjecie motywu w Kolekcji idzie ta sama sciezka
         // v0.208.0 (J4) — liczby NABIJAJA sie od poprzednio pokazanej wartosci, ikona
         // podskakuje co ~10% drogi, na koncu wylatuje „+N". Do tej wersji liczba po meczu
         // po prostu byla inna — gracz nie widzial, ze mecz cos dal.
@@ -406,12 +464,14 @@ export class HubShell implements IScreen {
             this.refreshReadout();
             this.renderMain();
             this.maybeCelebrateRank(); // RANKS-1 — awans domergowany z chmury
+            this.maybeCelebrateSeason(); // v0.250.0
         });
 
         this.rootEl = document.createElement('div');
         this.rootEl.className = 'bt-hub0-screen';
         this.rootEl.innerHTML = this.renderChrome();
         root.appendChild(this.rootEl);
+        this.applyMenuTheme(); // v0.250.0 SEZON v2
         this.wire();
         this.refreshBadges(); // v0.207.0 — mount maluje chrome bez refreshReadout, wiec kropki osobno
         attachRipple(this.rootEl);            // v0.208.0 (J1) — ripple + squash + haptyka na kazdy tap
@@ -421,6 +481,7 @@ export class HubShell implements IScreen {
         // Hub zyje przez cala sesje (MainMenu trzyma go schowanego w meczu) — jeden listener.
         window.addEventListener('resize', () => this.positionNavIndicator(), { passive: true });
         this.maybeCelebrateRank(); // RANKS-1 — awans z ostatniego meczu (powrot do huba)
+        this.maybeCelebrateSeason(); // v0.250.0
         // COOP LAN-1: link zaproszenia (?mp=1&join=KOD) otwiera od razu ekran goscia — raz na strone.
         if (!this.coopJoinHandled && isMultiplayerEnabled()) {
             this.coopJoinHandled = true;
@@ -440,6 +501,7 @@ export class HubShell implements IScreen {
         this.refreshReadout();
         this.renderMain();
         this.maybeCelebrateRank();
+        this.maybeCelebrateSeason(); // v0.250.0
     }
 
     /**
@@ -456,10 +518,33 @@ export class HubShell implements IScreen {
             ProgressionService.markRankShown(pid, pending.level);
             this.refreshReadout();
             this.renderMain();
+            this.maybeCelebrateSeason(); // v0.250.0 — gratulacje sezonu PO randze (jedna fanfara naraz)
+        });
+    }
+
+    /**
+     * v0.250.0 SEZON v2 — gratulacje sezonu (czolg sezonu odblokowany / sezon ukonczony). Kolejka jak
+     * rangi: najpierw ranga, potem sezon; po zamknieciu stempel `cel:<kind>` (UNION-sync) i nastepna.
+     */
+    private maybeCelebrateSeason(): void {
+        if (!this.rootEl || this.rankUp.isOpen || this.seasonCel.isOpen) return;
+        const pid = this.pid();
+        const cel = ProgressionService.getPendingSeasonCelebration(pid);
+        if (!cel) return;
+        this.seasonCel.open(this.rootEl, cel, () => {
+            ProgressionService.markSeasonCelebrated(pid, cel.kind);
+            this.refreshReadout();
+            this.renderMain();
+            this.maybeCelebrateSeason();
+        }, (brawlerId) => {
+            // „WYPROBUJ": czolg sezonu staje sie wyborem i otwiera sie Garaz z nim na obrotnicy.
+            this.setActive('garage');
+            this.garage.selectTank(brawlerId);
         });
     }
 
     unmount(): void {
+        this.seasonCel.close(); // v0.250.0
         this.unsubscribeSync?.();
         this.unsubscribeSync = null;
         this.crate.close();
@@ -502,7 +587,7 @@ export class HubShell implements IScreen {
 
         return `
             <div class="bt-hub0-top">${this.renderReadout()}</div>
-            <nav class="bt-hub0-nav">${nav}${play}<i class="bt-hub0-navind" aria-hidden="true"></i></nav>
+            <nav class="bt-hub0-nav">${nav}${play}<i class="bt-hub0-navind" aria-hidden="true"></i><span class="bt-hub0-theme-emblem" aria-hidden="true"></span></nav>
             <div class="bt-hub0-main"></div>
         `;
     }
@@ -537,7 +622,7 @@ export class HubShell implements IScreen {
                 <span class="bt-hub0-avatar" aria-hidden="true" style="${avatarBgStyle(bgDef)}${frameStyle(frameDef)}">${avatarInner}</span>
                 <span class="bt-hub0-pname${shimmer}" style="${nickStyle}">${name}</span>
             </button>
-            <span class="bt-hub0-spacer"></span>
+            ${this.themeStripHtml(pid)}
             <span class="bt-hub0-wallet">
                 <button class="bt-hub0-coin bt-hub0-coin--btn" data-action="trophies" type="button"
                         aria-label="${t('hub.nav.trophies')}" data-coin="trophies"><span class="ic" aria-hidden="true">🏆</span><span class="val">${trophies}</span></button>
@@ -552,7 +637,7 @@ export class HubShell implements IScreen {
             <button class="bt-hub0-gear" data-action="settings" type="button"
                     aria-label="${t('hub.settings')}">⚙️</button>
             <button class="bt-hub0-s2" data-action="season" type="button"
-                    aria-label="${t('hub.season.eyebrow')}"><span>${t(seasonShortKey())}</span></button>
+                    aria-label="${t('hub.season.eyebrow')}">${isSeasonV2Enabled() ? `<i class="s2-emo" aria-hidden="true">${getCurrentSeason().emoji}</i>` : ''}<span>${t(seasonShortKey())}</span></button>
         `;
     }
 
@@ -630,6 +715,8 @@ export class HubShell implements IScreen {
      * o sezonie zyje w TROFEA — badge przestaje byc dekoracja-zagadka).
      */
     private openSeasonTrack(): void {
+        // v0.250.0 SEZON v2: Szlak Sezonu mieszka na stronie SEZON, nie w PUCHARKACH.
+        if (isSeasonV2Enabled()) { this.setActive('season'); return; }
         this.setActive('trophies');
         const main = this.rootEl?.querySelector('.bt-hub0-main');
         main?.querySelector('[data-season-track]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });

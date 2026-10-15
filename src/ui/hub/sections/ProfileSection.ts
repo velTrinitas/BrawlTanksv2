@@ -22,8 +22,9 @@ import { cosmeticGroupsHtml, wireCosmeticGrid } from '../cosmeticGrid';
 import { paintCrosshairPreviews } from '../crosshairPreview'; // SHOP-2
 import { ProfileEditView } from './ProfileEditView';
 import { playUiClick } from '../../uiSounds';
-import { getCurrentSeason } from '../../../config/season';          // SEASON KIT — zakladka SEZON
+import { getCurrentSeason, SEASONS } from '../../../config/season';          // SEASON KIT — zakladka SEZON
 import { getSeasonContent } from '../../../config/seasonContent';
+import { isSeasonV2Enabled } from '../../../config/seasonV2Flag'; // v0.250.0 SEZON v2
 import { backArrowIcon } from '../gameIcons';
 
 /**
@@ -202,6 +203,7 @@ export class ProfileSection implements HubSection {
                         <button class="ph-pill ph-pill--btn" data-goto="shop" type="button"
                                 aria-label="${t('hub.shop')}"><img class="bt-sigma" src="${import.meta.env.BASE_URL}assets/sigma.png" alt="">${bolts}</button>
                         <span class="ph-pill ph-pill--dim"><span class="ic" aria-hidden="true">📅</span>${since}</span>
+                        ${this.seasonBadgesHtml(profile.id)}
                     </span>
                 </span>
                 ${rankBlock}
@@ -209,6 +211,17 @@ export class ProfileSection implements HubSection {
                     ✏️ ${t('hub.profile.edit')}
                 </button>
             </div>`;
+    }
+
+    /** v0.250.0 SEZON v2 — odznaki UKONCZONYCH sezonow (emblemat sezonu w zlotej ramce, tooltip = nazwa). */
+    private seasonBadgesHtml(pid: string): string {
+        if (!isSeasonV2Enabled()) return '';
+        return ProgressionService.getCompletedSeasons(pid).map(id => {
+            const s = SEASONS.find(x => x.id === id);
+            if (!s) return '';
+            const name = t(s.nameKey);
+            return `<span class="ph-pill ph-sbadge" style="--season:${s.accentColor}" title="${t('hub.profile.seasonBadges')}: ${name}" aria-label="${name}">${s.emoji}<i aria-hidden="true">★</i></span>`;
+        }).join('');
     }
 
     // ── SHOP-1: sticker na portrecie ────────────────────────────────────────
@@ -420,6 +433,7 @@ export class ProfileSection implements HubSection {
             <div class="bt-hub0-cos-head">${t('hub.garage.cosmetics', { owned: ownedActive, total: activeCosmeticCount() })}</div>
             ${cosmeticGroupsHtml(cos, [
                 ...(isSkinsEnabled() ? ['tankSkin' as const] : []),
+                ...(isSeasonV2Enabled() ? ['menuTheme' as const] : []), // v0.250.0 SEZON v2
                 'crosshair', 'profileSkin', 'avatarBg', 'nickColor', 'frame', 'horn', 'voice',
             ])}`;
     }

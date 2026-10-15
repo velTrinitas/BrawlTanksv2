@@ -40,8 +40,38 @@ export interface SeasonPointThreshold {
     readonly crates: number;
 }
 
+/**
+ * v0.250.0 SEZON v2 — SZLAK SEZONU. Jeden tor nagrod napedzany sezoniakami:
+ *  - 'points': suma punktow sezoniakow (`season.collected`) >= need,
+ *  - 'set':    liczba ROZNYCH zebranych sezoniakow (1..6) >= need,
+ *  - 'complete': liczba zdobytych POZOSTALYCH tierow >= need (nagroda za ukonczony sezon; tier na koncu listy).
+ * Klucz odbioru = `trk:<id>` (NIE wartosc progu) — progi mozna stroic bez podwojnych wyplat.
+ * Id tieru jest NIERUCHOME jak id sezonu: zmiana id = ponowna wyplata.
+ */
+export type SeasonTrackKind = 'points' | 'set' | 'complete';
+
+export interface SeasonTrackReward {
+    readonly bolts?: number;
+    readonly crates?: number;
+    /** Id z rejestru cosmetics.ts (zwykle `season: '<id>'` — tylko z toru). */
+    readonly cosmetic?: string;
+    /** Miejsce na CZOLG SEZONU (osobna faza). Do tego czasu tier placi bolts/crates. */
+    readonly seasonTank?: true;
+}
+
+export interface SeasonTrackTier {
+    readonly id: string;
+    readonly kind: SeasonTrackKind;
+    readonly need: number;
+    readonly reward: SeasonTrackReward;
+}
+
 export interface SeasonContentDef {
     readonly seasonId: string;
+    /** v0.250.0 — Szlak Sezonu (SEZON v2). Brak = sezon bez toru (stary model). */
+    readonly track?: readonly SeasonTrackTier[];
+    /** v0.250.0 — ikona licznika sezoniakow (sterta przedmiotow sezonu), wzgledem BASE_URL. */
+    readonly counterIcon?: string;
     /** DOKLADNIE 6 pozycji — walidowane w runtime przez assertSeasonContent(). */
     readonly items: readonly SeasonItemDef[];
     /** Tor ILOSCI. Progi rosnace; nagroda w istniejacej ekonomii (skrzynki). */
@@ -154,6 +184,24 @@ const SEASON_CONTENT: readonly SeasonContentDef[] = [
     {
         seasonId: 's3',
         items: S3_ITEMS,
+        counterIcon: 'seasons/s3/sezoniaki.png',
+        // v0.250.0 SEZON v2 — tor zatwierdzony przez Mariusza 2026-10-14: 7 progow punktowych
+        // (stare 60/120/200 x1.25 = 75/150/250 + 4 nizsze) i 3 komplety (3/6, 5/6, 6/6).
+        // E0 (dane s3, 29 graczy): mediana ~1.5 pkt/mecz — 250 pkt to cel dlugi, swiadomie.
+        track: [
+            { id: 'p10',  kind: 'points', need: 10,  reward: { bolts: 100 } },
+            { id: 'p25',  kind: 'points', need: 25,  reward: { cosmetic: 'bg_s3_school' } },
+            { id: 'p45',  kind: 'points', need: 45,  reward: { bolts: 150, crates: 1 } },
+            { id: 'p75',  kind: 'points', need: 75,  reward: { cosmetic: 'fr_s3_school', bolts: 200 } },
+            { id: 'p110', kind: 'points', need: 110, reward: { cosmetic: 'tp_s3_notebook' } },
+            { id: 'p150', kind: 'points', need: 150, reward: { cosmetic: 'mt_s3_school', bolts: 300 } },
+            { id: 'p250', kind: 'points', need: 250, reward: { bolts: 600, crates: 2, seasonTank: true } },
+            { id: 'set3', kind: 'set',    need: 3,   reward: { crates: 1, bolts: 150 } },
+            { id: 'set5', kind: 'set',    need: 5,   reward: { cosmetic: 'nc_s3_school', bolts: 200 } },
+            { id: 'set6', kind: 'set',    need: 6,   reward: { cosmetic: 'ps_s3_school' } },
+            // v0.250.0 — UKONCZONY SEZON (wszystkie 10 nagrod): +500 sigm + gratulacje + odznaka w profilu/muzeum.
+            { id: 'done', kind: 'complete', need: 10, reward: { bolts: 500 } },
+        ],
         // Progi rosnace, zestrojone tak, zeby nagrody padaly rytmicznie przez sezon,
         // a nie klebily sie na koncu. Wartosci startowe do kalibracji po playtescie.
         pointThresholds: [
@@ -197,6 +245,20 @@ function assertSeasonContent(c: SeasonContentDef): boolean {
         errs.push(`setRewards.fullCosmetic='${c.setRewards.fullCosmetic}' nie istnieje w cosmetics.ts`);
     }
     if (!(c.setRewards.titleBolts >= 0)) errs.push(`setRewards.titleBolts=${c.setRewards.titleBolts}`);
+    // v0.250.0 — Szlak Sezonu: unikalne id, rosnace progi w obrebie rodzaju, istniejace kosmetyki.
+    if (c.track) {
+        const ids = new Set<string>();
+        const prevByKind: Record<string, number> = {};
+        for (const tr of c.track) {
+            if (ids.has(tr.id)) errs.push(`track: zdublowane id ${tr.id}`);
+            ids.add(tr.id);
+            if (tr.need <= (prevByKind[tr.kind] ?? 0)) errs.push(`track: nierosnacy prog ${tr.kind} ${tr.id}`);
+            prevByKind[tr.kind] = tr.need;
+            if (tr.kind === 'set' && tr.need > 6) errs.push(`track: ${tr.id} need>6`);
+            if (tr.kind === 'complete' && tr.need > c.track.filter(x => x.kind !== 'complete').length) errs.push(`track: ${tr.id} need > liczba tierow`);
+            if (tr.reward.cosmetic && !getCosmetic(tr.reward.cosmetic)) errs.push(`track: ${tr.id} kosmetyk '${tr.reward.cosmetic}' nie istnieje`);
+        }
+    }
     if (errs.length) {
         console.error(`[season] MANIFEST ${c.seasonId} NIEPOPRAWNY: ${errs.join(' | ')}`);
         return false;
@@ -225,18 +287,19 @@ export function getItemByValue(c: SeasonContentDef, value: number): SeasonItemDe
  * wypadla, tym wieksza jej szansa.
  *
  * @param missStreak ile prob z rzedu NIE dalo przedmiotu o wartosci 6
+ * @param rnd zrodlo losowosci [0,1) — przy SEZON v2 worldRng (spawn to stan gry w koopie)
  */
-export function rollSeasonItem(c: SeasonContentDef, missStreak: number): SeasonItemDef {
+export function rollSeasonItem(c: SeasonContentDef, missStreak: number, rnd: () => number = Math.random): SeasonItemDef {
     const top = c.items.find(i => i.value === 6)!;
     const bonusPct = Math.max(0, missStreak - c.spawn.pityAfter) * c.spawn.pityStepPct;
     const topWeight = Math.min(100, top.weight + bonusPct);
 
-    if (bonusPct > 0 && Math.random() * 100 < topWeight) return top;
+    if (bonusPct > 0 && rnd() * 100 < topWeight) return top;
 
     // zwykle losowanie wazone po pozostalych (albo po wszystkich, gdy pity nieaktywne)
     const pool = bonusPct > 0 ? c.items.filter(i => i.value !== 6) : c.items;
     const total = pool.reduce((s, i) => s + i.weight, 0);
-    let r = Math.random() * total;
+    let r = rnd() * total; // v0.250.0: rnd = worldRng przy SEZON v2 (determinizm koopa)
     for (const it of pool) {
         r -= it.weight;
         if (r <= 0) return it;

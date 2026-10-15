@@ -13,6 +13,9 @@ import { renderScenarioPreview, type ScenarioPreviewId } from '../../ScenarioPre
 import { playUiClick } from '../../uiSounds'; // Sensoryka: wybor "klika"
 import { AudioSys } from '../../../audio/AudioSys'; // v0.135.0 — prefetch muzyki mapy
 import { isChooseMode } from '../../../config/hubChoose'; // GARAZ-2 — wybor czolgu w Garazu
+import { ProfileService } from '../../../services/ProfileService';
+import { ProgressionService } from '../../../services/ProgressionService';
+import { isSeasonTank, seasonRibbonHtml } from '../seasonTankUi'; // v0.250.0 czolg sezonu
 import { isMultiplayerEnabled } from '../../../config/multiplayer'; // COOP LAN-1
 
 /**
@@ -197,8 +200,9 @@ export class BattleSection implements HubSection {
         // (obrotnica). Flag OFF: dokladnie dzisiejszy grid, zero zmian.
         let tanks = '';
         if (!isChooseMode()) {
+            const pidT = ProfileService.getActiveProfile()?.id ?? 'default';
             const tankCards = BRAWLERS.map(b => `
-            <button class="bt-hub0-card${b.id === this.sel.brawlerId ? ' is-selected' : ''}"
+            <button class="bt-hub0-card${b.id === this.sel.brawlerId ? ' is-selected' : ''}${ProgressionService.isTankLocked(pidT, b.id) ? ' is-soon' : ''}"
                     data-tank="${b.id}" type="button" style="--tank:${b.colorMain}">
                 <span class="cd-media">
                     ${b.icon
@@ -208,6 +212,7 @@ export class BattleSection implements HubSection {
                 <span class="cd-body">
                     <span class="cd-top">
                         <b class="cd-name">${tankName(b)}</b>
+                        ${isSeasonTank(b.id) ? seasonRibbonHtml('is-card') : ''}
                     </span>
                     ${this.statRow('HP', b.hp, STAT_MAX.hp)}
                     ${this.statRow('DMG', b.dmg, STAT_MAX.dmg)}
@@ -399,6 +404,7 @@ export class BattleSection implements HubSection {
             btn.addEventListener('click', () => {
                 const id = btn.dataset.tank;
                 if (!id || !BRAWLERS.some(b => b.id === id)) return;
+                if (ProgressionService.isTankLocked(ProfileService.getActiveProfile()?.id ?? 'default', id)) return; // v0.250.0
                 playUiClick();
                 this.sel.brawlerId = id;
                 this.bump = true;

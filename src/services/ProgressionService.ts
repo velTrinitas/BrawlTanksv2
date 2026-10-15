@@ -37,7 +37,9 @@ import {
     type PowerId, type LoadoutTriple,
 } from '../config/powers'; // PROG-F7a — loadout Super Mocy (v0.114.0: 3 sloty)
 import { QuestService } from './QuestService'; // PROG-F3 — rozkazy (sync jedna sciezka upsertu)
-import { getSeasonContent } from '../config/seasonContent';
+import { getSeasonContent, type SeasonTrackTier } from '../config/seasonContent';
+import { isSeasonV2Enabled, seasonDemoPoints } from '../config/seasonV2Flag'; // v0.250.0 SEZON v2
+import { seasonTankForSeason, seasonTankOf, tankUnlockKey } from '../config/seasonTank'; // v0.250.0 czolg sezonu
 import {
     getCurrentSeason, SEASON_MILESTONES, isSeasonActive, seasonDaysLeft, isSeasonOverridden,
     type SeasonMilestone,
@@ -77,6 +79,8 @@ export interface SeasonArchiveEntry {
     readonly trophies: number;
     /** ms zamkniecia (moment rolloveru u tego gracza) — sortowanie gablot. */
     readonly endedAt: number;
+    /** v0.250.0 SEZON v2 — czy gracz ukonczyl caly Szlak Sezonu (odznaka w profilu i muzeum). */
+    readonly completed?: boolean;
 }
 
 /** Stan progresji jednego profilu (localStorage). */
@@ -295,6 +299,23 @@ export interface CosmeticState {
 export interface SeasonRewardGrant {
     cosmetic?: string;
     bolts?: number;
+    /** v0.250.0 SEZON v2 — wszystkie kosmetyki z toru przyznane w tym runie (cosmetic = pierwszy). */
+    cosmetics?: string[];
+    /** v0.250.0 — id tierow Szlaku Sezonu zdobytych w tym runie (chip „Nowa nagroda sezonu!"). */
+    tiers?: string[];
+    /** v0.250.0 — id czolgu sezonu odblokowanego w tym runie. */
+    tank?: string;
+}
+
+/** v0.250.0 — gratulacje sezonu czekajace na pokazanie w hubie. */
+export type SeasonCelebration = { kind: 'tank'; brawlerId: string } | { kind: 'complete'; bolts: number };
+
+/** v0.250.0 SEZON v2 — migawka jednego tieru Szlaku Sezonu dla UI. */
+export interface SeasonTrackTierState {
+    readonly tier: SeasonTrackTier;
+    /** Wartosc licznika tieru (punkty albo liczba roznych sezoniakow). */
+    readonly value: number;
+    readonly done: boolean;
 }
 
 /** Wynik recordRun — zasila endcard ("+X trofea", milestone) + telemetrie. */
@@ -391,7 +412,8 @@ class ProgressionServiceImpl {
         // SEASON-1: trofea sezonowe + auto-wyplata progow Season Tracku
         this.ensureSeason(st);
         if (isSeasonActive()) {
-            st.season.trophies += breakdown.total;
+            // v0.250.0 SEZON v2: sezoniaki = JEDYNY licznik sezonu — pucharki sezonowe nie rosna.
+            if (!isSeasonV2Enabled()) st.season.trophies += breakdown.total;
             // SEASON KIT: znajdzki doliczane RAZ, na koncu meczu — tak samo jak
             // trofea. Przerwany mecz nie zapisuje polowy zbiorki.
             const picked = Math.max(0, Math.floor(opts.stats?.seasonPickups ?? 0));
@@ -406,8 +428,12 @@ class ProgressionServiceImpl {
                     st.season.items[v] = (st.season.items[v] ?? 0) + n;
                 }
             }
-            this.creditSeasonMilestones(st);
-            seasonReward = this.creditSeasonRewards(st);
+            if (isSeasonV2Enabled()) {
+                seasonReward = this.creditSeasonTrack(st);
+            } else {
+                this.creditSeasonMilestones(st);
+                seasonReward = this.creditSeasonRewards(st);
+            }
         }
         // RANKS-1: zwyciestwo (dowolny czolg/scenariusz) => wins++ + auto-nagrody rang.
         // Guard anty-farm: mecz >= RANK_MIN_SECONDS (sub-60s liczy sie do score, nie rangi).
@@ -478,7 +504,17 @@ class ProgressionServiceImpl {
             // POZA tym obiektem wlasnie z tego powodu.
             st.season = { id: cur.id, trophies: 0, claimed: [], collected: 0, items: {}, rewardsClaimed: [], missStreak: 0 };
         }
+        // v0.250.0 — podglad ?seasondemo=N: N punktow + 6/6 przedmiotow, TYLKO w pamieci (save() jest wtedy no-op).
+        const demo = seasonDemoPoints();
+        if (demo !== null && !this.seasonDemoApplied.has(st.profileId)) {
+            this.seasonDemoApplied.add(st.profileId);
+            st.season.collected = demo;
+            st.season.items = { 1: 4, 2: 3, 3: 2, 4: 2, 5: 1, 6: 1 };
+        }
     }
+
+    /** v0.250.0 — profile, ktorym podglad ?seasondemo juz wstrzyknal stan (raz na sesje). */
+    private readonly seasonDemoApplied = new Set<string>();
 
     /**
      * Zapisuje konczacy sie sezon do `st.seasonArchive`. Wolane WYLACZNIE z
@@ -508,6 +544,7 @@ class ProgressionServiceImpl {
             items: { ...items },
             trophies: old.trophies ?? 0,
             endedAt: Date.now(),
+            completed: (old.rewardsClaimed ?? []).includes('trk:done'),
         });
         console.log(`[Progression] sezon ${old.id} zarchiwizowany do muzeum (${collected} pkt)`);
     }
@@ -617,6 +654,151 @@ class ProgressionServiceImpl {
         }
         st.season.rewardsClaimed = [...claimed];
         return grant;
+    }
+
+    /** v0.250.0 — wartosc licznika tieru: suma punktow albo liczba ROZNYCH sezoniakow. */
+    private trackValue(st: ProgressionState, tier: SeasonTrackTier): number {
+        if (tier.kind === 'points') return st.season.collected ?? 0;
+        if (tier.kind === 'complete') {
+            const claimed = new Set(st.season.rewardsClaimed ?? []);
+            const content = getSeasonContent(st.season.id);
+            return (content?.track ?? []).filter(x => x.kind !== 'complete' && claimed.has(`trk:${x.id}`)).length;
+        }
+        const owned = st.season.items ?? {};
+        return Object.values(owned).filter(n => (n ?? 0) > 0).length;
+    }
+
+    /**
+     * v0.250.0 SEZON v2 — wyplata SZLAKU SEZONU. Idempotentna po kluczu `trk:<id>` w
+     * `rewardsClaimed` (UNION przy syncPull, wiec drugie urzadzenie nie wyplaci dubla).
+     * Kosmetyk dodatkowo chroni `ownedCosmetics` (kto ma, nie dostaje duplikatu).
+     * Nowe tiery (np. p10/p25/p45) wyplacaja sie takze graczom, ktorzy przekroczyli je
+     * przed wersja v2 — to NOWE nagrody, nie dubel starych (stare klucze pts:/set: zostaja).
+     */
+    private creditSeasonTrack(st: ProgressionState): SeasonRewardGrant {
+        const grant: SeasonRewardGrant = {};
+        const content = getSeasonContent(st.season.id);
+        if (!content?.track) return grant;
+        const claimed = new Set(st.season.rewardsClaimed ?? []);
+        for (const tier of content.track) {
+            const key = `trk:${tier.id}`;
+            if (claimed.has(key) || this.trackValue(st, tier) < tier.need) continue;
+            claimed.add(key);
+            st.season.rewardsClaimed = [...claimed]; // 'complete' liczy z biezacego stanu
+            const rw = tier.reward;
+            if (rw.bolts) { st.bolts += rw.bolts; grant.bolts = (grant.bolts ?? 0) + rw.bolts; }
+            if (rw.crates) st.cratesEarned += rw.crates;
+            if (rw.cosmetic && getCosmetic(rw.cosmetic) && !st.ownedCosmetics.includes(rw.cosmetic)) {
+                st.ownedCosmetics = [...st.ownedCosmetics, rw.cosmetic];
+                (grant.cosmetics ??= []).push(rw.cosmetic);
+                grant.cosmetic ??= rw.cosmetic;
+            }
+            if (rw.seasonTank) {
+                const tank = seasonTankForSeason(st.season.id);
+                const k = tank ? tankUnlockKey(tank.brawlerId) : '';
+                if (tank && !st.ownedCosmetics.includes(k)) {
+                    st.ownedCosmetics = [...st.ownedCosmetics, k];
+                    grant.tank = tank.brawlerId;
+                }
+            }
+            (grant.tiers ??= []).push(tier.id);
+        }
+        st.season.rewardsClaimed = [...claimed];
+        return grant;
+    }
+
+    /**
+     * v0.250.0 — dociagniecie wyplat toru przy wejsciu na strone SEZON (np. progi przekroczone
+     * przed flipem flagi). Idempotentne; zapis + push tylko, gdy cos wyplacono.
+     */
+    claimSeasonTrack(profileId: string): SeasonRewardGrant {
+        this.ensureInitialized();
+        if (!isSeasonV2Enabled() || !isSeasonActive()) return {};
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        const grant = this.creditSeasonTrack(st);
+        if (grant.tiers?.length) {
+            st.updatedAt = Date.now();
+            this.save();
+            this.syncPush(profileId);
+        }
+        return grant;
+    }
+
+    /** v0.250.0 — czy czolg jest czolgiem sezonu i gracz go NIE ma (blokada w UI wyboru). */
+    isTankLocked(profileId: string, brawlerId: string): boolean {
+        if (!isSeasonV2Enabled() || !seasonTankOf(brawlerId)) return false;
+        this.ensureInitialized();
+        return !this.getOrCreate(profileId).ownedCosmetics.includes(tankUnlockKey(brawlerId));
+    }
+
+    /** v0.250.0 — pierwsza gratulacja sezonu do pokazania (czolg, potem ukonczenie) albo null. */
+    getPendingSeasonCelebration(profileId: string): SeasonCelebration | null {
+        if (!isSeasonV2Enabled()) return null;
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        const claimed = new Set(st.season.rewardsClaimed ?? []);
+        const tank = seasonTankForSeason(st.season.id);
+        if (tank && st.ownedCosmetics.includes(tankUnlockKey(tank.brawlerId)) && !claimed.has('cel:tank')) {
+            return { kind: 'tank', brawlerId: tank.brawlerId };
+        }
+        if (claimed.has('trk:done') && !claimed.has('cel:complete')) {
+            const done = getSeasonContent(st.season.id)?.track?.find(x => x.kind === 'complete');
+            return { kind: 'complete', bolts: done?.reward.bolts ?? 0 };
+        }
+        return null;
+    }
+
+    /** v0.250.0 — gratulacja pokazana (klucz w rewardsClaimed => UNION, nie powtorzy sie na innym urzadzeniu). */
+    markSeasonCelebrated(profileId: string, kind: SeasonCelebration['kind']): void {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        const key = `cel:${kind}`;
+        if ((st.season.rewardsClaimed ?? []).includes(key)) return;
+        st.season.rewardsClaimed = [...(st.season.rewardsClaimed ?? []), key];
+        st.updatedAt = Date.now();
+        this.save();
+        this.syncPush(profileId);
+    }
+
+    /** v0.250.0 — ukonczone sezony (odznaki): biezacy (gdy szlak domkniety) + archiwum. Id sezonow. */
+    getCompletedSeasons(profileId: string): string[] {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        const ids = (st.seasonArchive ?? []).filter(e => e.completed).map(e => e.id);
+        if ((st.season.rewardsClaimed ?? []).includes('trk:done')) ids.unshift(st.season.id);
+        return [...new Set(ids)];
+    }
+
+    /** v0.250.0 SEZON v2 — migawka Szlaku Sezonu dla strony SEZON (null = sezon bez toru). */
+    getSeasonTrackState(profileId: string): {
+        points: number;
+        distinct: number;
+        tiers: SeasonTrackTierState[];
+        /** Najblizszy niezdobyty tier punktowy (null = wszystkie punktowe zdobyte). */
+        next: SeasonTrackTierState | null;
+    } | null {
+        this.ensureInitialized();
+        const st = this.getOrCreate(profileId);
+        this.ensureSeason(st);
+        const content = getSeasonContent(st.season.id);
+        if (!content?.track) return null;
+        const claimed = new Set(st.season.rewardsClaimed ?? []);
+        const tiers = content.track.map(tier => {
+            const value = this.trackValue(st, tier);
+            return { tier, value, done: claimed.has(`trk:${tier.id}`) || value >= tier.need };
+        });
+        const pointsTier = tiers.find(x => x.tier.kind === 'points');
+        const setTier = tiers.find(x => x.tier.kind === 'set');
+        return {
+            points: pointsTier?.value ?? (st.season.collected ?? 0),
+            distinct: setTier?.value ?? 0,
+            tiers,
+            next: tiers.find(x => x.tier.kind === 'points' && !x.done) ?? null,
+        };
     }
 
     /**
@@ -897,6 +1079,7 @@ class ProgressionServiceImpl {
             console.warn('[Progression] syncPush pominiety — aktywny podglad sezonu (?season=)');
             return;
         }
+        if (seasonDemoPoints() !== null) return; // v0.250.0 podglad ?seasondemo — zero chmury
         // PIASKOWNICA SKLEPU (?shop=1) — dopoki wisi migawka, stan lokalny zawiera
         // testowe zakupy. Wyslanie ich do chmury zabetonowaloby je przez MAX-merge
         // (boltsSpent rosnie, ownedCosmetics to UNION) i RESET nie mialby juz czego
@@ -1602,6 +1785,8 @@ class ProgressionServiceImpl {
     }
 
     private save(): void {
+        // v0.250.0 — podglad ?seasondemo: stan tylko w pamieci (zero sladu w prawdziwym profilu).
+        if (seasonDemoPoints() !== null) return;
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(this.states));
         } catch (e) {

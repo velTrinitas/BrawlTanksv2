@@ -4365,3 +4365,343 @@ body.bt-desktop .bt-enter { animation-name: bt-enter-left; }
     border: 2px solid var(--hub-steel-950);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.250.0 SEZON v2 — strona SEZON: [hero | box SEZONIAKI] -> SZLAK SEZONU -> [KOLEKCJA | KOMPLETY].
+   Sezoniaki = jedyny licznik sezonu. Bez blur/backdrop (fill-rate A54); jedno tlo hero.
+   ══════════════════════════════════════════════════════════════════════════ */
+.sv2-top { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; margin-bottom: 12px; }
+.sv2-hero {
+    position: relative; min-height: 150px; border-radius: var(--radius-lg); overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--season) 45%, var(--hub-line));
+    background: linear-gradient(120deg, color-mix(in srgb, var(--season) 40%, #0f1722), #0f1722);
+}
+.sv2-hero-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+.sv2-hero::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(10, 16, 26, 0.92) 0%, rgba(10, 16, 26, 0.65) 45%, rgba(10, 16, 26, 0.05) 100%); }
+.sv2-hero-body { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; max-width: 62%; }
+.sv2-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: color-mix(in srgb, var(--season) 70%, #fff); }
+.sv2-title { margin: 0; font-family: var(--font-display, "Titan One", cursive); font-weight: 400; font-size: 30px; line-height: 1.05;
+    color: #fff; -webkit-text-stroke: 1.5px #000; text-shadow: 3px 3px 0 #000; }
+.sv2-time { align-self: flex-start; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800;
+    color: #fff; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.18); }
+.sv2-time.is-ended { color: #ffb3b3; }
+.sv2-hero .so-daysbar { max-width: 260px; }
+
+/* Box SEZONIAKI: ikona sezonu nad duza liczba (decyzja Mariusza). */
+.sv2-count {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px;
+    border-radius: var(--radius-lg); text-align: center;
+    background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--season) 35%, #1a2636), var(--hub-steel-900) 75%);
+    border: 2px solid color-mix(in srgb, var(--season) 70%, #ffffff 0%);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--season) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.sv2-count-ico { width: 84px; height: 84px; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+    animation: sv2-bob 2.6s ease-in-out infinite; }
+.sv2-count-n { font-family: var(--font-display, "Titan One", cursive); font-weight: 400; font-size: 44px; line-height: 1;
+    color: var(--hub-gold); -webkit-text-stroke: 1.5px #000; text-shadow: 3px 3px 0 #000; font-variant-numeric: tabular-nums; }
+.sv2-count-lbl { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #fff; }
+.sv2-count-next { font-size: 11px; font-weight: 700; color: var(--hub-ink-dim); }
+@keyframes sv2-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-5px) rotate(2deg); } }
+
+/* SZLAK SEZONU — poziomy tor, scroll w bok ze snapem, auto-scroll do najblizszej nagrody. */
+.sv2-trail { margin-bottom: 12px; padding: 12px 12px 6px; border-radius: var(--radius-lg);
+    background: var(--hub-steel-900); border: 1px solid var(--hub-line); }
+.sv2-trail-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 2px 10px; }
+.sv2-trail-title { font-family: var(--font-display, "Titan One", cursive); font-size: 18px; color: #fff;
+    -webkit-text-stroke: 1px #000; text-shadow: 2px 2px 0 #000; letter-spacing: 0.5px; }
+.sv2-trail-pts { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px;
+    font-weight: 800; font-size: 13px; color: var(--hub-gold); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--hub-line); }
+.sv2-trail-pts img { width: 26px; height: 26px; object-fit: contain; }
+.sv2-track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; padding: 10px 10px 10px 2px;
+    scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--hub-accent) 60%, transparent) transparent; }
+.sv2-node { flex: 0 0 132px; scroll-snap-align: center; display: flex; flex-direction: column; gap: 6px; }
+.sv2-node.is-big { flex-basis: 156px; }
+.sv2-need { text-align: center; font-size: 12px; font-weight: 800; color: var(--hub-ink-dim); }
+.sv2-need span { font-family: var(--font-display, "Titan One", cursive); font-weight: 400; font-size: 16px; color: #fff; }
+.sv2-bar { height: 7px; border-radius: 4px; background: rgba(0, 0, 0, 0.45); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.08); }
+.sv2-bar > i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ffe07a, #f1c40f); }
+.sv2-card { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
+    padding: 10px 8px; border-radius: 14px; text-align: center; min-height: 128px;
+    background: linear-gradient(180deg, #223047, #141d2c); border: 2px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45); }
+.sv2-node.is-big .sv2-card { background: linear-gradient(180deg, color-mix(in srgb, var(--season, #3aa0e0) 35%, #223047), #141d2c);
+    border-color: color-mix(in srgb, var(--season, #3aa0e0) 55%, transparent); }
+.sv2-node.is-next .sv2-card { border-color: #ffd24a; animation: sv2-next 1.6s ease-in-out infinite; }
+.sv2-node.is-next .sv2-need, .sv2-node.is-next .sv2-need span { color: #ffd24a; }
+@keyframes sv2-next { 0%, 100% { box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 0 rgba(255, 210, 74, 0); }
+    50% { box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 16px rgba(255, 210, 74, 0.6); } }
+.sv2-node.is-done .sv2-card { border-color: #2ecc71; background: linear-gradient(180deg, #1f3a2d, #142219); }
+.sv2-node.is-done .sv2-bar > i { background: linear-gradient(90deg, #6ee69b, #2ecc71); }
+.sv2-node.is-fresh .sv2-card { animation: sv2-fresh 0.9s ease-out 2; }
+@keyframes sv2-fresh { 0% { transform: scale(1); } 35% { transform: scale(1.08); box-shadow: 0 0 22px rgba(46, 204, 113, 0.9); } 100% { transform: scale(1); } }
+.sv2-check { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    background: #2ecc71; color: #0f1f15; font-weight: 900; font-size: 13px; border: 2px solid #0f1722; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); }
+.sv2-art { display: grid; place-items: center; min-height: 46px; }
+.sv2-art--tank { position: relative; font-size: 34px; border-radius: 12px; background: radial-gradient(circle, #3a2f12, #1a1508);
+    border: 2px dashed #f1c40f; }
+.sv2-art--tank i { position: absolute; right: 6px; bottom: 2px; font-style: normal; font-family: var(--font-display, "Titan One", cursive); font-size: 16px; color: #f1c40f; }
+.sv2-rlabel { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; line-height: 1.2; color: #e9edf8; }
+.sv2-rname { font-weight: 800; }
+.sv2-rextra { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; color: var(--hub-gold); }
+.sv2-rextra .sep { font-style: normal; color: var(--hub-ink-dim); margin: 0 2px; }
+
+/* Mini-ekran menu (nagroda „Motyw menu") — art kosmetyku */
+.bt-cosart--theme { position: relative; background-size: cover; background-position: center; border: 2px solid var(--acc); }
+.bt-cosart--theme .tb { position: absolute; left: 0; right: 0; top: 0; height: 18%; background: color-mix(in srgb, var(--acc) 80%, #000); }
+.bt-cosart--theme .rl { position: absolute; left: 0; top: 18%; bottom: 0; width: 16%; background: rgba(10, 16, 26, 0.8); border-right: 2px solid var(--acc); }
+.bt-cosart--theme .em { position: relative; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6)); }
+
+/* KOLEKCJA | KOMPLETY */
+.sv2-bottom { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; }
+.sv2-panel { padding: 4px 12px 12px; border-radius: var(--radius-lg); background: var(--hub-steel-900); border: 1px solid var(--hub-line); min-width: 0; }
+.sv2-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+/* Kafel sezoniaka (szkic Mariusza): [ikona nad nazwa | duze ×N]. Tlo = kolor rzadkosci (--g)
+   w glebokim gradiencie, gorna krawedz swiatla, miekka poswiata, odblask przelatujacy co kilka s. */
+.sv2-item {
+    position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px;
+    padding: 8px 12px 8px 8px; border-radius: 14px; min-height: 76px;
+    background: rgba(0, 0, 0, 0.32); border: 2px dashed rgba(255, 255, 255, 0.14);
+}
+.sv2-item-l { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 62px; }
+.sv2-item img { width: 46px; height: 46px; object-fit: contain; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45)); transition: transform 0.18s ease; }
+.sv2-item-q { display: grid; place-items: center; width: 46px; height: 46px; font-family: var(--font-display, "Titan One", cursive); font-size: 26px; color: rgba(255, 255, 255, 0.3); }
+.sv2-item-name { font-size: 11px; font-weight: 800; color: #fff; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
+.sv2-item-n { justify-self: end; font-family: var(--font-display, "Titan One", cursive); font-weight: 400; font-size: 30px; line-height: 1; color: #fff;
+    -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.55); text-shadow: 0 3px 0 rgba(0, 0, 0, 0.35); font-variant-numeric: tabular-nums; }
+.sv2-item-n.is-pts { font-size: 20px; color: rgba(255, 255, 255, 0.35); -webkit-text-stroke: 0; text-shadow: none; }
+.sv2-item-n.is-pts small { font-size: 11px; margin-left: 3px; }
+.sv2-item.is-owned {
+    border: 2px solid color-mix(in srgb, var(--g) 75%, #000);
+    background:
+        radial-gradient(120% 90% at 25% 30%, color-mix(in srgb, var(--g) 45%, transparent), transparent 70%),
+        linear-gradient(160deg, color-mix(in srgb, var(--g) 55%, #10324a), color-mix(in srgb, var(--g) 22%, #0c1826));
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.18), inset 0 -3px 0 rgba(0, 0, 0, 0.25), 0 3px 0 rgba(0, 0, 0, 0.4), 0 0 14px color-mix(in srgb, var(--g) 30%, transparent);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.sv2-item.is-owned:hover { transform: translateY(-2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), 0 5px 0 rgba(0, 0, 0, 0.4), 0 0 20px color-mix(in srgb, var(--g) 55%, transparent); }
+.sv2-item.is-owned:hover img { transform: rotate(-8deg) scale(1.08); }
+.sv2-item-shine { position: absolute; top: -20%; bottom: -20%; left: -40%; width: 28%; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+    transform: skewX(-18deg); animation: sv2-shine 5.5s ease-in-out infinite; }
+.sv2-item.is-owned:nth-child(2) .sv2-item-shine { animation-delay: 0.6s; }
+.sv2-item.is-owned:nth-child(3) .sv2-item-shine { animation-delay: 1.2s; }
+.sv2-item.is-owned:nth-child(4) .sv2-item-shine { animation-delay: 1.8s; }
+.sv2-item.is-owned:nth-child(5) .sv2-item-shine { animation-delay: 2.4s; }
+.sv2-item.is-owned:nth-child(6) .sv2-item-shine { animation-delay: 3.0s; }
+@keyframes sv2-shine { 0%, 70% { left: -40%; } 100% { left: 130%; } }
+@media (prefers-reduced-motion: reduce) { .sv2-item-shine { animation: none; display: none; } }
+.sv2-howto { margin: 10px 2px 0; font-size: 12px; color: var(--hub-ink-dim); line-height: 1.35; }
+.sv2-sets { display: flex; flex-direction: column; gap: 8px; }
+.sv2-set { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px;
+    background: linear-gradient(180deg, #223047, #141d2c); border: 2px solid rgba(255, 255, 255, 0.10); }
+.sv2-set.is-done { border-color: #2ecc71; background: linear-gradient(180deg, #1f3a2d, #142219); }
+.sv2-set-art { flex: 0 0 auto; }
+.sv2-set-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sv2-set-need { font-size: 12px; font-weight: 800; color: #fff; }
+.sv2-set .sv2-rlabel { align-items: flex-start; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.sv2-set .sv2-check { top: -6px; right: -6px; }
+
+/* Desktop — szersze karty i wieksza liczba */
+body.bt-desktop .sv2-top { grid-template-columns: minmax(0, 1fr) 240px; }
+body.bt-desktop .sv2-hero { min-height: 180px; }
+body.bt-desktop .sv2-title { font-size: 36px; }
+body.bt-desktop .sv2-count-ico { width: 104px; height: 104px; }
+body.bt-desktop .sv2-count-n { font-size: 52px; }
+body.bt-desktop .sv2-node { flex-basis: 148px; }
+body.bt-desktop .sv2-node.is-big { flex-basis: 172px; }
+
+/* Telefon w poziomie (niski viewport) — kompaktowo, tor nadal jeden rzad. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .sv2-top { grid-template-columns: minmax(0, 1fr) 170px; gap: 8px; margin-bottom: 8px; }
+    .sv2-hero { min-height: 108px; }
+    .sv2-hero-body { padding: 10px 12px; gap: 4px; max-width: 70%; }
+    .sv2-title { font-size: 22px; }
+    .sv2-count { flex-direction: row; flex-wrap: wrap; gap: 2px 8px; padding: 6px; }
+    .sv2-count-ico { width: 56px; height: 56px; }
+    .sv2-count-n { font-size: 32px; }
+    .sv2-count-lbl, .sv2-count-next { flex-basis: 100%; }
+    .sv2-trail { padding: 8px 8px 2px; margin-bottom: 8px; }
+    .sv2-trail-head { margin-bottom: 6px; }
+    .sv2-node { flex-basis: 112px; }
+    .sv2-node.is-big { flex-basis: 132px; }
+    .sv2-card { min-height: 108px; padding: 8px 6px; }
+    .sv2-items { gap: 6px; }
+    .sv2-item { min-height: 62px; padding: 6px 10px 6px 6px; }
+    .sv2-item img, .sv2-item-q { width: 36px; height: 36px; }
+    .sv2-item-n { font-size: 24px; }
+}
+/* Waski ekran (pion) — wszystko pod soba */
+@media (max-width: 600px) {
+    .sv2-top, .sv2-bottom { grid-template-columns: 1fr; }
+    .sv2-count { flex-direction: row; gap: 10px; }
+    .sv2-count-ico { width: 56px; height: 56px; }
+    .sv2-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sv2-count-ico, .sv2-node.is-next .sv2-card, .sv2-node.is-fresh .sv2-card { animation: none; }
+}
+
+/* v0.250.0 SEZON v2 — emoji sezonu w pigulce belki (numer sezonu zniknal z frontu) */
+.bt-hub0-s2 .s2-emo { font-style: normal; margin-right: 5px; }
+
+/* v0.250.0 SEZON v2 — PUCHARKI bez Szlaku Sezonu: glowa na cala szerokosc, akty JEDEN POD DRUGIM,
+   kazdy akt = siatka kafli (desktop 3 kolumny, telefon w poziomie 2, pion 1). Akty maja 9/2/4 progi,
+   wiec kolumny obok siebie zostawialy dziury — siatka w wierszach wypelnia szerokosc rowno. */
+.bt-hub0-road-v2 .bt-hub0-road-head { margin-bottom: 4px; }
+.bt-hub0-road-acts { display: flex; flex-direction: column; }
+.bt-hub0-road-acts .bt-hub0-road-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 701px) { .bt-hub0-road-acts .bt-hub0-road-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+body.bt-desktop .bt-hub0-road-acts .bt-hub0-road-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (orientation: landscape) and (max-height: 500px) {
+    .bt-hub0-road-v2 .bt-hub0-road-head { padding: 8px 12px; }
+    .bt-hub0-road-acts .bt-hub0-road-act { margin: 8px 2px 6px; }
+    .bt-hub0-road-acts .bt-hub0-road-list { gap: 6px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.250.0 SEZON v2 — MOTYW MENU (kosmetyk 'menuTheme', nagroda Szlaku Sezonu, wl/wyl w Kolekcji).
+   .bt-hub0-screen.bt-theme-on + zmienne --theme-acc / --theme-bg / --theme-decor (HubShell.applyMenuTheme).
+   Koszt: jedno tlo (zamiast domyslnego), poswiaty box-shadow — bez blur/backdrop (fill-rate A54).
+   ══════════════════════════════════════════════════════════════════════════ */
+.bt-hub0-screen.bt-theme-on {
+    --hub-accent: var(--theme-acc);
+    background-image:
+        linear-gradient(180deg, rgba(10, 18, 30, 0.80) 0%, rgba(10, 18, 30, 0.90) 100%),
+        var(--theme-bg);
+}
+/* Belka: cienka linia akcentu u dolu + tlo z dekoru sezonu przygaszone */
+.bt-theme-on .bt-hub0-top {
+    background-image: linear-gradient(90deg, rgba(12, 20, 32, 0.94), rgba(12, 20, 32, 0.78) 50%, rgba(12, 20, 32, 0.94)), var(--theme-decor);
+    background-size: cover; background-position: center;
+    box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--theme-acc) 70%, transparent);
+}
+/* (1) Srodek belki — mini Szlak Sezonu */
+.bt-hub0-themestrip {
+    display: none; align-items: center; gap: 10px; min-width: 0; max-width: 520px; margin: 0 auto;
+    padding: 4px 14px 4px 6px; border-radius: 999px; cursor: pointer; color: #fff;
+    background: rgba(0, 0, 0, 0.45); border: 2px solid color-mix(in srgb, var(--theme-acc) 75%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--theme-acc) 35%, transparent);
+    font-family: inherit;
+}
+.bt-theme-on .bt-hub0-themestrip { display: flex; }
+.bt-hub0-themestrip img { width: 34px; height: 34px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+.bt-hub0-themestrip .ts-name { font-family: var(--font-display, "Titan One", cursive); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    -webkit-text-stroke: 1px #000; text-shadow: 1px 1px 0 #000; }
+.bt-hub0-themestrip .ts-bar { flex: 1 1 120px; min-width: 60px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); overflow: hidden; }
+.bt-hub0-themestrip .ts-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffe07a, #f1c40f); }
+.bt-hub0-themestrip .ts-pts { font-family: var(--font-display, "Titan One", cursive); font-weight: 400; color: var(--hub-gold); font-size: 15px; }
+.bt-hub0-themestrip:hover { border-color: var(--theme-acc); }
+/* (2) Karta profilu — ramka i poswiata w kolorze motywu */
+.bt-theme-on .bt-hub0-phero {
+    border-color: var(--theme-acc) !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-acc) 40%, transparent), 0 0 22px color-mix(in srgb, var(--theme-acc) 35%, transparent);
+}
+/* (3) Dol paska nawigacji (desktop) — emblemat sezonu */
+.bt-hub0-theme-emblem { display: none; }
+body.bt-desktop .bt-theme-on .bt-hub0-theme-emblem {
+    display: grid; place-items: center; margin: auto auto 14px; width: 54px; height: 54px; border-radius: 50%;
+    font-size: 28px; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--theme-acc) 55%, #1a2636), #0f1722 75%);
+    border: 2px solid var(--theme-acc); box-shadow: 0 0 16px color-mix(in srgb, var(--theme-acc) 50%, transparent);
+    animation: sv2-bob 3.2s ease-in-out infinite;
+}
+/* Wskaznik aktywnej sekcji i aktywny przycisk w kolorze motywu */
+.bt-theme-on .bt-hub0-navbtn.is-active { border-color: var(--theme-acc); }
+/* Telefon w poziomie: pasek bez nazwy (miejsce na walute) */
+@media (orientation: landscape) and (max-height: 500px) {
+    .bt-hub0-themestrip { gap: 6px; padding: 2px 10px 2px 4px; max-width: 260px; }
+    .bt-hub0-themestrip img { width: 26px; height: 26px; }
+    .bt-hub0-themestrip .ts-name { display: none; }
+}
+@media (max-width: 600px) { .bt-hub0-themestrip .ts-name { display: none; } }
+@media (prefers-reduced-motion: reduce) { body.bt-desktop .bt-theme-on .bt-hub0-theme-emblem { animation: none; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.250.0 SEZON v2 — CZOLG SEZONU (galeria, garaz, TRYB GRY, szlak), gratulacje, muzeum, odznaki.
+   Jeden znak rozpoznawczy: wstazka „SEZONOWY" w kolorze sezonu (--season) + emoji sezonu.
+   ══════════════════════════════════════════════════════════════════════════ */
+.bt-season-ribbon {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px 3px 6px; border-radius: 6px;
+    font-family: var(--font-display, "Titan One", cursive); font-weight: 400; font-size: 11px; letter-spacing: 0.8px; color: #fff;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--season) 85%, #fff 15%), color-mix(in srgb, var(--season) 75%, #000));
+    border: 1px solid rgba(255, 255, 255, 0.35); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 10px color-mix(in srgb, var(--season) 55%, transparent);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); white-space: nowrap; position: relative; overflow: hidden;
+}
+.bt-season-ribbon i { font-style: normal; font-size: 12px; }
+.bt-season-ribbon::after { content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent); transform: skewX(-18deg);
+    animation: sv2-shine 4.5s ease-in-out infinite; }
+.bt-season-ribbon.is-gr2 { align-self: flex-start; margin-bottom: 4px; }
+.bt-season-ribbon.is-card { font-size: 9px; padding: 2px 6px 2px 4px; margin-left: 6px; }
+.bt-season-ribbon.is-cel { font-size: 13px; vertical-align: middle; margin-left: 8px; }
+
+/* Galeria: osobny pas CZOLG SEZONU */
+.bt-rs-season { margin-top: 14px; padding: 10px 10px 12px; border-radius: 16px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--season) 22%, #121b29), #0e1520);
+    border: 2px solid color-mix(in srgb, var(--season) 60%, transparent);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--season) 25%, transparent); }
+.bt-rs-season-head { display: flex; align-items: baseline; gap: 10px; margin: 0 4px 8px; }
+.bt-rs-season-head span { font-family: var(--font-display, "Titan One", cursive); font-size: 18px; line-height: 1.3; padding-bottom: 2px; color: #fff; -webkit-text-stroke: 1px #000; text-shadow: 2px 2px 0 #000; }
+.bt-rs-season-head small { font-size: 12px; font-weight: 800; color: color-mix(in srgb, var(--season) 70%, #fff); }
+.bt-rs-card.is-season { position: relative; border-color: color-mix(in srgb, var(--season) 70%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--season) 35%, transparent); }
+.bt-rs-card.is-season > .bt-season-ribbon { position: absolute; top: 8px; left: 8px; z-index: 2; }
+.bt-rs-card.is-locked .rs-media img { filter: grayscale(0.85) brightness(0.55); }
+.bt-rs-card.is-locked .rs-media { position: relative; }
+.bt-rs-card .rs-lock { position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.6)); }
+.bt-rs-card .rs-season-how { font-size: 12px; font-weight: 700; color: #e9edf8; text-align: center; padding: 0 8px; }
+.bt-rs-card .rs-season-bar { display: block; height: 8px; margin: 4px 12px 0; border-radius: 4px; background: rgba(0, 0, 0, 0.5); overflow: hidden; }
+.bt-rs-card .rs-season-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffe07a, #f1c40f); }
+.bt-rs-card .rs-season-pts { font-family: var(--font-display, "Titan One", cursive); font-size: 14px; color: var(--hub-gold, #f1c40f); text-align: center; }
+.bt-rs-card .rs-cta--season { cursor: pointer; border: 0; color: #1a252f; background: linear-gradient(180deg, #ffe07a, #f1c40f); }
+
+/* Szlak: portret czolgu sezonu na ostatnim progu */
+.sv2-art--tankimg { position: relative; border-radius: 12px; overflow: hidden; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 40%, #ffffff, color-mix(in srgb, var(--tank) 35%, #d9dee6)); border: 2px solid #f1c40f; }
+.sv2-art--tankimg img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+.sv2-art--tankimg.is-locked img { filter: grayscale(0.8) brightness(0.7); }
+.sv2-art--tankimg i { position: absolute; font-style: normal; font-size: 22px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6)); }
+
+/* Gratulacje sezonu (na skorze .bt-rankup) */
+.bt-scel .bt-rankup-rays { filter: hue-rotate(0deg); }
+.bt-scel-tank { display: grid; place-items: center; width: 190px; height: 130px; border-radius: 20px; overflow: hidden;
+    background: radial-gradient(circle at 50% 40%, #ffffff, color-mix(in srgb, var(--tank) 30%, #dfe5ec));
+    border: 4px solid var(--season); box-shadow: 0 0 30px color-mix(in srgb, var(--season) 70%, transparent), 0 6px 0 rgba(0, 0, 0, 0.4); }
+.bt-scel-tank img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+.bt-scel-emblem { position: relative; display: grid; place-items: center; width: 130px; height: 130px; border-radius: 50%; font-size: 64px;
+    background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--season) 60%, #fff 10%), #1a1408 75%);
+    border: 5px solid #f1c40f; box-shadow: 0 0 34px rgba(241, 196, 15, 0.75), 0 6px 0 rgba(0, 0, 0, 0.45); }
+.bt-scel-emblem i { position: absolute; right: 6px; bottom: 6px; font-style: normal; font-size: 30px; color: #ffe07a; text-shadow: 0 2px 0 #000; }
+.bt-scel-reward { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: nowrap; font-weight: 800; color: var(--hub-gold, #f1c40f); }
+.bt-scel-ctas { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.bt-scel-later { cursor: pointer; padding: 10px 16px; border-radius: 12px; border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.35); color: #fff; font-weight: 800; font-size: 14px; }
+
+/* Muzeum sezonow */
+.sv2-museum { margin-top: 12px; }
+.sv2-mus { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px;
+    padding: 8px 10px; margin-top: 6px; border-radius: 12px; background: rgba(0, 0, 0, 0.3);
+    border: 1px solid color-mix(in srgb, var(--season) 50%, transparent); }
+.sv2-mus.is-done { border: 2px solid #f1c40f; box-shadow: 0 0 12px rgba(241, 196, 15, 0.35); }
+.sv2-mus-emo { font-size: 22px; }
+.sv2-mus-name { font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv2-mus-items { display: flex; gap: 3px; }
+.sv2-mus-items img, .sv2-mus-items .q { width: 22px; height: 22px; object-fit: contain; display: grid; place-items: center; color: rgba(255, 255, 255, 0.3); font-weight: 900; }
+.sv2-mus-pts { font-family: var(--font-display, "Titan One", cursive); font-weight: 400; color: var(--hub-gold, #f1c40f); }
+.sv2-mus-badge { font-size: 11px; font-weight: 900; color: #1a252f; background: #f1c40f; padding: 2px 8px; border-radius: 999px; }
+
+/* Odznaki ukonczonych sezonow w karcie profilu */
+.ph-sbadge { position: relative; font-size: 16px; padding: 4px 10px; border: 2px solid #f1c40f !important;
+    background: radial-gradient(circle, color-mix(in srgb, var(--season) 50%, #1a1408), #120e05) !important;
+    box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
+.ph-sbadge i { font-style: normal; font-size: 10px; color: #ffe07a; margin-left: 2px; }
+
+@media (prefers-reduced-motion: reduce) { .bt-season-ribbon::after { animation: none; display: none; } }
+@media (orientation: landscape) and (max-height: 500px) {
+    .bt-scel-tank { width: 150px; height: 100px; }
+    .bt-scel-emblem { width: 96px; height: 96px; font-size: 46px; }
+    .sv2-mus { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+    .sv2-mus-items { display: none; }
+}
+.bt-scel .bt-rankup-reward { flex-direction: column; text-align: center; max-width: 440px; line-height: 1.35; }
+.bt-scel .bt-rankup-reward br { display: none; }

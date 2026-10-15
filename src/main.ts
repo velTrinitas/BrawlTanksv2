@@ -236,6 +236,7 @@ import { PowerCube } from './entities/pickups/PowerCube'; // v0.44.0 FAZA 8.6
 import { SeasonPickup } from './entities/pickups/SeasonPickup'; // SEASON KIT — znajdzki sezonowe
 import { getSeasonContent, getItemByValue, rollSeasonItem, type SeasonContentDef } from './config/seasonContent';
 import { getCurrentSeason } from './config/season';
+import { isSeasonV2Enabled } from './config/seasonV2Flag'; // v0.250.0 SEZON v2
 import { HoverRepairPad } from './maps/HoverRepairPad';
 import { PowerHoverPad } from './maps/PowerHoverPad';
 import { HUD, type HudCastleInfo, type HudCtfInfo } from './rendering/HUD';
@@ -4662,6 +4663,12 @@ QuestService.onQuestEvent = (kind, quest) => {
  * (undefined = nic nowego). Z rejestru, nie z i18n-po-id, bo `t()` przyjmuje tylko
  * klucze typu TranslationKey — `def.labelKey` nim jest, dynamiczny string nie bylby.
  */
+/** v0.250.0 SEZON v2 — ikona sezoniakow sezonu (PNG z manifestu) w chipie endcarda; bez flagi stare 📕. */
+function seasonPickupIconHtml(): string {
+    const icon = isSeasonV2Enabled() ? getSeasonContent(getCurrentSeason().id)?.counterIcon : undefined;
+    return icon ? `<img src="${import.meta.env.BASE_URL}${icon}" alt="" style="width:22px;height:22px;object-fit:contain;margin:-4px 0;">` : '📕';
+}
+
 function seasonSkinNameOf(r: RunProgressionResult | null): string | undefined {
     const id = r?.seasonReward.cosmetic;
     const def = id ? getCosmetic(id) : undefined;
@@ -4670,6 +4677,18 @@ function seasonSkinNameOf(r: RunProgressionResult | null): string | undefined {
 
 /** Glosny notif o nowym skinie — Flex: nagroda za sezon ma byc SLYSZALNA, nie tylko w chipie. */
 function announceSeasonSkin(r: RunProgressionResult | null): void {
+    // v0.250.0 SEZON v2: tor moze dac kilka kosmetykow roznych typow naraz — kazdy glosno (Flex).
+    const sr = r?.seasonReward;
+    if (isSeasonV2Enabled() && sr) {
+        const ids = sr.cosmetics ?? [];
+        for (const id of ids) {
+            const def = getCosmetic(id);
+            if (def) hud.addNotif(t('hud.seasonReward', { name: t(def.labelKey) }), '#c39bd3');
+        }
+        if (sr.tank) hud.addNotif(t('hud.seasonTankUnlocked'), '#ffd24a'); // pelne gratulacje po powrocie do hubu
+        if (!ids.length && !sr.tank && sr.tiers?.length) hud.addNotif(t('hud.seasonTier'), '#c39bd3');
+        return;
+    }
     const name = seasonSkinNameOf(r);
     if (name) hud.addNotif(t('hud.seasonSkin', { name }), '#c39bd3');
 }
@@ -4885,7 +4904,7 @@ function renderEndScreenBase(kind: 'defeat' | 'victory', d: EndScreenData, btnId
             ${d.questsDone && d.questsDone > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#c0721c;padding:5px 14px;border-radius:12px;border:2px solid #8a4f12;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📋 ${t('end.questsDone', { n: d.questsDone })}</span>` : ''}
             ${d.seasonSkinName ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #5b2c7a;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎨 ${t('end.seasonSkin')}: ${d.seasonSkinName}</span>` : ''}
             ${d.diceUsed && d.diceUsed > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#8e44ad;padding:5px 14px;border-radius:12px;border:2px solid #6c3483;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">🎲 ${t('end.funMode')}</span>` : ''}
-            ${d.seasonPickups && d.seasonPickups > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#2f6fb5;padding:5px 14px;border-radius:12px;border:2px solid #1f4e82;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);">📕 +${d.seasonPickups} ${t('end.seasonPickups')}</span>` : ''}
+            ${d.seasonPickups && d.seasonPickups > 0 ? `<span style="font-family:${SYS};font-size:0.8rem;font-weight:800;color:#fff;background:#2f6fb5;padding:5px 14px;border-radius:12px;border:2px solid #1f4e82;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,0.15);display:inline-flex;align-items:center;gap:4px;">${seasonPickupIconHtml()} +${d.seasonPickups} ${t('end.seasonPickups')}</span>` : ''}
         </div>` : '';
 
     // v0.100.0 FIX REGRESJI — wariant KOMPAKTOWY wiersza progresji dla layoutu v2 (landscape @375px).
@@ -6291,6 +6310,7 @@ function runLogicStep(delta: number): void {
         // Chip w HUD: null przy sezonie bez znajdziek => HUD nie rysuje go I nie
         // rezerwuje wiersza (magnes/turbo zostaja na swoich miejscach).
         hud.seasonCount = content ? currentSession.seasonPickupsCollected : null;
+        hud.setSeasonIcon(content && isSeasonV2Enabled() ? (content.counterIcon ?? null) : null); // v0.250.0 (idempotentne)
         if (content) {
             // v0.139.0: `hud.seasonIcon` usuniete — chip pokazuje sama liczbe pod
             // podpisem „ZNAJDŹKI", bez emoji 📕 (ktore i tak dublowalo zle znaczenie).
@@ -6307,7 +6327,9 @@ function runLogicStep(delta: number): void {
                 // do polnocy — naturalne losowanie 3% dziala dalej bez ograniczen,
                 // wiec szczescie nadal jest mozliwe, a pilnosc placi raz dziennie.
                 const pityAllowed = ProgressionService.canSpawnSeasonLegendary(currentSession.config.profileId);
-                const item = rollSeasonItem(content, pityAllowed ? seasonMissStreak : 0);
+                // v0.250.0 SEZON v2: losowanie z worldRng (spawn znajdziek to stan gry w koopie; flip = SIM bump)
+                const item = rollSeasonItem(content, pityAllowed ? seasonMissStreak : 0,
+                    isSeasonV2Enabled() ? () => worldRng.next() : Math.random);
                 // pity: licznik prob BEZ "szostki" — zerowany dopiero, gdy padnie
                 seasonMissStreak = item.value === 6 ? 0 : seasonMissStreak + 1;
 

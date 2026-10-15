@@ -41,6 +41,7 @@ const TYPE_LABEL_KEY = {
     avatarBg: 'hub.garage.type.avatarBg', // v0.144.0
     profileSkin: 'hub.garage.type.profileSkin', // v0.147.0
     tankSkin: 'hub.garage.type.tankSkin', // SKIN-1
+    menuTheme: 'hub.garage.type.menuTheme', // v0.250.0 SEZON v2
 } as const;
 
 /**
@@ -89,6 +90,9 @@ export function cosmeticChipHtml(
         // co avatarBg/ramki) — kropka rzadkosci nic by nie powiedziala o palecie.
         : def.type === 'tankSkin'
             ? `<span class="dot" style="${tankSkinSwatchStyle(def)}" aria-hidden="true"></span>`
+        // v0.250.0 SEZON v2: motyw menu = baner z artem sezonu + emoji, ramka w kolorze akcentu.
+        : def.type === 'menuTheme'
+            ? `<span class="dot dot--banner" style="background:url('${COS_BASE}${def.bgImage ?? ''}') center/cover;border:2px solid ${def.color ?? '#f1c40f'};display:grid;place-items:center;font-size:18px;" aria-hidden="true">${def.emoji ?? ''}</span>`
         : def.type === 'crosshair'
             ? crosshairCanvasHtml(def.id, GRID_PREVIEW_PX)
             : EMOJI_TYPES.has(def.type) && def.emoji
@@ -122,7 +126,7 @@ const SINGLE_ROW_TYPES: ReadonlySet<CosmeticType> = new Set<CosmeticType>(['nick
  * v0.147.0 — typy w siatce DWUKOLUMNOWEJ. Baner 1024:167 w kaflu 44 px bylby kreska;
  * potrzebuje polowy szerokosci kolumny, zeby dalo sie rozpoznac kamuflaz od zywiolu.
  */
-const WIDE_ROW_TYPES: ReadonlySet<CosmeticType> = new Set<CosmeticType>(['profileSkin']);
+const WIDE_ROW_TYPES: ReadonlySet<CosmeticType> = new Set<CosmeticType>(['profileSkin', 'menuTheme']); // v0.250.0: motyw jak baner
 
 /** Grupy kosmetykow (naglowek typu + grid kart) dla podanych typow. */
 /** SKIN-2: etykiety podgrup skinow (patternCat; undefined = palety). */
@@ -217,6 +221,8 @@ export function cosmeticArtHtml(def: CosmeticDef, px: number): string {
             return `<span class="bt-cosart bt-cosart--banner" style="width:${Math.round(px * 1.8)}px;height:${Math.round(px * 0.7)}px;${profileSkinStyle(def, COS_BASE)}"></span>`;
         case 'tankSkin':
             return `<span class="bt-cosart bt-cosart--bg" style="${size}${tankSkinSwatchStyle(def)}"></span>`;
+        case 'menuTheme': // v0.250.0: mini-ekran menu — tlo sezonu, pasek w kolorze akcentu, emoji sezonu
+            return `<span class="bt-cosart bt-cosart--theme" style="${size}--acc:${def.color ?? '#f1c40f'};background-image:url('${COS_BASE}${def.bgImage ?? ''}');"><i class="tb"></i><i class="rl"></i><span class="em" style="font-size:${Math.round(px * 0.34)}px;">${def.emoji ?? '🎨'}</span></span>`;
         case 'crosshair':
             return `<span class="bt-cosart bt-cosart--xhair" style="${size}">${crosshairCanvasHtml(def.id, Math.round(px * 0.85), true)}</span>`;
         default:

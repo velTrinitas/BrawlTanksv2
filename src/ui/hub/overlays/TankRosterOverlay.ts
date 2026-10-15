@@ -5,6 +5,10 @@ import { isEnigmaEnabled } from '../../../config/enigmaFlag'; // ENIGMA: z flaga
 import { tankName, statRowHtml, STAT_MAX, tempoOf } from '../sections/BattleSection';
 import { reducedMotion } from '../juice';
 import { playUiClick, playUiSelect, playUiBack } from '../../uiSounds';
+import { ProfileService } from '../../../services/ProfileService'; // v0.250.0 czolg sezonu
+import { ProgressionService } from '../../../services/ProgressionService';
+import { getCurrentSeason } from '../../../config/season';
+import { isSeasonTank, seasonRibbonHtml, seasonTankProgress, tankPortrait } from '../seasonTankUi';
 import type { Brawler } from '../../../types/Brawler';
 
 /**
@@ -40,6 +44,8 @@ export interface RosterOpenOpts {
     selectedId: string;
     onPick: (brawlerId: string) => void;
     onDone?: () => void;
+    /** v0.250.0 — przycisk „Zobacz Szlak" na zablokowanej karcie czolgu sezonu. */
+    onOpenSeason?: () => void;
 }
 
 export class TankRosterOverlay {
@@ -52,7 +58,9 @@ export class TankRosterOverlay {
         this.onDone = opts.onDone ?? null;
         const v2 = isBalanceV2Enabled();
 
-        const cards = BRAWLERS.map((b, i) => {
+        // v0.250.0 SEZON v2: czolg sezonu NIE stoi w zwyklej siatce — ma wlasny pas na koncu galerii.
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        const cards = BRAWLERS.filter(b => !isSeasonTank(b.id)).map((b, i) => {
             const mine = b.id === opts.selectedId;
             return `
             <button class="bt-rs-card${mine ? ' is-mine' : ''}" type="button" data-pick="${b.id}"
@@ -81,6 +89,48 @@ export class TankRosterOverlay {
                 <span class="rs-soon">🔒 ${t('hub.roster.soon')}</span>
             </div>`;
 
+        // Pas CZOLGU SEZONU: zablokowany = sylwetka + klodka + postep sezoniakow + „Zobacz Szlak";
+        // odblokowany = zwykla karta wyboru z wstazka SEZONOWY i ramka w kolorze sezonu.
+        const season = getCurrentSeason();
+        const seasonCards = BRAWLERS.filter(b => isSeasonTank(b.id)).map((b, i) => {
+            const locked = ProgressionService.isTankLocked(pid, b.id);
+            const mine = b.id === opts.selectedId;
+            if (locked) {
+                const pr = seasonTankProgress(pid);
+                const pct = pr.need ? Math.min(100, Math.round((pr.points / pr.need) * 100)) : 0;
+                return `
+            <div class="bt-rs-card is-season is-locked" style="--tank:${b.colorMain}; --season:${season.accentColor}; --i:${i}">
+                ${seasonRibbonHtml()}
+                <span class="rs-media"><img src="${tankPortrait(b)}" alt="" loading="lazy" draggable="false"><b class="rs-lock" aria-hidden="true">🔒</b></span>
+                <span class="rs-name">${tankName(b)}</span>
+                <span class="rs-season-how">${t('hub.seasonTank.how', { need: pr.need })}</span>
+                <span class="rs-season-bar"><i style="width:${pct}%"></i></span>
+                <span class="rs-season-pts">${pr.points} / ${pr.need}</span>
+                <button class="rs-cta rs-cta--season" type="button" data-action="season-trail">🗺️ ${t('hub.seasonTank.viewTrail')}</button>
+            </div>`;
+            }
+            return `
+            <button class="bt-rs-card is-season${mine ? ' is-mine' : ''}" type="button" data-pick="${b.id}"
+                    style="--tank:${b.colorMain}; --season:${season.accentColor}; --i:${i}" aria-pressed="${mine}">
+                ${seasonRibbonHtml()}
+                <span class="rs-media"><img src="${tankPortrait(b)}" alt="" loading="lazy" draggable="false"></span>
+                <span class="rs-name">${tankName(b)}</span>
+                <span class="rs-stats">
+                    ${statRowHtml(t('stat.hp'), b.hp, STAT_MAX.hp)}
+                    ${statRowHtml(t('stat.dmg'), b.dmg, STAT_MAX.dmg)}
+                    ${statRowHtml(t('stat.speed'), b.speed, STAT_MAX.speed)}
+                    ${statRowHtml(t('stat.tempo'), tempoOf(b.reload), STAT_MAX.tempo)}
+                </span>
+                ${traitsHtml(b)}
+                <span class="rs-cta">${mine ? `✓ ${t('hub.roster.selected')}` : t('hub.roster.pick')}</span>
+            </button>`;
+        }).join('');
+        const seasonBand = seasonCards ? `
+                <div class="bt-rs-season" style="--season:${season.accentColor}">
+                    <div class="bt-rs-season-head"><span>${season.emoji} ${t('hub.seasonTank.title')}</span><small>${t(season.nameKey)}</small></div>
+                    <div class="bt-rs-grid bt-rs-grid--season">${seasonCards}</div>
+                </div>` : '';
+
         this.el = document.createElement('div');
         this.el.className = 'bt-hub0-overlay bt-rs-overlay';
         this.el.innerHTML = `
@@ -91,6 +141,7 @@ export class TankRosterOverlay {
                 <h3 class="bt-hub0-modal-title bt-rs-title">${t('hub.roster.title')}
                     <small>${t('hub.roster.hint')}</small></h3>
                 <div class="bt-rs-grid">${cards}${isEnigmaEnabled() ? '' : enigma}</div>
+                ${seasonBand}
             </div>`;
         parent.appendChild(this.el);
         playUiSelect();
@@ -100,6 +151,13 @@ export class TankRosterOverlay {
             if (target === this.el || target.closest('[data-action="close"]')) {
                 playUiBack();
                 this.close();
+                return;
+            }
+            if (target.closest('[data-action="season-trail"]')) {
+                playUiClick();
+                const go = opts.onOpenSeason;
+                this.close();
+                go?.();
                 return;
             }
             const card = target.closest<HTMLElement>('[data-pick]');

@@ -12,6 +12,7 @@
 
 import type { TranslationKey } from '../i18n/i18n';
 import { isSkinsEnabled } from './skins'; // SKIN-1 — gating puli skrzynek (location w try/catch)
+import { isSeasonV2Enabled } from './seasonV2Flag'; // v0.250.0
 
 // v0.144.0: 'avatarBg' — TLO POD ZDJECIEM czolgisty (prosba z playtestu). Awatary to
 // PNG RGBA z ~45% pikseli w pelni przezroczystych i ~34% miekkich krawedzi (zmierzone
@@ -24,7 +25,7 @@ import { isSkinsEnabled } from './skins'; // SKIN-1 — gating puli skrzynek (lo
 // (TankSpriteBaker) + zywy spread na obrotnicach Garazu. GLOBALNY (1 slot barwi
 // aktualny czolg). Def niesie tylko gole stringi (hex/filter3d) — ten plik dalej
 // NIE importuje render2d ani import.meta.env.
-export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg' | 'profileSkin' | 'tankSkin';
+export type CosmeticType = 'nickColor' | 'frame' | 'title' | 'sticker' | 'horn' | 'voice' | 'crosshair' | 'avatarBg' | 'profileSkin' | 'tankSkin' | 'menuTheme';
 export type Rarity = 'c' | 'r' | 'e' | 'l';
 
 /**
@@ -135,6 +136,11 @@ export interface CosmeticDef {
      * Dwie kwestie na paczke: start meczu + spadek ponizej 50% HP.
      */
     readonly voice?: { readonly start: string; readonly lowHp: string };
+    /**
+     * v0.250.0 SEZON v2 — kosmetyk WYLACZNIE z Szlaku Sezonu `season` (id sezonu, np. 's3').
+     * Nigdy nie wpada do skrzynek; przy SEASON_V2 znika tez ze sklepu (posiadacze go zachowuja).
+     */
+    readonly season?: string;
 }
 
 /** Kolor rzadkosci (obwodki reveal / kropki w gridzie). */
@@ -301,7 +307,18 @@ export const COSMETICS: readonly CosmeticDef[] = [
     // Dlaczego `e`, a nie `l`: sezonowe ma byc osiagalne w trakcie trwania sezonu
     // (2400 Σ), a nie byc szczytem kolekcji. Sklep podlapie go sam — `profileSkinSkus()`
     // mapuje KAZDY kosmetyk typu `profileSkin`, wiec zero zmian w `shop.ts`.
-    { id: 'ps_s3_school', type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_s3_school', bgImage: 'seasons/s3/decor.jpg' },
+    { id: 'ps_s3_school', type: 'profileSkin', rarity: 'e', labelKey: 'cosmetic.ps_s3_school', bgImage: 'seasons/s3/decor.jpg', season: 's3' },
+
+    // v0.250.0 SEZON v2 — nagrody Szlaku Sezonu „Powrot do szkoly” (tylko z toru, nie ze skrzynek/sklepu).
+    { id: 'bg_s3_school', type: 'avatarBg', rarity: 'e', labelKey: 'cosmetic.bg_s3_school', season: 's3',
+      bg: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.14) 0 1px, transparent 1px 9px), repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 1px, transparent 1px 9px), linear-gradient(160deg, #3aa0e0 0%, #1d4f7a 100%)' },
+    { id: 'fr_s3_school', type: 'frame', rarity: 'e', labelKey: 'cosmetic.fr_s3_school', season: 's3',
+      border: '3px solid #ffd24a', glow: '0 0 0 2px #3aa0e0, 0 0 14px rgba(58,160,224,0.85)' },
+    { id: 'nc_s3_school', type: 'nickColor', rarity: 'e', labelKey: 'cosmetic.nc_s3_school', season: 's3',
+      color: 'linear-gradient(90deg,#5cc4ff,#ffd24a)', gradient: true },
+    // Motyw menu: akcent + tlo hubu + dekor 3 miejsc (topbar, karta profilu, dol paska). Render: HubShell (E4).
+    { id: 'mt_s3_school', type: 'menuTheme', rarity: 'l', labelKey: 'cosmetic.mt_s3_school', season: 's3',
+      color: '#3aa0e0', bgImage: 'seasons/s3/hero.jpg', emoji: '🎒' },
 
     // ── SKIN-1 (v0.159.0): BARWY CZOLGU (8 palet, c2/r3/e2/l1) ───────────────
     // hex CELOWO omija 8 barw bazowych czolgow (#27ae60/#8e44ad/#f1c40f/#3498db/
@@ -404,7 +421,7 @@ export const COSMETICS: readonly CosmeticDef[] = [
       swatchCss: 'background:radial-gradient(ellipse 12px 8px at 30% 38%,#1e3050 60%,transparent 61%),radial-gradient(ellipse 10px 7px at 70% 62%,#5a7aa5 60%,transparent 61%),#33507a;' },
 
     // SEZONOWE (s3-s8; sezonowosc = klimat/nazwa, zero mechaniki sezonow)
-    { id: 'tp_s3_notebook', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s3_notebook',
+    { id: 'tp_s3_notebook', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s3_notebook', season: 's3',
       hex: '#3aa0e0', pattern: 'tp_s3_notebook', patternCat: 'seasonal',
       swatchCss: 'background:repeating-linear-gradient(0deg,rgba(58,160,224,0.5) 0 1px,transparent 1px 8px),repeating-linear-gradient(90deg,rgba(58,160,224,0.5) 0 1px,transparent 1px 8px),linear-gradient(90deg,transparent 0 9px,#d4213d 9px 11px,transparent 11px),#f6f1e2;' },
     { id: 'tp_s4_sweater', type: 'tankSkin', rarity: 'e', labelKey: 'cosmetic.tp_s4_sweater',
@@ -449,6 +466,7 @@ export const CATEGORY_LABEL_ONE: Record<CosmeticType, TranslationKey> = {
     voice: 'cosmetic.cat.voice',
     crosshair: 'cosmetic.cat.crosshair',
     avatarBg: 'cosmetic.cat.avatarBg',
+    menuTheme: 'cosmetic.cat.menuTheme',
     profileSkin: 'cosmetic.cat.profileSkin',
     tankSkin: 'cosmetic.cat.tankSkin',
 };
@@ -465,6 +483,11 @@ export function getCosmetic(id: string): CosmeticDef | undefined { return _BY_ID
  * zniknal ze sprzedazy. Sklep/przymierzalnia/dropy wolaja BEZ `owned`, wiec u nich
  * wycofane nie istnieja.
  */
+/** v0.250.0 SEZON v2 — kosmetyk tylko z Szlaku Sezonu (przy fladze: poza sklepem). */
+export function isSeasonTrackOnly(def: CosmeticDef): boolean {
+    return !!def.season && isSeasonV2Enabled();
+}
+
 export function cosmeticsByType(type: CosmeticType, owned?: readonly string[]): CosmeticDef[] {
     return COSMETICS.filter(c => c.type === type && (!c.hidden || !!owned?.includes(c.id)));
 }
@@ -492,6 +515,7 @@ export function cosmeticIdsOfRarity(rarity: Rarity): string[] {
     // v0.199.0: wycofane (`hidden`) nigdy nie wpadaja do losowania.
     return COSMETICS.filter(c => c.rarity === rarity
         && !c.hidden
+        && !c.season // v0.250.0: sezonowe tylko z Szlaku Sezonu
         && !SHOP_ONLY_TYPES.has(c.type)
         && (c.type !== 'tankSkin' || isSkinsEnabled())).map(c => c.id);
 }

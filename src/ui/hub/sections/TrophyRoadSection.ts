@@ -9,6 +9,7 @@ import {
 import { playUiSelect } from '../../uiSounds';
 import { reducedMotion } from '../juice';
 import { getCurrentSeason, type SeasonMilestone } from '../../../config/season';
+import { isSeasonV2Enabled } from '../../../config/seasonV2Flag'; // v0.250.0 SEZON v2
 
 /**
  * TrophyRoadSection (PUCHARKI) — HUB-4. Pelnoekranowy Szlak Pucharkow zasilony shipped
@@ -83,6 +84,28 @@ export class TrophyRoadSection implements HubSection {
         const act2Nodes = ACT_II_MILESTONES.map(node).join('');
         const act3Nodes = ACT_III_MILESTONES.map(node).join('');
 
+        // v0.250.0 SEZON v2: Szlak Sezonu przeniesiony na strone SEZON. PUCHARKI = jeden szlak:
+        // glowa (licznik + pasek) na cala szerokosc, pod nia TRZY AKTY obok siebie — bez pustej kolumny.
+        const v2Body = `
+            <div class="bt-hub0-road-v2">
+                <div class="bt-hub0-road-head">
+                    <div class="bt-hub0-road-count">🏆 <b>${trophies}</b></div>
+                    <div class="bt-hub0-road-progress">
+                        <div class="bt-hub0-trophybar-track"><div class="fill" data-road-fill style="width:${fromPct}%;"></div></div>
+                        <span class="next">${nextTxt}</span>
+                    </div>
+                </div>
+                <div class="bt-hub0-road-acts">
+                    <div class="bt-hub0-road-col"><div class="bt-hub0-road-act">${t('hub.road.act1')}</div><div class="bt-hub0-road-list">${act1Nodes}</div></div>
+                    <div class="bt-hub0-road-col"><div class="bt-hub0-road-act">${t('hub.road.act2')}</div><div class="bt-hub0-road-list">${act2Nodes}</div></div>
+                    <div class="bt-hub0-road-col"><div class="bt-hub0-road-act">${t('hub.road.act3')}</div><div class="bt-hub0-road-list">${act3Nodes}</div></div>
+                </div>
+            </div>`;
+        if (isSeasonV2Enabled()) {
+            el.innerHTML = `<h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.trophies')}</h2>${v2Body}`;
+            this.animateFill(el, prev, trophies, pct);
+            return;
+        }
         el.innerHTML = `
             <h2 class="bt-hub0-sectitle">${this.icon} ${t('hub.nav.trophies')}</h2>
 
@@ -112,8 +135,12 @@ export class TrophyRoadSection implements HubSection {
                 </div>
             </div>
         `;
-        // J4: pasek startuje ze starej szerokosci i DOJEZDZA (transition na .fill);
-        // swiezo zdobyty wezel dostaje dzwiek potwierdzenia.
+        this.animateFill(el, prev, trophies, pct);
+    }
+
+    // J4: pasek startuje ze starej szerokosci i DOJEZDZA (transition na .fill);
+    // swiezo zdobyty wezel dostaje dzwiek potwierdzenia.
+    private animateFill(el: HTMLElement, prev: number | null, trophies: number, pct: number): void {
         if (prev !== null && prev !== trophies) {
             const fill = el.querySelector<HTMLElement>('[data-road-fill]');
             if (fill) requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = `${pct}%`; }));

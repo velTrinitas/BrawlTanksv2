@@ -1,3 +1,4 @@
+import { castleNow } from './castleArtClock'; // CASTLE ART v2: zegar meczu (staje w pauzie)
 import * as PIXI from 'pixi.js';
 import { bakeCrow } from './castleBake';
 import { isPointInView } from '../cullGate';
@@ -37,7 +38,7 @@ export class CastleCrows {
         this.container.renderable = visible;
         this.shadows.renderable = visible;
         if (!visible) return;
-        const t = Date.now() / 1000;
+        const t = castleNow() / 1000;
         this.shadows.clear();
         this.shadows.beginFill(0x000000, 0.14);
         for (let i = 0; i < 3; i++) {

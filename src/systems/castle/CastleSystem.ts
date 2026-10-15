@@ -18,6 +18,8 @@ import { SRC_CATAPULT } from '../../types/DamageSource'; // F4
 import { CastleDebris } from '../../maps/castle/CastleDebris'; // F6
 import * as PIXI from 'pixi.js';
 import { simNowMs } from '../SimClock'; // COOP S1: frozenUntil jest na zegarze symulacji
+import { isCastleArtV2 } from '../../config/castleArtFlag'; // CASTLE ART v2 Etap C
+import { castleNow } from '../../maps/castle/castleArtClock';
 
 /**
  * CastleSystem — rdzen scenariusza OBRON ZAMEK (F3). Wzorzec strukturalny: CtfSystem.
@@ -716,6 +718,12 @@ export class CastleSystem {
         part.applyDamage(dmg);
         this.rebuildCap.delete(part);
         if (src !== 'enemy_bullet') this.opts.effects.spawnEnemyHitSparks(hitX, hitY, 0xc9ccd0);
+        // CASTLE ART v2 (Etap C): odpryski kamienia przy KAZDYM trafieniu (dzis feedback byl tylko przy
+        // zmianie tieru). Limit 1 burst / 120 ms na czesc (zegar ambientu) — tylko wizual, HP nietkniete.
+        if (isCastleArtV2()) {
+            const nowA = castleNow();
+            if (nowA - (this.chipAt.get(part) ?? -1e9) >= 120) { this.chipAt.set(part, nowA); this.opts.effects.spawnWallImpact(hitX, hitY); }
+        }
         if (part.kind === 'keep' && part.hpPct < 0.33 && !this.keepCriticalWarned) {
             this.keepCriticalWarned = true;
             this.opts.banner(t('castle.keepCritical'), '#ff3366', 120);
@@ -736,6 +744,7 @@ export class CastleSystem {
         }
     }
     private keepCriticalWarned = false;
+    private chipAt = new WeakMap<CastlePart, number>();
 
     private onTierChanged(part: CastlePart, from: number, to: number): void {
         if (to > from) {
@@ -747,6 +756,10 @@ export class CastleSystem {
                 this.opts.audio.playExplosion();
                 this.opts.banner(part.kind === 'gate' ? t('castle.gateDestroyed') : t('castle.wallBreached'), '#ff5a5a', 110);
                 if (part.kind === 'gate') this.debris.burstDoors(part.centerX, part.centerY + 6); // F6: wrota odlatuja
+                if (isCastleArtV2()) { // Etap C: zawalenie = chmura pylu + grad odlamkow (pule Effects)
+                    for (let k = 0; k < 5; k++) this.opts.effects.spawnWallImpact(part.x + part.w * (0.1 + k * 0.2), part.y + part.h * 0.5);
+                    for (let k = 0; k < 3; k++) this.opts.effects.spawnSoftPuff(part.x + part.w * (0.2 + k * 0.3), part.y, 0xb8b2a6, 1.4);
+                }
             }
         }
     }

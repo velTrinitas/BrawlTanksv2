@@ -1,3 +1,4 @@
+import { castleNow } from './castleArtClock'; // CASTLE ART v2: zegar meczu (staje w pauzie)
 import * as PIXI from 'pixi.js';
 import { drawTree, drawPine, type Rng } from './castlePainters';
 import { LIVE_FORESTS, type CastleSolidProp } from './CastleSolidProp';
@@ -120,7 +121,7 @@ export class CastleTrees {
     }
 
     public update(camX: number, camY: number, viewW: number, viewH: number): void {
-        const t = Date.now() / 1000;
+        const t = castleNow() / 1000;
         for (const f of this.forests) {
             const vis = isPointInView(f.cx, f.cy, camX, camY, viewW, viewH, f.r);
             // PIXI v7 nie culluje sam — bez tego ~280 koron szloby do batcha takze poza kadrem.

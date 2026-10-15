@@ -25,6 +25,8 @@ import { WORLD_W, WORLD_H } from '../config/constants';
 export { CASTLE_PALETTE, CASTLE_HEX, CASTLE_LIGHT } from './castle/castlePalette';
 import { CASTLE_PALETTE } from './castle/castlePalette';
 import { isPlayabilityV3 } from '../config/playability';
+import { isCastleArtV2 } from '../config/castleArtFlag';
+import { paintCastleGroundV2 } from './castle/castleGroundV2';
 import {
     drawTree, drawPine, drawCampfire, drawTent, drawWarBanner, drawStatue,
     drawWheatField, drawHayCart, drawSheep, drawFence,
@@ -486,6 +488,12 @@ export function buildCastleTexture(): PIXI.Texture {
         }
     }
     c.globalAlpha = 1;
+
+    // ── 7b. CASTLE ART v2 (?castleart): bruk, glebia fosy, mosty z desek, dlugie cienie (wlasny rng) ──
+    if (isCastleArtV2()) paintCastleGroundV2(c, {
+        moat: CASTLE_MOAT, bridges: CASTLE_BRIDGES, courtyard: CASTLE_COURTYARD, keep: CASTLE_KEEP,
+        towers: CASTLE_TOWERS, walls: CASTLE_WALLS, gates: CASTLE_GATES, turrets: CASTLE_GATE_TURRETS, center: CASTLE_CENTER,
+    });
 
     // ── 8. F2: sciolka pod blokami lasu (korony = CastleSolidProp, sprite) ──
     for (const f of CASTLE_FORESTS) {

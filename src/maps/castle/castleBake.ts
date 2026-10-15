@@ -1,5 +1,13 @@
 import * as PIXI from 'pixi.js';
 import { CASTLE_PALETTE as P, CASTLE_LIGHT as L } from './castlePalette';
+import { isCastleArtV2 } from '../../config/castleArtFlag';
+
+/** CASTLE ART v2 (?castleart): czytane raz na zaladowanie strony (flaga URL nie zmienia sie w trakcie). */
+let v2Cache: boolean | null = null;
+function V2(): boolean { return v2Cache ??= isCastleArtV2(); }
+/** v2: wyzsze dachy = majestat (kotwice sztandarow licza z tych samych funkcji). */
+function towerRise(): number { return V2() ? 46 : 30; }
+function keepRise(): number { return V2() ? 50 : 34; }
 
 /**
  * castleBake.ts — pieczony art zamku (OBRON ZAMEK F2). "Zamek musi byc genialny".
@@ -125,6 +133,7 @@ function extrudeRect(c: CanvasRenderingContext2D, rng: () => number, x: number, 
     sg.addColorStop(1, 'rgba(0,0,0,0.16)');
     c.fillStyle = sg;
     c.fillRect(x, sy, w, H);
+    if (V2()) stoneFaceV2(c, rng, x, sy, w, H);
     // cien wlasny przy ziemi (AO) — v0.196.0: wyzszy i ciemniejszy pas, bryla "siedzi" na trawie
     const aoH = Math.min(14, H * 0.4);
     const ao = c.createLinearGradient(0, y + h - aoH, 0, y + h);
@@ -165,6 +174,91 @@ function extrudeRect(c: CanvasRenderingContext2D, rng: () => number, x: number, 
     c.fillStyle = 'rgba(0,0,0,0.22)';
     c.fillRect(x, ty + h - 2, w, 2); c.fillRect(x + w - 2, ty, 2, h);
     return ty;
+}
+
+/**
+ * CASTLE ART v2 — lico kamienne sciany S: bloki w 4 odcieniach (wiecej zycia niz cegla 0.55),
+ * gzyms (jasny pas pod wiekiem + cien pod nim), mech i wilgoc w dolnych rzedach. Tylko bake.
+ */
+function stoneFaceV2(c: CanvasRenderingContext2D, rng: () => number, x: number, sy: number, w: number, H: number): void {
+    c.save();
+    c.beginPath(); c.rect(x, sy, w, H); c.clip();
+    const rowH = 8, bw = 18;
+    for (let row = 0; row * rowH < H; row++) {
+        const off = (row % 2) * (bw / 2);
+        for (let bx = x - bw + off; bx < x + w; bx += bw) {
+            const v = rng();
+            if (v < 0.45) continue;
+            c.fillStyle = v < 0.62 ? 'rgba(255,248,230,0.10)' : v < 0.8 ? 'rgba(0,0,0,0.09)' : v < 0.92 ? 'rgba(120,110,90,0.12)' : 'rgba(70,90,110,0.10)';
+            c.fillRect(bx + 1, sy + row * rowH + 1, bw - 2, rowH - 2);
+            c.fillStyle = 'rgba(255,255,255,0.10)';
+            c.fillRect(bx + 1, sy + row * rowH + 1, bw - 2, 1);
+        }
+    }
+    // gzyms pod wiekiem
+    c.fillStyle = 'rgba(255,250,235,0.22)'; c.fillRect(x, sy, w, 2);
+    c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(x, sy + 2, w, 2);
+    // mech i wilgoc przy stopie
+    const dg = c.createLinearGradient(0, sy + H - 12, 0, sy + H);
+    dg.addColorStop(0, 'rgba(60,80,50,0)'); dg.addColorStop(1, 'rgba(60,80,50,0.32)');
+    c.fillStyle = dg; c.fillRect(x, sy + H - 12, w, 12);
+    c.fillStyle = 'rgba(95,138,62,0.55)';
+    for (let i = 0; i < Math.max(2, Math.round(w / 26)); i++) {
+        const mx = x + rng() * w, my = sy + H - 2 - rng() * 6;
+        c.beginPath(); c.ellipse(mx, my, 3 + rng() * 5, 1.6 + rng() * 1.4, 0, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
+}
+
+/** CASTLE ART v2 — machikuly: rzad wspornikow pod blankami na scianie S (zamek z bajki, 0 kosztu). */
+function machicolationsV2(c: CanvasRenderingContext2D, x: number, sy: number, w: number): void {
+    for (let mx = x + 3; mx + 6 <= x + w - 2; mx += 10) {
+        c.fillStyle = 'rgba(20,22,26,0.55)'; c.fillRect(mx, sy + 4, 6, 7);
+        c.fillStyle = P.graniteTop; c.fillRect(mx, sy + 2, 6, 3);
+        c.fillStyle = 'rgba(255,255,255,0.25)'; c.fillRect(mx, sy + 2, 6, 1);
+    }
+}
+
+/** CASTLE ART v2 — pochodnia na scianie (uchwyt + plomien + cieply blask; animacja = Etap C). */
+function torchV2(c: CanvasRenderingContext2D, x: number, y: number): void {
+    const glow = c.createRadialGradient(x, y - 6, 1, x, y - 6, 20);
+    glow.addColorStop(0, 'rgba(255,200,90,0.55)'); glow.addColorStop(1, 'rgba(255,160,60,0)');
+    c.fillStyle = glow; c.beginPath(); c.arc(x, y - 6, 20, 0, Math.PI * 2); c.fill();
+    c.fillStyle = P.iron; c.fillRect(x - 1.5, y - 2, 3, 9); c.fillRect(x - 4, y - 3, 8, 2.5);
+    c.fillStyle = '#ff8a1e';
+    c.beginPath(); c.moveTo(x - 4, y - 3); c.quadraticCurveTo(x - 4, y - 12, x, y - 16); c.quadraticCurveTo(x + 4, y - 12, x + 4, y - 3); c.closePath(); c.fill();
+    c.fillStyle = '#ffe27a';
+    c.beginPath(); c.moveTo(x - 2, y - 3); c.quadraticCurveTo(x - 2, y - 9, x, y - 11); c.quadraticCurveTo(x + 2, y - 9, x + 2, y - 3); c.closePath(); c.fill();
+}
+
+/** CASTLE ART v2 — herb nad brama: tarcza szkarlat/zloto z korona. */
+function crestV2(c: CanvasRenderingContext2D, cx: number, y: number, s = 1): void {
+    const w = 22 * s, h = 26 * s;
+    const shield = (dx: number, dy: number): void => {
+        c.beginPath(); c.moveTo(cx - w / 2 + dx, y + dy); c.lineTo(cx + w / 2 + dx, y + dy); c.lineTo(cx + w / 2 + dx, y + h * 0.55 + dy);
+        c.quadraticCurveTo(cx + w / 2 + dx, y + h * 0.8 + dy, cx + dx, y + h + dy);
+        c.quadraticCurveTo(cx - w / 2 + dx, y + h * 0.8 + dy, cx - w / 2 + dx, y + h * 0.55 + dy); c.closePath();
+    };
+    c.fillStyle = 'rgba(0,0,0,0.35)'; shield(2, 2); c.fill();
+    const g = c.createLinearGradient(cx - w / 2, y, cx + w / 2, y + h);
+    g.addColorStop(0, P.crimsonLight); g.addColorStop(1, P.crimsonDark);
+    c.fillStyle = g; shield(0, 0); c.fill();
+    c.strokeStyle = P.gold; c.lineWidth = 2 * s; c.stroke();
+    c.fillStyle = P.gold;
+    const ky = y + h * 0.42;
+    c.beginPath(); c.moveTo(cx - 7 * s, ky + 5 * s); c.lineTo(cx - 7 * s, ky - 2 * s); c.lineTo(cx - 3.5 * s, ky + 1.5 * s); c.lineTo(cx, ky - 5 * s); c.lineTo(cx + 3.5 * s, ky + 1.5 * s); c.lineTo(cx + 7 * s, ky - 2 * s); c.lineTo(cx + 7 * s, ky + 5 * s); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(cx - w / 2 + 2, y + 2, 3 * s, h * 0.4);
+}
+
+/** CASTLE ART v2 — okno z cieplym swiatlem (luk). */
+function warmWindowV2(c: CanvasRenderingContext2D, cx: number, y: number, w = 9, h = 14): void {
+    c.fillStyle = P.graniteDeep;
+    c.beginPath(); c.moveTo(cx - w / 2 - 2, y + h + 1); c.lineTo(cx - w / 2 - 2, y + w / 2); c.arc(cx, y + w / 2, w / 2 + 2, Math.PI, 0); c.lineTo(cx + w / 2 + 2, y + h + 1); c.closePath(); c.fill();
+    const g = c.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, '#ffe58a'); g.addColorStop(1, '#ff9a2e');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(cx - w / 2, y + h); c.lineTo(cx - w / 2, y + w / 2); c.arc(cx, y + w / 2, w / 2, Math.PI, 0); c.lineTo(cx + w / 2, y + h); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(80,40,10,0.7)'; c.fillRect(cx - 0.75, y + 1, 1.5, h - 1); c.fillRect(cx - w / 2, y + h * 0.55, w, 1.5);
 }
 
 /** Blanki wzdluz krawedzi wieka. edge: ktora krawedz wieka jest ZEWNETRZNA. */
@@ -342,7 +436,7 @@ export function bakeKeep(w: number, h: number, tier: DamageTier): BakedPart {
     const t = Math.min(tier, 2) as DamageTier; // donzon nie ma rumowiska (0 HP = koniec meczu)
     const key = `keep:${w}x${h}:${t}`;
     const upW = Math.round(w * 0.74), upH = Math.round(h * 0.74);
-    const roofRise = 34;
+    const roofRise = keepRise();
     const topM = KEEP_H1 + KEEP_H2 + roofRise + 40;
     const tw = w + KEEP_M * 2, th = h + topM + KEEP_M;
     return baked(key, tw, th, KEEP_M, topM, (c) => {
@@ -371,7 +465,12 @@ export function bakeKeep(w: number, h: number, tier: DamageTier): BakedPart {
         const ux = x + (w - upW) / 2, uy = ty1 + (h - upH) / 2;
         contactShadow(c, ux, uy, upW, upH, KEEP_H2);
         const ty2 = extrudeRect(c, rng, ux, uy, upW, upH, KEEP_H2);
-        for (let i = 0; i < 3; i++) { arrowSlit(c, ux + 22 + i * 22, uy + upH - KEEP_H2 + 8, 11); arrowSlit(c, ux + upW - 22 - i * 22, uy + upH - KEEP_H2 + 8, 11); }
+        if (V2()) {
+            machicolationsV2(c, ux, uy + upH - KEEP_H2, upW);
+            for (let i = 0; i < 2; i++) { warmWindowV2(c, ux + 22 + i * 24, uy + upH - KEEP_H2 + 12); warmWindowV2(c, ux + upW - 22 - i * 24, uy + upH - KEEP_H2 + 12); }
+            machicolationsV2(c, x, y + h - KEEP_H1, w);
+            torchV2(c, x + w / 2 - 34, y + h - 14); torchV2(c, x + w / 2 + 34, y + h - 14);
+        } else for (let i = 0; i < 3; i++) { arrowSlit(c, ux + 22 + i * 22, uy + upH - KEEP_H2 + 8, 11); arrowSlit(c, ux + upW - 22 - i * 22, uy + upH - KEEP_H2 + 8, 11); }
         // SZTANDAR na scianie S pietra: szkarlat + zlota korona
         const bw = 30, bh = 34, bx = ux + upW / 2 - bw / 2, by = uy + upH - KEEP_H2 + 4;
         c.fillStyle = P.crimsonDark; c.fillRect(bx + 2, by + 2, bw, bh);
@@ -431,7 +530,7 @@ export function bakeKeep(w: number, h: number, tier: DamageTier): BakedPart {
 /** Kotwica sztandaru glownego donzonu (offset od AABB top-left). */
 export function keepPennantAnchor(w: number, h: number): { dx: number; dy: number } {
     const upW = Math.round(w * 0.74), upH = Math.round(h * 0.74);
-    const roofRise = 34;
+    const roofRise = keepRise();
     const topM = KEEP_H1 + KEEP_H2 + roofRise + 40;
     const x = KEEP_M, y = topM;
     const ty1 = y - KEEP_H1;
@@ -450,7 +549,7 @@ export function bakeGate(gate: { w: number; h: number }, turret: { w: number; h:
     const key = `gate:${gate.w}x${gate.h}:${tier}:${open ? 'o' : 'c'}`;
     // tekstura obejmuje: turretSW | gate | turretSE — kotwica = AABB bramy
     const totalW = turret.w + gate.w + turret.w + GATE_MX * 2;
-    const topM = TURRET_H + 34 + 16;
+    const topM = TURRET_H + 34 + 16 + (V2() ? 10 : 0);
     const th = Math.max(gate.h, turret.h + 8) + topM + 18;
     const ox = GATE_MX + turret.w, oy = topM;
     return baked(key, totalW, th, ox, oy, (c) => {
@@ -462,10 +561,11 @@ export function bakeGate(gate: { w: number; h: number }, turret: { w: number; h:
             contactShadow(c, tx, ty, turret.w, turret.h, TURRET_H);
             const top = extrudeRect(c, rng, tx, ty, turret.w, turret.h, TURRET_H);
             arrowSlit(c, tx + turret.w / 2, ty + turret.h - TURRET_H + 12, 14);
+            if (V2()) machicolationsV2(c, tx, ty + turret.h - TURRET_H, turret.w);
             merlons(c, tx, top, turret.w, turret.h, 'S');
             merlons(c, tx, top, turret.w, turret.h, 'N');
             // F6 (#1): daszek KWADRATOWY jak donzon (fake 3D spojne z reszta)
-            pyramidRoof(c, tx + 6, top + 6, turret.w - 12, turret.h - 12, 18, 4);
+            pyramidRoof(c, tx + 6, top + 6, turret.w - 12, turret.h - 12, V2() ? 28 : 18, 4);
         };
         drawTurret(gx - turret.w);
         drawTurret(gx + gate.w);
@@ -522,8 +622,13 @@ export function bakeGate(gate: { w: number; h: number }, turret: { w: number; h:
         if (tier >= 1) cracks(c, rng, gx, gy + gate.h - GATE_H, gate.w, GATE_H - 10, tier === 1 ? 2 : 4);
         if (tier >= 2) { breach(c, rng, gx + 22, gy + gate.h - GATE_H * 0.5, 12); breach(c, rng, gx + gate.w - 22, gy + gate.h - GATE_H * 0.55, 12); }
         // heraldyka nad lukiem: zloty krag + szkarlatny sztandar mini
-        c.fillStyle = P.crimson; c.fillRect(ax - 9, top + 2, 18, 12);
-        c.strokeStyle = P.gold; c.lineWidth = 1; c.strokeRect(ax - 9, top + 2, 18, 12);
+        if (V2()) {
+            crestV2(c, ax, gy + gate.h - GATE_H - 4, 0.8);
+            if (tier < 2) { torchV2(c, ax - archW / 2 - 9, gy + gate.h - 12); torchV2(c, ax + archW / 2 + 9, gy + gate.h - 12); }
+        } else {
+            c.fillStyle = P.crimson; c.fillRect(ax - 9, top + 2, 18, 12);
+            c.strokeStyle = P.gold; c.lineWidth = 1; c.strokeRect(ax - 9, top + 2, 18, 12);
+        }
     });
 }
 
@@ -865,12 +970,11 @@ export function pyramidRoof(c: CanvasRenderingContext2D, x: number, y: number, w
 }
 
 const TOWER_SQ_M = 20;
-const TOWER_SQ_RISE = 30;
 /** Wieza narozna KWADRATOWA: ekstrudowana bryla AABB x AABB (H = TOWER_H) + dach piramidowy + maszt. */
 export function bakeTowerSquare(aabb: number): BakedPart {
     const key = `towerSq:${aabb}`;
     const w = aabb, h = aabb;
-    const topM = TOWER_H + TOWER_SQ_RISE + 40 + TOWER_SQ_M;
+    const topM = TOWER_H + towerRise() + 40 + TOWER_SQ_M;
     const tw = w + TOWER_SQ_M * 2, th = h + topM + TOWER_SQ_M;
     return baked(key, tw, th, TOWER_SQ_M, topM, (c) => {
         const rng = makeRng(0x54574552);
@@ -880,22 +984,23 @@ export function bakeTowerSquare(aabb: number): BakedPart {
         arrowSlit(c, x + w * 0.3, y + h - TOWER_H + 16, 14);
         arrowSlit(c, x + w * 0.7, y + h - TOWER_H + 16, 14);
         arrowSlit(c, x + w * 0.5, y + h - TOWER_H + 38, 12);
+        if (V2()) { machicolationsV2(c, x, y + h - TOWER_H, w); warmWindowV2(c, x + w * 0.5, y + h - TOWER_H + 14, 8, 12); }
         c.fillStyle = P.moss; c.globalAlpha = 0.5;
         c.beginPath(); c.ellipse(x + 12, y + h - 3, 9, 3, 0, 0, Math.PI * 2); c.fill();
         c.globalAlpha = 1;
         merlons(c, x, ty, w, h, 'N'); merlons(c, x, ty, w, h, 'S'); merlons(c, x, ty, w, h, 'W'); merlons(c, x, ty, w, h, 'E');
-        pyramidRoof(c, x + 12, ty + 12, w - 24, h - 24, TOWER_SQ_RISE, 5);
-        const apexX = x + w / 2, apexY = ty + h / 2 - TOWER_SQ_RISE;
+        pyramidRoof(c, x + 12, ty + 12, w - 24, h - 24, towerRise(), 5);
+        const apexX = x + w / 2, apexY = ty + h / 2 - towerRise();
         c.strokeStyle = P.goldDark; c.lineWidth = 2;
         c.beginPath(); c.moveTo(apexX, apexY - 3); c.lineTo(apexX, apexY - 30); c.stroke();
         c.fillStyle = P.gold; c.beginPath(); c.arc(apexX, apexY - 31, 2.5, 0, Math.PI * 2); c.fill();
     });
 }
 export function towerSquarePennantAnchor(aabb: number): { dx: number; dy: number } {
-    const topM = TOWER_H + TOWER_SQ_RISE + 40 + TOWER_SQ_M;
+    const topM = TOWER_H + towerRise() + 40 + TOWER_SQ_M;
     const x = TOWER_SQ_M, y = topM;
     const ty = y - TOWER_H;
-    const apexY = ty + aabb / 2 - TOWER_SQ_RISE;
+    const apexY = ty + aabb / 2 - towerRise();
     return { dx: (x + aabb / 2) - TOWER_SQ_M, dy: (apexY - 31) - topM };
 }
 
@@ -1022,7 +1127,7 @@ export function bakeGateV(gate: { w: number; h: number }, turret: { w: number; h
     const key = `gateV:${gate.w}x${gate.h}:${tier}:${open ? 'o' : 'c'}`;
     const MX = 16;
     const totalH = turret.h + gate.h + turret.h + 8;
-    const topM = TURRET_H + 34 + 16;
+    const topM = TURRET_H + 34 + 16 + (V2() ? 10 : 0);
     const tw = Math.max(gate.w, turret.w) + MX * 2 + 8;
     const th = totalH + topM + 18;
     const ox = MX + 8, oy = topM + turret.h;
@@ -1034,9 +1139,10 @@ export function bakeGateV(gate: { w: number; h: number }, turret: { w: number; h
             contactShadow(c, tx, ty, turret.w, turret.h, TURRET_H);
             const top = extrudeRect(c, rng, tx, ty, turret.w, turret.h, TURRET_H);
             arrowSlit(c, tx + turret.w / 2, ty + turret.h - TURRET_H + 12, 14);
+            if (V2()) machicolationsV2(c, tx, ty + turret.h - TURRET_H, turret.w);
             merlons(c, tx, top, turret.w, turret.h, 'W');
             merlons(c, tx, top, turret.w, turret.h, 'E');
-            pyramidRoof(c, tx + 6, top + 6, turret.w - 12, turret.h - 12, 18, 4);
+            pyramidRoof(c, tx + 6, top + 6, turret.w - 12, turret.h - 12, V2() ? 28 : 18, 4);
         };
         drawTurret(gy - turret.h);
         drawTurret(gy + gate.h);
@@ -1075,6 +1181,8 @@ export function bakeGateV(gate: { w: number; h: number }, turret: { w: number; h
         c.strokeStyle = P.iron; c.lineWidth = 2.5;
         for (const yy of [gy - 2, gy + gate.h + 2]) { c.beginPath(); c.moveTo(gx, yy); c.lineTo(gx + gate.w, yy); c.stroke(); }
         if (tier >= 2) { breach(c, rng, gx + gate.w / 2, gy + 30, 8); breach(c, rng, gx + gate.w / 2, gy + gate.h - 30, 8); }
+        // v2: pochodnie przy wrotach (na koncach wiezyczek, od strony S)
+        if (V2() && tier < 2) { torchV2(c, gx + gate.w + 4, gy - 4); torchV2(c, gx + gate.w + 4, gy + gate.h + 12); }
         // heraldyka: mini sztandar na kazdej wiezyczce
         c.fillStyle = P.crimson; c.fillRect(gx + gate.w / 2 - 6, gy - turret.h + 6 - TURRET_H, 12, 8);
     });

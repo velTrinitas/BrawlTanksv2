@@ -1,3 +1,4 @@
+import { castleNow } from './castleArtClock'; // CASTLE ART v2: zegar meczu (staje w pauzie)
 import * as PIXI from 'pixi.js';
 import { CASTLE_HEX } from './castlePalette';
 
@@ -33,7 +34,7 @@ export class CastleWheatField {
     public update(): void {
         const g = this.gfx;
         g.clear();
-        const pulse = 0.18 + Math.sin(Date.now() / 800) * 0.1;
+        const pulse = 0.18 + Math.sin(castleNow() / 800) * 0.1;
         g.lineStyle(2, CASTLE_HEX.wheat, pulse);
         g.drawRect(0, 0, this.w, this.h);
         g.lineStyle(0);

@@ -1,3 +1,4 @@
+import { castleNow } from './castleArtClock'; // CASTLE ART v2: zegar meczu (staje w pauzie)
 import * as PIXI from 'pixi.js';
 import { CASTLE_CAMPS } from '../CastleMap';
 import { CASTLE_PALETTE as P } from './castlePalette';
@@ -99,7 +100,7 @@ export class CastleCampFlags {
     }
 
     public update(camX: number, camY: number, viewW: number, viewH: number): void {
-        const t = Date.now() / 1000; // ten sam zegar co CastlePennants (spojny lopot)
+        const t = castleNow() / 1000; // ten sam zegar co CastlePennants (spojny lopot)
         for (let i = 0; i < this.sprites.length; i++) {
             const s = this.sprites[i], a = this.anchors[i];
             const visible = isPointInView(a.x, a.y, camX, camY, viewW, viewH, 30);

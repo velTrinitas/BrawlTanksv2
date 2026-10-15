@@ -1,6 +1,8 @@
 import * as PIXI from 'pixi.js';
 import { CASTLE_HEX } from './castlePalette';
 import type { CastleRect } from '../CastleMap';
+import { isCastleArtV2 } from '../../config/castleArtFlag';
+import { CastleMoatV2 } from './castleMoatV2';
 
 /**
  * CastleMoat — fosa zamku (OBRON ZAMEK F2). Uogolnienie RuinsFosa na N pasow:
@@ -23,14 +25,17 @@ export class CastleMoat {
     private container: PIXI.Container;
     private gfx: PIXI.Graphics;
     private ripples: Ripple[];
+    /** CASTLE ART v2: nurt TilingSprite + piana + plusk (null = legacy Graphics co klatke). */
+    private v2: CastleMoatV2 | null = null;
 
-    constructor(strips: readonly CastleRect[], worldContainer: PIXI.Container) {
+    constructor(strips: readonly CastleRect[], worldContainer: PIXI.Container, bridges: readonly CastleRect[] = [], lowFx = false) {
         this.strips = [...strips];
         this.container = new PIXI.Container();
         this.container.zIndex = 5; // nad gruntem, pod czolgami
         worldContainer.addChild(this.container);
         this.gfx = new PIXI.Graphics();
         this.container.addChild(this.gfx);
+        if (isCastleArtV2()) this.v2 = new CastleMoatV2(strips, bridges, worldContainer, lowFx);
 
         this.ripples = [];
         const PER_STRIP = 5;
@@ -56,7 +61,9 @@ export class CastleMoat {
         return false;
     }
 
-    public update(): void {
+    /** tanks: czolgi do plusku/kilwatera (tylko v2; legacy ignoruje). */
+    public update(tanks: readonly { x: number; y: number }[] = []): void {
+        if (this.v2) { this.v2.update(tanks, (x, y) => this.isPointInside(x, y)); return; }
         const time = Date.now();
         const g = this.gfx;
         g.clear();
@@ -91,6 +98,7 @@ export class CastleMoat {
     }
 
     public destroy(): void {
+        this.v2?.destroy(); this.v2 = null;
         this.container.destroy({ children: true });
     }
 }

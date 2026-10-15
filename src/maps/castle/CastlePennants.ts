@@ -1,3 +1,4 @@
+import { castleNow } from './castleArtClock'; // CASTLE ART v2: zegar meczu (staje w pauzie)
 import * as PIXI from 'pixi.js';
 import { bakePennant } from './castleBake';
 import { isPointInView } from '../cullGate';
@@ -47,7 +48,7 @@ export class CastlePennants {
         this.campFlags.update(camX, camY, viewW, viewH);
         this.trees.update(camX, camY, viewW, viewH);
         this.campfires.update(camX, camY, viewW, viewH);
-        const t = Date.now() / 1000;
+        const t = castleNow() / 1000;
         for (let i = 0; i < this.sprites.length; i++) {
             const s = this.sprites[i], a = this.anchors[i];
             const visible = isPointInView(a.x, a.y, camX, camY, viewW, viewH, 40);

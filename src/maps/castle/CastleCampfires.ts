@@ -1,3 +1,4 @@
+import { castleNow } from './castleArtClock'; // CASTLE ART v2: zegar meczu (staje w pauzie)
 import * as PIXI from 'pixi.js';
 import { CASTLE_CAMPS } from '../CastleMap';
 import { isPointInView } from '../cullGate';
@@ -153,7 +154,7 @@ export class CastleCampfires {
     }
 
     public update(camX: number, camY: number, viewW: number, viewH: number): void {
-        const t = Date.now() / 1000; // ten sam zegar co CastlePennants / CastleCampFlags
+        const t = castleNow() / 1000; // ten sam zegar co CastlePennants / CastleCampFlags
         for (const f of this.fires) {
             const visible = isPointInView(f.x, f.y, camX, camY, viewW, viewH, 40);
             f.glow.renderable = visible;

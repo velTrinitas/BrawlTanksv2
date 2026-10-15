@@ -1,5 +1,10 @@
 import * as PIXI from 'pixi.js';
 import { bakeDoorLeaf } from './castleBake';
+import { ambientRng } from '../../systems/Rng';
+import { isCastleArtV2 } from '../../config/castleArtFlag';
+
+/** CASTLE ART v2: kosmetyczna losowosc przez ambientRng (bramka MP pkt 1); legacy Math.random. */
+const rnd = (): number => (isCastleArtV2() ? ambientRng.next() : Math.random());
 
 /**
  * CastleDebris — odlatujace skrzydla wrot po wylamaniu bramy (OBRON ZAMEK F6).
@@ -27,7 +32,7 @@ export class CastleDebris {
             s.x = x + dir * 16; s.y = y;
             s.scale.set(1.3);
             this.container.addChild(s);
-            this.pieces.push({ s, vx: dir * (2.2 + Math.random() * 1.2), vy: 1.4 + Math.random() * 0.8, vz: 7 + Math.random() * 3, z: 0, rot: dir * (0.18 + Math.random() * 0.1), life: 75 });
+            this.pieces.push({ s, vx: dir * (2.2 + rnd() * 1.2), vy: 1.4 + rnd() * 0.8, vz: 7 + rnd() * 3, z: 0, rot: dir * (0.18 + rnd() * 0.1), life: 75 });
         }
     }
 

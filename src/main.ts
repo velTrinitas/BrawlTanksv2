@@ -92,7 +92,7 @@ import {
     buildCastleTexture, CASTLE_PLAYER_SPAWN, CASTLE_ROCK_PALETTE, CASTLE_ROCKS,
     CASTLE_MEDI_PAD_POSITIONS, CASTLE_POWER_PAD_POSITIONS,
     CASTLE_TOWERS, CASTLE_WALLS, CASTLE_GATES, CASTLE_GATE_TURRETS, CASTLE_KEEP,
-    CASTLE_MOAT, CASTLE_FORESTS, CASTLE_CHAPEL, CASTLE_STEALTH, CASTLE_LANES, CASTLE_COTTAGES, CASTLE_HAY,
+    CASTLE_MOAT, CASTLE_BRIDGES, CASTLE_FORESTS, CASTLE_CHAPEL, CASTLE_STEALTH, CASTLE_LANES, CASTLE_COTTAGES, CASTLE_HAY,
 } from './maps/CastleMap'; // OBRON ZAMEK F1/F2/F5/F6
 import { CastleBorder } from './maps/castle/CastleBorder'; // OBRON ZAMEK F1
 import { CastlePart } from './maps/castle/CastlePart'; // OBRON ZAMEK F2
@@ -104,6 +104,10 @@ import { CastlePennants, type PennantAnchor } from './maps/castle/CastlePennants
 import { prebakeCastle, towerSquarePennantAnchor, keepPennantAnchor } from './maps/castle/castleBake'; // OBRON ZAMEK F2/F6
 import { CastleHayBale } from './maps/castle/CastleHayBale'; // OBRON ZAMEK F6
 import { CastleCrows } from './maps/castle/CastleCrows'; // OBRON ZAMEK F6
+import { CastleSmoke, type SmokeSource } from './maps/castle/CastleSmoke'; // CASTLE ART v2
+import { CastleLife } from './maps/castle/CastleLife'; // CASTLE ART v2 Etap C: pochodnie + straznicy
+import { tickCastleClock, resetCastleClock } from './maps/castle/castleArtClock';
+import { isCastleArtV2 } from './config/castleArtFlag';
 import { isCastleMode } from './config/castleFlag'; // OBRON ZAMEK F1
 import { CastleSystem } from './systems/castle/CastleSystem'; // OBRON ZAMEK F3
 import { CastleJump } from './systems/castle/CastleJump'; // GRUPA E: trampoliny wyskoku z zamku (v0.194.0)
@@ -558,6 +562,10 @@ let castleWheat: CastleWheatField[] = [];
 let castlePennants: CastlePennants | null = null;
 let castleHay: CastleHayBale[] = []; // F6
 let castleCrows: CastleCrows | null = null; // F6
+let castleLife: CastleLife | null = null;
+let castleSmoke: CastleSmoke | null = null; // CASTLE ART v2: dym zalezny od tieru czesci
+const castleSmokeSrc: SmokeSource[] = [];
+const castleTanksBuf: { x: number; y: number }[] = [];
 /** Furtki N/E/W: bariery TYLKO dla wrogow (gracz przejezdza) — wzorzec ctfEnemyBarriers. */
 let castleEnemyBarriers: ICollidable[] = [];
 /** Precomputed RAZ na mecz: kolizja ruchu wrogow (buildings + furtki). */
@@ -1463,11 +1471,37 @@ function tutorialCenterAngle(): number {
     if (!localPlayer) return 0;
     return Math.atan2(WORLD_H / 2 - localPlayer.y, WORLD_W / 2 - localPlayer.x);
 }
+/** Punkt w bryle (buildings/solidBuildings, z marginesem) — manekin tam bylby nie do trafienia. */
+function tutorialBlocked(x: number, y: number, m: number): boolean {
+    for (const list of [buildings, solidBuildings]) for (const o of list) {
+        if (x > o.x - m && x < o.x + o.w + m && y > o.y - m && y < o.y + o.h + m) return true;
+    }
+    return false;
+}
+/** Wolna linia strzalu gracz -> punkt (probkowanie co 20 px). */
+function tutorialLineClear(x0: number, y0: number, x1: number, y1: number): boolean {
+    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 20);
+    for (let i = 1; i < n; i++) if (tutorialBlocked(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, 4)) return false;
+    return true;
+}
 function tutorialSpawnAt(angle: number, radius: number): void {
     if (!localPlayer) return;
     const M = TUT_SPAWN_MARGIN;
-    const x = Math.max(M, Math.min(WORLD_W - M, localPlayer.x + Math.cos(angle) * radius));
-    const y = Math.max(M, Math.min(WORLD_H - M, localPlayer.y + Math.sin(angle) * radius));
+    const px = localPlayer.x, py = localPlayer.y;
+    const at = (a: number, r: number): [number, number] => [
+        Math.max(M, Math.min(WORLD_W - M, px + Math.cos(a) * r)),
+        Math.max(M, Math.min(WORLD_H - M, py + Math.sin(a) * r)),
+    ];
+    // Fix v0.251.0: "ku srodkowi mapy" na Zamku = wnetrze donzonu (manekin nie do trafienia, krok 2 blokowal
+    // samouczek). Szukamy najblizszego kata/promienia z wolnym miejscem i czysta linia strzalu.
+    let [x, y] = at(angle, radius);
+    search: for (const r of [radius, radius * 0.75, radius * 0.5, radius * 1.25]) {
+        for (let k = 0; k < 24; k++) {
+            const a = angle + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 12);
+            const [cx, cy] = at(a, r);
+            if (!tutorialBlocked(cx, cy, 40) && tutorialLineClear(px, py, cx, cy)) { x = cx; y = cy; break search; }
+        }
+    }
     const e = new Enemy(x, y, ENEMY_NORMAL, false, worldContainer);
     attachEnemyCubeStolenCallback(e);
     enemies.push(e);
@@ -1869,6 +1903,17 @@ if (isMultiplayerEnabled()) {
         menu.onGameRequested?.(new GameConfigBuilder().setScenario('ktb').setMap(map as GameConfig['map'])
             .setBrawlerId(BRAWLERS[0].id).setDifficulty('normal').setProfileId(pid).build());
     };
+}
+
+// CASTLE ART v2 (dev-only): start dowolnego scenariusza z narzedzi zrzutow (tools/castle-shot.mjs).
+if (import.meta.env.DEV) {
+    (window as unknown as { __devStart: (scenario: string, map: string) => void }).__devStart = (scenario, map) => {
+        const pid = ProfileService.getActiveProfile()?.id ?? 'default';
+        menu.onGameRequested?.(new GameConfigBuilder().setScenario(scenario as GameConfig['scenario']).setMap(map as GameConfig['map'])
+            .setBrawlerId(BRAWLERS[0].id).setDifficulty('normal').setProfileId(pid).build());
+    };
+    (window as unknown as { __hud: unknown }).__hud = hud;
+    (window as unknown as { __tut: () => unknown }).__tut = () => ({ lp: localPlayer ? { x: localPlayer.x, y: localPlayer.y } : null, act: tutorialActive, en: tutorialEnemies.map(e => ({ x: e.x, y: e.y, a: e.active, hp: e.hp })) });
 }
 
 function setCoopBadge(visible: boolean): void {
@@ -2757,6 +2802,8 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
     castlePennants?.destroy(); castlePennants = null;
     for (const hb of castleHay) hb.destroy(); castleHay = [];
     castleCrows?.destroy(); castleCrows = null;
+    castleSmoke?.destroy(); castleSmoke = null; castleSmokeSrc.length = 0;
+    castleLife?.destroy(); castleLife = null;
     castleEnemyBarriers = [];
     castleEnemyBuildings = null;
     castleEnemyBulletSolids = null;
@@ -3608,7 +3655,7 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         castleEnemyBarriers = castleParts.filter(p => p.kind === 'gate').map(p => p.enemyProxy);
 
         // Fosa (slow 0.5x, passable; woda w bake, ramka+zmarszczki w runtime)
-        castleMoat = new CastleMoat(CASTLE_MOAT, worldContainer);
+        castleMoat = new CastleMoat(CASTLE_MOAT, worldContainer, CASTLE_BRIDGES, touchManager.isActive);
         // Las (bloki solid) + ruina kaplicy — pieczone RAZ, cache per seed
         castleSolids = [];
         for (const f of CASTLE_FORESTS) {
@@ -3640,6 +3687,11 @@ async function startGameInner(config: GameConfig, tutorialMode = false): Promise
         }
         // F6: kruki nad donzonem (ambient A, cull)
         castleCrows = new CastleCrows(CASTLE_KEEP.x + CASTLE_KEEP.w / 2, CASTLE_KEEP.y + CASTLE_KEEP.h / 2, worldContainer);
+        resetCastleClock();
+        if (isCastleArtV2()) castleSmoke = new CastleSmoke(worldContainer, touchManager.isActive); // lowFx na dotyku: 7 klebow
+        if (isCastleArtV2()) castleLife = new CastleLife(castleParts, worldContainer, touchManager.isActive);
+        if (import.meta.env.DEV) (window as unknown as { __castleSmoke: unknown }).__castleSmoke = castleSmoke;
+        if (import.meta.env.DEV) (window as unknown as { __castleMoat: unknown }).__castleMoat = castleMoat;
         // debug F12 (P0.13: tylko DEV / ?perf=1 — hooki na window to ryzyko dla uczciwosci wyniku po F7): castleTier(2) -> wszystkie zniszczalne czesci na tier 2; castleTier(3,'gate')
         if (CASTLE_DEBUG_HOOKS) (window as any).castleTier = (tier: CastleDamageTier, id?: string) => {
             for (const p of castleParts) if (!id || p.id === id) p.setTierDebug(tier);
@@ -5180,6 +5232,7 @@ function applyHazardDamageToEnemy(enemy: Enemy, dmg: number, src: DamageSource):
 }
 
 async function triggerGameOver(): Promise<void> {
+    if (gameState === 'VICTORY' || gameState === 'GAMEOVER') return; // v0.251.0: re-entry guard
     if (netRole() === 'host') sendRel({ t: 'end', result: 'gameover' }); // COOP LAN-3a
     // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
@@ -5284,6 +5337,9 @@ async function triggerGameOver(): Promise<void> {
 }
 
 async function triggerVictory(): Promise<void> {
+    // v0.251.0: re-entry guard — Zamek: kill mega bossa (setTimeout 800 ms) + CastleSystem.victory wolaly
+    // triggerVictory dwa razy => podwojna fanfara (i podwojny zapis wyniku/progresji).
+    if (gameState === 'VICTORY' || gameState === 'GAMEOVER') return;
     if (netRole() === 'host') sendRel({ t: 'end', result: 'victory' }); // COOP LAN-3a
     // v0.144.0 — utrwal licznik pity Globusa na koniec meczu (seed przy starcie,
     // zapis tutaj: dwa zapisy na mecz zamiast jednego co 4 s w petli spawnu).
@@ -5729,7 +5785,23 @@ function runLogicStep(delta: number): void {
     // FAZA CTF F1 — fosa: slow 0.5x jak quicksand/sludge (passable)
     if (ruinsFosa) ruinsFosa.update();
     // OBRON ZAMEK F2 — fosa zamku: slow 0.5x (mosty = wyciecia, pelna predkosc)
-    if (castleMoat) castleMoat.update();
+    if (castleMoat) {
+        tickCastleClock(); // CASTLE ART v2: zegar ambientu = krok logiki (staje w pauzie)
+        castleTanksBuf.length = 0;
+        for (const p of players) castleTanksBuf.push(p);
+        for (const e of enemies) if (e.active && Math.abs(e.x - camera.x - viewW / 2) < viewW && Math.abs(e.y - camera.y - viewH / 2) < viewH) castleTanksBuf.push(e);
+        castleMoat.update(castleTanksBuf);
+    }
+    if (castleSmoke) {
+        if (castleSmokeSrc.length === 0) for (const cp of castleParts) {
+            if (cp.kind !== 'wall' && cp.kind !== 'gate' && cp.kind !== 'keep') continue;
+            const lift = cp.kind === 'keep' ? 150 : cp.kind === 'gate' ? 50 : 44;
+            castleSmokeSrc.push({ x: cp.x, y: cp.y, w: cp.w, topY: cp.y + Math.min(cp.h, 40) - lift, tier: cp.tier, kind: cp.kind, part: cp });
+        }
+        for (const src of castleSmokeSrc) src.tier = (src.part as CastlePart).tier; // bez alokacji co krok
+        castleSmoke.update(castleSmokeSrc, { x: camera.x, y: camera.y, w: viewW, h: viewH });
+    }
+    if (castleLife) castleLife.update({ x: camera.x, y: camera.y, w: viewW, h: viewH });
     for (const wf of castleWheat) wf.update();
     if (castlePennants) castlePennants.update(camera.x, camera.y, viewW, viewH);
     if (castleCrows) castleCrows.update(camera.x, camera.y, viewW, viewH); // F6

@@ -212,7 +212,9 @@ export class HUD {
      * (zero zmian wygladu), A54 w poziomie 667x375 => 0.60.
      */
     private get overlayScale(): number {
-        return Math.min(1, this.screenW / 1100, this.screenH / 620);
+        // v0.251.0 (Mariusz: "notify massakrycznie duze na mobile"): ~-20% desktop, ~-22% telefon.
+        // 1280x720 => 0.80, telefon 812x375 => 0.47 (alert mega bossa 320x47 px zamiast 408x60).
+        return Math.min(0.8, this.screenW / 1400, this.screenH / 800);
     }
 
     /** Czy HUD gra w ukladzie dotykowym (uiScale 0.7 ustawiane w main.ts przy TouchInputManager.isActive). */
@@ -1569,22 +1571,24 @@ export class HUD {
         c.globalAlpha = alpha;
         c.translate(this.screenW / 2, this.screenH / 2 - 50 * os);
         c.scale(os, os);
-        this.sigmaRect('banner-megaboss', this.screenW / 2 - 340 * os, this.screenH / 2 - 100 * os, 680 * os, 100 * os, false);
+        // v0.251.0: 52 px / 680x100 bylo za duze (tekst wystawal z ramki) — 40 px, ramka dopasowana do tekstu
+        const incomingTxt = tr('hud.megaBossIncoming');
+        c.font = `40px "${FONT_FAMILY}",cursive`;
+        const bw = Math.ceil(c.measureText(incomingTxt).width) + 56, bh = 72;
+        this.sigmaRect('banner-megaboss', this.screenW / 2 - bw / 2 * os, this.screenH / 2 - 50 * os - bh / 2 * os, bw * os, bh * os, false);
 
         c.fillStyle = 'rgba(0,0,0,0.85)';
         c.beginPath();
-        c.roundRect(-340, -50, 680, 100, 16);
+        c.roundRect(-bw / 2, -bh / 2, bw, bh, 14);
         c.fill();
         c.strokeStyle = '#ffdd00';
         c.lineWidth = 4;
         c.stroke();
-        
-        c.font = `52px "${FONT_FAMILY}",cursive`;
+
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.strokeStyle = '#000';
-        c.lineWidth = 6;
-        const incomingTxt = tr('hud.megaBossIncoming');
+        c.lineWidth = 5;
         c.strokeText(incomingTxt, 0, 0);
         c.fillStyle = '#ffdd00';
         c.fillText(incomingTxt, 0, 0);

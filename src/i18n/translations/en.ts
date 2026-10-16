@@ -173,6 +173,11 @@ export const en: typeof pl = {
     // ============================================================
     // Intro Screen
     // ============================================================
+    'bday.title': '🎉 MICHAL TURNS 10 🎉',
+    'bday.short': 'Michal turns 10!',
+    'bday.rail': "Michal's game!",
+    'bday.end': "Playing at Michal's birthday! 🎂",
+    'bday.close': 'Close',
     'intro.start': 'START',
     'intro.tap_to_play': 'Tap to play',
 

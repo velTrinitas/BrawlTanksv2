@@ -1,0 +1,139 @@
+/* EVENT 10. URODZINY MICHALA — izolowane style (usunac po 25.10.2026). Tylko transform/opacity w animacjach. */
+
+/* ── Pas w naglowku ── */
+.bt-bday-strip {
+    flex: 1 1 auto; min-width: 0; align-self: stretch; margin: 4px 10px;
+    position: relative; overflow: hidden; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: linear-gradient(90deg, rgba(255,95,162,.22), rgba(241,196,15,.22) 50%, rgba(52,152,219,.22));
+    border: 2px solid rgba(241,196,15,.75);
+    box-shadow: 0 0 14px rgba(241,196,15,.35), inset 0 0 12px rgba(255,255,255,.08);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.bt-bday-strip::after { /* shimmer */
+    content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 30%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.45), transparent);
+    transform: translateX(-120%); animation: bt-bday-shimmer 4.5s ease-in-out infinite; pointer-events: none;
+}
+@keyframes bt-bday-shimmer { 0%,55% { transform: translateX(-120%); } 85%,100% { transform: translateX(420%); } }
+.bt-bday-flags { position: absolute; top: 0; left: 0; right: 0; height: 14px; pointer-events: none; border-top: 1px solid rgba(255,255,255,.5); }
+.bt-bday-flags i {
+    position: absolute; top: 2px; width: 12px; height: 12px; transform-origin: 50% 0;
+    clip-path: polygon(0 0,100% 0,50% 100%); animation: bt-bday-flag 1.6s ease-in-out infinite alternate;
+}
+@keyframes bt-bday-flag { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
+.bt-bday-title {
+    position: relative; z-index: 1; white-space: nowrap; font-family: 'Titan One', sans-serif;
+    font-size: clamp(14px, 2.1vw, 30px); letter-spacing: .5px;
+    background: linear-gradient(180deg, #fff6b0 0%, #f9d423 45%, #f39c12 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: 1.5px #5a2a00; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.55));
+    animation: bt-bday-pulse 1.8s ease-in-out infinite;
+}
+.bt-bday-title .s { display: none; }
+@keyframes bt-bday-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.bt-bday-emo { position: relative; z-index: 1; font-size: clamp(18px, 2.4vw, 34px); line-height: 1; display: inline-block; }
+.bt-bday-emo.b1 { animation: bt-bday-bob 2.2s ease-in-out infinite; }
+.bt-bday-emo.b2 { animation: bt-bday-bob 2.6s ease-in-out -.8s infinite; }
+.bt-bday-emo.cake { animation: bt-bday-wiggle 1.4s ease-in-out infinite; }
+@keyframes bt-bday-bob { 0%,100% { transform: translateY(2px) rotate(-6deg); } 50% { transform: translateY(-5px) rotate(6deg); } }
+@keyframes bt-bday-wiggle { 0%,100% { transform: rotate(-8deg) scale(1); } 50% { transform: rotate(8deg) scale(1.12); } }
+@media (max-width: 900px) {
+    .bt-bday-strip { gap: 6px; margin: 3px 6px; }
+    .bt-bday-title .l { display: none; }
+    .bt-bday-title .s { display: inline; }
+    .bt-bday-emo.b2, .bt-bday-emo.x { display: none; }
+}
+
+/* ── Kolumna pod railem (desktop) ── */
+.bt-bday-rail { display: none; }
+body.bt-desktop .bt-bday-rail {
+    display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; gap: 6px;
+    flex: 1 1 auto; min-height: 120px; margin-top: 10px; padding: 8px 0 14px; position: relative;
+    border-radius: 12px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(255,95,162,.10), rgba(241,196,15,.14));
+    border: 2px solid rgba(241,196,15,.55);
+}
+.bt-bday-rail .garland {
+    position: absolute; top: 0; left: 50%; width: 3px; height: 70%; transform: translateX(-50%);
+    background: repeating-linear-gradient(180deg,#ff5fa2 0 10px,#f1c40f 10px 20px,#2ecc71 20px 30px,#3498db 30px 40px);
+    border-radius: 2px; opacity: .8;
+}
+.bt-bday-balloon {
+    font-size: 40px !important; line-height: 1; cursor: pointer; user-select: none; position: relative; z-index: 1;
+    animation: bt-bday-float 3s ease-in-out infinite; filter: drop-shadow(0 3px 2px rgba(0,0,0,.4));
+    -webkit-tap-highlight-color: transparent;
+}
+.bt-bday-balloon:nth-child(3) { animation-delay: -1s; }
+.bt-bday-balloon:nth-child(4) { animation-delay: -2s; }
+.bt-bday-balloon.popped { animation: bt-bday-pop .35s ease-out forwards; pointer-events: none; }
+@keyframes bt-bday-float { 0%,100% { transform: translateY(4px) rotate(-5deg); } 50% { transform: translateY(-8px) rotate(5deg); } }
+@keyframes bt-bday-pop { 0% { transform: scale(1); opacity: 1; } 60% { transform: scale(1.7); opacity: .8; } 100% { transform: scale(0); opacity: 0; } }
+.bt-bday-ten {
+    font-family: 'Titan One', sans-serif; font-size: 50px; line-height: 1; position: relative; z-index: 1;
+    background: linear-gradient(180deg, #fff6b0, #f9d423 45%, #e67e22);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: 2px #5a2a00; animation: bt-bday-pulse 1.8s ease-in-out infinite;
+}
+.bt-bday-rail small { font-family: 'Titan One', sans-serif; font-size: 10px; color: #ffd76a; text-align: center; line-height: 1.1; z-index: 1; }
+
+/* ── Konfetti (wspolne) ── */
+.bt-bday-confetti { position: fixed; inset: 0; pointer-events: none; z-index: 9000; overflow: hidden; }
+.bt-bday-confetti i {
+    position: absolute; top: -20px; width: var(--w, 8px); height: calc(var(--w, 8px) * 1.6);
+    background: var(--c); border-radius: 2px; left: var(--x);
+    animation: bt-bday-fall var(--dur, 2.6s) cubic-bezier(.3,.6,.5,1) var(--d, 0s) forwards;
+}
+@keyframes bt-bday-fall {
+    0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+    85% { opacity: 1; }
+    100% { transform: translate(var(--dx, 0px), 105vh) rotate(var(--r, 720deg)); opacity: 0; }
+}
+.bt-bday-burst { position: fixed; pointer-events: none; z-index: 9001; }
+.bt-bday-burst i {
+    position: absolute; width: 7px; height: 7px; border-radius: 2px; background: var(--c);
+    animation: bt-bday-burst .7s ease-out forwards;
+}
+@keyframes bt-bday-burst { to { transform: translate(var(--dx), var(--dy)) rotate(540deg); opacity: 0; } }
+
+/* ── Nakladka Start.jpg ── */
+.bt-bday-start {
+    position: fixed; inset: 0; z-index: 9500; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 45%, rgba(60,20,90,.92), rgba(5,5,15,.97));
+    animation: bt-bday-fadein .3s ease-out;
+}
+@keyframes bt-bday-fadein { from { opacity: 0; } to { opacity: 1; } }
+.bt-bday-start.closing { animation: bt-bday-fadeout .3s ease-in forwards; }
+@keyframes bt-bday-fadeout { to { opacity: 0; } }
+.bt-bday-start img {
+    max-width: min(92vw, 640px); max-height: 86vh; width: auto; height: auto; border-radius: 18px;
+    border: 4px solid #f1c40f; box-shadow: 0 0 30px rgba(241,196,15,.5), 0 10px 30px rgba(0,0,0,.6);
+    animation: bt-bday-popin .55s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes bt-bday-popin { from { transform: scale(.4) rotate(-6deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+.bt-bday-close {
+    position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+    width: 56px; height: 56px; border-radius: 50%; border: 3px solid #2c3e50; background: #f1c40f; color: #2c3e50;
+    font-family: 'Titan One', sans-serif; font-size: 28px; line-height: 1; cursor: pointer;
+    box-shadow: 3px 3px 0 #2c3e50; z-index: 2;
+}
+.bt-bday-close:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #2c3e50; }
+.bt-bday-timer {
+    position: absolute; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    width: min(60vw, 360px); height: 8px; border-radius: 4px; background: rgba(255,255,255,.18); overflow: hidden;
+}
+.bt-bday-timer i { display: block; height: 100%; background: linear-gradient(90deg,#ff5fa2,#f1c40f); transform-origin: 0 50%; animation: bt-bday-timer 6s linear forwards; }
+@keyframes bt-bday-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* ── Baner na ekranie wyniku ── */
+.bt-bday-endbanner {
+    display: inline-block; margin: 0 auto 10px; padding: 6px 16px; border-radius: 14px;
+    font-family: 'Titan One', sans-serif; font-size: 1rem; color: #fff;
+    background: linear-gradient(90deg,#ff5fa2,#f39c12); border: 2px solid #2c3e50; box-shadow: 2px 2px 0 #2c3e50;
+    animation: bt-bday-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bt-bday-strip::after, .bt-bday-title, .bt-bday-emo, .bt-bday-balloon, .bt-bday-ten, .bt-bday-endbanner { animation: none !important; }
+    .bt-bday-confetti { display: none; }
+}

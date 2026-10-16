@@ -19,6 +19,7 @@
 
 import type { IScreen } from './MainMenu';
 import { t } from '../i18n/i18n';
+import { isBirthdayActive } from '../config/birthdayEvent';
 
 // ============================================================
 // Config
@@ -35,12 +36,22 @@ const BASE_URL = import.meta.env.BASE_URL;
  * wpisy). Pelny rebrand (tytuly/manifest/domena sigmatanks.eu) = osobna faza R1-R3
  * (plan w Notion "SIGMA TANKS — plan zmiany nazwy").
  */
-const SLIDES = [
+const BASE_SLIDES = [
     { id: 'sigma1', file: 'SigmaTanks_1.jpg' },
     { id: 'sigma2', file: 'SigmaTanks2.jpg' },
     { id: 'sigma3', file: 'SigmaTanks_3.jpg' },
     { id: 'sigma4', file: 'SigmaTanks_4.jpg' },
 ];
+
+/**
+ * EVENT urodziny Michala (do 25.10.2026 13:00): Mike_birthday.jpg zawsze pierwszy i co drugi slajd,
+ * pokazywany dluzej (BDAY_SLIDE_MS). Po terminie wraca zwykla rotacja.
+ */
+const BDAY_SLIDE_MS = 9000;
+const SLIDES: Array<{ id: string; file: string }> = isBirthdayActive()
+    ? BASE_SLIDES.flatMap((s, i) => [{ id: 'bday' + i, file: 'Mike_birthday.jpg' }, s])
+    : BASE_SLIDES;
+const slideDuration = (idx: number): number => SLIDES[idx].file === 'Mike_birthday.jpg' ? BDAY_SLIDE_MS : SLIDE_DURATION_MS;
 
 // ============================================================
 // IntroScreen
@@ -139,14 +150,16 @@ export class IntroScreen implements IScreen {
         // Defensive: clear any existing timer
         this.stopSlideshow();
 
-        this.rotationTimer = window.setInterval(() => {
-            this.advanceSlide();
-        }, SLIDE_DURATION_MS);
+        // Lancuch setTimeout zamiast setInterval: czas zalezy od slajdu (urodzinowy dluzej).
+        const tick = (): void => {
+            this.rotationTimer = window.setTimeout(() => { this.advanceSlide(); tick(); }, slideDuration(this.activeSlideIdx));
+        };
+        tick();
     }
 
     private stopSlideshow(): void {
         if (this.rotationTimer !== null) {
-            clearInterval(this.rotationTimer);
+            clearTimeout(this.rotationTimer);
             this.rotationTimer = null;
         }
         // Anuluj takze wiszace wygaszanie poprzedniego slajdu — inaczej odpali sie

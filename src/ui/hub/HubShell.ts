@@ -41,6 +41,8 @@ import type { DifficultyId } from '../../types/GameConfig'; // HUB-1.5
 
 import './hub-styles.css';
 import { SeasonCelebrationOverlay } from './overlays/SeasonCelebrationOverlay'; // v0.250.0
+import { birthdayStripHtml, birthdayRailHtml, wireBirthdayDecor, maybeHubBirthdayConfetti } from './BirthdayDecor'; // EVENT urodziny Michala (do 25.10.2026)
+import { isBirthdayActive } from '../../config/birthdayEvent';
 import './shop-styles.css'; // SHOP-1 — izolacja per-feature (design-values.md)
 
 /**
@@ -320,6 +322,7 @@ export class HubShell implements IScreen {
 
     /** Srodek belki: przy motywie — mini Szlak Sezonu (ikona sezoniakow, pasek, punkty), tap = strona SEZON. */
     private themeStripHtml(pid: string): string {
+        if (isBirthdayActive()) return birthdayStripHtml(); // EVENT urodziny Michala — ma pierwszenstwo przed motywem
         if (!this.menuThemeDef()) return '<span class="bt-hub0-spacer"></span>';
         const track = ProgressionService.getSeasonTrackState(pid);
         const content = getSeasonContent(getCurrentSeason().id);
@@ -342,6 +345,7 @@ export class HubShell implements IScreen {
         const prev = this.lastReadout;
         const cur = this.readoutValues();
         top.innerHTML = this.renderReadout();
+        wireBirthdayDecor(top); // EVENT urodziny Michala — pas przerysowany razem z belka
         this.applyMenuTheme(); // v0.250.0 — zalozenie/zdjecie motywu w Kolekcji idzie ta sama sciezka
         // v0.208.0 (J4) — liczby NABIJAJA sie od poprzednio pokazanej wartosci, ikona
         // podskakuje co ~10% drogi, na koncu wylatuje „+N". Do tej wersji liczba po meczu
@@ -473,6 +477,8 @@ export class HubShell implements IScreen {
         root.appendChild(this.rootEl);
         this.applyMenuTheme(); // v0.250.0 SEZON v2
         this.wire();
+        wireBirthdayDecor(this.rootEl); // EVENT urodziny Michala
+        maybeHubBirthdayConfetti();
         this.refreshBadges(); // v0.207.0 — mount maluje chrome bez refreshReadout, wiec kropki osobno
         attachRipple(this.rootEl);            // v0.208.0 (J1) — ripple + squash + haptyka na kazdy tap
         this.lastReadout = this.readoutValues(); // J4: pierwszy render bez count-upu
@@ -587,7 +593,7 @@ export class HubShell implements IScreen {
 
         return `
             <div class="bt-hub0-top">${this.renderReadout()}</div>
-            <nav class="bt-hub0-nav">${nav}${play}<i class="bt-hub0-navind" aria-hidden="true"></i><span class="bt-hub0-theme-emblem" aria-hidden="true"></span></nav>
+            <nav class="bt-hub0-nav">${nav}${play}<i class="bt-hub0-navind" aria-hidden="true"></i><span class="bt-hub0-theme-emblem" aria-hidden="true"></span>${isBirthdayActive() ? birthdayRailHtml() : ''}</nav>
             <div class="bt-hub0-main"></div>
         `;
     }

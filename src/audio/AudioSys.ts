@@ -1248,6 +1248,19 @@ export class AudioSys {
      * Throttle 60ms — anty-spam przy szybkich klikach.
      */
     private menuClickTimer: number = 0;
+    /** EVENT urodziny Michala — dzingiel „Sto lat" (tools/render-bday-sfx.mjs), muzyka huba sciszona na czas grania. */
+    private bdayJingle: Howl | null = null;
+    playBirthdayJingle(): void {
+        try {
+            if (!this.bdayJingle) this.bdayJingle = new Howl({ src: [BASE + 'sfx/bday_jingle.mp3'], volume: 0.8 * this.sfxVolMult,
+                onloaderror: (_id, err) => console.warn('[AudioSys] Brak sfx/bday_jingle.mp3', err) });
+            this.duckMusic(9200); // dzingiel ~8.9 s
+            this.bdayJingle.play();
+        } catch (e) {
+            console.warn('[AudioSys] bday jingle failed', (e as Error).stack ?? e);
+        }
+    }
+
     playMenuClick(): void {
         this.playMenuClickRate(1);
     }

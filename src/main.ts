@@ -325,6 +325,7 @@ import { isTraitsEnabled, type TraitId } from './config/traits'; // v0.246.0
 import { srcTrait } from './types/DamageSource'; // v0.246.0
 import { NickSpray } from './rendering/NickSpray'; // v0.246.0
 import { isSprayEnabled } from './config/sprayFlag'; // v0.246.0
+import { birthdayEndBannerHtml } from './ui/hub/BirthdayDecor'; // EVENT urodziny Michala (do 25.10.2026)
 
 // PIERWSZA instrukcja ciala modulu — PRZED PIXI, audio, flagami URL i czymkolwiek
 // innym. Gdy okno testow jest zamkniete, `guardTestWindow` rysuje ekran konca I RZUCA,
@@ -4874,7 +4875,7 @@ function rangeReportHtml(r: RangeReport | undefined): string {
         <table style="border-collapse:collapse;margin-top:4px"><tr style="color:#8ba3b6"><th align="left" style="padding:0 6px">station</th><th style="padding:0 6px">time</th><th style="padding:0 6px">acc</th><th style="padding:0 6px">dps</th><th style="padding:0 6px">taken</th><th style="padding:0 6px">resc</th><th style="padding:0 6px">kills</th><th style="padding:0 6px">avg dist</th></tr>${rows}</table></div>`;
 }
 function renderEndScreen(kind: 'defeat' | 'victory', d: EndScreenData, btnId: string): string {
-    return renderEndScreenBase(kind, d, btnId) + rangeReportHtml(d.rangeReport);
+    return birthdayEndBannerHtml() + renderEndScreenBase(kind, d, btnId) + rangeReportHtml(d.rangeReport);
 }
 function renderEndScreenBase(kind: 'defeat' | 'victory', d: EndScreenData, btnId: string): string {
     const isVictory = kind === 'victory';

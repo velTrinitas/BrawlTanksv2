@@ -181,6 +181,11 @@ export const pl = {
     // ============================================================
     // Intro Screen
     // ============================================================
+    'bday.title': '🎉 10. URODZINY MICHAŁA 🎉',
+    'bday.short': '10 lat Michała!',
+    'bday.rail': 'Gra Michała!',
+    'bday.end': 'Gramy na urodzinach Michała! 🎂',
+    'bday.close': 'Zamknij',
     'intro.start': 'START',
     'intro.tap_to_play': 'Stuknij, aby zagrać',
 

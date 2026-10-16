@@ -38,6 +38,7 @@ import { GameConfigBuilder, type GameConfig, type DifficultyId } from '../types/
 import type { ScenarioId } from '../types/Scenario';
 import type { MapId } from '../types/MapType';
 import { AudioSys } from '../audio/AudioSys';
+import { showBirthdayStart } from './hub/BirthdayDecor'; // EVENT urodziny Michala (do 25.10.2026)
 
 // ============================================================
 // Types
@@ -225,12 +226,15 @@ export class MainMenu {
         const screen = new IntroScreen();
         screen.onStartClick = () => {
             AudioSys.getInstance().startHubMusic();
-
-            if (ProfileService.needsOnboarding()) {
-                this.show('identity');
-            } else {
-                this.show(this.hubId());
-            }
+            const go = (): void => {
+                if (ProfileService.needsOnboarding()) {
+                    this.show('identity');
+                } else {
+                    this.show(this.hubId());
+                }
+            };
+            // EVENT urodziny Michala (do 25.10.2026 13:00): Start.jpg na 6 s / X przed hubem
+            if (!showBirthdayStart(go)) go();
         };
         return screen;
     }
